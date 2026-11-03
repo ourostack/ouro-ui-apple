@@ -1,9 +1,11 @@
 name: X-ray our apps
 
 # Runs ouro-ax-xray, metadata and behaviour, against our public apps at their default branch, and uploads the reports.
-# It checks them out read-only and opens nothing against them. Run it by hand: gh workflow run xray-apps.yml
+# It checks them out read-only and opens nothing against them. It needs the billed xcode-27 runner, so it runs only
+# when a release is published (see ci.yml's note on where checks run).
 on:
-  workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -11,6 +13,7 @@ permissions:
 jobs:
   xray:
     name: X-ray ${{ matrix.app }}
+    if: github.event_name == 'release'
     runs-on: xcode-27
     timeout-minutes: 60
     strategy:

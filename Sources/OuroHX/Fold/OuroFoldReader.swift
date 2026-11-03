@@ -30,9 +30,13 @@ public struct OuroFoldReader<Content: View>: View {
 
     /// The `.division` regions, inactive ones included, in the proxy's coordinates.
     public static func divisions(in proxy: GeometryProxy) -> [OuroFoldRegion] {
+        // The hinge APIs ship in the Xcode 27 SDKs (Swift 6.4); older toolchains, such as CI's free macos-26 image,
+        // build the rest of the package without them.
+        #if compiler(>=6.4)
         if #available(iOS 27.1, macOS 27.1, *) {
             return proxy.reservedRegions(kind: .division, options: .includeInactive).map { OuroFoldRegion(frame: $0.frame, isActive: $0.isActive) }
         }
+        #endif
         return []
     }
 }
@@ -41,6 +45,7 @@ private struct OuroHingeObserver: ViewModifier {
     @Binding var hinge: OuroHinge
 
     func body(content: Content) -> some View {
+        #if compiler(>=6.4)
         if #available(iOS 27.1, macOS 27.1, *) {
             content.onHingeChange { _, new in
                 guard let h = new.hinge else { hinge = .none; return }
@@ -53,6 +58,9 @@ private struct OuroHingeObserver: ViewModifier {
         } else {
             content
         }
+        #else
+        content
+        #endif
     }
 }
 

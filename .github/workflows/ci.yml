@@ -5,7 +5,15 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
+
+# Where each check runs. Free hosted runners (ubuntu-latest, macos-26) run everything their Xcode 26 can: on every pull
+# request and push. The billed xcode-27 runner (capped at $15 a month for this repository; usage stops at the cap) runs
+# only what needs Xcode 27 or an iOS 27 OS, and only on pushes to main and on published releases, never on pull
+# requests. Drop it once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the
+# `if:` gates below. No self-hosted runners.
 
 permissions:
   contents: read
@@ -35,16 +43,37 @@ jobs:
           git checkout -- Sources/OuroAXTesting/Resources/apple.claims.json
           test "$status" -eq 3
 
-  swift:
-    name: Build, test, DocC and gallery (Xcode 27)
-    # xcode-27 is GitHub's hosted image with Xcode 27 (image xcode-27-arm64), the label Gatefold and Spoonjoy apple
-    # use; macos-latest and macos-26 carry Xcode 26 only. The iOS 27.1 hinge APIs need an Xcode 27.1+ SDK.
+  xcode-27:
+    name: Build and test with Xcode 27 (main and releases only)
+    # xcode-27 is GitHub's billed hosted image with Xcode 27 (image xcode-27-arm64). It compiles what the free image
+    # fences out: the iOS 27.1 hinge APIs (`#if compiler(>=6.4)`) and AppIntentsTesting.
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Select the newest Xcode 27.2 or later
         run: sh scripts/select-xcode.sh 27.2
+      - name: swift build
+        run: swift build --build-tests
+      - name: swift test
+        run: swift test
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+
+  swift:
+    name: Build, test, DocC and gallery (free macos-26, Xcode 26)
+    # GitHub's free standard image. Its Xcode 26 lacks the iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the
+    # Siri AI parts compile out behind compiler and canImport checks; the xcode-27 job covers them on main.
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: xcodebuild -version && swift --version
       - name: swift build
         run: swift build --build-tests
       - name: swift test
@@ -82,6 +111,7 @@ jobs:
     # The behaviour stage needs an Xcode whose AppIntentsTesting matches the OS it runs on: Xcode 27.2's needs a 27.2
     # OS, and this image has macOS 27.0.1 with iOS 27.0 and 27.1 simulators. So each lane pins an older Xcode to a
     # matching OS. See docs/decisions/2026-11-03-ax-xray.md.
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: xcode-27
     timeout-minutes: 45
     strategy:
@@ -151,6 +181,7 @@ jobs:
     name: Siri AI parts (Xcode 27.3 beta, compile only)
     # The tool-intent and SiriEvaluations code compiles only against the 27.3 beta SDK. When the image carries an
     # Xcode 27.3 or later, this lane builds with OURO_SIRI_AI_SDK set; until then it says so and passes.
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: xcode-27
     timeout-minutes: 40
     steps:

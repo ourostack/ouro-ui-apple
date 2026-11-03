@@ -95,6 +95,13 @@ The Siri AI Developer Preview needs the Xcode 27.3 beta SDK. Until you build wit
 
 CI's `siri-ai-sdk` job compiles them as soon as its image has Xcode 27.3.
 
+## CI
+
+- **Free GitHub-hosted runners** (`ubuntu-latest`, `macos-26`) run on every pull request and push: core provenance, `swift build` and `swift test`, the skills linter, the iOS Simulator build, DocC and the gallery. Their Xcode 26 has no iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the Siri AI parts compile out behind `#if compiler(>=6.4)` and `canImport`.
+- **The billed `xcode-27` runner** runs only what needs Xcode 27 or an iOS 27 OS: the Xcode 27 build and test, the fixture X-ray lanes and the Siri AI compile lane. It runs on pushes to `main` and on published releases, never on pull requests; `xray-apps.yml` runs on releases only. Its spending is capped by a $15-a-month Actions budget on this repository, and usage stops at the cap.
+- **When the free image ships Xcode 27,** drop the lane: point those jobs at `macos-26` (or `macos-latest`), delete their `if:` gates, and remove this paragraph.
+- No self-hosted runners.
+
 ## Working on it
 
 Read [AGENTS.md](AGENTS.md): where core lives, how a token bump works, and why names match web. Decisions are in

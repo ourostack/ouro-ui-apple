@@ -27,7 +27,7 @@ Status: accepted (W3 of the HX and AX native program).
    trusted, 4 press failed), so Gatefold's and Spoonjoy's workflows switch by changing one path. Two changes: an
    unknown command or a missing argument exits 64 (the original ran `dump` or crashed), and `serve <dir>` is new, the
    Mac side of the Duo request files.
-9. **The skills linter speaks ax-problem.** JSON is `skills-lint/1`; findings are problems with `exit: 3`; usage errors
+9. **The skills linter speaks ax-problem.** JSON is `skills-lint/1`; findings are problems whose `exit` is 3 for an error and 0 for a warning (3 under `--strict`); usage errors
    exit 2 with `{"error": …}`; warnings count only under `--strict`.
 
 ## Prior art

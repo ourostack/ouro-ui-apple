@@ -43,7 +43,8 @@ public struct OuroDuoRequests: Sendable {
     /// Requests with no answer yet, oldest first.
     public static func pending(in directory: URL) -> [Request] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
-        return names.filter { $0.hasSuffix(".request") }.sorted().compactMap { name in
+        // By number, so 100 comes after 99.
+        return names.filter { $0.hasSuffix(".request") }.sorted { (Int($0.dropLast(8)) ?? 0) < (Int($1.dropLast(8)) ?? 0) }.compactMap { name in
             let request = directory.appendingPathComponent(name)
             let done = request.deletingPathExtension().appendingPathExtension("done")
             guard !FileManager.default.fileExists(atPath: done.path),

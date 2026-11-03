@@ -84,7 +84,7 @@ public enum OuroFoldPosture: Equatable, Sendable {
         /// Clear space on each side of the fold's centre line. A reported fold wider than this keeps its width.
         public var foldMargin: Double = 24
         /// The bends that stand up as a tabletop. Spoonjoy's bands: under 60° is too shallow to stand on, and from 150°
-        /// the screen lies flat; between 140° and 150° it stays a tabletop so the layout does not flicker.
+        /// the screen lies flat. Spoonjoy's 140° to 150° gap, which it left to the hinge status, counts as a tabletop here.
         public var tabletopAngles: Range<Double> = 60..<150
 
         public init() {}

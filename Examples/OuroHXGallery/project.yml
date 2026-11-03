@@ -1,0 +1,27 @@
+# The gallery app: every Ouro HX token in light, dark and increased contrast. Generate with `xcodegen generate`.
+name: OuroHXGallery
+options:
+  bundleIdPrefix: bot.ouro.hx
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  OuroUIApple:
+    path: ../..
+targets:
+  OuroHXGallery:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    dependencies:
+      - package: OuroUIApple
+        product: OuroHX
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.hx.gallery
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: HX Gallery
+        SWIFT_VERSION: "6.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"

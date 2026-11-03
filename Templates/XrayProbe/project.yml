@@ -43,18 +43,27 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-uitests
-  # On macOS the probe is a plain test bundle with no host, so it needs no Automation Mode; the runner opens the
-  # app first.
-  XrayProbeMacTests:
-    type: bundle.unit-test
+  # macOS too: AppIntentsTesting reaches the app through a runner service that exists only when XCTest launched the
+  # app, so a plain test bundle that talks to an app the runner opened gets "Failed to resolve actor" (seen in CI on
+  # macOS 27.0.1). The UI test bundle needs Automation Mode, which hosted CI runners have.
+  XrayProbeMacRunner:
+    type: application
+    platform: macOS
+    sources: [Runner]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-mac-runner
+  XrayProbeMacUITests:
+    type: bundle.ui-testing
     platform: macOS
     sources: [Tests]
     dependencies:
+      - target: XrayProbeMacRunner
       - package: OuroUIApple
         product: OuroAXTestingProbe
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-mactests
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-mac-uitests
 schemes:
   XrayProbe-iOS:
     build:
@@ -65,6 +74,6 @@ schemes:
   XrayProbe-macOS:
     build:
       targets:
-        XrayProbeMacTests: [test]
+        XrayProbeMacUITests: [test]
     test:
-      targets: [XrayProbeMacTests]
+      targets: [XrayProbeMacUITests]

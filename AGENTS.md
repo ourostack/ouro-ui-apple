@@ -1,6 +1,6 @@
 # Ouro UI for Apple
 
-This repository is the Swift package for Ouro HX for Apple (`OuroHX`, `OuroHXTesting`) and Ouro AX for Apple (`OuroAX`, `OuroAXTesting`, the `ouro-ax-skills` linter and its build-tool plugin). What is true on every platform lives in core, not here.
+This repository is the Swift package for Ouro HX for Apple (`OuroHX`, `OuroHXTesting`) and Ouro AX for Apple (`OuroAX`, `OuroAXTesting`, the `ouro-ax-xray` X-ray and its probe, the `ouro-ax-skills` linter and its build-tool plugin). What is true on every platform lives in core, not here.
 
 ## Where things live
 
@@ -40,3 +40,13 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 - Never switch `xcode-select` on a shared Mac; use `DEVELOPER_DIR=... <command>`. `scripts/select-xcode.sh` is for CI only.
 - Every change goes through a pull request, merged when CI is green. Releases are tags `vX.Y.Z`.
 - Other agents adopt this package in their apps (Gatefold, Spoonjoy, Ouro MD). Never edit their repositories from here; offer a PR through their own process.
+
+## The X-ray
+
+- `Sources/OuroAXTesting/Resources/apple.claims.json` is core's release asset, byte for byte, pinned in
+  `core-provenance.json`. Change claims in core, then bump here.
+- `OuroAXTesting` never imports AppIntentsTesting, so `ouro-ax-xray` runs on any Mac; only `OuroAXTestingProbe` does,
+  inside the template's test bundles.
+- Run the behaviour stage only through `scripts/xray-probe.sh` or a simulator you created; refusal runs need
+  `--disposable`. Build the app, the probe and the X-ray with one Xcode whose AppIntentsTesting matches the OS.
+- After changing `SiriScenarioSet`, regenerate the files in `Examples/SiriScenarios` with `ouro-ax-xray scenarios`.

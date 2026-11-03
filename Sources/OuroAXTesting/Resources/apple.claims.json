@@ -112,7 +112,7 @@
         "source": "https://developer.apple.com/documentation/appintents/bringing-custom-actions-and-content-to-siri",
         "finding": "No evaluation has shown Siri failing without it yet."
       },
-      "check": "For each action that adopts a schema, fail when the metadata also marks it a tool and the schema's domain is one Siri reaches.",
+      "check": "For each action that adopts a schema, fail when the metadata also marks it a tool and the schema's domain is one Siri reaches, from the domain table the checker pins from the cited guide.",
       "fix": "Remove `.tool` from that intent; the schema already brings it to Siri. Use `@AppIntent(.tool, schema:)` only for Shortcuts-only domains."
     },
     {
@@ -147,10 +147,10 @@
       "why": "Siri reads the error to the person; an error that names the fix lets the person, or Siri, recover in one step.",
       "evidence": {
         "basis": "principle",
-        "source": "https://developer.apple.com/documentation/appintents/customlocalizedstringresourceconvertible",
+        "source": "https://developer.apple.com/documentation/foundation/customlocalizedstringresourceconvertible",
         "finding": "No evaluation has shown Siri failing without it yet."
       },
-      "check": "With AppIntentsTesting, run each intent that takes an entity with a made-up entity reference, which nothing can match; fail when the run succeeds, or the error is empty, shows a domain and code, or names no next step.",
+      "check": "With AppIntentsTesting, on a disposable device, run each intent whose required parameters are all entities, giving each a made-up reference that nothing can match; fail when the run succeeds, or the error is empty, shows a domain and code, or names no next step.",
       "fix": "Throw an error that conforms to `CustomLocalizedStringResourceConvertible` and says what to do: \"There's no note X. Pick one from your notes, then try again.\""
     },
     {
@@ -371,11 +371,11 @@
         "app-entity"
       ],
       "checkedBy": "app-intents-metadata",
-      "rule": "Entities that leave the app are `Transferable`.",
-      "why": "Siri moves content between apps (\"email this recipe\"); an entity with no transferable representation cannot go anywhere.",
+      "rule": "Every entity is `Transferable`.",
+      "why": "Siri moves content between apps (\"email this recipe\"), and Apple's testing guide treats a transferable representation as a requirement for every entity; one without it cannot go anywhere.",
       "evidence": {
         "basis": "principle",
-        "source": "https://developer.apple.com/documentation/appintents/bringing-custom-actions-and-content-to-siri",
+        "source": "https://developer.apple.com/documentation/appintentstesting/testing-your-app-intents-code",
         "finding": "No evaluation has shown Siri failing without it yet."
       },
       "check": "Read each entity's `transferableContentTypes.exportableTypes` in the metadata; fail when there are none.",
@@ -454,7 +454,7 @@
         "source": "https://developer.apple.com/documentation/appintents/providing-contextual-cues-to-apple-intelligence-and-siri",
         "finding": "No evaluation has shown Siri failing without it yet."
       },
-      "check": "With AppIntentsTesting, launch the app and call `viewAnnotations()` for every entity type; pass when any is annotated. When none is, skip and say a person should open a screen that shows entities.",
+      "check": "With AppIntentsTesting, launch the app and call `viewAnnotations()` for every entity type; pass when any is annotated. When none is, skip and say a person should open a screen that shows entities. This check cannot fail: a pass shows that annotations exist, not that every screen has them.",
       "fix": "Add `.appEntityIdentifier(EntityIdentifier(for: entity))` to each row or detail view that shows an entity, or set `NSUserActivity.appEntityIdentifier` for a single one."
     },
     {
@@ -505,7 +505,7 @@
       ],
       "checkedBy": "skills-lint",
       "rule": "Each skill's name is lowercase letters, numbers and hyphens, the same in its folder and frontmatter, and unique across the app.",
-      "why": "When two skills share a name the system uses one of them, and which one is undefined.",
+      "why": "Two skills with one name leave the system to pick between them, and nothing says which it picks.",
       "evidence": {
         "basis": "principle",
         "source": "https://developer.apple.com/documentation/appintents/orchestrating-complex-actions-with-app-skills",

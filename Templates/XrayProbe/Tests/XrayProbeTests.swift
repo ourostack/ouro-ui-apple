@@ -14,14 +14,16 @@ final class XrayProbeTests: XCTestCase {
         guard let plan = try XrayProbe.planFromEnvironment(env) else {
             throw XCTSkip("no plan: set TEST_RUNNER_OURO_AX_PLAN to the output of `ouro-ax-xray plan --app <path.app>`")
         }
-        #if os(iOS)
+        // XCTest must launch the app: that is what gives AppIntentsTesting a runner service in it to talk to.
         let app = XCUIApplication(bundleIdentifier: plan.bundleIdentifier)
         app.launch()
         _ = app.wait(for: .runningForeground, timeout: 30)
+        #if os(iOS)
         let platform = "iOS"
         #else
         let platform = "macOS"
         #endif
+        defer { app.terminate() }
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let ranOn = env["OURO_AX_RAN_ON"] ?? "\(platform) \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
         let result = await XrayProbe.run(plan, ranOn: ranOn, refusalsAllowed: env[XrayProbe.disposableVariable] == "1")

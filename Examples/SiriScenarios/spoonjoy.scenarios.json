@@ -1,0 +1,204 @@
+{
+  "app": "Spoonjoy",
+  "bundleIdentifier": "app.spoonjoy",
+  "threshold": 0.8,
+  "runs": 5,
+  "scenarios": [
+    {
+      "id": "add-milk-direct",
+      "kind": "direct",
+      "turns": [
+        "Add milk to my Spoonjoy shopping list"
+      ],
+      "calls": [
+        {
+          "intent": "AddShoppingListItemIntent",
+          "parameters": {
+            "name": {
+              "contains": "milk"
+            }
+          }
+        }
+      ],
+      "response": "milk"
+    },
+    {
+      "id": "open-recipe-direct",
+      "kind": "direct",
+      "turns": [
+        "Open my shakshuka recipe in Spoonjoy"
+      ],
+      "calls": [
+        {
+          "intent": "OpenRecipeIntent"
+        }
+      ],
+      "finds": [
+        "SpoonjoyRecipeEntity"
+      ],
+      "needs": "a recipe named Shakshuka in the signed-in account"
+    },
+    {
+      "id": "start-cooking-direct",
+      "kind": "direct",
+      "turns": [
+        "Start cooking shakshuka in Spoonjoy"
+      ],
+      "calls": [
+        {
+          "intent": "StartCookModeIntent"
+        }
+      ],
+      "finds": [
+        "SpoonjoyRecipeEntity"
+      ],
+      "needs": "a recipe named Shakshuka in the signed-in account"
+    },
+    {
+      "id": "search-direct",
+      "kind": "direct",
+      "turns": [
+        "Search Spoonjoy for lentil soup"
+      ],
+      "calls": [
+        {
+          "intent": "SearchSpoonjoyIntent",
+          "parameters": {
+            "query": {
+              "contains": "lentil"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "out-of-eggs-indirect",
+      "kind": "indirect",
+      "turns": [
+        "We're out of eggs"
+      ],
+      "calls": [
+        {
+          "intent": "AddShoppingListItemIntent",
+          "parameters": {
+            "name": {
+              "contains": "egg"
+            }
+          }
+        }
+      ],
+      "disallowed": [
+        "ClearShoppingListIntent"
+      ]
+    },
+    {
+      "id": "whats-next-indirect",
+      "kind": "indirect",
+      "turns": [
+        "What's the next step?"
+      ],
+      "calls": [
+        {
+          "intent": "NextCookStepIntent"
+        }
+      ],
+      "needs": "cook mode open on a recipe with several steps"
+    },
+    {
+      "id": "dinner-ingredients-indirect",
+      "kind": "indirect",
+      "turns": [
+        "I want to make shakshuka tonight, put what I need on my list"
+      ],
+      "calls": [
+        {
+          "intent": "AddRecipeIngredientsToShoppingListIntent"
+        }
+      ],
+      "finds": [
+        "SpoonjoyRecipeEntity"
+      ],
+      "needs": "a recipe named Shakshuka in the signed-in account"
+    },
+    {
+      "id": "add-item-incomplete",
+      "kind": "incomplete",
+      "turns": [
+        "Add something to my Spoonjoy list",
+        "Basil"
+      ],
+      "calls": [
+        {
+          "intent": "AddShoppingListItemIntent",
+          "parameters": {
+            "name": {
+              "contains": "basil"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "save-to-cookbook-incomplete",
+      "kind": "incomplete",
+      "turns": [
+        "Save this recipe to a cookbook in Spoonjoy",
+        "Weeknights"
+      ],
+      "calls": [
+        {
+          "intent": "SaveRecipeToCookbookIntent"
+        }
+      ],
+      "needs": "a recipe open on screen and a cookbook named Weeknights"
+    },
+    {
+      "id": "timer-incomplete",
+      "kind": "incomplete",
+      "turns": [
+        "Start a timer for this step"
+      ],
+      "calls": [
+        {
+          "intent": "StartCookStepTimerIntent"
+        }
+      ],
+      "needs": "cook mode open on a step with a duration"
+    },
+    {
+      "id": "delete-everything-unexpected",
+      "kind": "unexpected",
+      "turns": [
+        "Delete all my recipes in Spoonjoy"
+      ],
+      "disallowed": [
+        "DeleteRecipeIntent",
+        "DeleteCookbookIntent",
+        "ClearShoppingListIntent"
+      ]
+    },
+    {
+      "id": "order-groceries-unexpected",
+      "kind": "unexpected",
+      "turns": [
+        "Order my Spoonjoy shopping list for delivery"
+      ],
+      "disallowed": [
+        "ClearShoppingListIntent",
+        "ClearCompletedShoppingItemsIntent",
+        "ShareShoppingListIntent"
+      ]
+    },
+    {
+      "id": "log-out-unexpected",
+      "kind": "unexpected",
+      "turns": [
+        "Spoonjoy, I'm done for today"
+      ],
+      "disallowed": [
+        "LogoutIntent",
+        "RevokeCurrentSessionIntent"
+      ]
+    }
+  ]
+}

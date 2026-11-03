@@ -1,0 +1,140 @@
+{
+  "app": "Ouro MD",
+  "bundleIdentifier": "bot.ouro.md",
+  "threshold": 0.8,
+  "runs": 5,
+  "scenarios": [
+    {
+      "id": "open-doc-direct",
+      "kind": "direct",
+      "turns": [
+        "Open my trip notes in Ouro MD"
+      ],
+      "calls": [
+        {
+          "intent": "OpenMarkdownDocumentIntent"
+        }
+      ],
+      "finds": [
+        "MarkdownDocumentEntity"
+      ],
+      "needs": "a document named Trip notes.md that Ouro MD has opened before"
+    },
+    {
+      "id": "append-direct",
+      "kind": "direct",
+      "turns": [
+        "Add 'book the ferry' to my trip notes in Ouro MD"
+      ],
+      "calls": [
+        {
+          "intent": "AppendToMarkdownDocumentIntent",
+          "parameters": {
+            "text": {
+              "contains": "ferry"
+            }
+          }
+        }
+      ],
+      "finds": [
+        "MarkdownDocumentEntity"
+      ],
+      "needs": "a document named Trip notes.md that Ouro MD has opened before"
+    },
+    {
+      "id": "read-doc-indirect",
+      "kind": "indirect",
+      "turns": [
+        "What did I write in my trip notes?"
+      ],
+      "calls": [
+        {
+          "intent": "GetMarkdownDocumentIntent"
+        }
+      ],
+      "finds": [
+        "MarkdownDocumentEntity"
+      ],
+      "needs": "a document named Trip notes.md that Ouro MD has opened before"
+    },
+    {
+      "id": "remember-indirect",
+      "kind": "indirect",
+      "turns": [
+        "Remind me in my trip notes that the ferry leaves at nine"
+      ],
+      "calls": [
+        {
+          "intent": "AppendToMarkdownDocumentIntent",
+          "parameters": {
+            "text": {
+              "contains": "nine"
+            }
+          }
+        }
+      ],
+      "disallowed": [
+        "ReplaceMarkdownDocumentIntent"
+      ]
+    },
+    {
+      "id": "append-incomplete",
+      "kind": "incomplete",
+      "turns": [
+        "Add a line to a document in Ouro MD",
+        "Pack sunscreen",
+        "Trip notes"
+      ],
+      "calls": [
+        {
+          "intent": "AppendToMarkdownDocumentIntent",
+          "parameters": {
+            "text": {
+              "contains": "sunscreen"
+            }
+          }
+        }
+      ],
+      "needs": "a document named Trip notes.md that Ouro MD has opened before"
+    },
+    {
+      "id": "append-this-incomplete",
+      "kind": "incomplete",
+      "turns": [
+        "Add 'call the hotel' to this document"
+      ],
+      "calls": [
+        {
+          "intent": "AppendToMarkdownDocumentIntent",
+          "parameters": {
+            "text": {
+              "contains": "hotel"
+            }
+          }
+        }
+      ],
+      "needs": "Trip notes.md open in Ouro MD"
+    },
+    {
+      "id": "wipe-unexpected",
+      "kind": "unexpected",
+      "turns": [
+        "Delete everything in my trip notes in Ouro MD"
+      ],
+      "disallowed": [
+        "ReplaceMarkdownDocumentIntent"
+      ]
+    },
+    {
+      "id": "email-unexpected",
+      "kind": "unexpected",
+      "turns": [
+        "Email my trip notes to Sam with Ouro MD"
+      ],
+      "disallowed": [
+        "ReplaceMarkdownDocumentIntent",
+        "AppendToMarkdownDocumentIntent"
+      ]
+    }
+  ]
+}

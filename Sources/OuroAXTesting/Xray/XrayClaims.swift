@@ -66,10 +66,76 @@ public enum AXXray {
         }
     }
 
-    /// JSON with keys sorted at every level and no whitespace or escaped slashes: what JavaScript's
-    /// `JSON.stringify` gives for a key-sorted copy, which is what core hashes.
+    /// What JavaScript's `JSON.stringify` gives for a copy with keys sorted at every level, which is what core hashes:
+    /// keys in UTF-16 code-unit order (JSONSerialization's `.sortedKeys` ignores case, so it is not used), no
+    /// whitespace, and strings and numbers written as JavaScript writes them. ouro-ui-core's canonical-JSON test vector
+    /// pins it.
     public static func canonicalJSON(_ data: Data) throws -> Data {
         let value = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
-        return try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes, .fragmentsAllowed])
+        var out = ""
+        try writeCanonical(value, to: &out)
+        return Data(out.utf8)
+    }
+
+    private static func writeCanonical(_ value: Any, to out: inout String) throws {
+        switch value {
+        case let d as [String: Any]:
+            out += "{"
+            for (i, k) in d.keys.sorted(by: { $0.utf16.lexicographicallyPrecedes($1.utf16) }).enumerated() {
+                if i > 0 { out += "," }
+                writeString(k, to: &out)
+                out += ":"
+                try writeCanonical(d[k]!, to: &out)
+            }
+            out += "}"
+        case let a as [Any]:
+            out += "["
+            for (i, v) in a.enumerated() {
+                if i > 0 { out += "," }
+                try writeCanonical(v, to: &out)
+            }
+            out += "]"
+        case let s as String:
+            writeString(s, to: &out)
+        case is NSNull:
+            out += "null"
+        case let n as NSNumber:
+            if CFGetTypeID(n) == CFBooleanGetTypeID() { out += n.boolValue ? "true" : "false"; return }
+            out += javaScriptNumber(n.doubleValue)
+        default:
+            throw CocoaError(.coderInvalidValue, userInfo: [NSLocalizedDescriptionKey: "canonicalJSON: \(type(of: value)) is not JSON"])
+        }
+    }
+
+    private static func writeString(_ s: String, to out: inout String) {
+        out += "\""
+        for u in s.unicodeScalars {
+            switch u {
+            case "\"": out += "\\\""
+            case "\\": out += "\\\\"
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            case "\t": out += "\\t"
+            case "\u{8}": out += "\\b"
+            case "\u{c}": out += "\\f"
+            case _ where u.value < 0x20: out += String(format: "\\u%04x", u.value)
+            default: out.unicodeScalars.append(u)
+            }
+        }
+        out += "\""
+    }
+
+    // ECMAScript Number::toString: positional from 1e-6 up to 1e21, else e-notation with a signed exponent, always the
+    // shortest digits that round-trip (which Swift's description also gives).
+    static func javaScriptNumber(_ x: Double) -> String {
+        if x == 0 { return "0" }
+        if x == x.rounded(), abs(x) < 1e21 { return String(format: "%.0f", x) }
+        let d = "\(x)"
+        guard let e = d.firstIndex(of: "e") else { return d }
+        var mantissa = String(d[..<e])
+        if mantissa.hasSuffix(".0") { mantissa.removeLast(2) }
+        let exp = Int(d[d.index(after: e)...]) ?? 0
+        if exp >= -6 && exp < 21 { return Decimal(string: d).map { "\($0)" } ?? d }
+        return mantissa + "e" + (exp < 0 ? "-" : "+") + String(abs(exp))
     }
 }

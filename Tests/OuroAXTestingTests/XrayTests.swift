@@ -22,13 +22,30 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         #expect(set.version == "0.1.0")
         #expect(set.claims.count == 30)
         // core: claimSetHash(standard/ax/surfaces/apple.claims.json) at v0.2.0
-        #expect(set.hash == "a47dcc3e8019835c494eb8f05aa7fd778f781e7b9545148eacf04fc2fbc1194f")
+        #expect(set.hash == "27b3ea5e80b47c18c90c6bf25a832da489dae4a043532d5f23414917d06be9a0")
         #expect(set.claims.allSatisfy { $0.tier == "should" })
     }
 
     @Test func canonicalJSONIgnoresKeyOrderAndSpacing() throws {
         let a = try AXXray.canonicalJSON(Data(#"{"b": [1, {"d": "x/y", "c": "é"}], "a": true}"#.utf8))
         #expect(String(decoding: a, as: UTF8.self) == #"{"a":true,"b":[1,{"c":"é","d":"x/y"}]}"#)
+    }
+
+    // ouro-ui-core's test/fixtures/canonical-json-vector.json: keys sort by UTF-16 code unit, as JavaScript sorts,
+    // which JSONSerialization's case-insensitive .sortedKeys does not.
+    @Test func canonicalJSONMatchesCoresSharedVector() throws {
+        struct Vector: Decodable { var text: String; var sha256: String }
+        let data = try fixture("canonical-json-vector.json")
+        let vector = try JSONDecoder().decode(Vector.self, from: data)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let input = try JSONSerialization.data(withJSONObject: try #require(object["input"]), options: [.fragmentsAllowed])
+        let text = try AXXray.canonicalJSON(input)
+        #expect(String(decoding: text, as: UTF8.self) == vector.text)
+        #expect(AXXray.sha256Hex(text) == vector.sha256)
+        let escapes = try AXXray.canonicalJSON(Data(#"["\u0001\n\t\\", 1e21, -0.25, 3.0]"#.utf8))
+        #expect(String(decoding: escapes, as: UTF8.self) == #"["\u0001\n\t\\",1e+21,-0.25,3]"#)
+        // node -e 'console.log([1e-7, 1.5e-8, 0.000001, 123.456, 2.5e25].map(String).join(" "))'
+        #expect([1e-7, 1.5e-8, 0.000001, 123.456, 2.5e25].map(AXXray.javaScriptNumber) == ["1e-7", "1.5e-8", "0.000001", "123.456", "2.5e+25"])
     }
 }
 
@@ -140,6 +157,25 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         #expect(plan.refusals.map(\.intent) == ["GetNoteBodyIntent", "OpenNoteIntent", "TagNoteIntent"])
         #expect(plan.refusals.first?.entityParameters == ["note": "NoteEntity"])
         #expect(AXXray.ProbePlan(bundleIdentifier: "b", inventory: try fixtureInventory(), refusals: false).refusals.isEmpty)
+    }
+
+    // Seen on macOS 27.0.1 in CI: every call came back "transport cancelled", which is the probe's failure, not the app's.
+    @Test func anErrorThatNeverReachedTheAppSkips() throws {
+        let cut = "Underlying session was cancelled. (transportCancelled(message: \"(transport cancelled)\"))"
+        let p = probe([
+            .init(subject: "NoteEntity", probe: "identifiers", error: "The distributed invocation was not executed. Failed to resolve actor for key preset_18AppIntentsServices37$RunnerServiceDispatcherActorProtocolC"),
+            .init(subject: "NoteEntity", probe: "spotlight", error: cut),
+            .init(subject: "NoteEntity", probe: "view-annotations", error: cut),
+            .init(subject: "OpenNoteIntent", probe: "refusal", error: cut),
+        ])
+        let results = AXXray.check(try .bundled(), .init(inventory: try fixtureInventory(), probe: p))
+        #expect(verdicts(results, "entity.ids-resolve")["entity NoteEntity"] == .skip)
+        #expect(verdicts(results, "entity.indexed") == ["entity NoteEntity": .skip])
+        #expect(verdicts(results, "annotation.onscreen") == ["app": .skip])
+        #expect(verdicts(results, "intent.error-names-fix") == ["intent OpenNoteIntent": .skip])
+        #expect(results.first { $0.claim == "entity.indexed" }?.note.hasPrefix("the probe could not reach the app") == true)
+        let report = AXXray.report(try .bundled(), .init(inventory: try fixtureInventory(), probe: p), name: "F", bundleIdentifier: "b", platform: "macOS", commit: "c", at: Date(timeIntervalSince1970: 0))
+        #expect(report.effects.map(\.note) == ["tried once; the call never reached the app"])
     }
 
     @Test func resultsBecomeVerdicts() throws {

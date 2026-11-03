@@ -169,6 +169,15 @@ extension AXXray {
 
     static let behaviourNeeds = "needs a behaviour run: AppIntentsTesting against the app on a device or simulator whose OS matches the Xcode (ouro-ax-xray plan, then the XrayProbe template)"
 
+    /// An error that says the probe never reached the app, which says nothing about the app.
+    static func unreachable(_ error: String) -> Bool {
+        error.range(of: #"transportCancelled|Failed to resolve actor for key|Underlying session was cancelled|connection (was )?(interrupted|invalidated)|NSCocoaErrorDomain Code=4097|could not (connect|find the app)"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    static func unreachableNote(_ error: String) -> String {
+        "the probe could not reach the app (\(clip(error))); check that it is running and that the OS matches the Xcode, then run again"
+    }
+
     static func behaviourChecks(_ id: String, _ inv: Inventory, _ probe: ProbeResult?) -> [R] {
         let entities = inv.entities.filter { !$0.transient }
         guard let probe else {
@@ -181,7 +190,7 @@ extension AXXray {
             return entities.map { e in
                 let s = "entity \(e.typeName)"
                 guard let step = probe.step(e.typeName, "identifiers") else { return r(s, .skip, "the probe did not reach this entity") }
-                if let error = step.error { return r(s, .fail, "asking by identifier threw: \(clip(error))") }
+                if let error = step.error { return unreachable(error) ? r(s, .skip, unreachableNote(error)) : r(s, .fail, "asking by identifier threw: \(clip(error))") }
                 guard let asked = step.asked, asked > 0 else { return r(s, .skip, "the app suggested none on the test device, so there was nothing to look up; add content and run again") }
                 let got = step.count ?? 0
                 return got >= asked ? r(s, .pass, "\(got) of \(asked) identifiers resolved") : r(s, .fail, "only \(got) of \(asked) identifiers the query handed out resolved")
@@ -190,7 +199,7 @@ extension AXXray {
             return entities.filter(\.indexed).map { e in
                 let s = "entity \(e.typeName)"
                 guard let step = probe.step(e.typeName, "spotlight") else { return r(s, .skip, "the probe did not reach this entity") }
-                if let error = step.error { return r(s, .fail, "spotlightQuery threw: \(clip(error))") }
+                if let error = step.error { return unreachable(error) ? r(s, .skip, unreachableNote(error)) : r(s, .fail, "spotlightQuery threw: \(clip(error))") }
                 if let n = step.count, n > 0 { return r(s, .pass, "Spotlight holds \(n)") }
                 if let n = ran(e), n > 0 { return r(s, .fail, "Spotlight holds none, though its query returns \(n)") }
                 return r(s, .skip, "no content of this type on the test device; add some and run again")
@@ -199,12 +208,13 @@ extension AXXray {
             return entities.filter { !$0.exportableTypes.isEmpty }.map { e in
                 let s = "entity \(e.typeName)"
                 guard let step = probe.step(e.typeName, "export-resolve") else { return r(s, .skip, "no content of this type on the test device; add some and run again") }
-                if let error = step.error { return r(s, .fail, clip(error)) }
+                if let error = step.error { return unreachable(error) ? r(s, .skip, unreachableNote(error)) : r(s, .fail, clip(error)) }
                 return r(s, .pass, step.note ?? "exported and read back")
             }
         case "annotation.onscreen":
             let steps = entities.compactMap { probe.step($0.typeName, "view-annotations") }
-            if let bad = steps.first(where: { $0.error != nil }) { return [r("app", .fail, "viewAnnotations() for \(bad.subject) threw: \(clip(bad.error!))")] }
+            if let bad = steps.first(where: { $0.error.map { !unreachable($0) } ?? false }) { return [r("app", .fail, "viewAnnotations() for \(bad.subject) threw: \(clip(bad.error!))")] }
+            if let cut = steps.first(where: { $0.error != nil }), !steps.contains(where: { ($0.count ?? 0) > 0 }) { return [r("app", .skip, unreachableNote(cut.error!))] }
             let shown = steps.filter { ($0.count ?? 0) > 0 }
             if !shown.isEmpty { return [r("app", .pass, "on the launch screen: \(list(shown.map { "\($0.count!) \($0.subject)" }))")] }
             return [r("app", .skip, "no entity is annotated on the launch screen; a person should open a screen that shows entities and run again")]
@@ -215,6 +225,7 @@ extension AXXray {
             return steps.map { step in
                 let s = "intent \(step.subject)"
                 guard let error = step.error else { return r(s, .fail, "ran with an entity nothing can match; it should be refused") }
+                if unreachable(error) { return r(s, .skip, unreachableNote(error)) }
                 let (verdict, note) = refusalVerdict(error)
                 return r(s, verdict, note)
             }

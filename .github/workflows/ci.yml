@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  provenance:
+    name: Core provenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vendored files match ouro-ui-core's release, byte for byte
+        run: python3 -I scripts/check-provenance.py
+      - name: One changed byte fails the check
+        run: |
+          set -u
+          printf ' ' >> Sources/OuroHX/Tokens/OuroTokens.swift
+          python3 -I scripts/check-provenance.py --offline && status=0 || status=$?
+          git checkout -- Sources/OuroHX/Tokens/OuroTokens.swift
+          test "$status" -eq 3
+
+  swift:
+    name: Build, test and DocC (Xcode 27)
+    # xcode-27 is GitHub's hosted image with Xcode 27 (image xcode-27-arm64), the label Gatefold and Spoonjoy apple
+    # use; macos-latest and macos-26 carry Xcode 26 only. The iOS 27.1 hinge APIs need an Xcode 27.1+ SDK.
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select the newest Xcode 27.2 or later
+        run: sh scripts/select-xcode.sh 27.2
+      - name: swift build
+        run: swift build --build-tests
+      - name: swift test
+        run: swift test
+      - name: Build for iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+      - name: DocC
+        run: sh scripts/docc.sh .build/docc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docc
+          path: .build/docc
+          if-no-files-found: ignore
+
+  siri-ai-sdk:
+    name: Siri AI parts (Xcode 27.3 beta, compile only)
+    # The tool-intent and SiriEvaluations code compiles only against the 27.3 beta SDK. When the image carries an
+    # Xcode 27.3 or later, this lane builds with OURO_SIRI_AI_SDK set; until then it says so and passes.
+    runs-on: xcode-27
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find Xcode 27.3 or later
+        id: find
+        run: |
+          set -eu
+          if sh scripts/select-xcode.sh 27.3; then echo "found=true" >> "$GITHUB_OUTPUT"; else
+            echo "::notice::No Xcode 27.3 or later on the xcode-27 image yet; the Siri AI parts were not compiled here."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build with the Siri AI parts on
+        if: steps.find.outputs.found == 'true'
+        run: |
+          swift build --build-tests -Xswiftc -DOURO_SIRI_AI_SDK
+          set -o pipefail
+          xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .build/xcode-beta CODE_SIGNING_ALLOWED=NO \
+            OTHER_SWIFT_FLAGS='$(inherited) -DOURO_SIRI_AI_SDK' 2>&1 | tail -40

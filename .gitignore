@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/xcuserdata/
+Examples/OuroHXGallery/OuroHXGallery.xcodeproj/
+.DS_Store

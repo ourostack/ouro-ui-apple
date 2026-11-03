@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 // Ouro HX and Ouro AX for Apple platforms. See README.md, AGENTS.md and docs/decisions/.
 
 import PackageDescription
@@ -38,8 +38,9 @@ let package = Package(
         .target(name: "OuroAX", swiftSettings: strict),
         // The App Intents X-ray arrives here in W4 of the program plan.
         .target(name: "OuroAXTesting", dependencies: ["OuroAX"], swiftSettings: strict),
-        // The app-skills bundle linter: Foundation only, so the build-tool plugin can run it on the host.
-        .target(name: "OuroAXSkillsLint", swiftSettings: strict),
+        // The app-skills bundle linter. It runs on the host (the build-tool plugin runs it at build time), so it reads
+        // files with Foundation only and reports with OuroAX.Problem.
+        .target(name: "OuroAXSkillsLint", dependencies: ["OuroAX"], swiftSettings: strict),
         .executableTarget(name: "ouro-ax-skills", dependencies: ["OuroAXSkillsLint"], swiftSettings: strict),
         .plugin(
             name: "OuroAXSkillsLintPlugin",

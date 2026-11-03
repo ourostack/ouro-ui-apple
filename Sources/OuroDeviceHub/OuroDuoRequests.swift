@@ -20,7 +20,6 @@ public struct OuroDuoRequests: Sendable {
     }
 
     public let directory: URL
-    private var sequence = 0
 
     public init(directory: URL) { self.directory = directory }
 
@@ -30,9 +29,11 @@ public struct OuroDuoRequests: Sendable {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
 
-    /// Writes the next numbered request.
+    /// Writes the next numbered request, one past the highest already in the directory, so a second channel (a new
+    /// test's `OuroDuoHinge`) never reuses a number an earlier request was answered under.
     public mutating func write(_ text: String) throws -> Request {
-        sequence += 1
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        let sequence = (names.compactMap { $0.hasSuffix(".request") ? Int($0.dropLast(8)) : nil }.max() ?? 0) + 1
         let base = directory.appendingPathComponent(String(format: "%02d", sequence))
         let request = Request(request: base.appendingPathExtension("request"), done: base.appendingPathExtension("done"), text: text)
         try Data(text.utf8).write(to: request.request, options: .atomic)

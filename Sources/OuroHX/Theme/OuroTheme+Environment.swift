@@ -45,7 +45,8 @@ public struct OuroHXStyle: Sendable {
 extension EnvironmentValues {
     /// The Ouro HX theme in effect. Set it with `.ouroTheme(_:)`.
     @Entry public var ouroTheme: OuroTheme = OuroTokens.theme(OuroTokens.defaultTheme)
-    /// The theme's colours for the current colour scheme and contrast. Set by `.ouroTheme(_:)`.
+    /// The theme's colours for the current colour scheme and contrast. Set by `.ouroTheme(_:)`; without it, Pearl's
+    /// light colours whatever the scheme, so theme the root.
     @Entry public var ouroColors: OuroColors = OuroTokens.theme(OuroTokens.defaultTheme).light
 }
 

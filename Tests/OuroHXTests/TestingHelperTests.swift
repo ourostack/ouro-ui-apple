@@ -51,6 +51,17 @@ private func scratch() throws -> URL {
         #expect(try OuroDuoRequests.outcome(of: first) == "ok")
     }
 
+    @Test func aSecondChannelNeverReusesAnAnsweredNumber() throws {
+        let dir = try scratch()
+        var first = OuroDuoRequests(directory: dir)
+        let old = try first.write("Open")
+        try OuroDuoRequests.answer(old, "ok")
+        var second = OuroDuoRequests(directory: dir)
+        let new = try second.write("Closed")
+        #expect(new.request.lastPathComponent == "02.request")
+        #expect(OuroDuoRequests.pending(in: dir).map(\.text) == ["Closed"])
+    }
+
     @Test func theDirectoryComesFromTheEnvironment() throws {
         #expect(throws: OuroDuoRequests.MissingDirectory.self) { try OuroDuoRequests.directory(variable: "OURO_DUO_POSTURE_DIR", in: [:]) }
         #expect(try OuroDuoRequests.directory(variable: "OURO_DUO_POSTURE_DIR", in: ["OURO_DUO_POSTURE_DIR": "/tmp/duo"]).path == "/tmp/duo")

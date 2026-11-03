@@ -23,4 +23,4 @@ Toggle("Butter", isOn: $hasButter)
 ``OuroHaptics/play(_:)`` plays one outside a view and returns false, doing nothing, where there is no haptics engine.
 
 Credit: Spoonjoy's `KitchenHapticMoment` table (ingredient checked, step turned, timer started and finished) and
-Gatefold's page-turn impacts.
+Gatefold's light 0.7 impact (its bookmark), which `turned` takes in place of Spoonjoy's full-strength light impact.

@@ -40,7 +40,7 @@ private func json(_ value: some Encodable) throws -> NSDictionary {
             "postcondition": ["checked": false, "holds": NSNull(), "how": "not checked"], "receipt": NSNull(), "next": [Any](),
         ]
         #expect(try json(o) == expected)
-        let h = OuroAX.Outcome(action: "x", state: .needsPerson, summary: "s", error: err, human: .init(reason: "2FA", resume: look))
+        let h = OuroAX.Outcome(action: "x", state: .needsHuman, summary: "s", error: err, human: .init(reason: "2FA", resume: look))
         let body = try json(h)
         #expect(body["state"] as? String == "needs-human")
         #expect(body["error"] as? NSDictionary == ["code": "why", "exit": 2, "thing": "send", "problem": "say why", "fix": NSNull(), "message": "send: say why."])
@@ -53,7 +53,7 @@ private func json(_ value: some Encodable) throws -> NSDictionary {
         #expect(back == o)
         let fromTypeScript = #"{"ax":"outcome/1","action":"x","effect":"private","audience":{"only":true,"who":"only you"},"target":null,"state":"needs-human","summary":"s","postcondition":{"checked":false,"holds":null,"how":"not checked"},"receipt":null,"next":[{"command":"tool look","why":"w","sourceCheckout":true}],"human":{"reason":"r","resume":{"command":"tool look","why":"w"}}}"#
         let decoded = try JSONDecoder().decode(OuroAX.Outcome.self, from: Data(fromTypeScript.utf8))
-        #expect(decoded.state == .needsPerson)
+        #expect(decoded.state == .needsHuman)
         #expect(decoded.next.first?.sourceCheckout == true)
         #expect(decoded.human?.resume.sourceCheckout == false)
     }
@@ -119,9 +119,9 @@ private func json(_ value: some Encodable) throws -> NSDictionary {
             $0.error = OuroAX.Problem(code: "why", exit: 2, thing: "send", problem: "say why", fix: "tool send --why x")
             $0.postcondition = .init(checked: true, holds: false, how: "nothing was queued")
         }.validate().ok)
-        #expect(sent { $0.state = .needsPerson }.validate().errors == ["needs-human needs human.reason and human.resume"])
-        #expect(!sent { $0.state = .needsPerson; $0.human = .init(reason: "", resume: look) }.validate().ok)
-        #expect(sent { $0.state = .needsPerson; $0.human = .init(reason: "Only the person turns writes on.", resume: look) }.validate().ok)
+        #expect(sent { $0.state = .needsHuman }.validate().errors == ["needs-human needs human.reason and human.resume"])
+        #expect(!sent { $0.state = .needsHuman; $0.human = .init(reason: "", resume: look) }.validate().ok)
+        #expect(sent { $0.state = .needsHuman; $0.human = .init(reason: "Only the person turns writes on.", resume: look) }.validate().ok)
         #expect(sent { $0.state = .planned }.validate().errors == ["planned, but the postcondition says the effect holds"])
         #expect(sent { $0.state = .planned; $0.receipt = nil; $0.postcondition = .init(checked: false, holds: nil, how: "a plan") }.validate().ok)
         #expect(sent { $0.receipt = .init(id: receipt.id, at: at, by: receipt.by, why: " ") }.validate().errors == ["an effect other people see needs a receipt with a why"])
@@ -138,7 +138,7 @@ private func json(_ value: some Encodable) throws -> NSDictionary {
 
     @Test func text() {
         #expect(sent().text(tool: "tool") == "Sent to Design sync.\nChecked: the message is in the tool's copy of Design sync.\nReceipt: a1b2c3d4e5f6\nNext: tool look abc123 --json  (see whether the message is there)")
-        let human = OuroAX.Outcome(action: "x", state: .needsPerson, summary: "Writes are off.", human: .init(reason: "Only the person turns writes on.", resume: look))
+        let human = OuroAX.Outcome(action: "x", state: .needsHuman, summary: "Writes are off.", human: .init(reason: "Only the person turns writes on.", resume: look))
         #expect(human.text(tool: "tool") == "Writes are off.\nNeeds the person: Only the person turns writes on. Then: tool look abc123 --json")
         #expect(OuroAX.Outcome(action: "x", state: .refused, summary: "No.", error: .init(code: "why", exit: 2, thing: "send", problem: "say why", fix: "tool send --why x")).text(tool: "tool") == "tool: send: say why. Fix: tool send --why x.")
         #expect(sent { $0.state = .failed; $0.postcondition = .init(checked: true, holds: false, how: "not there.") }.text(tool: "tool").split(separator: "\n")[1] == "Checked: not there (it does not hold).")
@@ -153,5 +153,19 @@ private func json(_ value: some Encodable) throws -> NSDictionary {
         #expect(generic.ok)
         #expect(generic.warnings == [#"audience.who is "other people", which names no one: say who will see it, as the text does (everyone in "Design sync", Jo Park)"#])
         #expect(OuroAX.Outcome(action: "note", state: .done, summary: "Noted.", audience: .init(only: false, who: "someone"), postcondition: .init(checked: true, holds: true, how: "read back")).validate().warnings == [])
+    }
+}
+
+@Suite struct ValidationParityTests {
+    /// As in the TypeScript kit, `target` and `receipt` must be present (null is fine; missing is not).
+    @Test func missingTargetOrReceiptFailsLikeTypeScript() throws {
+        let good = try JSONSerialization.jsonObject(with: JSONEncoder().encode(OuroAX.Outcome(action: "x", state: .done, summary: "s"))) as! [String: Any]
+        #expect(OuroAX.Outcome.validate(jsonObject: good).ok)
+        var noTarget = good
+        noTarget.removeValue(forKey: "target")
+        #expect(OuroAX.Outcome.validate(jsonObject: noTarget).errors.contains("target is null or { kind, id }"))
+        var noReceipt = good
+        noReceipt.removeValue(forKey: "receipt")
+        #expect(OuroAX.Outcome.validate(jsonObject: noReceipt).errors.contains("receipt needs id, at, by and why (or null)"))
     }
 }

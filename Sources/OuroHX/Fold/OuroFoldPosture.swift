@@ -83,8 +83,9 @@ public enum OuroFoldPosture: Equatable, Sendable {
         public var minimumPaneLength: Double = 260
         /// Clear space on each side of the fold's centre line. A reported fold wider than this keeps its width.
         public var foldMargin: Double = 24
-        /// The bends, with no region reported, that stand up as a tabletop.
-        public var tabletopAngles: ClosedRange<Double> = 60...140
+        /// The bends that stand up as a tabletop. Spoonjoy's bands: under 60° is too shallow to stand on, and from 150°
+        /// the screen lies flat; between 140° and 150° it stays a tabletop so the layout does not flicker.
+        public var tabletopAngles: Range<Double> = 60..<150
 
         public init() {}
         public static let standard = Rules()
@@ -104,10 +105,13 @@ public enum OuroFoldPosture: Equatable, Sendable {
             return split(bounds, along: .vertical, at: fold.frame.midX, thickness: fold.frame.width, source: .hardware, rules).map(Self.book) ?? .single
         }
         if size.height > size.width {
-            if let fold = ordered.first(where: { $0.isActive && !$0.isVertical && $0.frame.width >= size.width / 2 }) {
+            let bent = hinge.angleDegrees.map(rules.tabletopAngles.contains) ?? false
+            // Bent, the fold's real position wins even when the region is inactive (the Duo reports it inactive
+            // whether flat or half open, Gatefold found). Not bent, only an active fold splits the screen.
+            if let fold = ordered.first(where: { ($0.isActive || bent) && !$0.isVertical && $0.frame.width >= size.width / 2 }) {
                 return split(bounds, along: .horizontal, at: fold.frame.midY, thickness: fold.frame.height, source: .hardware, rules).map(Self.tabletop) ?? .single
             }
-            if let angle = hinge.angleDegrees, rules.tabletopAngles.contains(angle) {
+            if bent {
                 return split(bounds, along: .horizontal, at: bounds.midY, thickness: 0, source: .screenMiddle, rules).map(Self.tabletop) ?? .single
             }
         }

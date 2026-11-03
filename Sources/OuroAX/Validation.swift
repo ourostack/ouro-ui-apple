@@ -51,7 +51,7 @@ extension OuroAX.Outcome {
         } else {
             errors.append("audience needs only (true or false) and who (words)")
         }
-        if !(v["target"] is NSNull || v["target"] == nil) {
+        if !(v["target"] is NSNull) {
             let t = v["target"] as? [String: Any]
             if !(t.map { isText($0["kind"]) && isText($0["id"]) } ?? false) { errors.append("target is null or { kind, id }") }
         }
@@ -64,7 +64,7 @@ extension OuroAX.Outcome {
         if !(next?.allSatisfy(isStep) ?? false) { errors.append("every next step needs a command and a why") }
         let r = v["receipt"]
         let receipt = r as? [String: Any]
-        let rOk = r is NSNull || r == nil || (receipt.map { isText($0["id"]) && isText($0["at"]) && isText($0["by"]) && ($0["why"] is NSNull || $0["why"] == nil || $0["why"] is String) } ?? false)
+        let rOk = r is NSNull || (receipt.map { isText($0["id"]) && isText($0["at"]) && isText($0["by"]) && ($0["why"] is NSNull || $0["why"] is String) } ?? false)
         if !rOk { errors.append("receipt needs id, at, by and why (or null)") }
         let why = rOk ? receipt?["why"] : nil
         let hasReceipt = rOk && receipt != nil
@@ -86,7 +86,7 @@ extension OuroAX.Outcome {
             if !hasError { errors.append("\(state) needs an error with a code and a message") }
             if holds == true { errors.append("\(state), but the postcondition says the effect holds") }
             if !hasNext && !(hasError && isText(error?["fix"])) { warnings.append("\(state) without a next step or a fix: say what to do instead") }
-        case .needsPerson:
+        case .needsHuman:
             let human = v["human"] as? [String: Any]
             if !(human.map { isText($0["reason"]) && isStep($0["resume"] as Any) } ?? false) { errors.append("needs-human needs human.reason and human.resume") }
         case .planned:

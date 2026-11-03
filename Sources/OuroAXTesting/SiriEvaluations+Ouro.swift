@@ -8,7 +8,7 @@ extension OuroAXTesting.Wordings {
     /// One scenario per wording, made by `make`, for a SiriEvaluations test:
     ///
     /// ```swift
-    /// let scenarios = wordings.scenarios { text in SiriScenario { UserTurn(text) { Calls(AddItemIntent.self) } } }
+    /// let scenarios = wordings.scenarios { kind, text in SiriScenario { UserTurn(text) { Calls(AddItemIntent.self) } } }
     /// ```
     @available(iOS 27.3, macOS 27.3, *)
     public func scenarios(_ make: (_ kind: Kind, _ text: String) throws -> SiriScenario) rethrows -> [SiriScenario] {

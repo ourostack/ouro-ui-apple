@@ -7,7 +7,7 @@ import Foundation
 
 /// Drives Xcode's Device Hub through accessibility, so a Mac job can fold, open and turn the iPhone Duo simulator.
 /// The one copy of the `devicehub.swift` Spoonjoy and Gatefold each carry (byte-identical in both), with the same
-/// commands, output and exit codes, so their workflows switch by changing one path.
+/// `dump` and `press` output and exit codes, so their workflows switch by changing one path.
 public enum OuroDeviceHub {
     /// One accessibility element of Device Hub's window.
     public struct Element: Equatable, Sendable {

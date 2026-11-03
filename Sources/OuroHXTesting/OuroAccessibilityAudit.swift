@@ -7,9 +7,7 @@ extension XCUIApplication {
     @MainActor
     public func ouroAccessibilityAudit(
         for types: XCUIAccessibilityAuditType = .all,
-        knownIssues: [String] = [],
-        file: StaticString = #filePath,
-        line: UInt = #line
+        knownIssues: [String] = []
     ) throws {
         try performAccessibilityAudit(for: types) { issue in
             knownIssues.contains { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }

@@ -22,6 +22,8 @@ public enum OuroSnapshot {
         case matched
         /// The share of pixels that differ (0 to 1). The render is saved beside the reference as `<name>.actual.png`.
         case differs(fraction: Double)
+        /// No reference, and `OURO_SNAPSHOT_RECORD=never` (set it in CI) forbids recording one. Saved as `.actual.png`.
+        case missingReference
     }
 
     /// Pixels per point in every render, so snapshots match across Macs and simulators.
@@ -29,11 +31,14 @@ public enum OuroSnapshot {
 
     /// Set `OURO_SNAPSHOT_RECORD=1` to overwrite references.
     public static var recording: Bool { ProcessInfo.processInfo.environment["OURO_SNAPSHOT_RECORD"] == "1" }
+    /// Set `OURO_SNAPSHOT_RECORD=never` in CI so a missing reference fails instead of quietly being recorded.
+    public static var neverRecord: Bool { ProcessInfo.processInfo.environment["OURO_SNAPSHOT_RECORD"] == "never" }
 
     public static func render(_ view: some View, size: CGSize? = nil, appearance: Appearance = .light) -> CGImage? {
         let content = view
             .frame(width: size?.width, height: size?.height)
             .environment(\.colorScheme, appearance.scheme)
+            // `_colorSchemeContrast` is SwiftUI's underscored setter (the public key is read-only); previews use it too.
             .environment(\._colorSchemeContrast, appearance.contrast)
         let renderer = ImageRenderer(content: content)
         renderer.scale = scale
@@ -55,6 +60,11 @@ public enum OuroSnapshot {
         guard !recording, FileManager.default.fileExists(atPath: reference.path),
               let source = CGImageSourceCreateWithURL(reference as CFURL, nil),
               let recorded = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            if neverRecord && !recording {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try data.write(to: directory.appendingPathComponent("\(name).actual.png"), options: .atomic)
+                return .missingReference
+            }
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try data.write(to: reference, options: .atomic)
             return .recorded

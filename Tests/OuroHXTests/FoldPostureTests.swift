@@ -25,6 +25,17 @@ private let wide = CGSize(width: 800, height: 600)
         #expect(split.second == CGRect(x: 0, y: 424, width: 600, height: 376))
     }
 
+    @Test func aBentHingeUsesAnInactiveFoldsRealPosition() throws {
+        let split = try #require(OuroFoldPosture.resolve(size: tall, hinge: .partiallyOpen(angleDegrees: 100), regions: [.init(frame: CGRect(x: 0, y: 380, width: 600, height: 2), isActive: false)]).tabletop)
+        #expect(split.source == .hardware)
+        #expect(split.fold.midY == 381)
+    }
+
+    @Test func betweenTabletopAndFlatItStaysATabletop() {
+        #expect(OuroFoldPosture.resolve(size: tall, hinge: .partiallyOpen(angleDegrees: 145), regions: []).tabletop != nil)
+        #expect(OuroFoldPosture.resolve(size: tall, hinge: .partiallyOpen(angleDegrees: 150), regions: []) == .single)
+    }
+
     @Test func anInactiveHorizontalFoldIsNotATabletop() {
         #expect(OuroFoldPosture.resolve(size: tall, hinge: .fullyOpen, regions: [.init(frame: CGRect(x: 0, y: 399, width: 600, height: 2), isActive: false)]) == .single)
     }

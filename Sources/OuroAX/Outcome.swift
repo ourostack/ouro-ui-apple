@@ -145,7 +145,7 @@ extension OuroAX {
             /// A dry run; nothing happened.
             case planned
             /// Only a person can take the next step; `human` says why and how to resume. `needs-human` on the wire.
-            case needsPerson = "needs-human"
+            case needsHuman = "needs-human"
             /// It may or may not have happened; reconcile before any retry.
             case uncertain
             /// Checked and not done, with the reason; nothing happened.
@@ -232,10 +232,10 @@ extension OuroAX {
             try c.encodeIfPresent(human, forKey: .human)
         }
 
-        /// Exit code names by state: done, queued, planned and needs-person exit `ok`; a refusal `usage`; a failure or an
+        /// Exit code names by state: done, queued, planned and needs-human exit `ok`; a refusal `usage`; a failure or an
         /// uncertain result `error`.
         public static let defaultExits: [State: String] = [
-            .done: "ok", .queued: "ok", .planned: "ok", .needsPerson: "ok", .uncertain: "error", .refused: "usage", .failed: "error",
+            .done: "ok", .queued: "ok", .planned: "ok", .needsHuman: "ok", .uncertain: "error", .refused: "usage", .failed: "error",
         ]
 
         /// The exit code this outcome gives: a refusal's or failure's own error exit, else its state's name in the table.

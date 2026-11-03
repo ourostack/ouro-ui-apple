@@ -9,8 +9,9 @@ Lay out around the iPhone Duo's fold: tabletop, book, closed or one page.
 
 - A **vertical** fold in a wide container opens a **book**, even when the region is inactive (iOS marks the Duo's fold
   inactive while it lies flat). An active region wins over an inactive one.
-- An **active horizontal** fold in a tall container stands as a **tabletop**. With no region but a bend between 60°
-  and 140°, the tabletop splits at the middle of the screen.
+- A **horizontal** fold in a tall container stands as a **tabletop** when it is active, or, when the hinge is bent
+  between 60° and 150°, even when it is inactive. With a bend and no region, the tabletop splits at the middle of the
+  screen.
 - A pane shorter than 260 points, a region outside the container, or no hinge gives **single**.
 - The fold band is at least 48 points (24 each side); a wider reported fold keeps its width.
 

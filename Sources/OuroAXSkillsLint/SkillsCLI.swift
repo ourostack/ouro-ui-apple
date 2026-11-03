@@ -86,7 +86,7 @@ public enum SkillsCLI {
         }
         // The build-tool plugin's output: written only when the lint passes, so the build reruns it until it does.
         if let stamp, report.exitCode == 0 {
-            try? Data((report.summary + "\n").utf8).write(to: URL(fileURLWithPath: stamp))
+            try? Data(("// ouro-ax-skills: " + report.summary + "\n").utf8).write(to: URL(fileURLWithPath: stamp))
         }
         switch format {
         case .json:

@@ -31,9 +31,11 @@ public enum SkillsLint {
         public var path: String
         /// The 1-based line in `SKILL.md`, when the finding has one.
         public var line: Int?
+        /// The exit code this finding causes: 3 for an error, 0 for a warning (3 under `--strict`).
+        public var exit: Int
 
         public var asProblem: OuroAX.Problem {
-            .init(code: code, exit: SkillsLint.exits.codes[3].code, thing: thing, problem: problem, fix: fix)
+            .init(code: code, exit: exit, thing: thing, problem: problem, fix: fix)
         }
 
         public var message: String { asProblem.message }
@@ -48,6 +50,7 @@ public enum SkillsLint {
             self.fix = fix
             self.path = path
             self.line = line
+            exit = severity == .error ? OuroAX.ExitCode.findings.code : 0
         }
 
         public init(from decoder: any Decoder) throws {
@@ -59,6 +62,7 @@ public enum SkillsLint {
             fix = try c.decodeIfPresent(String.self, forKey: .fix)
             path = try c.decode(String.self, forKey: .path)
             line = try c.decodeIfPresent(Int.self, forKey: .line)
+            exit = try c.decode(Int.self, forKey: .exit)
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -107,6 +111,9 @@ public enum SkillsLint {
             guard isDirectory.boolValue, bundle.pathExtension == "skillsbundle" else {
                 throw UsageError(problem: .init(code: "not-a-bundle", exit: 2, thing: bundlePath, problem: "is not a .skillsbundle folder", fix: "pass the Skills.skillsbundle folder that Xcode added to the target"))
             }
+            if bundle.lastPathComponent != "Skills.skillsbundle" {
+                findings.append(.init(severity: .warning, code: "bundle-name", thing: bundle.lastPathComponent, problem: "Siri reads a bundle named Skills.skillsbundle", fix: "rename it to Skills.skillsbundle", path: bundlePath))
+            }
             let skillsFolder = bundle.appendingPathComponent("Skills")
             for entry in try children(of: bundle) where entry != "Skills" {
                 findings.append(.init(severity: .error, code: "stray-file", thing: "\(bundle.lastPathComponent)/\(entry)", problem: "a skills bundle holds only Skills/<name>/SKILL.md", fix: "move \(entry) out of the bundle", path: "\(bundlePath)/\(entry)"))
@@ -144,9 +151,14 @@ public enum SkillsLint {
                     findings.append(.init(severity: .error, code: "skill-md-missing", thing: shown, problem: "has no SKILL.md", fix: "add \(shown)/SKILL.md with name and description frontmatter", path: folder.path))
                     continue
                 }
-                findings += lintSkillFile(try String(contentsOf: file, encoding: .utf8), folderName: name, shown: "\(shown)/SKILL.md", path: file.path)
+                guard let text = try? String(contentsOf: file, encoding: .utf8) else {
+                    findings.append(.init(severity: .error, code: "not-utf8", thing: "\(shown)/SKILL.md", problem: "is not UTF-8 text", fix: "save it as UTF-8", path: file.path))
+                    continue
+                }
+                findings += lintSkillFile(text, folderName: name, shown: "\(shown)/SKILL.md", path: file.path)
             }
         }
+        if strict { for i in findings.indices { findings[i].exit = OuroAX.ExitCode.findings.code } }
         let errors = findings.filter { $0.severity == .error }.count
         let warnings = findings.count - errors
         let failing = strict ? findings.count : errors
@@ -177,6 +189,9 @@ public enum SkillsLint {
             if let match = line.firstMatch(of: /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/) {
                 let key = String(match.1)
                 last = key
+                if let earlier = fields[key] {
+                    findings.append(.init(severity: .error, code: "frontmatter-duplicate", thing: shown, problem: "the frontmatter sets \(key) twice (lines \(earlier.line) and \(index + 1)), and only one is read", fix: "keep one \(key) line", path: path, line: index + 1))
+                }
                 fields[key] = (unquote(String(match.2)), index + 1)
                 if !allowedFields.contains(key) {
                     findings.append(.init(severity: .error, code: "frontmatter-field", thing: shown, problem: "frontmatter field \(key) is not one Siri reads; app skills take only name and description", fix: "remove \(key) from the frontmatter", path: path, line: index + 1))
@@ -207,8 +222,10 @@ public enum SkillsLint {
         return findings
     }
 
+    /// A folder's entries, leaving out hidden files (Finder's `.DS_Store`, editors' swap files), which Xcode does not
+    /// copy into the bundle.
     static func children(of folder: URL) throws -> [String] {
-        try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+        try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { !$0.hasPrefix(".") }.sorted()
     }
 
     static func unquote(_ value: String) -> String {

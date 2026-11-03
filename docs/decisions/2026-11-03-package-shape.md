@@ -23,9 +23,10 @@ Status: accepted (W3 of the HX and AX native program).
    code behind `#if canImport(SiriEvaluations)`. CI's `siri-ai-sdk` lane compiles both once the runner image carries
    Xcode 27.3.
 7. **CI runs on GitHub's `xcode-27` image**, the label Gatefold and Spoonjoy use; `macos-26` carries Xcode 26 only.
-8. **`ouro-devicehub` keeps the apps' exit codes and output** (0, 1 no process, 2 not found, 3 not trusted, 4 press
-   failed), so Gatefold's and Spoonjoy's workflows switch by changing one path. It adds `serve <dir>`, the Mac side of
-   the Duo request files.
+8. **`ouro-devicehub` keeps the apps' `dump` and `press` output and exit codes** (0, 1 no process, 2 not found, 3 not
+   trusted, 4 press failed), so Gatefold's and Spoonjoy's workflows switch by changing one path. Two changes: an
+   unknown command or a missing argument exits 64 (the original ran `dump` or crashed), and `serve <dir>` is new, the
+   Mac side of the Duo request files.
 9. **The skills linter speaks ax-problem.** JSON is `skills-lint/1`; findings are problems with `exit: 3`; usage errors
    exit 2 with `{"error": …}`; warnings count only under `--strict`.
 

@@ -27,7 +27,7 @@ private func codes(_ report: SkillsLint.Report) -> [String] { report.findings.ma
 
 @Suite struct SkillsLintRules {
     @Test func aWellFormedBundlePasses() throws {
-        let report = try SkillsLint.lint([fixture("Good.skillsbundle")])
+        let report = try SkillsLint.lint([fixture("Good/Skills.skillsbundle")])
         #expect(report.findings.isEmpty)
         #expect(report.skills == ["add-to-list", "cook-along"])
         #expect(report.ok)
@@ -115,7 +115,7 @@ private func codes(_ report: SkillsLint.Report) -> [String] { report.findings.ma
     }
 
     @Test func theBadFixtureFindsEveryKind() throws {
-        let report = try SkillsLint.lint([fixture("Bad.skillsbundle")])
+        let report = try SkillsLint.lint([fixture("Bad/Skills.skillsbundle")])
         #expect(Set(codes(report)) == ["skill-name", "intent-type-name", "frontmatter-field", "stray-file", "body-too-long", "name-mismatch"])
         #expect(report.exitCode == 3)
     }
@@ -123,7 +123,7 @@ private func codes(_ report: SkillsLint.Report) -> [String] { report.findings.ma
 
 @Suite struct SkillsCLITests {
     @Test func jsonUsesTheProblemShapeAndTheFindingsExit() throws {
-        let run = SkillsCLI.run(["lint", try fixture("Bad.skillsbundle").path, "--json"])
+        let run = SkillsCLI.run(["lint", try fixture("Bad/Skills.skillsbundle").path, "--json"])
         #expect(run.code == 3)
         let object = try #require(try JSONSerialization.jsonObject(with: Data(run.stdout.utf8)) as? [String: Any])
         #expect(object["ax"] as? String == "skills-lint/1")
@@ -134,16 +134,16 @@ private func codes(_ report: SkillsLint.Report) -> [String] { report.findings.ma
     }
 
     @Test func textLeadsWithTheVerdict() throws {
-        let ok = SkillsCLI.run(["lint", try fixture("Good.skillsbundle").path])
+        let ok = SkillsCLI.run(["lint", try fixture("Good/Skills.skillsbundle").path])
         #expect(ok.code == 0)
         #expect(ok.stdout.hasPrefix("ok: 2 skills in 1 bundle, no findings."))
-        let bad = SkillsCLI.run(["lint", try fixture("Bad.skillsbundle").path])
+        let bad = SkillsCLI.run(["lint", try fixture("Bad/Skills.skillsbundle").path])
         #expect(bad.stdout.hasPrefix("findings:"))
         #expect(bad.stdout.contains("Fix: rename the folder to cook-along."))
     }
 
     @Test func xcodeFormatPointsAtTheLine() throws {
-        let run = SkillsCLI.run(["lint", try fixture("Bad.skillsbundle").path, "--format", "xcode"])
+        let run = SkillsCLI.run(["lint", try fixture("Bad/Skills.skillsbundle").path, "--format", "xcode"])
         #expect(run.stdout.split(separator: "\n").contains { $0.contains("shopping-run/SKILL.md:4: error: ") })
         #expect(run.stdout.contains(": warning: "))
     }
@@ -177,9 +177,36 @@ private func codes(_ report: SkillsLint.Report) -> [String] { report.findings.ma
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let good = folder.appendingPathComponent("good.stamp")
         let bad = folder.appendingPathComponent("bad.stamp")
-        #expect(SkillsCLI.run(["lint", try fixture("Good.skillsbundle").path, "--stamp", good.path]).code == 0)
+        #expect(SkillsCLI.run(["lint", try fixture("Good/Skills.skillsbundle").path, "--stamp", good.path]).code == 0)
         #expect(FileManager.default.fileExists(atPath: good.path))
-        #expect(SkillsCLI.run(["lint", try fixture("Bad.skillsbundle").path, "--stamp", bad.path]).code == 3)
+        #expect(SkillsCLI.run(["lint", try fixture("Bad/Skills.skillsbundle").path, "--stamp", bad.path]).code == 3)
         #expect(!FileManager.default.fileExists(atPath: bad.path))
+    }
+}
+
+@Suite struct SkillsLintReviewFixes {
+    @Test func hiddenFilesAreIgnored() throws {
+        let report = try SkillsLint.lint([bundle([
+            ".DS_Store": "x", "Skills/.DS_Store": "x", "Skills/plan/.DS_Store": "x", "Skills/plan/SKILL.md": skill("plan"),
+        ])])
+        #expect(report.findings.isEmpty)
+        #expect(report.skills == ["plan"])
+    }
+
+    @Test func warningsCarryExitZeroUnlessStrict() throws {
+        let files = ["Skills/a/SKILL.md": skill("a", body: "Call StartCookModeIntent.")]
+        #expect(try SkillsLint.lint([bundle(files)]).findings.map(\.exit) == [0])
+        #expect(try SkillsLint.lint([bundle(files)], strict: true).findings.map(\.exit) == [3])
+    }
+
+    @Test func aRepeatedFrontmatterKeyIsAnError() throws {
+        let report = try SkillsLint.lint([bundle(["Skills/a/SKILL.md": "---\nname: a\nname: b\ndescription: d\n---\nUse the search tool.\n"])])
+        #expect(codes(report).contains("frontmatter-duplicate"))
+    }
+
+    @Test func aBundleNotNamedSkillsIsAWarning() throws {
+        let report = try SkillsLint.lint([bundle(["Skills/a/SKILL.md": skill("a")], name: "Extra.skillsbundle")])
+        #expect(codes(report) == ["bundle-name"])
+        #expect(report.exitCode == 0)
     }
 }

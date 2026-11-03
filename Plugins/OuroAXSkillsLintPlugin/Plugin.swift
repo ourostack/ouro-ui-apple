@@ -20,7 +20,8 @@ struct OuroAXSkillsLintPlugin: BuildToolPlugin {
 
     func commands(bundles: [URL], tool: URL, work: URL, name: String) throws -> [Command] {
         guard !bundles.isEmpty else { return [] }
-        let stamp = work.appendingPathComponent("\(name)-skills-lint.stamp")
+        // A .swift output, so SwiftPM and Xcode compile it (a comment, so nothing) instead of copying it as a resource.
+        let stamp = work.appendingPathComponent("\(name)SkillsLint.swift")
         let inputs = bundles.flatMap(Self.files(in:))
         return [.buildCommand(
             displayName: "Lint app skills for \(name)",

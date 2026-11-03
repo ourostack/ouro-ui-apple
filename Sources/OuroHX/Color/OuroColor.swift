@@ -121,7 +121,8 @@ public enum OuroColor {
         return Color.Resolved(colorSpace: .sRGB, red: a.red + (b.red - a.red) * t, green: a.green + (b.green - a.green) * t, blue: a.blue + (b.blue - a.blue) * t, opacity: a.opacity)
     }
 
-    /// The least mix of `color` toward black or white (whichever gains more) that reaches `target` against `surface`
+    /// The least mix of `color` toward black or white (whichever gains more; on a mid-tone surface that can flip a
+    /// colour's polarity, which the theme tests would show) that reaches `target` against `surface`
     /// (and `other`, when given), or the extreme when nothing less does.
     static func push(_ color: Color.Resolved, against surface: Color.Resolved, to target: Double, alsoAgainst other: Color.Resolved? = nil) -> Color.Resolved {
         func worst(_ c: Color.Resolved) -> Double { min(contrastRatio(c, surface), other.map { contrastRatio(c, $0) } ?? .infinity) }

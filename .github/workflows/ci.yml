@@ -48,8 +48,8 @@ jobs:
       - name: The skills linter, as an agent runs it
         run: |
           set -u
-          swift run ouro-ax-skills lint Tests/OuroAXSkillsLintTests/Fixtures/Good.skillsbundle --json
-          swift run ouro-ax-skills lint Tests/OuroAXSkillsLintTests/Fixtures/Bad.skillsbundle --json && status=0 || status=$?
+          swift run ouro-ax-skills lint Tests/OuroAXSkillsLintTests/Fixtures/Good/Skills.skillsbundle --json
+          swift run ouro-ax-skills lint Tests/OuroAXSkillsLintTests/Fixtures/Bad/Skills.skillsbundle --json && status=0 || status=$?
           test "$status" -eq 3
       - name: Build for iOS Simulator
         run: |

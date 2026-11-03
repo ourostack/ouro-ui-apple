@@ -66,6 +66,9 @@ extension AXXray {
                     guard let intent = intents[c.intent] else { out.append("\(s.id): calls \(c.intent), which the app does not have"); continue }
                     for (name, m) in c.parameters ?? [:] {
                         guard let p = intent.parameters.first(where: { $0.name == name }) else { out.append("\(s.id): \(c.intent) has no parameter \(name)"); continue }
+                        if (m.entity == nil || m.identifier == nil) && m.equals == nil && m.contains == nil {
+                            out.append("\(s.id): \(c.intent).\(name) expects nothing; give it equals, contains, or an entity with its identifier")
+                        }
                         if let e = m.entity, p.entityType != e { out.append("\(s.id): \(c.intent).\(name) takes \(p.entityType ?? "no entity"), not \(e)") }
                     }
                 }

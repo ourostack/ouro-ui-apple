@@ -140,12 +140,16 @@ extension AXXray {
         }
         if let s = evidence.skills, !s.bundles.isEmpty { surfaces.append("app-skill") }
         let refusals = evidence.probe?.steps.filter { $0.probe == "refusal" } ?? []
+        let readBacks = evidence.probe?.steps.filter { $0.probe == "export-resolve" } ?? []
+        let readsOnly = refusals.isEmpty && readBacks.isEmpty
         let safety = Report.Safety(ok: evidence.probe?.refusalsAllowed ?? false, checks: [
-            .init(name: "reads only", ok: true, note: "metadata is read from the built app; the probe runs entity queries, Spotlight, view annotations and export"),
+            .init(name: "reads only", ok: readsOnly, note: readsOnly
+                ? "metadata is read from the built app; the probe ran entity queries, Spotlight, view annotations and export"
+                : "the probe also ran \(refusals.count) refusal\(refusals.count == 1 ? "" : "s") and \(readBacks.count) import read-back\(readBacks.count == 1 ? "" : "s"), listed under effects, on a disposable device"),
             .init(name: "disposable device", ok: evidence.probe?.refusalsAllowed ?? false,
                   note: evidence.probe.map { $0.refusalsAllowed ? "refusal runs allowed on \($0.ranOn)" : "refusal runs off" } ?? "no behaviour run"),
         ])
-        let effects = refusals.map { Report.Effect(surface: "intent \($0.subject)", note: $0.error.map { AXXray.unreachable($0) ? "tried once; the call never reached the app" : AXXray.askedAgain($0) != nil ? "tried once; the system asked for the value again, so the intent never ran" : "run once with an entity reference nothing can match; refused" } ?? "run once with an entity reference nothing can match; it ran") }
+        let effects = readBacks.map { Report.Effect(surface: "entity \($0.subject)", note: "read an exported entity back through the app's import") } + refusals.map { Report.Effect(surface: "intent \($0.subject)", note: $0.error.map { AXXray.unreachable($0) ? "tried; the call never reached the app" : AXXray.askedAgain($0) != nil ? "tried; the system asked for the value again, so the intent never ran" : "run with an entity reference nothing can match; refused" } ?? "run with an entity reference nothing can match; it ran") }
 
         func lane(_ l: Lane, ran: Bool, on: String?) -> Report.Coverage.LaneCoverage {
             let ids = claims.filter { $0.checkedBy == l }

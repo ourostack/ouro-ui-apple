@@ -99,8 +99,11 @@ extension AXXray {
             if !schema.isEmpty || !tools.isEmpty {
                 return [r("app", .pass, "\(tools.count) tool intent\(tools.count == 1 ? "" : "s"), \(schema.count) adopting a schema: \(list(tools + schema))")]
             }
-            if !inv.marksTools && !inv.isSiriAISDK {
-                return [r("app", .skip, "metadata from Xcode tools \(inv.generator ?? "of unknown version") cannot mark tool intents, and no intent adopts a schema; build with the 27.3 SDK to check")]
+            if !inv.marksTools {
+                // A 27.3 build whose metadata has no tool marker this checker knows is the checker's gap, not the app's.
+                return [r("app", .skip, inv.isSiriAISDK
+                    ? "metadata from Xcode tools \(inv.generator ?? "?") has no tool marker ax-xray \(version) recognises, and no intent adopts a schema; until a 27.3 fixture pins the field, this skips"
+                    : "metadata from Xcode tools \(inv.generator ?? "of unknown version") cannot mark tool intents, and no intent adopts a schema; build with the 27.3 SDK to check")]
             }
             return [r("app", .fail, "none of its \(inv.intents.count) intents is a tool intent or adopts a schema, so Siri AI calls none of them")]
         case "intent.tool-not-on-schema":
@@ -130,6 +133,8 @@ extension AXXray {
                 e.properties.map { p in
                     if let d = p.description { return r("entity \(e.typeName) · \(p.identifier)", .pass, "“\(clip(d))”") }
                     if !inv.isSiriAISDK { return r("entity \(e.typeName) · \(p.identifier)", .skip, "metadata from Xcode tools \(inv.generator ?? "of unknown version"): its @Property takes no description; build with the 27.3 SDK to check") }
+                    // The field a 27.3 build writes is not pinned by a fixture yet, so a missing one is not yet the app's failure.
+                    if !inv.marksPropertyDescriptions { return r("entity \(e.typeName) · \(p.identifier)", .skip, "metadata from Xcode tools \(inv.generator ?? "?") has no property description ax-xray \(version) recognises; until a 27.3 fixture pins the field, this skips") }
                     return r("entity \(e.typeName) · \(p.identifier)", .fail, "“\(p.title)” has no description")
                 }
             }
@@ -209,6 +214,9 @@ extension AXXray {
                 if (step.asked ?? 0) == 0, let cut = [probe.step(e.typeName, "suggested"), probe.step(e.typeName, "all")].compactMap({ $0?.error }).first(where: unreachable) {
                     return r(s, .skip, unreachableNote(cut))
                 }
+                if (step.asked ?? 0) == 0, let thrown = [probe.step(e.typeName, "suggested"), probe.step(e.typeName, "all")].compactMap({ $0?.error }).first {
+                    return r(s, .skip, "could not list any to look up, because listing threw: \(clip(thrown))")
+                }
                 guard let asked = step.asked, asked > 0 else { return r(s, .skip, "the app suggested none on the test device, so there was nothing to look up; add content and run again") }
                 let got = step.count ?? 0
                 return got >= asked ? r(s, .pass, "\(got) of \(asked) identifiers resolved") : r(s, .fail, "only \(got) of \(asked) identifiers the query handed out resolved")
@@ -225,6 +233,7 @@ extension AXXray {
         case "entity.transfer-round-trip":
             return entities.filter { !$0.exportableTypes.isEmpty }.map { e in
                 let s = "entity \(e.typeName)"
+                if let step = probe.step(e.typeName, "export"), !probe.refusalsAllowed { return r(s, .skip, step.note ?? "exported; reading it back waits for a disposable device") }
                 if e.importableTypes.isEmpty {
                     if let step = probe.step(e.typeName, "export") { return r(s, .skip, step.note ?? "exported; it imports nothing, so there is nothing to read back") }
                     if let error = probe.step(e.typeName, "export-resolve")?.error { return unreachable(error) ? r(s, .skip, unreachableNote(error)) : r(s, .fail, "export threw: \(clip(error))") }
@@ -244,7 +253,9 @@ extension AXXray {
         case "intent.error-names-fix":
             let steps = probe.steps.filter { $0.probe == "refusal" }
             guard probe.refusalsAllowed else { return [r("app", .skip, "refusal runs are off: they run only on a disposable device (--disposable)")] }
-            guard !steps.isEmpty else { return [r("app", .skip, "no intent takes only entity parameters, so none can be given a made-up entity")] }
+            let tooMany = probe.steps.filter { $0.probe == "refusal-skipped" }
+            guard !steps.isEmpty || !tooMany.isEmpty else { return [r("app", .skip, "no intent takes only entity parameters, so none can be given a made-up entity")] }
+            if steps.isEmpty { return tooMany.map { r("intent \($0.subject)", .skip, $0.note ?? "the probe gives at most two entities") } }
             return steps.map { step in
                 let s = "intent \(step.subject)"
                 guard let error = step.error else { return r(s, .fail, "ran with an entity nothing can match; it should be refused") }
@@ -268,7 +279,9 @@ extension AXXray {
             return (.fail, "refused, but the error shows a domain and code: \(clip(text))")
         }
         let next = #"\b(try|pick|choose|select|open|add|create|check|make sure|sign in|log in|use|go to|tap|connect|enable|turn on|allow|update|ask|search|say)\b"#
-        if text.range(of: next, options: [.regularExpression, .caseInsensitive]) != nil { return (.pass, "“\(clip(text))”") }
+        // The verb must open a sentence or clause ("Pick one…", "…, then try again"), so "Could not open it" is not a fix.
+        let clause = #"(^|[.;:!?]\s+|,\s*(then|and|or)?\s*|\bthen\s+)"# + next
+        if text.range(of: clause, options: [.regularExpression, .caseInsensitive]) != nil || text.range(of: "try again", options: .caseInsensitive) != nil { return (.pass, "“\(clip(text))”") }
         return (.fail, "says what went wrong but not what to do: “\(clip(text))”")
     }
 
@@ -278,7 +291,7 @@ extension AXXray {
         guard let siri else { return [r("app", .skip, siriNeeds)] }
         guard let kind = siriKinds[id] else { return [r("app", .skip, "ax-xray \(version) maps no SiriEvaluations expectation to this claim")] }
         let scenarios = siri.scenarios.filter { $0.passes[kind] != nil }
-        guard !scenarios.isEmpty else { return [r("app", .skip, "the scenario set has no \(kind) expectations")] }
+        guard !scenarios.isEmpty else { return [r("app", .skip, "no \(kind) pass rate was recorded: the generated tests record calls and loads, and Xcode's own report grades \(kind)")] }
         return scenarios.map { sc in
             let rate = OuroAXTesting.PassRate(passes: sc.passes[kind]!)
             return r("scenario \(sc.id)", rate.meets(siri.threshold) ? .pass : .fail, "\(kind): \(rate) on \(siri.ranOn), threshold \(Int(siri.threshold * 100))%")

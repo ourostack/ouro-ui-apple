@@ -1,7 +1,8 @@
 #!/bin/sh
 # The X-ray's behaviour stage, end to end, for CI: plans from the app's metadata, runs Templates/XrayProbe against the
 # installed app with AppIntentsTesting, and writes the merged report. On iOS it creates its own simulator, which makes
-# the device disposable, and deletes it by UDID when done. On macOS it opens the app on this Mac.
+# the device disposable, and deletes it by UDID when done. On macOS it opens the app on this Mac. Pass --disposable to
+# allow refusal runs and import read-backs, which may write: only when the device and the app's backend are throwaway.
 #
 #   sh scripts/xray-probe.sh --app <path.app> --out <dir> [--platform ios|macos] [--runtime 27.1]
 #     [--device-type "iPhone Duo"] [--commit <sha>] [--name <name>] [--disposable]
@@ -24,9 +25,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$app" ] && [ -n "$out" ] || { echo "xray-probe: --app and --out are required" >&2; exit 2; }
-xray="${XRAY:-.build/release/ouro-ax-xray}"
-mkdir -p "$out"
 here="$(cd "$(dirname "$0")/.." && pwd)"
+xray="${XRAY:-$here/.build/release/ouro-ax-xray}"
+mkdir -p "$out"
 (cd "$here/Templates/XrayProbe" && xcodegen generate >/dev/null)
 xcodebuild -version | tee "$out/xcode.txt"
 
@@ -39,15 +40,16 @@ if [ "$platform" = "ios" ]; then
   udid="$(xcrun simctl create "ouro-ax-xray-$$" "$type_id" "$runtime_id")"
   echo "simulator $udid ($device_type, $runtime_id)"
   trap 'xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true; xcrun simctl delete "$udid" || true' EXIT
+  trap 'exit 130' INT TERM
   xcrun simctl boot "$udid"
   xcrun simctl bootstatus "$udid" -b >/dev/null
   xcrun simctl install "$udid" "$app"
   # The first launch lets the app create its content and index it, as a person's first launch would.
   xcrun simctl launch "$udid" "$bundle_id" >/dev/null
   sleep 8
-  plan="$("$xray" plan --app "$app" --disposable)"
+  plan="$("$xray" plan --app "$app" $disposable)"
   set +e
-  TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE=1 TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
+  TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE="$([ -n "$disposable" ] && echo 1 || echo 0)" TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
     xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-iOS -destination "id=$udid" -retry-tests-on-failure -test-iterations 2 \
     -derivedDataPath "$here/.build/xray-probe-ios" > "$out/probe.log" 2>&1
   status=$?

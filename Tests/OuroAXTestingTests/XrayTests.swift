@@ -124,7 +124,12 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         #expect(inv.marksTools)
         #expect(AXXray.metadataChecks("intent.tool", inv).first?.verdict == .pass)
         let none = try AXXray.Inventory(actionsData: Data(#"{"generator":{"version":"27C1"},"actions":{"B":{"identifier":"B","title":{"key":"Bee"},"parameters":[]}}}"#.utf8))
-        #expect(AXXray.metadataChecks("intent.tool", none).first?.verdict == .fail)
+        // 27.3 metadata with no marker this checker knows: the checker's gap, so a skip.
+        #expect(AXXray.metadataChecks("intent.tool", none).first?.verdict == .skip)
+        #expect(AXXray.metadataChecks("intent.tool", none).first?.note.contains("no tool marker") == true)
+        let marked = try AXXray.Inventory(actionsData: Data(#"{"generator":{"version":"27C1"},"actions":{"B":{"identifier":"B","title":{"key":"Bee"},"parameters":[],"isToolIntent":false}}}"#.utf8))
+        #expect(AXXray.metadataChecks("intent.tool", marked).first?.verdict == .fail)
+        #expect(AXXray.metadataChecks("entity.property-description", marked).isEmpty)
     }
 }
 
@@ -179,7 +184,7 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         #expect(results.first { $0.claim == "entity.ids-resolve" }?.note.hasPrefix("the probe could not reach the app") == true)
         #expect(results.first { $0.claim == "entity.ids-resolve" && $0.surface == "entity TagEntity" }?.note.hasPrefix("AppIntentsTesting refused the probe") == true)
         let report = AXXray.report(try .bundled(), .init(inventory: try fixtureInventory(), probe: p), name: "F", bundleIdentifier: "b", platform: "macOS", commit: "c", at: Date(timeIntervalSince1970: 0))
-        #expect(report.effects.map(\.note) == ["tried once; the call never reached the app"])
+        #expect(report.effects.map(\.note) == ["tried; the call never reached the app"])
     }
 
     // Seen on the iOS 27.0 and 27.1 simulators in CI.
@@ -202,7 +207,19 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         #expect(results.first { $0.claim == "intent.error-names-fix" }?.note.contains("asked for ‘note’ again") == true)
         #expect(AXXray.askedAgain(asked) == "note")
         let report = AXXray.report(try .bundled(), .init(inventory: inv, probe: p), name: "F", bundleIdentifier: "b", platform: "iOS", commit: "c", at: Date(timeIntervalSince1970: 0))
-        #expect(report.effects.map(\.note) == ["tried once; the system asked for the value again, so the intent never ran"])
+        #expect(report.effects.map(\.note) == ["tried; the system asked for the value again, so the intent never ran"])
+    }
+
+    @Test func readingAnExportBackIsAWriteAndWaitsForADisposableDevice() throws {
+        let off = probe([.init(subject: "NoteEntity", probe: "export", note: "exported n1; reading it back runs the app's import, so it waits for a disposable device")], refusals: false)
+        let results = AXXray.check(try .bundled(), .init(inventory: try fixtureInventory(), probe: off))
+        #expect(verdicts(results, "entity.transfer-round-trip") == ["entity NoteEntity": .skip])
+        let quiet = AXXray.report(try .bundled(), .init(inventory: try fixtureInventory(), probe: off), name: "F", bundleIdentifier: "b", platform: "iOS", commit: "c", at: Date(timeIntervalSince1970: 0))
+        #expect(quiet.safety.checks.first { $0.name == "reads only" }?.ok == true && quiet.effects.isEmpty)
+        let on = probe([.init(subject: "NoteEntity", probe: "export-resolve", note: "exported and read back")])
+        let busy = AXXray.report(try .bundled(), .init(inventory: try fixtureInventory(), probe: on), name: "F", bundleIdentifier: "b", platform: "iOS", commit: "c", at: Date(timeIntervalSince1970: 0))
+        #expect(busy.safety.checks.first { $0.name == "reads only" }?.ok == false)
+        #expect(busy.effects.map(\.surface) == ["entity NoteEntity"])
     }
 
     @Test func resultsBecomeVerdicts() throws {
@@ -335,6 +352,21 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: dir.appendingPathComponent("Info.plist"))
         if metadata { try fixture("fixture-ios.actionsdata.json").write(to: dir.appendingPathComponent("Metadata.appintents/extract.actionsdata")) }
         return dir
+    }
+
+    @Test func aMisspeltFlagIsAUsageError() throws {
+        let a = try app(metadata: true).path
+        let run = XrayCLI.run(["--app", a, "--conformence"])
+        #expect(run.code == 2 && run.stderr.contains("unknown argument --conformence"))
+        #expect(XrayCLI.run(["--app", a, "--format", "yaml"]).code == 2)
+        #expect(XrayCLI.run(["--app", a, "--conformance", "--format", "json"]).code == 0)
+    }
+
+    @Test func aRefusalPassesOnlyWhenItSaysWhatToDo() {
+        #expect(AXXray.refusalVerdict("Could not open the note.").0 == .fail)
+        #expect(AXXray.refusalVerdict("There's no such note. Pick one from your notes.").0 == .pass)
+        #expect(AXXray.refusalVerdict("That note is gone, so try again with another.").0 == .pass)
+        #expect(AXXray.refusalVerdict("Sign in to Spoonjoy first.").0 == .pass)
     }
 
     @Test func helpAndUsage() {

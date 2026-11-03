@@ -24,19 +24,25 @@ jobs:
               xcodebuild -project Spoonjoy.xcodeproj -scheme "Spoonjoy iOS" -configuration BootstrapDebug
               -destination "generic/platform=iOS Simulator" -derivedDataPath "$PWD/.xray-derived" CODE_SIGNING_ALLOWED=NO build
             product: .xray-derived/Build/Products/BootstrapDebug-iphonesimulator/Spoonjoy.app
+            # BootstrapDebug talks to production unless SPOONJOY_API_BASE_URL is set, so no refusal runs or read-backs.
+            disposable: ""
           - app: Ouro MD
             repo: ourostack/ouro-md
             platform: macos
             build: OURO_MD_TELEMETRY_DISABLED=1 ./make-app.sh
             product: OuroMD.app
+            # Ad-hoc signed, so macOS's AppIntentsTesting refuses the probe (error 800): this lane's behaviour claims
+            # skip with the signing fix. The metadata stage is the result.
+            disposable: --disposable
           - app: Gatefold
             repo: ourostack/gatefold
             platform: metadata
             build: >-
-              (command -v xcodegen >/dev/null || brew install xcodegen) && xcodegen generate &&
+              xcodebuild -downloadComponent MetalToolchain && xcodegen generate &&
               xcodebuild -project Gatefold.xcodeproj -scheme Gatefold -configuration Debug -destination "generic/platform=iOS Simulator"
               -derivedDataPath "$PWD/.xray-derived" CODE_SIGNING_ALLOWED=NO build
             product: .xray-derived/Build/Products/Debug-iphonesimulator/Gatefold.app
+            disposable: ""
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -59,7 +65,10 @@ jobs:
           swift build -c release --product ouro-ax-xray
       - name: Build ${{ matrix.app }}
         working-directory: app
-        run: ${{ matrix.build }} 2>&1 | tail -30
+        shell: bash
+        run: |
+          set -o pipefail
+          ${{ matrix.build }} 2>&1 | tail -30
       - name: X-ray it
         run: |
           set -eu
@@ -69,7 +78,7 @@ jobs:
             .build/release/ouro-ax-xray --app "$app" --commit "$commit" --name "${{ matrix.app }}" --out .build/xray
           else
             sh scripts/xray-probe.sh --app "$app" --out .build/xray --platform ${{ matrix.platform }} --commit "$commit" \
-              --name "${{ matrix.app }}" --disposable  # a fresh runner and, on iOS, the script's own simulator
+              --name "${{ matrix.app }}" ${{ matrix.disposable }}
           fi
       - if: always()
         uses: actions/upload-artifact@v4

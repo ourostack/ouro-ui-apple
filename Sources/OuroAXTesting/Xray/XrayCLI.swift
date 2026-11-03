@@ -75,6 +75,16 @@ public enum XrayCLI {
             let command = arguments[0].hasPrefix("--") ? "report" : arguments[0]
             let args = command == "report" ? arguments : Array(arguments.dropFirst())
             guard ["report", "plan", "scenarios"].contains(command) else { throw Usage(message: "no command \(command); see --help") }
+            // A misspelt flag must not pass silently in CI.
+            let valued: Set = ["--app", "--commit", "--name", "--probe", "--siri", "--siri-on", "--threshold", "--claims", "--format", "--out", "--set", "--swift"]
+            let switches: Set = ["--conformance", "--disposable"]
+            var i = 0
+            while i < args.count {
+                let a = args[i]
+                if valued.contains(a) { i += 2; continue }
+                if switches.contains(a) { i += 1; continue }
+                throw Usage(message: "unknown argument \(a); see --help")
+            }
             guard let appPath = try value(args, "--app") else { throw Usage(message: "--app <path.app> is required") }
             let app = URL(fileURLWithPath: appPath)
             let info = try appInfo(app)

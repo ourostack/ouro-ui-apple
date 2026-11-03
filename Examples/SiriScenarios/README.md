@@ -13,7 +13,7 @@ Check a set against a build, and regenerate its tests:
 
 ```sh
 swift run ouro-ax-xray scenarios --app path/to/App.app --set Examples/SiriScenarios/spoonjoy.scenarios.json
-swift run ouro-ax-xray scenarios --app path/to/App.app --set Examples/SiriScenarios/spoonjoy.scenarios.json --swift > SpoonjoySiriEvaluation.swift
+swift run ouro-ax-xray scenarios --app path/to/App.app --set Examples/SiriScenarios/spoonjoy.scenarios.json --swift Examples/SiriScenarios/SpoonjoySiriEvaluation.swift
 ```
 
 ## Running one

@@ -73,6 +73,8 @@ extension AXXray {
         public var enums: [String]
         /// True when the metadata has a field that marks tool intents, so `isTool` is known.
         public var marksTools: Bool
+        /// True when some property carries a description, so the field this checker reads is the one the build writes.
+        public var marksPropertyDescriptions: Bool { entities.contains { $0.properties.contains { $0.description != nil } } }
 
         /// Parses `extract.actionsdata`.
         public init(actionsData data: Data) throws {

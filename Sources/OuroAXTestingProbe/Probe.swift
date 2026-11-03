@@ -68,6 +68,11 @@ public enum XrayProbe {
             if e.transferable, let first = seen.first {
                 do {
                     let file = try await first.exported(as: e.exportType.flatMap { UTType($0) })
+                    // Reading back runs the app's importing code, which may create a record, so only on a disposable device.
+                    guard refusalsAllowed else {
+                        steps.append(.init(subject: e.typeName, probe: "export", note: "exported \(first.identifier.instanceIdentifier) as \(file.type?.identifier ?? "a file"); reading it back runs the app's import, so it waits for a disposable device"))
+                        continue
+                    }
                     guard e.importable else {
                         steps.append(.init(subject: e.typeName, probe: "export", note: "exported \(first.identifier.instanceIdentifier) as \(file.type?.identifier ?? "a file"); it imports nothing, so there is nothing to read back"))
                         continue

@@ -116,7 +116,8 @@ extension AXXray {
 
         /// The result a probe printed into a log, or nil when there is none.
         public static func fromLog(_ log: String) throws -> ProbeResult? {
-            guard let begin = log.range(of: beginMarker + "\n"), let end = log.range(of: "\n" + endMarker, range: begin.upperBound..<log.endIndex) else { return nil }
+            // The last block: a retried test prints a crashed attempt's partial output first.
+            guard let begin = log.range(of: beginMarker + "\n", options: .backwards), let end = log.range(of: "\n" + endMarker, range: begin.upperBound..<log.endIndex) else { return nil }
             let line = log[begin.upperBound..<end.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
             guard let data = Data(base64Encoded: line) else { return nil }
             return try JSONDecoder().decode(ProbeResult.self, from: data)

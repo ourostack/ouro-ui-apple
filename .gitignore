@@ -4,3 +4,5 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 Examples/OuroHXGallery/OuroHXGallery.xcodeproj/
 .DS_Store
+Examples/OuroAXXrayFixture/OuroAXXrayFixture.xcodeproj/
+Templates/XrayProbe/XrayProbe.xcodeproj/

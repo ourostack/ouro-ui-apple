@@ -73,6 +73,64 @@ jobs:
           name: docc
           path: .build/docc.tgz
 
+  xray:
+    name: X-ray the fixture app (${{ matrix.name }})
+    # The behaviour stage needs an Xcode whose AppIntentsTesting matches the OS it runs on: Xcode 27.2's needs a 27.2
+    # OS, and this image has macOS 27.0.1 with iOS 27.0 and 27.1 simulators. So each lane pins an older Xcode to a
+    # matching OS. See docs/decisions/2026-11-03-ax-xray.md.
+    runs-on: xcode-27
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "iOS 27.1 simulator, Xcode 27.1", xcode: "27.1", platform: ios, runtime: "27.1", device: "iPhone Duo", destination: "generic/platform=iOS Simulator" }
+          - { name: "iOS 27.0 simulator, Xcode 27.0", xcode: "27.0", platform: ios, runtime: "27.0", device: "iPhone 17 Pro", destination: "generic/platform=iOS Simulator" }
+          - { name: "macOS 27.0.1, Xcode 27.1", xcode: "27.1", platform: macos, runtime: "", device: "", destination: "platform=macOS" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Xcode ${{ matrix.xcode }} for this job only
+        run: |
+          set -eu
+          for app in /Applications/Xcode_*.app; do
+            v="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
+            if [ "$v" = "${{ matrix.xcode }}" ] || [ "$v" = "${{ matrix.xcode }}.0" ]; then echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"; echo "Using $app ($v)"; exit 0; fi
+          done
+          ls -d /Applications/Xcode_*.app; exit 1
+      - name: Tools
+        run: |
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          swift build -c release --product ouro-ax-xray
+      - name: Build the fixture app with the same Xcode
+        run: |
+          set -o pipefail
+          (cd Examples/OuroAXXrayFixture && xcodegen generate)
+          xcodebuild build -project Examples/OuroAXXrayFixture/OuroAXXrayFixture.xcodeproj -scheme OuroAXXrayFixture \
+            -destination '${{ matrix.destination }}' -derivedDataPath .build/fixture CODE_SIGN_IDENTITY=- 2>&1 | tail -20
+          find .build/fixture/Build/Products -maxdepth 2 -name XrayFixture.app
+      - name: X-ray it, metadata and behaviour
+        run: |
+          set -eu
+          app="$(find .build/fixture/Build/Products -maxdepth 2 -name XrayFixture.app | head -1)"
+          sh scripts/xray-probe.sh --app "$app" --out .build/xray --platform ${{ matrix.platform }} \
+            --runtime "${{ matrix.runtime }}" --device-type "${{ matrix.device }}" --commit "$GITHUB_SHA" --disposable
+      - name: The probe saw the fixture's notes and its refusals
+        run: |
+          python3 -I - .build/xray/report.json <<'PY'
+          import json, sys
+          r = json.load(open(sys.argv[1]))
+          v = {(x["claim"], x["surface"]): x["verdict"] for x in r["results"]}
+          print(json.dumps({k[0] + " " + k[1]: x for k, x in v.items() if k[0] in ("entity.ids-resolve", "entity.indexed", "entity.transfer-round-trip", "annotation.onscreen", "intent.error-names-fix")}, indent=1))
+          assert v[("entity.ids-resolve", "entity NoteEntity")] == "pass", "ids-resolve"
+          assert v[("intent.error-names-fix", "intent OpenNoteIntent")] in ("pass", "fail"), "the refusals ran"
+          PY
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-fixture-${{ matrix.platform }}-${{ matrix.xcode }}
+          path: .build/xray
+
   siri-ai-sdk:
     name: Siri AI parts (Xcode 27.3 beta, compile only)
     # The tool-intent and SiriEvaluations code compiles only against the 27.3 beta SDK. When the image carries an

@@ -8,7 +8,7 @@ public enum OuroAXTesting {
 
     /// The ways a person might ask for one thing. A good evaluation set has all four.
     public struct Wordings: Sendable, Hashable {
-        public enum Kind: String, Sendable, Hashable, CaseIterable {
+        public enum Kind: String, Codable, Sendable, Hashable, CaseIterable {
             /// Names the action and the app: "Add milk to my Spoonjoy list".
             case direct
             /// Says the need, not the action: "We're out of milk".

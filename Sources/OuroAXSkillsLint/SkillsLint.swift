@@ -88,6 +88,15 @@ public enum SkillsLint {
         public var skills: [String]
         public var findings: [Finding]
         public var exitCode: Int
+
+        public init(ok: Bool, summary: String, bundles: [String], skills: [String], findings: [Finding], exitCode: Int) {
+            self.ok = ok
+            self.summary = summary
+            self.bundles = bundles
+            self.skills = skills
+            self.findings = findings
+            self.exitCode = exitCode
+        }
     }
 
     /// A path that is not a skills bundle: nothing was linted (exit 2).

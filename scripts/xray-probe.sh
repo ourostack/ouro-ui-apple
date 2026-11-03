@@ -1,7 +1,6 @@
 #!/bin/sh
 # The X-ray's behaviour stage, end to end, for CI: plans from the app's metadata, runs Templates/XrayProbe against the
-# installed app with AppIntentsTesting, and writes the merged report. On iOS it creates its own simulator, which makes
-# the device disposable, and deletes it by UDID when done. On macOS it opens the app on this Mac. Pass --disposable to
+# installed app with AppIntentsTesting, and writes the merged report. On iOS it creates its own simulator and deletes it by UDID when done. On macOS it opens the app on this Mac. Pass --disposable to
 # allow refusal runs and import read-backs, which may write: only when the device and the app's backend are throwaway.
 #
 #   sh scripts/xray-probe.sh --app <path.app> --out <dir> [--platform ios|macos] [--runtime 27.1]

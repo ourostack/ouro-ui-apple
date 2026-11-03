@@ -8,6 +8,8 @@ This repository is the Swift package for Ouro HX for Apple (`OuroHX`, `OuroHXTes
 - **Web:** [ourostack/ouro-ui](https://github.com/ourostack/ouro-ui) (becoming `ouro-ui-web`) holds the React components and AX's TypeScript kit. `OuroAX.Outcome` and `OuroAX.Problem` mirror its `ax-outcome` and `ax-problem` field for field.
 - **Here:** Swift only. Package decisions are in `docs/decisions/`.
 
+A move, split or rename isn't done until every repository whose readers are affected says what moved, where it went and the rule for new work, in its README and AGENTS.md, in the same change. Then open an issue labelled `moved` in each old repository (create the label if it's missing), saying what moved, where it went and the rule for new work, and close it once the old home's README and AGENTS.md say so.
+
 ## Look around first
 
 Meerkat mode: look around first. Before you design or build something new (a component, a kit, a standard, a tool or a platform target), look for prior art to adopt or borrow, and do it again for every decision record: give the record a "Prior art" section that links each find and marks it adopt, borrow, watch or ignore (Ari, 2026-11-03: "make it a standing rule for all the ouro ui stuff!!").

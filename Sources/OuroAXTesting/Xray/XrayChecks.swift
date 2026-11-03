@@ -171,7 +171,7 @@ extension AXXray {
 
     /// An error that says the probe never reached the app, which says nothing about the app.
     static func unreachable(_ error: String) -> Bool {
-        error.range(of: #"transportCancelled|Failed to resolve actor for key|Underlying session was cancelled|connection (was )?(interrupted|invalidated)|NSCocoaErrorDomain Code=4097|could not (connect|find the app)"#, options: [.regularExpression, .caseInsensitive]) != nil
+        notPermitted(error) || error.range(of: #"transportCancelled|Failed to resolve actor for key|Underlying session was cancelled|connection (was )?(interrupted|invalidated)|NSCocoaErrorDomain Code=4097|could not (connect|find the app)"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// The parameter App Intents asked a value for when a reference resolved to nothing (AppIntentsServicesExecutionErrorDomain 206).
@@ -180,8 +180,17 @@ extension AXXray {
         return String(error[m]).components(separatedBy: "'").dropFirst().first
     }
 
+    /// AppIntentsTesting refused the probe (AppIntentsServicesSecurityErrorDomain 800), which macOS does when the app
+    /// and the test bundle are not signed by one development team.
+    static func notPermitted(_ error: String) -> Bool {
+        error.range(of: #"executionPermissionDenied|does not have permission to perform this|AppIntentsServicesSecurityErrorDomain"#, options: .regularExpression) != nil
+    }
+
     static func unreachableNote(_ error: String) -> String {
-        "the probe could not reach the app (\(clip(error))); check that it is running and that the OS matches the Xcode, then run again"
+        if notPermitted(error) {
+            return "AppIntentsTesting refused the probe (\(clip(error))); sign the app and the probe with one development team and run again"
+        }
+        return "the probe could not reach the app (\(clip(error))); check that it is running and that the OS matches the Xcode, then run again"
     }
 
     static func behaviourChecks(_ id: String, _ inv: Inventory, _ probe: ProbeResult?) -> [R] {
@@ -197,6 +206,9 @@ extension AXXray {
                 let s = "entity \(e.typeName)"
                 guard let step = probe.step(e.typeName, "identifiers") else { return r(s, .skip, "the probe did not reach this entity") }
                 if let error = step.error { return unreachable(error) ? r(s, .skip, unreachableNote(error)) : r(s, .fail, "asking by identifier threw: \(clip(error))") }
+                if (step.asked ?? 0) == 0, let cut = [probe.step(e.typeName, "suggested"), probe.step(e.typeName, "all")].compactMap({ $0?.error }).first(where: unreachable) {
+                    return r(s, .skip, unreachableNote(cut))
+                }
                 guard let asked = step.asked, asked > 0 else { return r(s, .skip, "the app suggested none on the test device, so there was nothing to look up; add content and run again") }
                 let got = step.count ?? 0
                 return got >= asked ? r(s, .pass, "\(got) of \(asked) identifiers resolved") : r(s, .fail, "only \(got) of \(asked) identifiers the query handed out resolved")

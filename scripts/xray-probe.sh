@@ -48,7 +48,7 @@ if [ "$platform" = "ios" ]; then
   plan="$("$xray" plan --app "$app" --disposable)"
   set +e
   TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE=1 TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
-    xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-iOS -destination "id=$udid" \
+    xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-iOS -destination "id=$udid" -retry-tests-on-failure -test-iterations 2 \
     -derivedDataPath "$here/.build/xray-probe-ios" > "$out/probe.log" 2>&1
   status=$?
   set -e

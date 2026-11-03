@@ -164,7 +164,9 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         let cut = "Underlying session was cancelled. (transportCancelled(message: \"(transport cancelled)\"))"
         let p = probe([
             .init(subject: "NoteEntity", probe: "identifiers", error: "The distributed invocation was not executed. Failed to resolve actor for key preset_18AppIntentsServices37$RunnerServiceDispatcherActorProtocolC"),
-            .init(subject: "NoteEntity", probe: "spotlight", error: cut),
+            .init(subject: "TagEntity", probe: "suggested", error: "Your app does not have permission to perform this. Request Bundle ID: b"),
+            .init(subject: "TagEntity", probe: "identifiers", count: 0, asked: 0),
+            .init(subject: "NoteEntity", probe: "spotlight", error: "Your app does not have permission to perform this. Request Bundle ID: bot.ouro.ax.xray-fixture"),
             .init(subject: "NoteEntity", probe: "view-annotations", error: cut),
             .init(subject: "OpenNoteIntent", probe: "refusal", error: cut),
         ])
@@ -173,7 +175,9 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         #expect(verdicts(results, "entity.indexed") == ["entity NoteEntity": .skip])
         #expect(verdicts(results, "annotation.onscreen") == ["app": .skip])
         #expect(verdicts(results, "intent.error-names-fix") == ["intent OpenNoteIntent": .skip])
-        #expect(results.first { $0.claim == "entity.indexed" }?.note.hasPrefix("the probe could not reach the app") == true)
+        #expect(results.first { $0.claim == "entity.indexed" }?.note.hasPrefix("AppIntentsTesting refused the probe") == true)
+        #expect(results.first { $0.claim == "entity.ids-resolve" }?.note.hasPrefix("the probe could not reach the app") == true)
+        #expect(results.first { $0.claim == "entity.ids-resolve" && $0.surface == "entity TagEntity" }?.note.hasPrefix("AppIntentsTesting refused the probe") == true)
         let report = AXXray.report(try .bundled(), .init(inventory: try fixtureInventory(), probe: p), name: "F", bundleIdentifier: "b", platform: "macOS", commit: "c", at: Date(timeIntervalSince1970: 0))
         #expect(report.effects.map(\.note) == ["tried once; the call never reached the app"])
     }

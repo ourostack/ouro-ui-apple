@@ -88,9 +88,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: "iOS 27.1 simulator, Xcode 27.1", xcode: "27.1", platform: ios, runtime: "27.1", device: "iPhone Duo", destination: "generic/platform=iOS Simulator" }
-          - { name: "iOS 27.0 simulator, Xcode 27.0", xcode: "27.0", platform: ios, runtime: "27.0", device: "iPhone 17 Pro", destination: "generic/platform=iOS Simulator" }
-          - { name: "macOS 27.0.1, Xcode 27.1", xcode: "27.1", platform: macos, runtime: "", device: "", destination: "platform=macOS" }
+          - { name: "iOS 27.1 simulator, Xcode 27.1", xcode: "27.1", platform: ios, runtime: "27.1", device: "iPhone Duo", destination: "generic/platform=iOS Simulator", expect: full }
+          - { name: "iOS 27.0 simulator, Xcode 27.0", xcode: "27.0", platform: ios, runtime: "27.0", device: "iPhone 17 Pro", destination: "generic/platform=iOS Simulator", expect: full }
+          - { name: "macOS 27.0.1, Xcode 27.1", xcode: "27.1", platform: macos, runtime: "", device: "", destination: "platform=macOS", expect: refused }
+          # macOS: AppIntentsTesting refuses a probe that is not signed by the app's team (AppIntentsServicesSecurityErrorDomain
+          # 800). CI signs ad hoc, so this lane proves the refusal is reported as a skip with the fix, not as the app failing.
     steps:
       - uses: actions/checkout@v4
       - name: Use Xcode ${{ matrix.xcode }} for this job only
@@ -121,9 +123,15 @@ jobs:
             --runtime "${{ matrix.runtime }}" --device-type "${{ matrix.device }}" --commit "$GITHUB_SHA" --disposable
       - name: The probe saw the fixture's notes and its refusals
         run: |
-          python3 -I - .build/xray/report.json <<'PY'
+          python3 -I - .build/xray/report.json ${{ matrix.expect }} <<'PY'
           import json, sys
           r = json.load(open(sys.argv[1]))
+          if sys.argv[2] == "refused":
+              n = {(x["claim"], x["surface"]): (x["verdict"], x["note"]) for x in r["results"]}
+              for k in [("entity.ids-resolve", "entity NoteEntity"), ("entity.indexed", "entity NoteEntity")]:
+                  print(k, n[k])
+                  assert n[k][0] == "skip" and n[k][1].startswith("AppIntentsTesting refused the probe"), k
+              sys.exit(0)
           v = {(x["claim"], x["surface"]): x["verdict"] for x in r["results"]}
           print(json.dumps({k[0] + " " + k[1]: x for k, x in v.items() if k[0] in ("entity.ids-resolve", "entity.indexed", "entity.transfer-round-trip", "annotation.onscreen", "intent.error-names-fix")}, indent=1))
           assert v[("entity.ids-resolve", "entity NoteEntity")] == "pass", "ids-resolve"

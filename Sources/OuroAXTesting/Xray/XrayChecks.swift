@@ -174,6 +174,12 @@ extension AXXray {
         error.range(of: #"transportCancelled|Failed to resolve actor for key|Underlying session was cancelled|connection (was )?(interrupted|invalidated)|NSCocoaErrorDomain Code=4097|could not (connect|find the app)"#, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
+    /// The parameter App Intents asked a value for when a reference resolved to nothing (AppIntentsServicesExecutionErrorDomain 206).
+    static func askedAgain(_ error: String) -> String? {
+        guard let m = error.range(of: #"requested value for parameter '([^']+)'"#, options: .regularExpression) else { return nil }
+        return String(error[m]).components(separatedBy: "'").dropFirst().first
+    }
+
     static func unreachableNote(_ error: String) -> String {
         "the probe could not reach the app (\(clip(error))); check that it is running and that the OS matches the Xcode, then run again"
     }
@@ -207,6 +213,11 @@ extension AXXray {
         case "entity.transfer-round-trip":
             return entities.filter { !$0.exportableTypes.isEmpty }.map { e in
                 let s = "entity \(e.typeName)"
+                if e.importableTypes.isEmpty {
+                    if let step = probe.step(e.typeName, "export") { return r(s, .skip, step.note ?? "exported; it imports nothing, so there is nothing to read back") }
+                    if let error = probe.step(e.typeName, "export-resolve")?.error { return unreachable(error) ? r(s, .skip, unreachableNote(error)) : r(s, .fail, "export threw: \(clip(error))") }
+                    return r(s, .skip, "it exports but imports nothing, so there is nothing to read back")
+                }
                 guard let step = probe.step(e.typeName, "export-resolve") else { return r(s, .skip, "no content of this type on the test device; add some and run again") }
                 if let error = step.error { return unreachable(error) ? r(s, .skip, unreachableNote(error)) : r(s, .fail, clip(error)) }
                 return r(s, .pass, step.note ?? "exported and read back")
@@ -226,6 +237,9 @@ extension AXXray {
                 let s = "intent \(step.subject)"
                 guard let error = step.error else { return r(s, .fail, "ran with an entity nothing can match; it should be refused") }
                 if unreachable(error) { return r(s, .skip, unreachableNote(error)) }
+                if let param = askedAgain(error) {
+                    return r(s, .skip, "the system asked for ‘\(param)’ again, as Siri asks “which one?”, so the made-up entity never reached the intent and its own error never ran; a person checks this one")
+                }
                 let (verdict, note) = refusalVerdict(error)
                 return r(s, verdict, note)
             }

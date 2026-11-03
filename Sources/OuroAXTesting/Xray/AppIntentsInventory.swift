@@ -46,6 +46,8 @@ extension AXXray {
             public var indexed: Bool
             /// The content types it exports as a `Transferable`.
             public var exportableTypes: [String]
+            /// The content types it can be made from, which reading an export back needs.
+            public var importableTypes: [String] = []
             public var transient: Bool
             /// The capabilities bitmask of its default query, when the metadata names one.
             public var queryCapabilities: Int?
@@ -124,6 +126,7 @@ extension AXXray {
                     },
                     indexed: protocols.contains("com.apple.appintents.entity.Indexed"),
                     exportableTypes: Self.objects((e["transferableContentTypes"] as? [String: Any])?["exportableTypes"]).compactMap { $0["contentType"] as? String },
+                    importableTypes: Self.objects((e["transferableContentTypes"] as? [String: Any])?["importableTypes"]).compactMap { $0["contentType"] as? String },
                     transient: e["transient"] as? Bool ?? false,
                     queryCapabilities: query?["capabilities"] as? Int,
                     queryIdentifier: query?["identifier"] as? String

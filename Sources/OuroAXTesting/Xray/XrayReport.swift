@@ -145,7 +145,7 @@ extension AXXray {
             .init(name: "disposable device", ok: evidence.probe?.refusalsAllowed ?? false,
                   note: evidence.probe.map { $0.refusalsAllowed ? "refusal runs allowed on \($0.ranOn)" : "refusal runs off" } ?? "no behaviour run"),
         ])
-        let effects = refusals.map { Report.Effect(surface: "intent \($0.subject)", note: $0.error.map { AXXray.unreachable($0) ? "tried once; the call never reached the app" : "run once with an entity reference nothing can match; refused" } ?? "run once with an entity reference nothing can match; it ran") }
+        let effects = refusals.map { Report.Effect(surface: "intent \($0.subject)", note: $0.error.map { AXXray.unreachable($0) ? "tried once; the call never reached the app" : AXXray.askedAgain($0) != nil ? "tried once; the system asked for the value again, so the intent never ran" : "run once with an entity reference nothing can match; refused" } ?? "run once with an entity reference nothing can match; it ran") }
 
         func lane(_ l: Lane, ran: Bool, on: String?) -> Report.Coverage.LaneCoverage {
             let ids = claims.filter { $0.checkedBy == l }

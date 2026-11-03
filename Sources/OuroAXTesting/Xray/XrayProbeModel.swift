@@ -11,7 +11,13 @@ extension AXXray {
             public var transferable: Bool
             public var stringSearchable: Bool
             public var enumerable: Bool
-            public init(typeName: String, indexed: Bool, transferable: Bool, stringSearchable: Bool, enumerable: Bool) {
+            /// The first content type it exports, which the probe exports as; nil when it exports none.
+            public var exportType: String?
+            /// It can be made from a content type, so an export can be read back.
+            public var importable: Bool
+            public init(typeName: String, indexed: Bool, transferable: Bool, stringSearchable: Bool, enumerable: Bool, exportType: String? = nil, importable: Bool = false) {
+                self.exportType = exportType
+                self.importable = importable
                 self.typeName = typeName
                 self.indexed = indexed
                 self.transferable = transferable
@@ -49,7 +55,7 @@ extension AXXray {
             self.init(
                 bundleIdentifier: bundleIdentifier,
                 entities: inventory.entities.filter { !$0.transient }.map {
-                    EntityProbe(typeName: $0.typeName, indexed: $0.indexed, transferable: !$0.exportableTypes.isEmpty, stringSearchable: $0.stringSearchable, enumerable: $0.enumerable)
+                    EntityProbe(typeName: $0.typeName, indexed: $0.indexed, transferable: !$0.exportableTypes.isEmpty, stringSearchable: $0.stringSearchable, enumerable: $0.enumerable, exportType: $0.exportableTypes.first, importable: !$0.importableTypes.isEmpty)
                 },
                 refusals: refusals ? inventory.intents.compactMap { intent in
                     let required = intent.parameters.filter { !$0.isOptional }

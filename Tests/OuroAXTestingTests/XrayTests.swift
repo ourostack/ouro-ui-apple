@@ -178,6 +178,29 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         #expect(report.effects.map(\.note) == ["tried once; the call never reached the app"])
     }
 
+    // Seen on the iOS 27.0 and 27.1 simulators in CI.
+    @Test func whatTheSystemDoesBeforeTheAppIsNotTheAppsFailure() throws {
+        let asked = "Unsupported operation: The App Intent requested value for parameter 'note', which is not supported by AutoConfirmingPerformDelegate"
+        let p = probe([
+            .init(subject: "NoteEntity", probe: "export", note: "exported n1 as public.utf8-plain-text; it imports nothing, so there is nothing to read back"),
+            .init(subject: "OpenNoteIntent", probe: "refusal", error: asked),
+        ])
+        var inv = try fixtureInventory()
+        #expect(inv.entities.first { $0.typeName == "NoteEntity" }?.importableTypes == ["public.utf8-plain-text"])
+        #expect(AXXray.ProbePlan(bundleIdentifier: "b", inventory: inv, refusals: true).entities.first?.importable == true)
+        // The same entity, exporting only.
+        inv.entities[0].importableTypes = []
+        let plan = AXXray.ProbePlan(bundleIdentifier: "b", inventory: inv, refusals: true)
+        #expect(plan.entities.first?.exportType == "public.utf8-plain-text" && plan.entities.first?.importable == false)
+        let results = AXXray.check(try .bundled(), .init(inventory: inv, probe: p))
+        #expect(verdicts(results, "entity.transfer-round-trip") == ["entity NoteEntity": .skip])
+        #expect(verdicts(results, "intent.error-names-fix") == ["intent OpenNoteIntent": .skip])
+        #expect(results.first { $0.claim == "intent.error-names-fix" }?.note.contains("asked for ‘note’ again") == true)
+        #expect(AXXray.askedAgain(asked) == "note")
+        let report = AXXray.report(try .bundled(), .init(inventory: inv, probe: p), name: "F", bundleIdentifier: "b", platform: "iOS", commit: "c", at: Date(timeIntervalSince1970: 0))
+        #expect(report.effects.map(\.note) == ["tried once; the system asked for the value again, so the intent never ran"])
+    }
+
     @Test func resultsBecomeVerdicts() throws {
         let p = probe([
             .init(subject: "NoteEntity", probe: "suggested", count: 3),

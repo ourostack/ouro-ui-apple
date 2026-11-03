@@ -127,7 +127,11 @@ jobs:
           v = {(x["claim"], x["surface"]): x["verdict"] for x in r["results"]}
           print(json.dumps({k[0] + " " + k[1]: x for k, x in v.items() if k[0] in ("entity.ids-resolve", "entity.indexed", "entity.transfer-round-trip", "annotation.onscreen", "intent.error-names-fix")}, indent=1))
           assert v[("entity.ids-resolve", "entity NoteEntity")] == "pass", "ids-resolve"
-          assert v[("intent.error-names-fix", "intent OpenNoteIntent")] in ("pass", "fail"), "the refusals ran"
+          n = {(x["claim"], x["surface"]): x["note"] for x in r["results"]}
+          assert v[("entity.indexed", "entity NoteEntity")] == "pass", "indexed"
+          assert v[("entity.transfer-round-trip", "entity NoteEntity")] == "pass", "round trip"
+          refusal = n[("intent.error-names-fix", "intent OpenNoteIntent")]
+          assert not refusal.startswith("the probe could not reach"), "the refusals reached the app: " + refusal
           PY
       - if: always()
         uses: actions/upload-artifact@v4

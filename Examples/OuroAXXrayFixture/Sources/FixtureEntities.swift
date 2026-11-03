@@ -34,7 +34,11 @@ struct NoteEntity: AppEntity, IndexedEntity, Transferable {
     }
 
     static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation(exporting: \.title)
+        // Exports its title and reads one back, so the X-ray can check the round trip.
+        ProxyRepresentation(exporting: \.title, importing: { (title: String) in
+            guard let note = FixtureStore.notes.first(where: { $0.title == title }) else { throw FixtureError.noSuchNote(title) }
+            return note
+        })
     }
 }
 

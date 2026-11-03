@@ -7,6 +7,7 @@ public import OuroAXTesting
 import AppIntents
 import AppIntentsTesting
 import Foundation
+import UniformTypeIdentifiers
 
 @available(iOS 27.0, macOS 27.0, *)
 public enum XrayProbe {
@@ -66,7 +67,11 @@ public enum XrayProbe {
             catch { steps.append(.init(subject: e.typeName, probe: "view-annotations", error: describe(error))) }
             if e.transferable, let first = seen.first {
                 do {
-                    let file = try await first.exported(as: nil)
+                    let file = try await first.exported(as: e.exportType.flatMap { UTType($0) })
+                    guard e.importable else {
+                        steps.append(.init(subject: e.typeName, probe: "export", note: "exported \(first.identifier.instanceIdentifier) as \(file.type?.identifier ?? "a file"); it imports nothing, so there is nothing to read back"))
+                        continue
+                    }
                     let back = try await def.resolved(from: file)
                     steps.append(back.identifier == first.identifier
                         ? .init(subject: e.typeName, probe: "export-resolve", note: "exported \(first.identifier.instanceIdentifier) as \(file.type?.identifier ?? "a file") and read it back")

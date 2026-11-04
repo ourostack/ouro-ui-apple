@@ -171,7 +171,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
 @Suite struct ComponentMotionTests {
     @Test func nothingMovesUnderReduceMotion() {
-        #expect(OuroToastMetrics.appearance(reduceMotion: false) == .move(edge: .top))
+        #expect(OuroToastMetrics.appearance(reduceMotion: false) == .drop)
+        #expect(OuroAppearance.drop.step(reduceMotion: false) == OuroMotion.step(.enter, reduceMotion: false))
         #expect(OuroToastMetrics.appearance(reduceMotion: true) == .fade)
         #expect(OuroToastMetrics.arrival(reduceMotion: true) == .crossfade(duration: OuroTokens.Duration.base))
         #expect(OuroToastMetrics.departure(reduceMotion: true) == .crossfade(duration: OuroTokens.Duration.base))
@@ -216,6 +217,11 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(second.offset == 8 && abs(second.scale - 0.95) < 1e-9 && !second.showsWords)
         let listed = OuroToastMetrics.placement(depth: 2, expanded: true, above: 100)
         #expect(listed.offset == 116 && listed.scale == 1 && listed.showsWords)
+    }
+
+    @Test func aStackIsNotScaledUnderReduceMotion() {
+        let tucked = OuroToastMetrics.placement(depth: 2, expanded: false, above: 100, reduceMotion: true)
+        #expect(tucked.scale == 1 && !tucked.showsWords)
     }
 
     @Test func aFadeIsACrossfadeOverBase() {

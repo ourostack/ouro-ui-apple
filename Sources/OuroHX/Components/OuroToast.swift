@@ -23,7 +23,7 @@ public enum OuroToastDuration: Sendable, Equatable {
     case untilDismissed
 }
 
-/// A short message at the bottom of the screen that VoiceOver reads once and that dismisses itself: web's `toast`.
+/// A short message at the top of the screen that VoiceOver reads once and that dismisses itself: web's `toast`.
 /// Send one with the ``OuroToaster`` in the environment, after `.ouroToaster()` at the app's root:
 ///
 /// ```swift
@@ -145,20 +145,13 @@ public enum OuroToastMetrics {
 
     /// Toasts drop in from the top, where the system's own notices appear, or crossfade under Reduce Motion.
     public static func appearance(reduceMotion: Bool) -> OuroAppearance {
-        .choose(.move(edge: .top), reduceMotion: reduceMotion)
+        .choose(.drop, reduceMotion: reduceMotion)
     }
 
     /// How a toast arrives: on the `enter` spring, falling from above while growing from 92%; or a crossfade.
     public static func arrival(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.enter, reduceMotion: reduceMotion) }
     /// How a toast leaves: on the quick `exit` spring, back up the way it came; or a crossfade.
     public static func departure(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.exit, reduceMotion: reduceMotion) }
-
-    static func transition(reduceMotion: Bool) -> AnyTransition {
-        reduceMotion ? .opacity : .asymmetric(
-            insertion: .move(edge: .top).combined(with: .scale(scale: arrivalScale, anchor: .top)).combined(with: .opacity),
-            removal: .move(edge: .top).combined(with: .opacity)
-        )
-    }
 
     /// The scale a toast grows from as it arrives.
     public static let arrivalScale = 0.92
@@ -173,10 +166,11 @@ public enum OuroToastMetrics {
 
     /// Where a toast sits in the stack, `depth` toasts behind the newest. Collapsed, older toasts tuck behind the
     /// newest, each 8 points lower and 5% smaller, with their words hidden; expanded (VoiceOver or Switch Control
-    /// running, or the stack tapped open) they list down the screen, `above` points of newer toasts over each.
-    public static func placement(depth: Int, expanded: Bool, above: CGFloat) -> (offset: CGFloat, scale: Double, showsWords: Bool) {
+    /// running, or the stack tapped open) they list down the screen, `above` points of newer toasts over each. Under
+    /// Reduce Motion nothing is scaled, and the host moves toasts to their places without animating them there.
+    public static func placement(depth: Int, expanded: Bool, above: CGFloat, reduceMotion: Bool = false) -> (offset: CGFloat, scale: Double, showsWords: Bool) {
         if expanded || depth == 0 { return (depth == 0 ? 0 : above + CGFloat(depth) * stackSpacing, 1, true) }
-        return (CGFloat(depth) * tuck, 1 - 0.05 * Double(depth), false)
+        return (CGFloat(depth) * tuck, reduceMotion ? 1 : 1 - 0.05 * Double(depth), false)
     }
 
     /// The gap between expanded toasts.
@@ -247,9 +241,10 @@ extension View {
     /// three tucked behind one another (one at the accessibility text sizes; listed out while VoiceOver or Switch
     /// Control runs, or when the stack is tapped). VoiceOver hears each once (a destructive one at once, the others
     /// when it is free), a toast plays its tone's haptic as it arrives, a swipe up dismisses one, and each has a
-    /// 44-point dismiss button named `closeLabel`. `label` names the region for VoiceOver.
-    public func ouroToaster(label: String = "Notifications", closeLabel: String = "Dismiss") -> some View {
-        modifier(OuroToasterModifier(label: label, closeLabel: closeLabel))
+    /// 44-point dismiss button named `closeLabel`. `label` names the region for VoiceOver, and `showAllLabel` names
+    /// the region's action that lays a stack out, for Voice Control and Full Keyboard Access.
+    public func ouroToaster(label: String = "Notifications", closeLabel: String = "Dismiss", showAllLabel: String = "Show all") -> some View {
+        modifier(OuroToasterModifier(label: label, closeLabel: closeLabel, showAllLabel: showAllLabel))
     }
 }
 
@@ -303,12 +298,13 @@ final class OuroToastModel {
 
 extension EnvironmentValues {
     @Entry var ouroToastModel: OuroToastModel? = nil
-    @Entry var ouroToasterLabels = OuroToasterLabels(label: "Notifications", closeLabel: "Dismiss")
+    @Entry var ouroToasterLabels = OuroToasterLabels(label: "Notifications", closeLabel: "Dismiss", showAllLabel: "Show all")
 }
 
 struct OuroToasterLabels: Sendable {
     var label: String
     var closeLabel: String
+    var showAllLabel: String
 }
 
 /// Draws the toasts where this view is when it is the newest host: the root, or an open sheet.
@@ -337,21 +333,22 @@ struct OuroToastHost: ViewModifier {
                             ForEach(Array(visible.enumerated()), id: \.element.id) { index, toast in
                                 let depth = visible.count - 1 - index
                                 let above = visible[(index + 1)...].reduce(CGFloat(0)) { $0 + (sizes[$1.id]?.height ?? 50) }
-                                let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above)
+                                let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above, reduceMotion: reduceMotion)
                                 let front = visible.last.flatMap { sizes[$0.id] }
                                 OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : front) { toaster.dismiss(toast.id) }
                                     .onGeometryChange(for: CGSize.self) { $0.size } action: { if place.showsWords { sizes[toast.id] = $0 } }
+                                    // A tucked toast can't be dragged away unseen; a tap on it opens the stack.
+                                    .allowsHitTesting(place.showsWords)
                                     .scaleEffect(place.scale, anchor: .bottom)
                                     .offset(y: place.offset)
                                     .zIndex(Double(index))
-                                    .transition(OuroToastMetrics.transition(reduceMotion: reduceMotion))
+                                    .transaction { if reduceMotion { $0.animation = nil } }
+                                    .transition(OuroToastMetrics.appearance(reduceMotion: reduceMotion).transition)
                             }
                         }
-                        // Tapping a collapsed stack lays it out; it tucks back once it empties.
-                        .simultaneousGesture(TapGesture().onEnded {
-                            guard visible.count > 1, !expandedByHand else { return }
-                            withAnimation(OuroMotion.animation(.layout, reduceMotion: reduceMotion)) { expandedByHand = true }
-                        })
+                        // Tapping a collapsed stack's words lays it out; its buttons take their own taps first. It tucks
+                        // back once it empties.
+                        .onTapGesture { showAll(count: visible.count) }
                         .animation(OuroMotion.animation(.layout, reduceMotion: reduceMotion), value: expanded)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
@@ -359,7 +356,9 @@ struct OuroToastHost: ViewModifier {
                         .frame(maxWidth: .infinity)
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel(labels.label)
+                        .accessibilityAction(named: Text(labels.showAllLabel)) { showAll(count: visible.count) }
                         .onChange(of: visible.isEmpty) { _, empty in if empty { expandedByHand = false } }
+                        .onChange(of: visible.map(\.id)) { _, ids in sizes = sizes.filter { ids.contains($0.key) } }
                     }
                 }
                 .onAppear { if !isRoot { model.enter(id) } }
@@ -373,11 +372,17 @@ struct OuroToastHost: ViewModifier {
             content
         }
     }
+
+    private func showAll(count: Int) {
+        guard count > 1, !expandedByHand else { return }
+        withAnimation(OuroMotion.animation(.layout, reduceMotion: reduceMotion)) { expandedByHand = true }
+    }
 }
 
 private struct OuroToasterModifier: ViewModifier {
     let label: String
     let closeLabel: String
+    let showAllLabel: String
     @State private var model = OuroToastModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -393,7 +398,7 @@ private struct OuroToasterModifier: ViewModifier {
             .modifier(OuroToastHost(isRoot: true))
             .environment(\.ouroToast, toaster)
             .environment(\.ouroToastModel, model)
-            .environment(\.ouroToasterLabels, OuroToasterLabels(label: label, closeLabel: closeLabel))
+            .environment(\.ouroToasterLabels, OuroToasterLabels(label: label, closeLabel: closeLabel, showAllLabel: showAllLabel))
     }
 }
 
@@ -420,7 +425,10 @@ struct OuroToastView: View {
     /// Where the finger has the toast. A plain state, not a gesture state, so a toast flung away leaves from where it
     /// was let go rather than snapping back first.
     @State private var drag: CGFloat = 0
-    @State private var dragging = false
+    /// Resets by itself when the system cancels the drag (a call, a sheet), so a cancelled drag can't hold the
+    /// countdown for good.
+    @GestureState private var dragging = false
+    @State private var leaving = false
     /// VoiceOver or Switch Control on any part of the toast, which holds its countdown.
     @AccessibilityFocusState private var focus: Part?
     @State private var hovering = false
@@ -447,6 +455,11 @@ struct OuroToastView: View {
         let p = OuroToastPalette(tone: toast.tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         let shape = RoundedRectangle(cornerRadius: OuroToastMetrics.cornerRadius, style: .continuous)
         let large = typeSize.isAccessibilitySize
+        let solid = contrast == .increased || reduceTransparency || !rendersGlass
+        // On glass or a material the words take the system's vibrant label styles, which stay readable on whatever
+        // shows through; the theme's colours are made readable against its opaque popover, so they go with it.
+        let message: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.message)) : AnyShapeStyle(.primary)
+        let secondary: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.description)) : AnyShapeStyle(.secondary)
         HStack(alignment: large ? .top : .center, spacing: 10) {
             // The icon sits on the message's first line, not between the message and description.
             HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -461,12 +474,12 @@ struct OuroToastView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(toast.message)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color(p.message))
+                            .foregroundStyle(message)
                             .fixedSize(horizontal: false, vertical: true)
                         if let description = toast.description {
                             Text(description)
                                 .font(.footnote)
-                                .foregroundStyle(Color(p.description))
+                                .foregroundStyle(secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -483,7 +496,7 @@ struct OuroToastView: View {
             Button(action: dismiss) {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(Color(p.description))
+                    .foregroundStyle(secondary)
                     .frame(width: OuroToastMetrics.dismissTarget, height: OuroToastMetrics.dismissTarget)
                     .contentShape(Rectangle())
             }
@@ -503,24 +516,27 @@ struct OuroToastView: View {
         .clipped()
         // It hugs its words, up to the stack's width; at the accessibility sizes it spans it.
         .frame(maxWidth: large ? .infinity : nil)
-        .modifier(ToastSurface(shape: shape, palette: p, solid: contrast == .increased || reduceTransparency || !rendersGlass))
+        .modifier(ToastSurface(shape: shape, palette: p, solid: solid))
         .offset(y: drag)
         .opacity(reduceMotion ? 1 - min(0.7, abs(drag) / 90) : 1)
         .gesture(
             DragGesture(minimumDistance: 8)
+                .updating($dragging) { _, state, _ in state = true }
                 .onChanged { value in
-                    dragging = true
                     drag = OuroToastMetrics.dragOffset(value.translation.height)
                 }
                 .onEnded { value in
-                    dragging = false
                     if OuroToastMetrics.dragDismisses(translation: value.translation.height, predictedEnd: value.predictedEndTranslation.height) {
+                        leaving = true
                         dismiss()
-                    } else {
-                        withAnimation(OuroMotion.animation(.settle, reduceMotion: reduceMotion)) { drag = 0 }
                     }
                 }
         )
+        // Let go short of dismissing, or cancelled: it springs back.
+        .onChange(of: dragging) { _, now in
+            guard !now, !leaving, drag != 0 else { return }
+            withAnimation(OuroMotion.animation(.settle, reduceMotion: reduceMotion)) { drag = 0 }
+        }
         .accessibilityElement(children: .contain)
         .onHover { hovering = $0 }
         .task(id: toast.showing) {

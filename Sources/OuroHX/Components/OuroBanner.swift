@@ -76,7 +76,9 @@ public enum OuroBannerMetrics {
 /// VoiceOver hears it once when it appears: destructive and warning banners at once, the others when it is free.
 /// With `onDismiss` it has a 44-point close button named `dismissLabel`. Prefer `isPresented` to an `if` around it:
 /// changed inside an animation (`withOuroAnimation(.layout, reduceMotion: reduceMotion) { saved = false }`) it folds
-/// away and back in place, and turns around smoothly if changed again mid-way. Inserted or removed inside an animation
+/// away and back in place, and turns around smoothly if changed again mid-way. Folded away it takes no height, but a
+/// stack's `spacing` still puts a gap where it was: in a stack with spacing, give the banner its gap as padding in a
+/// `spacing: 0` stack instead. Inserted or removed inside an animation
 /// (`withOuroAnimation(.layout, reduceMotion: reduceMotion) { error = nil }`), it unfolds in place, or crossfades
 /// under Reduce Motion.
 public struct OuroBanner<Action: View>: View {
@@ -181,6 +183,7 @@ public struct OuroBanner<Action: View>: View {
 
 extension OuroBanner {
     private func announceIfNew() {
+        guard isPresented else { return }
         let words = OuroBannerMetrics.announcement(title: title, description: description)
         guard OuroBannerMetrics.announces(words, after: announced) else { return }
         announced = words
@@ -203,7 +206,7 @@ private struct Unfolds: ViewModifier {
     let reduceMotion: Bool
     func body(content: Content) -> some View {
         let progress = shown ? 1.0 : 0
-        FoldLayout(progress: reduceMotion ? (shown ? 1 : 0) : progress) {
+        FoldLayout(progress: progress) {
             content
                 .modifier(FoldLook(progress: progress, scales: !reduceMotion))
         }
@@ -237,7 +240,7 @@ private struct FoldLayout: Layout {
     }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         guard let child = subviews.first else { return .zero }
-        let size = child.sizeThatFits(proposal)
+        let size = child.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
         return CGSize(width: size.width, height: size.height * max(0, progress))
     }
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {

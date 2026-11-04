@@ -258,13 +258,12 @@ private struct CloseDisc: ViewModifier {
 
 /// From iOS 26 the system draws the sheet, Liquid Glass at partial heights and opaque at full, with its own corners;
 /// before it the sheet is the theme's page colour.
+/// The theme's surface behind the sheet, on iOS 26 too: the sheet's text and the components in it are made readable
+/// on that surface (`contrast.text`), and a theme's surface is not the system sheet's glass. iOS 26 still floats a
+/// partial sheet and rounds it.
 private struct SheetBackground: ViewModifier {
     let surface: Color
     func body(content: Content) -> some View {
-        if #available(iOS 26, macOS 26, visionOS 26, *) {
-            content
-        } else {
-            content.presentationBackground(surface)
-        }
+        content.presentationBackground(surface)
     }
 }

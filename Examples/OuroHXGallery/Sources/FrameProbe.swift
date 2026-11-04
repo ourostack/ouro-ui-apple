@@ -12,7 +12,7 @@ import UIKit
 /// of measured time, Apple's measure: under 5 ms/s is good, over 10 is critical, so any above 5 fails a test.
 ///
 /// The app opens the window itself (see `GalleryApp`), so the test need not touch the app while it measures, and the
-/// test reads the result from the "probe" element's label: `frames=…;hitches=…;hitchMs=…;seconds=…;ratio=…;worstMs=…;log=<ms in>:+<ms late>,…`. Each window is also an
+/// test reads the result from the "probe" element's label: `frames=…;hitches=…;hitchMs=…;seconds=…;ratio=…;worstMs=…;worstFrames=…;log=<ms in>:+<ms late>,…`. Each window is also an
 /// os_signpost animation interval (subsystem `bot.ouro.hx.gallery`, category `motion`, name `transition`) for
 /// `XCTOSSignpostMetric` on a device.
 @MainActor
@@ -29,6 +29,8 @@ final class FrameProbe: NSObject, ObservableObject {
     private var hitches = 0
     private var hitchTime: CFTimeInterval = 0
     private var worst: CFTimeInterval = 0
+    /// The worst lateness in refresh intervals, so a limit holds at 60 Hz and 120 Hz alike.
+    private var worstFrames: Double = 0
     private var began: CFTimeInterval = 0
     private var signpost: OSSignpostID?
     #if canImport(UIKit)
@@ -36,7 +38,7 @@ final class FrameProbe: NSObject, ObservableObject {
     #endif
 
     func start() {
-        frames = 0; hitches = 0; hitchTime = 0; worst = 0; last = nil; hitchLog = []
+        frames = 0; hitches = 0; hitchTime = 0; worst = 0; worstFrames = 0; last = nil; hitchLog = []
         began = CACurrentMediaTime()
         measuring = true
         summary = "measuring"
@@ -55,10 +57,14 @@ final class FrameProbe: NSObject, ObservableObject {
 
     func stop() {
         measuring = false
+        #if canImport(UIKit)
+        link?.invalidate()
+        link = nil
+        #endif
         if let signpost { os_signpost(.end, log: Self.log, name: "transition", signpostID: signpost) }
         let seconds = max(0.001, CACurrentMediaTime() - began)
         let ratio = hitchTime * 1000 / seconds
-        summary = String(format: "frames=%d;hitches=%d;hitchMs=%.1f;seconds=%.2f;ratio=%.2f;worstMs=%.1f", frames, hitches, hitchTime * 1000, seconds, ratio, worst * 1000)
+        summary = String(format: "frames=%d;hitches=%d;hitchMs=%.1f;seconds=%.2f;ratio=%.2f;worstMs=%.1f;worstFrames=%.2f", frames, hitches, hitchTime * 1000, seconds, ratio, worst * 1000, worstFrames)
             + ";log=" + hitchLog.joined(separator: ",")
     }
 
@@ -74,6 +80,7 @@ final class FrameProbe: NSObject, ObservableObject {
                 hitchTime += late
                 hitchLog.append(String(format: "%.0f:+%.1f", (now - began) * 1000, late * 1000))
                 worst = max(worst, late)
+                worstFrames = max(worstFrames, late / interval)
             }
         }
         last = now

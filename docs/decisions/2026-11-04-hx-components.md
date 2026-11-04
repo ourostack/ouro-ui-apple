@@ -86,12 +86,16 @@ Status: accepted (W8 of the HX and AX native program).
       a stack that tucks behind the newest as Sonner and iOS's notification stacks do. Its countdown stays 5 s and
       its close control stays visible: the board suggested 2.5 s and no close button, but `toast.action-stays` and
       `dismiss.reachable` win.
-    - **The system's glass sheet** with a glass close disc, instead of painting the theme's surface over it on
-      iOS 26.
+    - **A glass close disc on the sheet.** The sheet keeps the theme's surface on iOS 26 too: its text and the
+      components in it are made readable on that surface, and the system's glass is not it (`contrast.text` wins
+      over translucency). On a glass toast the words take the system's vibrant `.primary` and `.secondary` styles,
+      which stay readable over whatever shows through; the theme's colours go with its solid surface.
+    - **The stack under Reduce Motion** is not scaled, and toasts take their places without sliding there.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and
       marks each window with an os_signpost interval; `MotionTests` fails a transition above 5 ms of hitch per second
       or any frame two refreshes late. `XCTOSSignpostMetric` reports hitches on a device only, so that test skips
-      on the simulator. Frame timing on a simulator follows the Mac's load, so the gate is CI's dedicated runner.
+      on the simulator. Frame timing on a simulator follows the Mac's load, so the gate runs on CI's fresh hosted VM in
+      Release, and a failing transition is measured once more before it fails.
 
 ## Prior art
 

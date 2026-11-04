@@ -76,6 +76,8 @@ public enum OuroInput: Sendable {
 public enum OuroAppearance: Equatable, Sendable {
     /// Slides in from an edge on core's spring: for something that floats over the page, such as a toast.
     case move(edge: Edge)
+    /// Falls in from the top edge while growing from 92%, and lifts back out without the scale: for a toast.
+    case drop
     /// Grows from 96% at its top edge while fading in, as the page makes room: for something in the page's flow,
     /// such as a banner, which must not slide over what is above it.
     case unfold
@@ -86,6 +88,10 @@ public enum OuroAppearance: Equatable, Sendable {
         switch self {
         case let .move(edge): .move(edge: edge).combined(with: .opacity)
         case .unfold: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
+        case .drop: .asymmetric(
+            insertion: .move(edge: .top).combined(with: .scale(scale: OuroToastMetrics.arrivalScale, anchor: .top)).combined(with: .opacity),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
         case .fade: .opacity
         }
     }
@@ -94,6 +100,7 @@ public enum OuroAppearance: Equatable, Sendable {
         switch self {
         case .move: OuroMotion.step(.spring, reduceMotion: reduceMotion)
         case .unfold: OuroMotion.step(.layout, reduceMotion: reduceMotion)
+        case .drop: OuroMotion.step(.enter, reduceMotion: reduceMotion)
         case .fade: .crossfade(duration: OuroMotion.reducedMotionCrossfade)
         }
     }

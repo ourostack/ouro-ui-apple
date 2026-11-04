@@ -58,8 +58,20 @@ public struct OuroButtonPalette: Sendable {
     public var border: Color.Resolved?
     public var surface: Color.Resolved
 
-    public init(tone: OuroTone, variant: OuroButtonVariant, style: OuroHXStyle) {
+    /// `isEnabled: false` gives the disabled look, the same for every tone and variant: a muted fill with an outline
+    /// and a label still reading at the target, rather than web's half opacity, which Xcode's audit fails.
+    public init(tone: OuroTone, variant: OuroButtonVariant, style: OuroHXStyle, isEnabled: Bool = true) {
         let c = style.colors
+        guard isEnabled else {
+            // Every variant looks the same disabled: a muted chip with an outline and a label that still reads. Some
+            // themes' tones are close to their muted grey, so the outline and fill, not the colour alone, say it.
+            let muted = OuroInk.r(c.muted)
+            fill = muted
+            surface = muted
+            border = OuroColor.push(OuroInk.r(c.border), against: muted, to: style.contrast == .increased ? OuroColor.increasedLineContrast : OuroButtonMetrics.disabledOutlineContrast)
+            label = OuroInk.readable(OuroInk.r(c.mutedForeground), on: muted, style)
+            return
+        }
         let background = OuroInk.r(c.background)
         let (toneFill, toneLabel) = tone.fill(c)
         let fill = OuroInk.r(toneFill)
@@ -102,13 +114,15 @@ public struct OuroButtonPalette: Sendable {
 
 /// Metrics and motion every ``OuroButton`` shares, as data.
 public enum OuroButtonMetrics {
+    /// How strongly a disabled button's outline reads on its muted fill (3:1 under increased contrast): enough to show
+    /// the chip where a theme's tone is close to its muted grey.
+    public static let disabledOutlineContrast = 1.5
+
     /// Core's press scale while pressed, or none under Reduce Motion.
     public static func pressScale(isPressed: Bool, reduceMotion: Bool) -> Double {
         OuroMotion.pressScale(isPressed: isPressed, reduceMotion: reduceMotion)
     }
 
-    /// A disabled button's opacity, as on web.
-    public static let disabledOpacity = 0.5
 }
 
 /// Ouro HX's button look for any SwiftUI `Button`: `.buttonStyle(.ouro(.soft, tone: .destructive))`.
@@ -147,12 +161,15 @@ public struct OuroButtonStyle: ButtonStyle {
         @Environment(\.colorScheme) private var scheme
         @Environment(\.colorSchemeContrast) private var contrast
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
-        @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.isEnabled) private var environmentEnabled
+        @Environment(\.ouroButtonLoading) private var loading
         @Environment(\.ouroTouchTarget) private var touchTarget
+        /// A loading button is disabled but keeps its tone: it is busy, not unavailable.
+        private var isEnabled: Bool { environmentEnabled || loading }
         @Environment(\.ouroButtonFillsWidth) private var fillsWidth
 
         var body: some View {
-            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
+            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled)
             let shape = style.shape == .pill ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             let pressed = configuration.isPressed
             configuration.label
@@ -166,9 +183,8 @@ public struct OuroButtonStyle: ButtonStyle {
                 .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: style.size.minimumHeight(on: .current, target: touchTarget))
                 .frame(minWidth: OuroInput.current == .touch ? max(touchTarget, OuroButtonSize.minimumTarget(on: .touch)) : OuroButtonSize.minimumTarget(on: .pointer))
                 .background { background(palette, shape: shape, pressed: pressed) }
-                .modifier(GlassIfNeeded(enabled: style.variant == .glass, shape: shape))
+                .modifier(GlassIfNeeded(enabled: style.variant == .glass, interactive: isEnabled, shape: shape))
                 .contentShape(shape)
-                .opacity(isEnabled ? 1 : OuroButtonMetrics.disabledOpacity)
                 .scaleEffect(OuroButtonMetrics.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
                 .animation(OuroMotion.animation(.press, reduceMotion: reduceMotion), value: pressed)
         }
@@ -177,7 +193,9 @@ public struct OuroButtonStyle: ButtonStyle {
         private func background(_ p: OuroButtonPalette, shape: AnyShape, pressed: Bool) -> some View {
             let layer = Color(p.label).opacity(pressed ? 0.12 : 0)
             if let fill = p.fill {
-                shape.fill(Color(fill)).overlay(shape.fill(layer))
+                shape.fill(Color(fill)).overlay(shape.fill(layer)).overlay {
+                    if let border = p.border { shape.stroke(Color(border), lineWidth: 1).padding(0.5) }
+                }
             } else if let border = p.border {
                 shape.stroke(Color(border), lineWidth: 1).padding(0.5).background(shape.fill(layer))
             } else {
@@ -188,18 +206,24 @@ public struct OuroButtonStyle: ButtonStyle {
 
     private struct GlassIfNeeded: ViewModifier {
         let enabled: Bool
+        let interactive: Bool
         let shape: AnyShape
 
         func body(content: Content) -> some View {
             if !enabled {
                 content
             } else if #available(iOS 26, macOS 26, visionOS 26, *) {
-                content.glassEffect(.regular.interactive(), in: shape)
+                content.glassEffect(.regular.interactive(interactive), in: shape)
             } else {
                 content.background(.regularMaterial, in: shape)
             }
         }
     }
+}
+
+extension EnvironmentValues {
+    /// Set by ``OuroButton`` while `loading`, so its style keeps the tone rather than the disabled look.
+    @Entry var ouroButtonLoading = false
 }
 
 extension ButtonStyle where Self == OuroButtonStyle {
@@ -226,6 +250,7 @@ public struct OuroButton<Label: View>: View {
     private let role: ButtonRole?
     private let loading: Bool
     private let loadingLabel: String
+    @Environment(\.isEnabled) private var outerEnabled
     private let haptic: OuroHapticMoment?
     @State private var presses = 0
 
@@ -262,6 +287,8 @@ public struct OuroButton<Label: View>: View {
                 .overlay { if loading { ProgressView().accessibilityHidden(true) } }
         }
         .buttonStyle(style)
+        // Busy, not unavailable, unless something around the button disabled it anyway.
+        .environment(\.ouroButtonLoading, loading && outerEnabled)
         .disabled(loading)
         .accessibilityValue(loading ? Text(loadingLabel) : Text(""))
         .sensoryFeedback(trigger: presses) { _, _ in haptic?.sensoryFeedback }

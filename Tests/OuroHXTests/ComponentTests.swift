@@ -15,6 +15,11 @@ private let styles: [(String, OuroHXStyle)] = OuroThemeName.allCases.flatMap { n
 private func ratio(_ a: Color.Resolved, _ b: Color.Resolved) -> Double { OuroColor.contrastRatio(a, b) }
 /// 5:1, a margin over WCAG's 4.5, or 7:1 under increased contrast. Xcode's audit measures antialiased pixels and read
 /// a soft button's label and a banner's description at exactly 4.5:1 as "Contrast nearly passed".
+/// Distance between two colours in gamma-encoded sRGB, from 0 to about 1.73.
+private func distance(_ a: Color.Resolved, _ b: Color.Resolved) -> Double {
+    let (r, g, bl) = (Double(a.red - b.red), Double(a.green - b.green), Double(a.blue - b.blue))
+    return (r * r + g * g + bl * bl).squareRoot()
+}
 private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increased ? 7 : 5 }
 
 // MARK: target.touch
@@ -63,12 +68,42 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 // MARK: contrast.text
 
 @Suite struct ContrastTests {
+    /// Your own text on a theme surface reads at the components' target: muted text on a card, in every theme and mode.
+    @Test func yourOwnTextReadsAtTheComponentsTarget() {
+        for (name, style) in styles {
+            let c = style.colors
+            let shown = OuroColor.readable(c.mutedForeground, on: c.card, contrast: style.contrast)
+            #expect(ratio(OuroColor.resolve(shown), OuroColor.resolve(c.card)) >= target(style), "\(name)")
+        }
+        // A colour that already reads is left alone.
+        #expect(OuroColor.readable(.black, on: .white) == .black)
+    }
+
     @Test(arguments: OuroButtonVariant.allCases)
     func everyButtonLabelReadsOnItsFillInEveryThemeAndMode(variant: OuroButtonVariant) {
         for (name, style) in styles {
             for tone in OuroTone.allCases {
                 let p = OuroButtonPalette(tone: tone, variant: variant, style: style)
                 #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(tone) \(variant): \(ratio(p.label, p.surface))")
+            }
+        }
+    }
+
+    /// A disabled button looks disabled (the muted colours, not its tone) and its label still reads: Xcode's audit
+    /// fails a half-transparent label, and people with low vision still need to read what they can't press yet.
+    @Test(arguments: OuroButtonVariant.allCases)
+    func aDisabledButtonsLabelStillReads(variant: OuroButtonVariant) {
+        for (name, style) in styles {
+            for tone in OuroTone.allCases {
+                let p = OuroButtonPalette(tone: tone, variant: variant, style: style, isEnabled: false)
+                #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(tone) \(variant) disabled")
+                // Tellable apart: the label or the fill moves visibly in colour (a tone turning grey, or a grey
+                // moving in lightness), or an outline reads at 1.5:1 on the fill.
+                let enabled = OuroButtonPalette(tone: tone, variant: variant, style: style)
+                let label = distance(p.label, enabled.label)
+                let fill = distance(p.fill ?? p.surface, enabled.fill ?? enabled.surface)
+                let outline = p.border.map { ratio($0, p.surface) } ?? 1
+                #expect(label >= 0.2 || fill >= 0.2 || outline >= 1.5, "\(name) \(tone) \(variant): looks enabled (label \(label), fill \(fill), outline \(outline))")
             }
         }
     }
@@ -279,6 +314,16 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(model.queue.waiting.map(\.id) == ["b"])
         #expect(model.arrives(b.showing))
         #expect(model.remaining(for: b, held: false, now: start + 4) == OuroToastMetrics.defaultSeconds)
+    }
+
+    /// A sheet counts as drawn scaled only when its close button is drawn smaller than its layout size: 44.2 points
+    /// at 96%, 46 unscaled. That holds on any platform and OS, where a sheet's height says nothing.
+    @Test func aSheetIsScaledOnlyWhenItsCloseButtonIsDrawnSmall() {
+        #expect(OuroSheetMetrics.isDrawnScaled(closeButtonHeight: 46 * 0.96))
+        #expect(!OuroSheetMetrics.isDrawnScaled(closeButtonHeight: 46))
+        #expect(!OuroSheetMetrics.isDrawnScaled(closeButtonHeight: 0))
+        #expect(OuroSheetMetrics.accessibilityIdentifier == "ouro.sheet")
+        #expect(OuroSheetMetrics.closeIdentifier == "ouro.sheet.close")
     }
 
     @Test func aToastsBorderReadsUnderIncreasedContrast() {

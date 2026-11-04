@@ -33,6 +33,27 @@ public enum OuroColor {
         contrastRatio(.white, fill) >= contrastRatio(ink, fill) ? .white : ink
     }
 
+    /// The contrast the components' own text reads at in standard contrast: WCAG's 4.5 plus a margin, because
+    /// Xcode's accessibility audit measures antialiased pixels.
+    public static let textContrast = 5.0
+
+    /// `text` raised just enough to read on `surface` the way the components' text does: at ``textContrast``, or
+    /// ``increasedTextContrast`` when `contrast` is increased. Returned unchanged when it already reads. Use it for
+    /// your own secondary text, such as `colors.mutedForeground` on `colors.card`. Pass concrete colours, such as
+    /// those from `\.ouroColors`: a system colour that adapts to light and dark (`.secondary`, an asset colour) is
+    /// measured in light mode and comes back fixed.
+    ///
+    /// ```swift
+    /// @Environment(\.ouroColors) private var colors
+    /// @Environment(\.colorSchemeContrast) private var contrast
+    /// Text(detail).foregroundStyle(OuroColor.readable(colors.mutedForeground, on: colors.card, contrast: contrast))
+    /// ```
+    public static func readable(_ text: Color, on surface: Color, contrast: ColorSchemeContrast = .standard) -> Color {
+        let target = contrast == .increased ? increasedTextContrast : textContrast
+        let (t, s) = (resolve(text), resolve(surface))
+        return contrastRatio(t, s) >= target ? text : Color(push(t, against: s, to: target))
+    }
+
     // MARK: Increased contrast
 
     /// The contrast ``increasedContrast(_:)`` raises text to.

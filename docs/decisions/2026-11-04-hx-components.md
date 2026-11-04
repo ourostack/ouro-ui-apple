@@ -51,6 +51,18 @@ Status: accepted (W8 of the HX and AX native program).
     when each goes, so a toast drawn again in another host (a sheet opening or closing) is heard once and keeps its
     time; a closing sheet hands the toasts back as it starts to close.
 13. **A banner speaks once** on arrival and again only when its words change, not on every `onAppear`.
+14. **From the agent-usability run** (a fresh agent building a settings screen from the docs alone, against
+    v0.3.0-rc.1). Its screen compiled and used the components correctly, and its own audit run found two library
+    problems: a disabled solid button at web's half opacity failed contrast, and the fitted sheet's 96% scale failed
+    as "Text clipped" in an app's audit, not only in the gallery's. So a disabled button of any tone and variant is a
+    muted chip with an outline and a readable label (`OuroButtonPalette(…, isEnabled: false)`; some themes' tones are
+    close to their muted grey, so the outline and fill carry it, not colour alone), a loading button keeps its tone,
+    and `ouroAccessibilityAudit` excuses "Text clipped" only on an element wholly inside an `.ouroSheet` (`ouro.sheet`)
+    whose close button (`ouro.sheet.close`) is drawn smaller than its 46-point layout size: measured, not guessed from
+    the sheet's height, so nothing is excused on macOS, before iOS 26, or in a sheet at full height
+    (`OuroAuditExcuse`, unit-tested). The agent also
+    had to guess how to make its own muted text read, so `OuroColor.readable(_:on:contrast:)` is public, and the
+    article gains "In your own screen".
 
 ## Prior art
 

@@ -90,7 +90,7 @@ public enum OuroAppearance: Equatable, Sendable {
         case .unfold: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
         case .drop: .asymmetric(
             insertion: .move(edge: .top).combined(with: .scale(scale: OuroToastMetrics.arrivalScale, anchor: .top)).combined(with: .opacity),
-            removal: .move(edge: .top).combined(with: .opacity)
+            removal: .move(edge: .top).combined(with: .scale(scale: OuroToastMetrics.departureScale, anchor: .top)).combined(with: .opacity)
         )
         case .fade: .opacity
         }

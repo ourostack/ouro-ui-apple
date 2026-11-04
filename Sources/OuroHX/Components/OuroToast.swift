@@ -174,7 +174,12 @@ public enum OuroToastMetrics {
     }
 
     /// How a toast arrives: on the `enter` spring, falling from above while growing from 92%; or a crossfade.
-    public static func arrival(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.enter, reduceMotion: reduceMotion) }
+    /// Livelier than other arrivals, so the landing visibly overshoots and settles, as the system's own notices do.
+    public static func arrival(reduceMotion: Bool) -> OuroMotion.Step {
+        reduceMotion ? OuroMotion.step(.enter, reduceMotion: true) : .spring(visualDuration: 0.5, bounce: 0.32)
+    }
+    /// The scale a toast shrinks to as it leaves, so it recedes rather than slides off.
+    public static let departureScale = 0.96
     /// How a toast leaves: on the quick `exit` spring, back up the way it came; or a crossfade.
     public static func departure(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.exit, reduceMotion: reduceMotion) }
 
@@ -185,7 +190,7 @@ public enum OuroToastMetrics {
         public var y: CGFloat
     }
     /// The stack's one shadow, under the front toast: light, as Apple's notices cast, not a web card's halo.
-    public static let shadow = Shadow(opacity: 0.08, radius: 12, y: 4)
+    public static let shadow = Shadow(opacity: 0.12, radius: 20, y: 6)
     /// The hairline every toast is edged with, in its words' colour at ``edgeOpacity(scheme:)``: a light toast on a light
     /// page doesn't lean on its shadow alone.
     public static let edgeWidth: CGFloat = 0.5
@@ -526,14 +531,14 @@ struct OuroToastView: View {
         if showsWords {
         HStack(alignment: large ? .top : .center, spacing: 10) {
             // The icon sits on the message's first line, not between the message and description.
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let name = toast.symbol {
                     Image(systemName: name)
                         .font(.title3.weight(.semibold))
                         .symbolRenderingMode(.monochrome)
                         .foregroundStyle(Color(p.icon))
-                        // A mark beside the words, not a word: it stops growing at the largest standard size.
-                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        // It grows with the words, a step short of the largest sizes so it never outweighs them.
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility3)
                         // It bounces once as the toast lands, on the frame its haptic plays.
                         .symbolEffect(.bounce, value: landed)
                         .accessibilityHidden(true)
@@ -579,7 +584,7 @@ struct OuroToastView: View {
             .modifier(Held(focus: $focus, part: .dismiss, on: tracksFocus))
             .padding(.trailing, -10)
         }
-        .padding(.leading, 18)
+        .padding(.leading, 16)
         .padding(.trailing, 10)
         .padding(.vertical, 6)
         .frame(minHeight: OuroToastMetrics.height)

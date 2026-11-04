@@ -204,6 +204,19 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     /// Secondary's solid fill is a step stronger than its soft one, so the two variants never look the same; under
     /// increased contrast an outline is two points wide, in its full tone.
     @Test func aSecondarySolidIsStrongerThanItsSoft() {
+        #expect(OuroButtonMetrics.secondarySolidStep(scheme: .light) == 0.07)
+        #expect(OuroButtonMetrics.secondarySolidStep(scheme: .dark) == 0.12)
+        // Secondary's outline is the page's foreground at 25%, so it reads with the tones' outlines.
+        for (name, style) in styles where style.contrast != .increased {
+            let c = style.colors
+            let p = OuroButtonPalette(tone: .secondary, variant: .outline, style: style)
+            let line = OuroInk.tint(OuroInk.r(c.foreground), over: OuroInk.r(c.background), OuroButtonMetrics.neutralOutlineTint)
+            #expect(distance(p.border!, line) < 0.01, "\(name)")
+        }
+        #expect(OuroButtonMetrics.neutralOutlineTint == 0.25)
+        // A plain button's words sit on the layout margin, its target reaching past them.
+        #expect(OuroButtonSize.md.horizontalPadding(for: .plain) == 0)
+        #expect(OuroButtonSize.md.horizontalPadding(for: .solid) == 20)
         for (name, style) in styles {
             let solid = OuroButtonPalette(tone: .secondary, variant: .solid, style: style).fill!
             let soft = OuroButtonPalette(tone: .secondary, variant: .soft, style: style).fill!
@@ -353,7 +366,9 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
     /// A toast arrives on a spring with a little bounce and leaves on one with none, so it never wobbles away.
     @Test func aToastArrivesWithABounceAndLeavesWithout() {
-        #expect(OuroToastMetrics.arrival(reduceMotion: false) == OuroMotion.step(.enter, reduceMotion: false))
+        // A livelier landing than other arrivals, so the overshoot shows: 0.5 s, bounce 0.32. It leaves shrinking to 96%.
+        #expect(OuroToastMetrics.arrival(reduceMotion: false) == .spring(visualDuration: 0.5, bounce: 0.32))
+        #expect(OuroToastMetrics.departureScale == 0.96)
         #expect(OuroToastMetrics.departure(reduceMotion: false) == OuroMotion.step(.exit, reduceMotion: false))
     }
 
@@ -400,8 +415,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     /// One light shadow under the stack, as Apple's notices cast: black at 8%, a 12-point blur dropped 4 points. Tucked
     /// toasts cast none, so three shadows never add up to a grey band.
     @Test func aToastCastsOneLightShadow() {
-        #expect(OuroToastMetrics.shadow == .init(opacity: 0.08, radius: 12, y: 4))
-        #expect(OuroToastMetrics.shadowReach == 16)
+        #expect(OuroToastMetrics.shadow == .init(opacity: 0.12, radius: 20, y: 6))
+        #expect(OuroToastMetrics.shadowReach == 26)
         #expect(OuroToastMetrics.castsShadow(tucked: false))
         #expect(!OuroToastMetrics.castsShadow(tucked: true))
     }

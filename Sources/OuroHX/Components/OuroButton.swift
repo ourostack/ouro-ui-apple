@@ -43,6 +43,10 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
         switch self { case .sm: 14; case .md: 20; case .lg: 24 }
     }
 
+    /// The padding a `variant` takes: none for `plain`, whose words sit on the layout margin as the system's borderless
+    /// buttons' do (its target still reaches 44 points), the size's own otherwise.
+    public func horizontalPadding(for variant: OuroButtonVariant) -> CGFloat { variant == .plain ? 0 : horizontalPadding }
+
     /// An icon beside the words, a step smaller than them so it never outweighs them.
     var iconFont: Font {
         switch self {
@@ -96,7 +100,7 @@ public struct OuroButtonPalette: Sendable {
         case .solid:
             // The label first; where even white or black falls short, the fill moves away from it.
             // Secondary's pale fill takes a step of the page's foreground, so solid reads stronger than soft.
-            let base = tone == .secondary ? OuroInk.tint(OuroInk.r(c.foreground), over: fill, OuroButtonMetrics.secondarySolidStep) : fill
+            let base = tone == .secondary ? OuroInk.tint(OuroInk.r(c.foreground), over: fill, OuroButtonMetrics.secondarySolidStep(scheme: style.scheme)) : fill
             let text = OuroInk.readable(OuroInk.r(toneLabel), on: base, style)
             let shown = OuroColor.contrastRatio(text, base) >= OuroInk.target(style) ? base : OuroColor.push(base, against: text, to: OuroInk.target(style))
             self.fill = shown
@@ -117,7 +121,9 @@ public struct OuroButtonPalette: Sendable {
             // In its tone at 50% over the page, so an outline row reads as its tones; secondary keeps the border. Under
             // increased contrast, the full tone, raised to 3:1, so the line stays its colour rather than going grey.
             let increased = style.contrast == .increased
-            let line = tone == .secondary ? OuroInk.r(c.border) : (increased ? fill : OuroInk.tint(fill, over: background, OuroButtonMetrics.outlineTint))
+            // Secondary's is the page's foreground at 25%, a neutral that still reads beside the tones.
+            let neutral = OuroInk.tint(OuroInk.r(c.foreground), over: background, OuroButtonMetrics.neutralOutlineTint)
+            let line = tone == .secondary ? (increased ? OuroInk.r(c.border) : neutral) : (increased ? fill : OuroInk.tint(fill, over: background, OuroButtonMetrics.outlineTint))
             border = OuroColor.push(line, against: background, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
         case .plain:
             self.fill = nil
@@ -156,8 +162,11 @@ public enum OuroButtonMetrics {
     public static let outlineTint = 0.5
     /// An outline's width: a point, or two under increased contrast.
     public static func outlineWidth(contrast: ColorSchemeContrast) -> CGFloat { contrast == .increased ? 2 : 1 }
-    /// How much of the page's foreground secondary's solid fill takes over its pale colour.
-    public static let secondarySolidStep = 0.07
+    /// How much of the page's foreground secondary's solid fill takes over its pale colour: more in dark, where the
+    /// step reads smaller.
+    public static func secondarySolidStep(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0.07 }
+    /// How much of the page's foreground secondary's outline is drawn with.
+    public static let neutralOutlineTint = 0.25
 
 }
 
@@ -223,7 +232,7 @@ public struct OuroButtonStyle: ButtonStyle {
                 // Wraps instead of truncating at every text size (core claim `text.reflows`).
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(Color(palette.label))
-                .padding(.horizontal, style.size.horizontalPadding)
+                .padding(.horizontal, style.size.horizontalPadding(for: style.variant))
                 .padding(.vertical, 7)
                 .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: visual)
                 .frame(minWidth: OuroInput.current == .touch ? max(touchTarget, OuroButtonSize.minimumTarget(on: .touch)) : OuroButtonSize.minimumTarget(on: .pointer))

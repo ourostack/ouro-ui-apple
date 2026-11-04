@@ -5,7 +5,7 @@ import PackageDescription
 
 // The floor is what the code needs for most of its API: Observation-era SwiftUI (`@Entry`, `sensoryFeedback`,
 // `Color.resolve(in:)`). Newer APIs (the iOS 27.1 hinge, AppIntentsTesting, the Siri AI preview) sit behind
-// `#available` and compiler checks, so the floor never rises for one feature.
+// `#available` and SDK checks (`canImport(_, _version:)`), so the floor never rises for one feature.
 let platforms: [SupportedPlatform] = [.iOS(.v18), .macOS(.v15)]
 
 // Swift 6 language mode gives complete strict concurrency checking; ExistentialAny on top.

@@ -30,12 +30,15 @@ public struct OuroFoldReader<Content: View>: View {
 
     /// The `.division` regions, inactive ones included, in the proxy's coordinates.
     public static func divisions(in proxy: GeometryProxy) -> [OuroFoldRegion] {
-        // The hinge APIs ship in the Xcode 27 SDKs (Swift 6.4); older toolchains, such as CI's free macos-26 image,
-        // build the rest of the package without them.
-        #if compiler(>=6.4)
+        // The hinge APIs come with the SDK, not the compiler: Xcode 27.0 and 27.1 have Swift 6.4 but a macOS 27.0 SDK
+        // without them. So the check is SwiftUICore's version: 8.1.13 is the macOS 27.2 SDK's, the first known to
+        // declare them. Older SDKs (CI's free macos-26 image, Xcode 27.0) build the rest without them.
+        #if canImport(SwiftUICore, _version: 8.1.13)
         if #available(iOS 27.1, macOS 27.1, *) {
             return proxy.reservedRegions(kind: .division, options: .includeInactive).map { OuroFoldRegion(frame: $0.frame, isActive: $0.isActive) }
         }
+        #elseif OURO_REQUIRE_HINGE
+        #error("This SDK should declare the hinge APIs, but its SwiftUICore is below 8.1.13. Fix: lower the fence's _version to this SDK's.")
         #endif
         return []
     }
@@ -45,7 +48,7 @@ private struct OuroHingeObserver: ViewModifier {
     @Binding var hinge: OuroHinge
 
     func body(content: Content) -> some View {
-        #if compiler(>=6.4)
+        #if canImport(SwiftUICore, _version: 8.1.13)
         if #available(iOS 27.1, macOS 27.1, *) {
             content.onHingeChange { _, new in
                 guard let h = new.hinge else { hinge = .none; return }
@@ -58,6 +61,8 @@ private struct OuroHingeObserver: ViewModifier {
         } else {
             content
         }
+        #elseif OURO_REQUIRE_HINGE
+        #error("This SDK should declare the hinge APIs, but its SwiftUICore is below 8.1.13. Fix: lower the fence's _version to this SDK's.")
         #else
         content
         #endif

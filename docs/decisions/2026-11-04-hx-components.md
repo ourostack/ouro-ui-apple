@@ -132,7 +132,13 @@ Status: accepted (W8 of the HX and AX native program).
       with 20-point corners and a Title 3 icon, and a 44-point sheet close disc with a Title 2 title. The audit of the
       expanded stack excuses two readings it gets wrong there, with the proof in the test: Undo "fails contrast" even
       drawn black on white, and the oldest toast's plain words read as an undersized target; the toasts' buttons are
-      asserted at 44 points and hittable instead. The gallery shows the components over real content (a recipe list)
+      asserted at 44 points and hittable instead. Round 4 said no again and found a bug the snapshots could not:
+      the keyframed cascade drew the empty state's symbol at the screen's origin on device. Round 5 drops the
+      keyframes (each line is held clear for the frame before arrival, then springs in), adds a UI test that reads the
+      symbol's pixels above its title, and adopts: a toast landing that visibly overshoots (0.5 s, bounce 0.32), an
+      exit to 96%, a deeper shadow, an icon that grows with the words, peeks of 12 and 22 points, secondary's outline
+      at 25% of the foreground, plain buttons on the margin, a 12% dark secondary step, 16-point banner corners and a
+      dark sheet rim. The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and
       marks each window with an os_signpost interval; `MotionTests` fails a transition above 5 ms of hitch per second

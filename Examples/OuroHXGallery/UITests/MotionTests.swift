@@ -121,7 +121,7 @@ final class MotionTests: XCTestCase {
             // As for the press: the window opens once finding the toast is done.
             let app = window("toasts", open: true, delay: 5, seconds: 8)
             defer { app.terminate() }
-            let toast = app.staticTexts["Couldn't save"]
+            let toast = app.staticTexts["Couldn\u{2019}t save"]
             guard toast.waitForExistence(timeout: 10) else { return nil }
             let start = point(app, toast)
             Thread.sleep(forTimeInterval: 6)

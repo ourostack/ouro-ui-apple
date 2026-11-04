@@ -35,6 +35,10 @@ public enum OuroSheetMetrics {
     /// The close button's drawn disc, inside its target: 34 points, as on Apple's own sheets.
     public static let closeDisc: CGFloat = 30
 
+    /// Whether a sheet shows its grabber: only with several heights to drag between. A sheet that fits its content,
+    /// or has one detent, has none, as on Apple's own.
+    public static func showsGrabber(detents: Set<PresentationDetent>?) -> Bool { (detents?.count ?? 0) > 1 }
+
     /// The accessibility identifier of every `.ouroSheet`'s content, which `OuroHXTesting`'s audit looks for.
     public static let accessibilityIdentifier = "ouro.sheet"
 
@@ -199,7 +203,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 .padding(.trailing, -10)
             }
             .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .padding(.top, 20)
             .padding(.bottom, 8)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { header = $0 }
             ScrollView {
@@ -230,7 +234,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
         .frame(minWidth: 360, minHeight: min(fittedHeight, 640))
         #endif
         .presentationDetents(detents ?? [.height(fittedHeight)])
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(OuroSheetMetrics.showsGrabber(detents: detents) ? .visible : .hidden)
         // Toasts sent while the sheet is open show above it, not behind it.
         .modifier(OuroToastHost())
         .modifier(SheetBackground(surface: Color(p.surface)))

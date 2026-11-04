@@ -111,8 +111,13 @@ struct EmptyStatesPage: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            if shown { firstEmpty.transition(.opacity.combined(with: .scale(scale: 0.97))) }
-            OuroEmptyState("Nothing matches \u{201C}saffron\u{201D}", systemImage: "magnifyingglass", description: "Try fewer words, or check the spelling.", alignment: .leading, variant: .plain)
+            // It fades in and out where it stands, so nothing else on the page moves under it.
+            firstEmpty
+                .opacity(shown ? 1 : 0)
+                .scaleEffect(shown || reduceMotion ? 1 : 0.97)
+                .accessibilityHidden(!shown)
+                .allowsHitTesting(shown)
+            OuroEmptyState("Nothing matches \u{201C}saffron\u{201D}", systemImage: "text.magnifyingglass", description: "Try fewer words, or check the spelling.", alignment: .leading, variant: .plain)
         }
         .frame(minHeight: 300, alignment: .top)
         .task {
@@ -121,7 +126,7 @@ struct EmptyStatesPage: View {
     }
 
     private var firstEmpty: some View {
-            OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe, or import one from the web.") {
+            OuroEmptyState("No recipes yet", systemImage: "books.vertical", description: "Start by creating your first recipe, or import one from the web.") {
                 OuroButton("Create recipe", systemImage: "plus") { toast("A fresh page, ready for a recipe", tone: .success) }
             }
     }
@@ -133,10 +138,10 @@ struct BannersPage: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            OuroBanner("Couldn't save", description: "Check your connection and try again.", tone: .destructive, onDismiss: {
+            OuroBanner("Couldn\u{2019}t save", description: "Check your connection and try again.", tone: .destructive, onDismiss: {
                 withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = false }
             }, isPresented: showError) {
-                OuroButton("Try again", tone: .destructive, size: .sm) {}
+                OuroButton("Try again", tone: .destructive, variant: .soft, size: .sm) {}
             }
             .accessibilityIdentifier("banner.destructive")
             OuroBanner("Recipe saved", tone: .success)
@@ -173,9 +178,11 @@ struct SheetsPage: View {
         // `-sheetDetent large` shows it at full height, where iOS draws it unscaled, for the audit's clipped-text check.
         .ouroSheet(isPresented: $open, title: "Save to cookbook", description: "Pick where this recipe lives.",
                    detents: UserDefaults.standard.string(forKey: "sheetDetent") == "large" ? [.large] : nil) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 0) {
                 ForEach(["Weeknights", "Sunday bakes", "Party food"], id: \.self) { name in
                     CookbookRow(name: name, picked: $picked)
+                    // Settings' hairline between rows, not after the last.
+                    if name != "Party food" { Divider() }
                 }
             }
         } footer: {
@@ -216,6 +223,7 @@ private struct CookbookRow: View {
                     .opacity(picked == name ? 1 : 0)
                     .accessibilityHidden(true)
             }
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, minHeight: target, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -235,7 +243,7 @@ struct ToastsPage: View {
                 toast("Recipe deleted", action: OuroToastAction("Undo") {})
             }
             OuroButton("Fail", variant: .outline) {
-                toast("Couldn't save", description: "Check your connection.", tone: .destructive)
+                toast("Couldn\u{2019}t save", description: "Check your connection.", tone: .destructive)
             }
             RecipeFeed()
         }
@@ -261,7 +269,7 @@ struct ToastsPage: View {
             guard opensAtLaunch, demo == nil else { return }
             toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "saved")
             toast("Recipe deleted", action: OuroToastAction("Undo") {}, id: "deleted")
-            toast("Couldn't save", description: "Check your connection.", tone: .destructive, duration: .untilDismissed, id: "failed")
+            toast("Couldn\u{2019}t save", description: "Check your connection.", tone: .destructive, duration: .untilDismissed, id: "failed")
         }
     }
 }

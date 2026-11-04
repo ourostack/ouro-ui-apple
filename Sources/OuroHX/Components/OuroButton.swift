@@ -103,7 +103,7 @@ public struct OuroButtonPalette: Sendable {
             border = nil
         case .soft:
             // A little stronger in dark, where a faint tint over near-black reads as mud.
-            let tinted = tone == .secondary ? fill : OuroInk.tint(fill, over: background, style.scheme == .dark ? 0.2 : 0.14)
+            let tinted = tone == .secondary ? fill : OuroInk.tint(fill, over: background, OuroButtonMetrics.softTint(scheme: style.scheme))
             self.fill = tinted
             surface = tinted
             label = OuroInk.readable(toneText, on: tinted, style)
@@ -112,7 +112,9 @@ public struct OuroButtonPalette: Sendable {
             self.fill = nil
             surface = background
             label = OuroInk.readable(toneText, on: background, style)
-            border = OuroColor.push(OuroInk.r(c.border), against: background, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
+            // In its tone at 40% over the page, so an outline row reads as its tones; secondary keeps the border.
+            let line = tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(fill, over: background, OuroButtonMetrics.outlineTint)
+            border = OuroColor.push(line, against: background, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
         case .plain:
             self.fill = nil
             surface = background
@@ -138,6 +140,16 @@ public enum OuroButtonMetrics {
     public static func pressScale(isPressed: Bool, reduceMotion: Bool) -> Double {
         OuroMotion.pressScale(isPressed: isPressed, reduceMotion: reduceMotion)
     }
+
+    /// A pill's end radius for a button `height` points tall: half of it, a capsule, at every text size, up to 44
+    /// points, so a label wrapped onto several lines becomes a rounded rectangle rather than an oval.
+    public static func pillRadius(height: CGFloat) -> CGFloat { min(height / 2, 44) }
+
+    /// How much of its tone a soft fill washes over the page: 14% in light, 26% in dark, where less reads as mud.
+    public static func softTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.26 : 0.14 }
+
+    /// How much of its tone an outline is drawn with over the page.
+    public static let outlineTint = 0.4
 
 }
 
@@ -189,10 +201,10 @@ public struct OuroButtonStyle: ButtonStyle {
             let pressed = configuration.isPressed
             let visual = style.size.visualHeight(on: .current, target: touchTarget)
             let pressable = style.size.minimumHeight(on: .current, target: touchTarget)
-            // A pill is a capsule on one line; when large text wraps the label it keeps that end radius as a rounded
-            // rectangle rather than ballooning into an oval.
-            // Circular ends, a true capsule: a continuous corner at half the height reads slightly square.
-            let shape = style.shape == .pill ? AnyShape(RoundedRectangle(cornerRadius: visual / 2, style: .circular)) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
+            // A pill is a capsule at every height, its ends half the height it is drawn (taller at large text sizes),
+            // up to 44 points: a label wrapped onto several lines becomes a rounded rectangle, not an oval. Circular
+            // ends, a true capsule: a continuous corner at half the height reads slightly square.
+            let shape = style.shape == .pill ? AnyShape(PillShape()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             configuration.label
                 .labelStyle(ButtonLabel(iconFont: style.size.iconFont))
                 .font(style.size.font)
@@ -371,6 +383,13 @@ extension EnvironmentValues {
     /// Whether ``OuroButton``s here span the width they are offered, as if `fullWidth` were set. ``OuroEmptyState``
     /// sets it for its action at the accessibility text sizes.
     @Entry public var ouroButtonFillsWidth = false
+}
+
+/// A capsule at the height it is drawn: ends of ``OuroButtonMetrics/pillRadius(height:)``.
+struct PillShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        RoundedRectangle(cornerRadius: OuroButtonMetrics.pillRadius(height: rect.height), style: .circular).path(in: rect)
+    }
 }
 
 /// A button's icon and words: 6 points apart, the icon a step smaller and centred on the words.

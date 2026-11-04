@@ -110,7 +110,7 @@ final class ComponentClaimTests: XCTestCase {
     func testCloseControlsClose() {
         var app = launch("banners")
         app.buttons["Dismiss"].tap()
-        XCTAssertTrue(app.staticTexts["Couldn't save"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Couldn\u{2019}t save"].waitForNonExistence(timeout: 3))
         app.terminate()
         app = launch("sheet")
         app.buttons["Close"].tap()
@@ -129,9 +129,9 @@ final class ComponentClaimTests: XCTestCase {
         app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).count
     }
 
-    /// Opens the toast stack by tapping its front toast, the newest, "Couldn't save".
+    /// Opens the toast stack by tapping its front toast, the newest, "Couldn’t save".
     private func expandToasts(_ app: XCUIApplication) {
-        app.staticTexts["Couldn't save"].tap()
+        app.staticTexts["Couldn\u{2019}t save"].tap()
         sleep(1)
         XCTAssertEqual(shownDismissButtons(app), 3, "a tap opens the stack")
     }

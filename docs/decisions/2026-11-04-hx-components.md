@@ -75,22 +75,31 @@ Status: accepted (W8 of the HX and AX native program).
       durations still set the Reduce Motion crossfade.
     - **Capsule buttons**, 34/50/56 points drawn, every one at least 44 points to touch, semibold body type: the
       shape of iOS 26's own buttons. The ends are circular, not continuous (a continuous corner at half the height
-      reads slightly square), the icon is a step smaller than the words, and soft fills are stronger in dark. Press is scale only, on touch-down; no haptic on a plain tap (Apple's apps keep
-      haptics for moments, not taps).
+      reads slightly square), and a capsule at every text size: the radius is half the height drawn, up to 44 points,
+      so a two-line label at the accessibility sizes is a rounded rectangle, not an oval. The icon is a step smaller
+      than the words; soft fills are 14% of the tone in light and 26% in dark; outlines are the tone at 40%, not the
+      neutral border, so an outline row reads as its tones. Press is scale only, on touch-down; no haptic on a plain
+      tap (Apple's apps keep haptics for moments, not taps).
     - **An open empty state** like `ContentUnavailableView`, not web's dashed card: boxed empty states read as a web
-      page on Apple. The dashed edge stays as `.outline`, for drop zones. Its 60-point symbol is the one note of the
-      theme's primary colour, over a bold `.title2` title.
+      page on Apple. The dashed edge stays as `.outline`, for drop zones. Standing alone, its 60-point symbol is the
+      one note of the theme's primary colour; with an action it is the secondary colour, so the action is the one
+      thing to look at. It grows with Dynamic Type up to 80 points; inline (`.leading`) it is 44 points and sits on
+      the page's own margin.
     - **A borderless banner** that folds in place (`isPresented:`), never sliding over what is above it. An `if`
       around it made a removal transition that could not turn around: the frame captures showed it jump when hidden
       and shown again mid-way, and a stalled frame at the turn when only its frame height animated. One animatable
-      fold value drives height, scale and opacity, so it retargets on the spring. In dark its tint washes the raised
-      card colour, its description leans toward the tone, and at the accessibility sizes the words get the whole width.
+      fold value drives height, scale and opacity, so it retargets on the spring; its words are gone by halfway, so
+      the page closing up never slides over words still showing. In dark a 15% tint washes the raised card colour.
+      The words are the page's own colours (tinted descriptions read as a web alert), the neutral banner's icon is
+      secondary, icons and close glyphs stop growing at the largest standard size, and at the accessibility sizes
+      the words get the whole width.
     - **A glass toast at the top**, where iOS puts its own (AirPods, Silent mode, Apple Pay), hugging its words, with
       a stack that tucks behind the newest as Sonner and iOS's notification stacks do. Its countdown stays 5 s and
-      its close control stays visible: the board suggested 2.5 s and no close button, but `toast.action-stays` and
-      `dismiss.reachable` win.
+      its close control stays visible: the board and both taste rounds suggested 2.5 s and no close button, but
+      `toast.action-stays` and `dismiss.reachable` ("every toast") win; the glyph is a quiet bold caption. An action
+      is tinted semibold words after a hairline, as the system's Undo is, not a button inside the capsule.
     - **A solid close disc on the sheet**, which sits on the theme's popover colour in dark so it has an edge over the
-      dimmed page. The sheet keeps the theme's surface on iOS 26 too: its text and the
+      dimmed page. A sheet with one height has no grabber, as Apple's own don't. The sheet keeps the theme's surface on iOS 26 too: its text and the
       components in it are made readable on that surface, and the system's glass is not it (`contrast.text` wins
       over translucency). The toast's glass sits over the theme's opaque surface too, so the page never reads
       through; its words take the system's vibrant `.primary` and `.secondary`, which the gallery's audit measures in
@@ -98,14 +107,20 @@ Status: accepted (W8 of the HX and AX native program).
       captures, against 0 of 5 for vibrant), so they go with the solid surface only.
     - **A glass toast over an opaque surface, with a shadow**: the glass alone read as a grey smudge on a white
       page, and at 55% and 85% tints the accessibility audit still measured the page's words through it, so the
-      theme's surface sits wholly behind the glass and casts the shadow; the glass gives the rim light and depth. Tucked toasts are solid, peek 10 then 18 points and draw
-      only their surface: hidden words left in the accessibility tree were found by the audit as clipped, faint and
-      under 44 points. The audit helper excuses "Contrast failed" only on page content a toast partly covers and
+      theme's surface sits wholly behind the glass and casts the shadow; the glass gives the rim light and depth.
+      The shadow is light (black 8%, 12-point blur, 4 down) and the front toast's alone. Tucked toasts are solid, peek
+      8 then 14 points at 95% and 90%, and draw only their surface: hidden words left in the accessibility tree were
+      found by the audit as clipped, faint and under 44 points. Their words fade out as they tuck rather than
+      vanishing first, which left a blank plate for two or three frames in round 2's captures. The audit helper excuses "Contrast failed" only on page content a toast partly covers and
       on an element partly off screen (`OuroAuditExcuse`); a toast's own words still fail.
     - **The stack under Reduce Motion** is not scaled, and toasts take their places without sliding there.
     - **The taste panel decides.** Two independent reviewers, one comparing with Apple's own apps and one with fresh
-      eyes, judge each component from captures and frame sequences; round 1 said no to every one, and these changes
-      are round 2's (W8 evidence `taste/`). The gallery shows the components over real content (a recipe list)
+      eyes, judge each component from captures and frame sequences. Rounds 1 and 2 said no to every one; these
+      changes are theirs (W8 evidence `taste/`). Declined, with reasons recorded there: a 15-20% toast tint (the
+      audit read the page through 55% and 85%), white labels on core's bright dark-mode solids (they fall short of
+      5:1; raised with core), the system's glass behind sheets (the theme's words are made readable on a known
+      surface, and theme colours on glass dropped frames), and a zoom morph from the source button (it needs an API
+      change). The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and
       marks each window with an os_signpost interval; `MotionTests` fails a transition above 5 ms of hitch per second

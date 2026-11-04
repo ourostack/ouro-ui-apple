@@ -16,15 +16,17 @@ public struct OuroEmptyStatePalette: Sendable {
     public var border: Color.Resolved
     public var surface: Color.Resolved
 
-    public init(style: OuroHXStyle) {
+    /// `hasAction`: the symbol gives way to the action, in the secondary colour, so there is one thing to look at.
+    public init(style: OuroHXStyle, hasAction: Bool = false) {
         let c = style.colors
         surface = OuroInk.r(c.background)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         iconWell = OuroInk.r(c.muted)
-        // The symbol is the state's one note of colour: the theme's primary, hierarchical, reading at the words'
+        // Standing alone the symbol is the state's one note of colour, the theme's primary; with an action it is quiet,
+        // the secondary colour, and the action carries the colour. Hierarchical either way, reading at the words'
         // contrast where it is solid.
-        icon = OuroInk.readable(OuroInk.r(c.primary), on: surface, style)
+        icon = OuroInk.readable(OuroInk.r(hasAction ? c.mutedForeground : c.primary), on: surface, style)
         border = OuroColor.push(OuroInk.r(c.border), against: surface, to: OuroColor.increasedLineContrast)
     }
 }
@@ -53,7 +55,7 @@ public struct OuroEmptyState<Action: View>: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The symbol's size, which grows with Dynamic Type like the title under it.
-    @ScaledMetric(relativeTo: .largeTitle) private var symbolSize: CGFloat = 60
+    @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
     @State private var arrived = false
 
     public init(
@@ -73,7 +75,8 @@ public struct OuroEmptyState<Action: View>: View {
     }
 
     public var body: some View {
-        let p = OuroEmptyStatePalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
+        let p = OuroEmptyStatePalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), hasAction: Action.self != EmptyView.self)
+        let symbolSize = min(OuroEmptyStateMetrics.symbolSize(alignment: alignment) * scale, OuroEmptyStateMetrics.maximumSymbolSize)
         let horizontal: HorizontalAlignment = alignment == .center ? .center : .leading
         let text: TextAlignment = alignment == .center ? .center : .leading
         VStack(alignment: horizontal, spacing: 0) {
@@ -102,7 +105,7 @@ public struct OuroEmptyState<Action: View>: View {
                     .foregroundStyle(Color(p.description))
                     .multilineTextAlignment(text)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 4)
+                    .padding(.top, OuroEmptyStateMetrics.descriptionSpacing)
             }
             if Action.self != EmptyView.self {
                 action
@@ -114,7 +117,8 @@ public struct OuroEmptyState<Action: View>: View {
         .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : OuroEmptyStateMetrics.maximumTextWidth, alignment: alignment == .center ? .center : .leading)
         .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
         .padding(.vertical, 32)
-        .padding(.horizontal, 24)
+        // Centred it keeps clear of the edges; leading, it lines up with the page's own margin, like the text around it.
+        .padding(.horizontal, alignment == .center ? 24 : 0)
         .onAppear { if !reduceMotion { arrived = true } }
         .overlay {
             if variant == .outline {
@@ -138,4 +142,11 @@ extension OuroEmptyState where Action == EmptyView {
 public enum OuroEmptyStateMetrics {
     /// The widest its words run, below the accessibility text sizes: 340 points.
     public static let maximumTextWidth: CGFloat = 340
+    /// The symbol's size at the default text size: a 60-point hero centred, 44 points inline beside leading text. It
+    /// grows with Dynamic Type up to ``maximumSymbolSize``.
+    public static func symbolSize(alignment: OuroEmptyStateAlignment) -> CGFloat { alignment == .center ? 60 : 44 }
+    /// The largest the symbol grows, so at the accessibility sizes the words and action stay in view.
+    public static let maximumSymbolSize: CGFloat = 80
+    /// The gap from the title to the description.
+    public static let descriptionSpacing: CGFloat = 8
 }

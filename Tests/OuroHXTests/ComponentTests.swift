@@ -50,6 +50,30 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroButtonStyle().shape == .pill)
     }
 
+    /// A pill stays a capsule at every text size, its ends half its height, up to 44 points, so a label wrapped onto
+    /// several lines at the accessibility sizes becomes a rounded rectangle rather than an oval.
+    @Test func aPillIsACapsuleAtEveryHeight() {
+        #expect(OuroButtonMetrics.pillRadius(height: 34) == 17)
+        #expect(OuroButtonMetrics.pillRadius(height: 50) == 25)
+        #expect(OuroButtonMetrics.pillRadius(height: 80) == 40)
+        #expect(OuroButtonMetrics.pillRadius(height: 140) == 44)
+    }
+
+    /// An empty state's symbol is a hero standing alone, and inline in the text beside it.
+    @Test func anEmptyStatesSymbolIsCappedAndSmallerInline() {
+        #expect(OuroEmptyStateMetrics.symbolSize(alignment: .center) == 60)
+        #expect(OuroEmptyStateMetrics.symbolSize(alignment: .leading) == 44)
+        #expect(OuroEmptyStateMetrics.maximumSymbolSize == 80)
+        #expect(OuroEmptyStateMetrics.descriptionSpacing == 8)
+    }
+
+    /// A sheet with one height has nothing to drag between, so it has no grabber; one with several heights shows it.
+    @Test func aSheetShowsItsGrabberOnlyWithSeveralHeights() {
+        #expect(!OuroSheetMetrics.showsGrabber(detents: nil))
+        #expect(!OuroSheetMetrics.showsGrabber(detents: [.medium]))
+        #expect(OuroSheetMetrics.showsGrabber(detents: [.medium, .large]))
+    }
+
     @Test func aPointerGetsDesktopDensity() {
         #expect(OuroButtonSize.sm.minimumHeight(on: .pointer) == 28)
         #expect(OuroButtonSize.md.minimumHeight(on: .pointer) == 32)
@@ -160,6 +184,75 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         }
     }
 
+    /// A soft fill is a 14% wash of its tone in light and 26% in dark, where a fainter one over near-black reads as
+    /// mud.
+    @Test func aSoftFillIsStrongerInDark() {
+        #expect(OuroButtonMetrics.softTint(scheme: .light) == 0.14)
+        #expect(OuroButtonMetrics.softTint(scheme: .dark) == 0.26)
+    }
+
+    /// An outline is drawn in its tone at 40% over the page, not the theme's neutral border, so the outline row reads
+    /// as five tones; secondary keeps the border. Under increased contrast it reads at 3:1.
+    @Test func anOutlineIsDrawnInItsTone() {
+        for (name, style) in styles {
+            let c = style.colors
+            let background = OuroInk.r(c.background)
+            for tone in OuroTone.allCases where tone != .secondary {
+                let p = OuroButtonPalette(tone: tone, variant: .outline, style: style)
+                guard let border = p.border else { Issue.record("\(name) \(tone): no outline"); continue }
+                if style.contrast == .increased {
+                    #expect(ratio(border, background) >= OuroColor.increasedLineContrast, "\(name) \(tone)")
+                } else {
+                    let wash = OuroInk.tint(OuroInk.r(tone.fill(c).fill), over: background, 0.4)
+                    #expect(distance(border, wash) < 0.01, "\(name) \(tone): \(distance(border, wash))")
+                }
+            }
+        }
+    }
+
+    /// A banner's description is the plain secondary colour, not tinted toward the tone, and the neutral banner's
+    /// icon is secondary too, not the heaviest mark on the page. In dark the wash is 15% of the tone over the raised
+    /// card colour.
+    @Test func aBannersWordsAreNotTinted() {
+        for (name, style) in styles {
+            let c = style.colors
+            for tone in OuroTone.allCases {
+                let p = OuroBannerPalette(tone: tone, style: style)
+                let plain = OuroInk.readable(OuroInk.r(c.mutedForeground), on: p.surface, style)
+                #expect(distance(p.description, plain) < 0.01, "\(name) \(tone) description")
+                if tone == .secondary { #expect(distance(p.icon, plain) < 0.01, "\(name) secondary icon") }
+                if tone != .secondary, style.scheme == .dark {
+                    let wash = OuroInk.tint(OuroInk.r(tone.fill(c).fill), over: OuroInk.r(c.card), 0.15)
+                    #expect(distance(p.surface, wash) < 0.01, "\(name) \(tone) surface")
+                }
+            }
+        }
+    }
+
+    /// An empty state's symbol is quiet, the secondary colour, when an action is the thing to look at; standing
+    /// alone it is the theme's primary.
+    @Test func anEmptyStatesSymbolGivesWayToItsAction() {
+        for (name, style) in styles {
+            let c = style.colors
+            let surface = OuroInk.r(c.background)
+            let alone = OuroEmptyStatePalette(style: style)
+            let withAction = OuroEmptyStatePalette(style: style, hasAction: true)
+            #expect(distance(alone.icon, OuroInk.readable(OuroInk.r(c.primary), on: surface, style)) < 0.01, "\(name) alone")
+            #expect(distance(withAction.icon, OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)) < 0.01, "\(name) with action")
+        }
+    }
+
+    /// A toast's action is tinted words, not a button inside the capsule, reading on the toast's surface.
+    @Test func aToastsActionReadsOnItsSurface() {
+        for (name, style) in styles {
+            for tone in OuroTone.allCases {
+                let p = OuroToastPalette(tone: tone, style: style)
+                #expect(ratio(p.action, p.surface) >= target(style), "\(name) \(tone) action")
+                #expect(ratio(p.divider, p.surface) > 1, "\(name) \(tone) divider")
+            }
+        }
+    }
+
     @Test func aSolidButtonKeepsItsThemeColoursWhereTheyAlreadyRead() {
         let style = OuroHXStyle(theme: OuroTokens.pearl, scheme: .light)
         let p = OuroButtonPalette(tone: .primary, variant: .solid, style: style)
@@ -208,17 +301,35 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(!OuroToastMetrics.dragDismisses(translation: 60, predictedEnd: 200))
     }
 
-    /// Collapsed, older toasts tuck behind the newest, peeking 10 then 18 points, at 94% and 88% and 80% and 60%
+    /// Collapsed, older toasts tuck behind the newest, peeking 8 then 14 points, at 95% and 90% and 85% and 65%
     /// opacity, words hidden; expanded, every toast shows its words, listed below the newer ones.
     @Test func olderToastsTuckBehindTheNewest() {
         let front = OuroToastMetrics.placement(depth: 0, expanded: false, above: 0)
         #expect(front.offset == 0 && front.scale == 1 && front.opacity == 1 && front.showsWords)
         let second = OuroToastMetrics.placement(depth: 1, expanded: false, above: 56)
-        #expect(second.offset == 10 && abs(second.scale - 0.94) < 1e-9 && abs(second.opacity - 0.8) < 1e-9 && !second.showsWords)
+        #expect(second.offset == 8 && abs(second.scale - 0.95) < 1e-9 && abs(second.opacity - 0.85) < 1e-9 && !second.showsWords)
         let third = OuroToastMetrics.placement(depth: 2, expanded: false, above: 112)
-        #expect(third.offset == 18 && abs(third.scale - 0.88) < 1e-9 && abs(third.opacity - 0.6) < 1e-9)
+        #expect(third.offset == 14 && abs(third.scale - 0.9) < 1e-9 && abs(third.opacity - 0.65) < 1e-9)
         let listed = OuroToastMetrics.placement(depth: 2, expanded: true, above: 100)
         #expect(listed.offset == 116 && listed.scale == 1 && listed.opacity == 1 && listed.showsWords)
+    }
+
+    /// One light shadow under the stack, as Apple's notices cast: black at 8%, a 12-point blur dropped 4 points. Tucked
+    /// toasts cast none, so three shadows never add up to a grey band.
+    @Test func aToastCastsOneLightShadow() {
+        #expect(OuroToastMetrics.shadow == .init(opacity: 0.08, radius: 12, y: 4))
+        #expect(OuroToastMetrics.shadowReach == 16)
+        #expect(OuroToastMetrics.castsShadow(tucked: false))
+        #expect(!OuroToastMetrics.castsShadow(tucked: true))
+    }
+
+    /// A banner's words fade out by the time it is half folded, so the page closing up never slides over words that
+    /// are still showing; unfolding, they fade in over the second half.
+    @Test func aFoldingBannerIsGoneByHalfway() {
+        #expect(OuroBannerMetrics.foldOpacity(progress: 0) == 0)
+        #expect(OuroBannerMetrics.foldOpacity(progress: 0.5) == 0)
+        #expect(OuroBannerMetrics.foldOpacity(progress: 0.75) == 0.5)
+        #expect(OuroBannerMetrics.foldOpacity(progress: 1) == 1)
     }
 
     @Test func aStackIsNotScaledUnderReduceMotion() {

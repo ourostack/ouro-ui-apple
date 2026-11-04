@@ -28,15 +28,14 @@ public struct OuroBannerPalette: Sendable {
         let c = style.colors
         let background = OuroInk.r(c.background)
         let toneColour = OuroInk.r(tone.fill(c).fill)
-        // A soft wash of the tone. In dark mode it is stronger and washes the raised card colour rather than the page,
-        // since a faint tint over near-black reads as mud.
+        // A soft wash of the tone. In dark mode it washes the raised card colour rather than the page, so it has an
+        // edge over near-black, and stays quiet at 15%.
         let base = style.scheme == .dark ? OuroInk.r(c.card) : background
-        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: base, style.scheme == .dark ? 0.18 : 0.1)
+        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: base, style.scheme == .dark ? 0.15 : 0.1)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
-        // The description leans toward the tone, so the words belong to the wash rather than sitting grey on it.
-        let leaning = tone == .secondary ? OuroInk.r(c.mutedForeground) : OuroInk.tint(toneColour, over: OuroInk.r(c.mutedForeground), 0.3)
-        description = OuroInk.readable(leaning, on: surface, style)
-        icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.foreground) : toneColour, on: surface, style)
+        // The words are the page's own colours; the tone is in the wash and the icon only, as Apple's alerts are.
+        description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
+        icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.mutedForeground) : toneColour, on: surface, style)
         border = OuroColor.push(tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(toneColour, over: background, 0.35), against: surface, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
     }
 }
@@ -58,6 +57,10 @@ public enum OuroBannerMetrics {
     public static func appearance(reduceMotion: Bool) -> OuroAppearance {
         .choose(.unfold, reduceMotion: reduceMotion)
     }
+
+    /// How opaque a banner is `progress` of the way unfolded: clear until halfway, then fading in. Folding away, its
+    /// words are gone by halfway, so the page closing up never slides over words still showing.
+    public static func foldOpacity(progress: Double) -> Double { min(1, max(0, progress * 2 - 1)) }
 
     /// What VoiceOver says when a banner appears: its title, then its description.
     public static func announcement(title: String, description: String?) -> String {
@@ -173,6 +176,8 @@ extension OuroBanner {
             Image(systemName: name)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(Color(p.icon))
+                // A mark beside the words: it stops growing at the largest standard size.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .accessibilityHidden(true)
         }
     }
@@ -202,6 +207,7 @@ extension OuroBanner {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .foregroundStyle(Color(p.description))
                     .frame(width: max(OuroBannerMetrics.dismissTarget, touchTarget), height: max(OuroBannerMetrics.dismissTarget, touchTarget))
                     .contentShape(Rectangle())
@@ -258,7 +264,7 @@ private struct FoldLook: ViewModifier, @MainActor Animatable {
     func body(content: Content) -> some View {
         content
             .scaleEffect(scales ? 0.96 + 0.04 * progress : 1, anchor: .top)
-            .opacity(progress)
+            .opacity(OuroBannerMetrics.foldOpacity(progress: progress))
     }
 }
 

@@ -250,6 +250,8 @@ private struct Unfolds: ViewModifier {
         .clipped()
         .accessibilityHidden(!shown)
         .allowsHitTesting(shown)
+        // Folded away, its buttons can't take keyboard focus either.
+        .disabled(!shown)
     }
 }
 

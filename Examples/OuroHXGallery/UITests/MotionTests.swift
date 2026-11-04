@@ -54,7 +54,8 @@ final class MotionTests: XCTestCase {
             note.name = "probe-\(name)-first"
             note.lifetime = .keepAlways
             add(note)
-            if let second = run(), second.ratio < first.ratio { result = second }
+            // It fails only if it fails again: a smooth second run counts, or else the better of the two.
+            if let second = run(), second.smooth || second.ratio < first.ratio { result = second }
         }
         guard let result else { return XCTFail("\(name): the probe gave no result", file: file, line: line) }
         let note = XCTAttachment(string: result.summary)

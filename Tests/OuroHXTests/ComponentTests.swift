@@ -242,12 +242,29 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         }
     }
 
+    /// On glass a toast's words take the system's vibrant styles, which follow the colour scheme, not the theme. They
+    /// are used only where they read on the theme's surface under the glass: a custom theme with a dark popover in
+    /// light mode gets its own colours, solid, instead.
+    @Test func vibrantWordsAreUsedOnlyWhereTheyRead() {
+        let white = Color.Resolved(red: 1, green: 1, blue: 1)
+        let black = Color.Resolved(red: 0.05, green: 0.05, blue: 0.06)
+        #expect(OuroToastPalette.vibrantReads(on: white, scheme: .light, contrast: .standard))
+        #expect(!OuroToastPalette.vibrantReads(on: black, scheme: .light, contrast: .standard))
+        #expect(OuroToastPalette.vibrantReads(on: black, scheme: .dark, contrast: .standard))
+        #expect(!OuroToastPalette.vibrantReads(on: white, scheme: .dark, contrast: .standard))
+        for (name, style) in styles where style.contrast == .standard {
+            #expect(OuroToastPalette(tone: .success, style: style).vibrant, "\(name): the shipped themes keep the glass words")
+        }
+    }
+
     /// A toast's action is tinted words, not a button inside the capsule, reading on the toast's surface.
     @Test func aToastsActionReadsOnItsSurface() {
         for (name, style) in styles {
             for tone in OuroTone.allCases {
                 let p = OuroToastPalette(tone: tone, style: style)
-                #expect(ratio(p.action, p.surface) >= target(style), "\(name) \(tone) action")
+                // 7:1 in every mode: inside the glass, vibrancy lightens tinted words, and the audit measured 5.6:1 as
+                // failing there.
+                #expect(ratio(p.action, p.surface) >= OuroColor.increasedTextContrast, "\(name) \(tone) action")
                 #expect(ratio(p.divider, p.surface) > 1, "\(name) \(tone) divider")
             }
         }

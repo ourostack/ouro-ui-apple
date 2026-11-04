@@ -6,7 +6,7 @@ extension XCUIApplication {
     /// Runs Xcode's accessibility audit (`performAccessibilityAudit`, iOS 17 and macOS 14) and fails on every issue
     /// except those whose description contains one of `knownIssues`, each of which should carry a reason in the test.
     ///
-    /// It also excuses "Contrast failed" on page content a toast partly covers and on an element only partly on
+    /// It also excuses "Contrast failed" on page content a toast partly covers and on an element mostly off the
     /// screen (see ``OuroAuditExcuse``), and "Text clipped" inside an `.ouroSheet` that iOS draws at 96%, a sheet below full height on
     /// iOS 26 and later (see ``OuroAuditExcuse``), because the audit reads the scaled text as clipped. That leaves real
     /// clipping in such a sheet unchecked, so audit it once more at full height: present it with `detents: [.large]`
@@ -24,10 +24,9 @@ extension XCUIApplication {
                 return close.exists && OuroSheetMetrics.isDrawnScaled(closeButtonHeight: close.frame.height)
             }
             .map(\.frame)
-        let toasts = descendants(matching: .any)
-            .matching(identifier: OuroToastMetrics.regionIdentifier)
-            .allElementsBoundByIndex
-            .map(\.frame)
+        let toasts = [OuroToastMetrics.regionIdentifier, OuroToastMetrics.toastIdentifier].flatMap { id in
+            descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex.map(\.frame)
+        }
         let screen = windows.firstMatch.exists ? windows.firstMatch.frame : frame
         let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
             if knownIssues.contains(where: { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }) {

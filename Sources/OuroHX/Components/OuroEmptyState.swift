@@ -118,7 +118,8 @@ public struct OuroEmptyState<Action: View>: View {
         .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
         .padding(.vertical, 32)
         // Centred it keeps clear of the edges; leading, it lines up with the page's own margin, like the text around it.
-        .padding(.horizontal, alignment == .center ? 24 : 0)
+        // An outline keeps its inset either way, so the dashed edge never touches the words.
+        .padding(.horizontal, alignment == .center || variant == .outline ? 24 : 0)
         .onAppear { if !reduceMotion { arrived = true } }
         .overlay {
             if variant == .outline {

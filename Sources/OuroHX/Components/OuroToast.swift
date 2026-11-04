@@ -120,6 +120,17 @@ public struct OuroToastPalette: Sendable {
     public var action: Color.Resolved
     /// The hairline before the action.
     public var divider: Color.Resolved
+    /// Whether the words may take the system's vibrant styles on glass: only where those read on this surface (see
+    /// ``vibrantReads(on:scheme:contrast:)``). Otherwise the toast is solid, in these colours.
+    public var vibrant: Bool
+
+    /// Whether the system's label colours, which follow the colour scheme and not the theme, read on `surface`: its
+    /// primary label (black in light, white in dark) at 7:1, headroom for the fainter secondary. A custom theme with
+    /// a dark popover in light mode fails, and its toast goes solid.
+    public static func vibrantReads(on surface: Color.Resolved, scheme: ColorScheme, contrast: ColorSchemeContrast) -> Bool {
+        let label = scheme == .dark ? Color.Resolved(red: 1, green: 1, blue: 1) : Color.Resolved(red: 0, green: 0, blue: 0)
+        return OuroColor.contrastRatio(label, surface) >= 7
+    }
 
     public init(tone: OuroTone, style: OuroHXStyle) {
         let c = style.colors
@@ -128,7 +139,9 @@ public struct OuroToastPalette: Sendable {
         message = OuroInk.readable(OuroInk.r(c.popoverForeground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.popoverForeground) : OuroInk.r(tone.fill(c).fill), on: surface, style)
-        action = OuroInk.readable(OuroInk.r(tone == .destructive ? c.destructive : c.primary), on: surface, style)
+        // 7:1 in every mode: inside the glass, vibrancy lightens tinted words (Xcode's audit failed 5.6:1 there).
+        action = OuroColor.push(OuroInk.r(tone == .destructive ? c.destructive : c.primary), against: surface, to: OuroColor.increasedTextContrast)
+        vibrant = style.contrast != .increased && Self.vibrantReads(on: surface, scheme: style.scheme, contrast: style.contrast)
         divider = OuroColor.push(OuroInk.r(c.border), against: surface, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1.2)
     }
 }
@@ -173,6 +186,8 @@ public enum OuroToastMetrics {
     public static let shadowReach: CGFloat = shadow.radius + shadow.y
     /// The accessibility identifier of the region the toasts show in, for UI tests.
     public static let regionIdentifier = "ouro.toasts"
+    /// The accessibility identifier of each toast, which `OuroHXTesting`'s audit measures as the toast's own.
+    public static let toastIdentifier = "ouro.toast"
     /// A toast's height on one line: 56 points.
     public static let height: CGFloat = 56
     /// The scale a toast grows from as it arrives.
@@ -361,7 +376,8 @@ struct OuroToastHost: ViewModifier {
                                 let front = visible.last.flatMap { sizes[$0.id] }
                                 OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : front) { toaster.dismiss(toast.id) }
                                     .onGeometryChange(for: CGSize.self) { $0.size } action: { if place.showsWords { sizes[toast.id] = $0 } }
-                                    // A tucked toast can't be dragged away unseen; a tap on it opens the stack.
+                                    // A tucked toast can't be dragged or tapped unseen; a tap on the front one opens
+                                    // the stack.
                                     .allowsHitTesting(place.showsWords)
                                     .scaleEffect(place.scale, anchor: .bottom)
                                     .opacity(place.opacity)
@@ -373,16 +389,18 @@ struct OuroToastHost: ViewModifier {
                         }
                         // Tapping a collapsed stack's words lays it out; its buttons take their own taps first. It tucks
                         // back once it empties.
-                        .onTapGesture { showAll(count: visible.count) }
+                        // Off once open, so the words aren't offered as tap targets (the audit read them as too small).
+                        .gesture(TapGesture().onEnded { showAll(count: visible.count) }, isEnabled: !expanded)
                         .animation(OuroMotion.animation(.layout, reduceMotion: reduceMotion), value: expanded)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : OuroToastMetrics.maximumWidth + 32)
-                        .frame(maxWidth: .infinity)
+                        // The region is the stack's own width, not the screen's, so the audit's toast footprint is too.
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel(labels.label)
                         .accessibilityIdentifier(OuroToastMetrics.regionIdentifier)
                         .accessibilityAction(named: Text(labels.showAllLabel)) { showAll(count: visible.count) }
+                        .frame(maxWidth: .infinity)
                         .onChange(of: visible.isEmpty) { _, empty in if empty { expandedByHand = false } }
                         .onChange(of: visible.map(\.id)) { _, ids in sizes = sizes.filter { ids.contains($0.key) } }
                     }
@@ -482,7 +500,8 @@ struct OuroToastView: View {
         let shape = RoundedRectangle(cornerRadius: OuroToastMetrics.cornerRadius, style: .continuous)
         let large = typeSize.isAccessibilitySize
         // A tucked toast is solid too, so the page never smears through the edge that peeks out.
-        let solid = contrast == .increased || reduceTransparency || !rendersGlass || tucked != nil
+        // So is one whose theme's surface the system's vibrant words would not read on.
+        let solid = contrast == .increased || reduceTransparency || !rendersGlass || tucked != nil || !p.vibrant
         // On glass the words take the system's vibrant label styles, which read on the opaque surface under it (the
         // gallery's accessibility audit measures them in light and dark); solid, the theme's colours, made readable on
         // that surface. Theme colours inside the glass cost a dropped frame on every departure (W8 frame captures).
@@ -561,7 +580,7 @@ struct OuroToastView: View {
         .clipped()
         // It hugs its words, up to the stack's width; at the accessibility sizes it spans it.
         .frame(maxWidth: large ? .infinity : nil)
-        .modifier(ToastSurface(shape: shape, palette: p, solid: solid, casts: OuroToastMetrics.castsShadow(tucked: tucked != nil)))
+        .modifier(ToastSurface(shape: shape, palette: p, solid: solid, casts: OuroToastMetrics.castsShadow(tucked: tucked != nil), rendersGlass: rendersGlass))
         .offset(y: drag)
         .opacity(reduceMotion ? 1 - min(0.7, abs(drag) / 90) : 1)
         .gesture(
@@ -583,6 +602,7 @@ struct OuroToastView: View {
             withAnimation(OuroMotion.animation(.settle, reduceMotion: reduceMotion)) { drag = 0 }
         }
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(OuroToastMetrics.toastIdentifier)
         .onHover { hovering = $0 }
         .task(id: toast.showing) {
             // Once per showing, even when a sheet opening or closing draws it again in another place.
@@ -626,19 +646,25 @@ private struct ToastSurface: ViewModifier {
     let solid: Bool
     /// Whether it casts the stack's shadow: the front toast only.
     let casts: Bool
+    /// Off only in snapshot tests, where `ImageRenderer` draws nothing inside any glass effect, `.identity` included.
+    /// It never changes while a toast shows.
+    let rendersGlass: Bool
 
     func body(content: Content) -> some View {
         let s = OuroToastMetrics.shadow
         let shadow = Color.black.opacity(casts ? s.opacity : 0)
-        if !solid, #available(iOS 26, macOS 26, visionOS 26, *) {
+        // One structure whether glass or solid, so a toast tucking (and going solid) keeps its identity and its words
+        // fade out with the move; switching branches here replaced the toast and left a blank plate for a few frames.
+        if rendersGlass, #available(iOS 26, macOS 26, visionOS 26, *) {
             // Glass over the theme's opaque surface: the glass gives the edge light and depth, and the surface keeps the
             // page's words from reading through, so the toast's words hold 5:1 over any page (`contrast.text`; at 55%
             // and 85% the accessibility audit still measured the page through it). That fill also casts the shadow.
+            // Solid (Increase Contrast, Reduce Transparency, tucked): no glass, and an edge.
             content
-                .glassEffect(.regular, in: shape)
+                .glassEffect(solid ? .identity : .regular, in: shape)
                 .background(shape.fill(Color(palette.surface)).shadow(color: shadow, radius: s.radius, y: s.y))
+                .overlay(shape.strokeBorder(Color(palette.border).opacity(solid ? 1 : 0), lineWidth: 1))
         } else {
-            // Solid: under Increase Contrast or Reduce Transparency, tucked, and before iOS 26.
             content
                 .background(shape.fill(Color(palette.surface)).shadow(color: shadow, radius: s.radius, y: s.y))
                 .overlay(shape.strokeBorder(Color(palette.border), lineWidth: 1))

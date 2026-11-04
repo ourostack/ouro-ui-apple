@@ -40,6 +40,13 @@ final class ComponentClaimTests: XCTestCase {
                     XCTContext.runActivity(named: name) { _ in
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known) } catch { XCTFail("\(name): \(error)") }
                     }
+                    if run.page == "toasts", size == nil {
+                        // Expanded, as VoiceOver users always see the stack: every toast's own words are measured.
+                        expandToasts(app)
+                        XCTContext.runActivity(named: "\(name) expanded") { _ in
+                            do { try app.ouroAccessibilityAudit(knownIssues: run.known) } catch { XCTFail("\(name) expanded: \(error)") }
+                        }
+                    }
                     if run.page == "sheet", run.extra.isEmpty {
                         // What the excused "Text clipped" could hide: the fitted sheet's last row and its action
                         // are on screen and reachable.
@@ -124,7 +131,7 @@ final class ComponentClaimTests: XCTestCase {
         app.terminate()
     }
 
-    /// Toasts' close buttons a finger can reach. XCUITest's tree still lists a tucked toast's hidden ones.
+    /// Toasts' close buttons a finger can reach: the shown toasts' (a tucked one draws no buttons).
     private func shownDismissButtons(_ app: XCUIApplication) -> Int {
         app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).count
     }

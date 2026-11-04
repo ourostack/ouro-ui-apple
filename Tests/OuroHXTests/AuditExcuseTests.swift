@@ -59,6 +59,20 @@ import Testing
         #expect(OuroAuditExcuse.excuses("Contrast failed", element: CGRect(x: 16, y: 850, width: 120, height: 50), scaledSheets: [], toasts: [], screen: screen))
     }
 
+    /// Mostly on screen, its words are there to measure: a banner straddling the bottom at large text still fails.
+    @Test func anElementMostlyOnScreenIsNot() {
+        #expect(!OuroAuditExcuse.excuses("Contrast failed", element: CGRect(x: 16, y: 800, width: 120, height: 100), scaledSheets: [], toasts: [], screen: screen))
+    }
+
+    /// In an expanded stack each toast is measured as its own: words inside any toast fail, even below the first.
+    @Test func anExpandedToastsOwnWordsAreNot() {
+        let first = CGRect(x: 16, y: 54, width: 370, height: 56)
+        let second = CGRect(x: 16, y: 118, width: 370, height: 56)
+        #expect(!OuroAuditExcuse.excuses("Contrast failed", element: CGRect(x: 60, y: 136, width: 200, height: 20), scaledSheets: [], toasts: [first, second], screen: screen))
+        // Page content the second one partly covers is still excused.
+        #expect(OuroAuditExcuse.excuses("Contrast failed", element: CGRect(x: 16, y: 160, width: 200, height: 30), scaledSheets: [], toasts: [first, second], screen: screen))
+    }
+
     @Test func onlyContrastIsExcusedUnderAToastOrOffScreen() {
         for issue in ["Hit area is too small", "Text clipped", "Element has no description"] {
             #expect(!OuroAuditExcuse.excuses(issue, element: CGRect(x: 16, y: 120, width: 260, height: 20), scaledSheets: [], toasts: [toasts], screen: screen), "\(issue)")

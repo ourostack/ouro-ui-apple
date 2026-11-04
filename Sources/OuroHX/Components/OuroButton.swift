@@ -13,7 +13,7 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
     /// The smallest target a control may have on `input`: 44 points on a touch screen.
     public static func minimumTarget(on input: OuroInput) -> CGFloat { input == .touch ? 44 : 24 }
 
-    /// The button's minimum pressable height: 44, 48 and 54 on a touch screen, 28, 32 and 40 with a pointer.
+    /// The button's minimum pressable height: 44, 50 and 56 on a touch screen, 28, 32 and 40 with a pointer.
     public func minimumHeight(on input: OuroInput) -> CGFloat {
         minimumHeight(on: input, target: Self.minimumTarget(on: .touch))
     }
@@ -195,6 +195,7 @@ public struct OuroButtonStyle: ButtonStyle {
         /// A loading button is disabled but keeps its tone: it is busy, not unavailable.
         private var isEnabled: Bool { environmentEnabled || loading }
         @Environment(\.ouroButtonFillsWidth) private var fillsWidth
+        @Environment(\.ouroButtonOwnsLabel) private var ownsLabel
 
         var body: some View {
             let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled)
@@ -206,7 +207,9 @@ public struct OuroButtonStyle: ButtonStyle {
             // ends, a true capsule: a continuous corner at half the height reads slightly square.
             let shape = style.shape == .pill ? AnyShape(PillShape()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             configuration.label
-                .labelStyle(ButtonLabel(iconFont: style.size.iconFont))
+                // Ouro's icon-and-words spacing on an OuroButton's own label only, so a plain `Button` styled
+                // `.ouro()` keeps a label style set around it (`.iconOnly`, `.titleOnly`).
+                .modifier(OuroLabelIfOwned(owned: ownsLabel, iconFont: style.size.iconFont))
                 .font(style.size.font)
                 .multilineTextAlignment(.center)
                 // Wraps instead of truncating at every text size (core claim `text.reflows`).
@@ -262,6 +265,16 @@ public struct OuroButtonStyle: ButtonStyle {
 extension EnvironmentValues {
     /// Set by ``OuroButton`` while `loading`, so its style keeps the tone rather than the disabled look.
     @Entry var ouroButtonLoading = false
+    /// Set by ``OuroButton``, whose label takes Ouro's icon spacing; a plain `Button` keeps the label style around it.
+    @Entry var ouroButtonOwnsLabel = false
+}
+
+private struct OuroLabelIfOwned: ViewModifier {
+    let owned: Bool
+    let iconFont: Font
+    func body(content: Content) -> some View {
+        if owned { content.labelStyle(ButtonLabel(iconFont: iconFont)) } else { content }
+    }
 }
 
 extension ButtonStyle where Self == OuroButtonStyle {
@@ -325,6 +338,7 @@ public struct OuroButton<Label: View>: View {
                 .overlay { if loading { ProgressView().accessibilityHidden(true) } }
         }
         .buttonStyle(style)
+        .environment(\.ouroButtonOwnsLabel, true)
         // Busy, not unavailable, unless something around the button disabled it anyway.
         .environment(\.ouroButtonLoading, loading && outerEnabled)
         .disabled(loading)

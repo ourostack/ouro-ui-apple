@@ -32,7 +32,7 @@ public enum OuroSheetMetrics {
     public static let touchTarget: CGFloat = 46
     /// The close button's target, in layout points (44 as drawn).
     public static let closeTarget: CGFloat = touchTarget
-    /// The close button's drawn disc, inside its target: 34 points, as on Apple's own sheets.
+    /// The close button's drawn disc, inside its target: 30 points, as on Apple's own sheets.
     public static let closeDisc: CGFloat = 30
 
     /// Whether a sheet shows its grabber: only with several heights to drag between. A sheet that fits its content,

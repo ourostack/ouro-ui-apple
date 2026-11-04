@@ -111,8 +111,12 @@ Status: accepted (W8 of the HX and AX native program).
       The shadow is light (black 8%, 12-point blur, 4 down) and the front toast's alone. Tucked toasts are solid, peek
       8 then 14 points at 95% and 90%, and draw only their surface: hidden words left in the accessibility tree were
       found by the audit as clipped, faint and under 44 points. Their words fade out as they tuck rather than
-      vanishing first, which left a blank plate for two or three frames in round 2's captures. The audit helper excuses "Contrast failed" only on page content a toast partly covers and
-      on an element partly off screen (`OuroAuditExcuse`); a toast's own words still fail.
+      vanishing first; a blank plate showed for two or three frames in round 2's captures, and in round 3's until
+      the surface stopped switching view branches as a toast went solid. The audit helper excuses "Contrast failed"
+      only on page content a toast partly covers and on an element more than half off screen (`OuroAuditExcuse`).
+      Each toast's own frame counts, so in an expanded stack every toast's words still fail, and the gallery audits
+      the stack expanded too. On glass, a toast's words are the system's vibrant ones only where those read on the
+      theme's surface; a custom theme whose popover does not suit the colour scheme gets a solid toast.
     - **The stack under Reduce Motion** is not scaled, and toasts take their places without sliding there.
     - **The taste panel decides.** Two independent reviewers, one comparing with Apple's own apps and one with fresh
       eyes, judge each component from captures and frame sequences. Rounds 1 and 2 said no to every one; these

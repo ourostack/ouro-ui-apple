@@ -182,7 +182,7 @@ private struct FeelPage: View {
                             .foregroundStyle(colors.primary)
                         Text(moment.name)
                         Spacer()
-                        Text(String(describing: moment.feedback)).font(.caption.monospaced()).foregroundStyle(colors.mutedForeground)
+                        Text(moment.feedback.label).font(.caption).foregroundStyle(colors.mutedForeground)
                     }
                 }
                 .buttonStyle(.ouroPress)

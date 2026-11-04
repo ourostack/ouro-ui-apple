@@ -48,6 +48,21 @@ import Testing
         #expect(OuroHapticMoment(name: "custom", feedback: .selection).name == "custom")
     }
 
+    /// The gallery and docs name a feedback the way a person would, never as a Swift value dump (#9).
+    @Test func feedbackHasAHumanName() {
+        #expect(OuroHapticMoment.Feedback.selection.label == "Selection")
+        #expect(OuroHapticMoment.Feedback.impact(weight: .light, intensity: 0.7).label == "Light impact, 70%")
+        #expect(OuroHapticMoment.Feedback.impact(weight: .medium, intensity: 1).label == "Medium impact")
+        #expect(OuroHapticMoment.Feedback.impact(weight: .heavy, intensity: 0.5).label == "Heavy impact, 50%")
+        #expect(OuroHapticMoment.Feedback.success.label == "Success")
+        #expect(OuroHapticMoment.Feedback.warning.label == "Warning")
+        #expect(OuroHapticMoment.Feedback.error.label == "Error")
+        for moment in OuroHaptics.table {
+            #expect(!moment.feedback.label.contains("OuroHX"), "\(moment.name): \(moment.feedback.label)")
+            #expect(String(describing: moment.feedback) == moment.feedback.label)
+        }
+    }
+
     @Test @MainActor func playingWithoutAnEngineIsANoOp() {
         #if os(macOS)
         #expect(OuroHaptics.play(.checked) == false)

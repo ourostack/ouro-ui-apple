@@ -54,15 +54,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select the newest Xcode 27.2 or later
         run: sh scripts/select-xcode.sh 27.2
+      # OURO_REQUIRE_HINGE turns a fenced-out hinge into a build error, so this SDK proves the hinge code compiles.
       - name: swift build
-        run: swift build --build-tests
+        run: swift build --build-tests -Xswiftc -DOURO_REQUIRE_HINGE
       - name: swift test
-        run: swift test
+        run: swift test -Xswiftc -DOURO_REQUIRE_HINGE
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
           xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+            -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -DOURO_REQUIRE_HINGE' 2>&1 | tail -40
 
   oldest-xcode-27:
     name: Build with Xcode ${{ matrix.xcode }}'s SDKs (main and releases only)
@@ -84,7 +85,7 @@ jobs:
         run: |
           for sdk in macosx iphoneos iphonesimulator; do
             path="$(xcrun --sdk "$sdk" --show-sdk-path)"
-            file="$(ls "$path"/System/Library/Frameworks/SwiftUICore.framework/Modules/SwiftUICore.swiftmodule/*.swiftinterface | head -1)"
+            file="$(ls "$path"/System/Library/Frameworks/SwiftUICore.framework/Modules/SwiftUICore.swiftmodule/*.swiftinterface | grep -v macabi | head -1)"
             echo "$sdk $(xcrun --sdk "$sdk" --show-sdk-version): SwiftUICore $(grep -o 'user-module-version [0-9.]*' "$file" | head -1 | cut -d' ' -f2)," \
               "hinge APIs: $(grep -q 'func onHingeChange' "$file" && echo declared || echo absent)" | tee -a "$GITHUB_STEP_SUMMARY"
           done

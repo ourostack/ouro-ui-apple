@@ -37,6 +37,8 @@ public struct OuroFoldReader<Content: View>: View {
         if #available(iOS 27.1, macOS 27.1, *) {
             return proxy.reservedRegions(kind: .division, options: .includeInactive).map { OuroFoldRegion(frame: $0.frame, isActive: $0.isActive) }
         }
+        #elseif OURO_REQUIRE_HINGE
+        #error("This SDK should declare the hinge APIs, but its SwiftUICore is below 8.1.13. Fix: lower the fence's _version to this SDK's.")
         #endif
         return []
     }
@@ -59,6 +61,8 @@ private struct OuroHingeObserver: ViewModifier {
         } else {
             content
         }
+        #elseif OURO_REQUIRE_HINGE
+        #error("This SDK should declare the hinge APIs, but its SwiftUICore is below 8.1.13. Fix: lower the fence's _version to this SDK's.")
         #else
         content
         #endif

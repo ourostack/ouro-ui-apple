@@ -1,6 +1,7 @@
 #!/bin/sh
 # CI only: selects the newest /Applications/Xcode_*.app whose version is at least $1 (such as 27.2), or with
-# `--exact 27.0` the one whose major.minor is exactly that, and fails when there is none. Bundle names differ between image builds, so the choice reads each bundle's version, never its name.
+# `--exact 27.0` the one whose major.minor is exactly that, and fails when there is none. Bundle names differ
+# between image builds, so the choice reads each bundle's version, never its name.
 # Never run this on a shared Mac: it switches xcode-select for every process. Locally, use DEVELOPER_DIR per command.
 set -eu
 exact=0

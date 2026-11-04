@@ -1,0 +1,90 @@
+name: X-ray our apps
+
+# Runs ouro-ax-xray, metadata and behaviour, against our public apps at their default branch, and uploads the reports.
+# It checks them out read-only and opens nothing against them. It needs the billed xcode-27 runner, so it runs only
+# when a release is published (see ci.yml's note on where checks run).
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  xray:
+    name: X-ray ${{ matrix.app }}
+    if: github.event_name == 'release'
+    runs-on: xcode-27
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: Spoonjoy
+            repo: spoonjoy/spoonjoy-apple
+            platform: ios
+            build: >-
+              xcodebuild -project Spoonjoy.xcodeproj -scheme "Spoonjoy iOS" -configuration BootstrapDebug
+              -destination "generic/platform=iOS Simulator" -derivedDataPath "$PWD/.xray-derived" CODE_SIGNING_ALLOWED=NO build
+            product: .xray-derived/Build/Products/BootstrapDebug-iphonesimulator/Spoonjoy.app
+            # BootstrapDebug talks to production unless SPOONJOY_API_BASE_URL is set, so no refusal runs or read-backs.
+            disposable: ""
+          - app: Ouro MD
+            repo: ourostack/ouro-md
+            platform: macos
+            build: OURO_MD_TELEMETRY_DISABLED=1 ./make-app.sh
+            product: OuroMD.app
+            # Ad-hoc signed, so macOS's AppIntentsTesting refuses the probe (error 800): this lane's behaviour claims
+            # skip with the signing fix. The metadata stage is the result.
+            disposable: --disposable
+          - app: Gatefold
+            repo: ourostack/gatefold
+            platform: metadata
+            build: >-
+              xcodebuild -downloadComponent MetalToolchain && xcodegen generate &&
+              xcodebuild -project Gatefold.xcodeproj -scheme Gatefold -configuration Debug -destination "generic/platform=iOS Simulator"
+              -derivedDataPath "$PWD/.xray-derived" CODE_SIGNING_ALLOWED=NO build
+            product: .xray-derived/Build/Products/Debug-iphonesimulator/Gatefold.app
+            disposable: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repo }}
+          path: app
+          persist-credentials: false
+      # Xcode 27.1, whose AppIntentsTesting loads on this image's iOS 27.1 simulator and macOS 27.0.1.
+      - name: Use Xcode 27.1
+        run: |
+          set -eu
+          for x in /Applications/Xcode_*.app; do
+            v="$(defaults read "$x/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
+            if [ "$v" = 27.1 ] || [ "$v" = 27.1.0 ]; then echo "DEVELOPER_DIR=$x/Contents/Developer" >> "$GITHUB_ENV"; exit 0; fi
+          done
+          exit 1
+      - name: Tools
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          swift build -c release --product ouro-ax-xray
+      - name: Build ${{ matrix.app }}
+        working-directory: app
+        shell: bash
+        run: |
+          set -o pipefail
+          ${{ matrix.build }} 2>&1 | tail -30
+      - name: X-ray it
+        run: |
+          set -eu
+          app="app/${{ matrix.product }}"
+          commit="$(git -C app rev-parse --short HEAD)"
+          if [ "${{ matrix.platform }}" = metadata ]; then
+            .build/release/ouro-ax-xray --app "$app" --commit "$commit" --name "${{ matrix.app }}" --out .build/xray
+          else
+            sh scripts/xray-probe.sh --app "$app" --out .build/xray --platform ${{ matrix.platform }} --commit "$commit" \
+              --name "${{ matrix.app }}" ${{ matrix.disposable }}
+          fi
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-${{ matrix.platform }}-${{ strategy.job-index }}
+          path: .build/xray

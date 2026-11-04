@@ -1,0 +1,22 @@
+{
+  "about": "A shared test vector for the claim-set hash. Canonical JSON is JSON.stringify of a copy with object keys sorted at every level by UTF-16 code unit (JavaScript's default sort), with no whitespace. Every platform that recomputes the hash asserts that this input gives this text and this SHA-256.",
+  "input": {
+    "b": 1,
+    "B": [
+      true,
+      null,
+      {
+        "z": "é/x",
+        "Z": "a\"b"
+      }
+    ],
+    "a_": "",
+    "aB": 0.5,
+    "ab": {
+      "y": 2,
+      "Y": -3
+    }
+  },
+  "text": "{\"B\":[true,null,{\"Z\":\"a\\\"b\",\"z\":\"é/x\"}],\"aB\":0.5,\"a_\":\"\",\"ab\":{\"Y\":-3,\"y\":2},\"b\":1}",
+  "sha256": "7426513d7df0c5f0048a8ad6d08fe6a12908240f1003e2d9da46d23f23e4dfdc"
+}

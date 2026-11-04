@@ -1,0 +1,79 @@
+# The X-ray's behaviour stage, as a test plan. AppIntentsTesting runs only inside a test bundle, so `ouro-ax-xray`
+# writes a plan and this project runs it against the installed app, by bundle identifier; it imports nothing from
+# the app. Copy this folder, point `packages.OuroUIApple` at the released package, and run (see README.md):
+#
+#   xcodegen generate
+#   TEST_RUNNER_OURO_AX_PLAN="$(ouro-ax-xray plan --app <path.app>)" xcodebuild test -scheme XrayProbe-iOS \
+#     -destination id=<simulator udid> | tee probe.log
+#   ouro-ax-xray --app <path.app> --probe probe.log --out report
+name: XrayProbe
+options:
+  deploymentTarget:
+    iOS: "27.0"
+    macOS: "27.0"
+packages:
+  OuroUIApple:
+    path: ../..
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    GENERATE_INFOPLIST_FILE: YES
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  # iOS UI tests need a host app of their own; it does nothing. The tests launch the app under test by bundle id.
+  XrayProbeRunner:
+    type: application
+    platform: iOS
+    sources: [Runner]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-runner
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+  XrayProbeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: XrayProbeRunner
+      - package: OuroUIApple
+        product: OuroAXTestingProbe
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-uitests
+  # macOS too: AppIntentsTesting reaches the app through a runner service that exists only when XCTest launched the
+  # app, so a plain test bundle that talks to an app the runner opened gets "Failed to resolve actor" (seen in CI on
+  # macOS 27.0.1). The UI test bundle needs Automation Mode, which hosted CI runners have.
+  XrayProbeMacRunner:
+    type: application
+    platform: macOS
+    sources: [Runner]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-mac-runner
+  XrayProbeMacUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [Tests]
+    dependencies:
+      - target: XrayProbeMacRunner
+      - package: OuroUIApple
+        product: OuroAXTestingProbe
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.ax.xray-probe-mac-uitests
+schemes:
+  XrayProbe-iOS:
+    build:
+      targets:
+        XrayProbeUITests: [test]
+    test:
+      targets: [XrayProbeUITests]
+  XrayProbe-macOS:
+    build:
+      targets:
+        XrayProbeMacUITests: [test]
+    test:
+      targets: [XrayProbeMacUITests]

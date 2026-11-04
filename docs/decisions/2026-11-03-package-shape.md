@@ -23,6 +23,9 @@ Status: accepted (W3 of the HX and AX native program).
    code behind `#if canImport(SiriEvaluations)`. CI's `siri-ai-sdk` lane compiles both once the runner image carries
    Xcode 27.3.
 7. **CI runs on GitHub's `xcode-27` image**, the label Gatefold and Spoonjoy use; `macos-26` carries Xcode 26 only.
+   *Revised 2026-11-03 (Ari's CI rules):* the free `macos-26` and `ubuntu-latest` runners now run everything Xcode 26
+   can build, with Xcode 27 code fenced; the billed `xcode-27` runner runs only Xcode 27 and iOS 27 checks, on pushes
+   to `main` and on releases, under a $15-a-month budget, and goes once the free image ships Xcode 27. See README, "CI".
 8. **`ouro-devicehub` keeps the apps' `dump` and `press` output and exit codes** (0, 1 no process, 2 not found, 3 not
    trusted, 4 press failed), so Gatefold's and Spoonjoy's workflows switch by changing one path. Two changes: an
    unknown command or a missing argument exits 64 (the original ran `dump` or crashed), and `serve <dir>` is new, the

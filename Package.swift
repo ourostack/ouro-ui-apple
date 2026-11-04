@@ -21,6 +21,8 @@ let package = Package(
         .library(name: "OuroHXTesting", targets: ["OuroHXTesting"]),
         .library(name: "OuroAX", targets: ["OuroAX"]),
         .library(name: "OuroAXTesting", targets: ["OuroAXTesting"]),
+        .library(name: "OuroAXTestingProbe", targets: ["OuroAXTestingProbe"]),
+        .executable(name: "ouro-ax-xray", targets: ["ouro-ax-xray"]),
         .executable(name: "ouro-ax-skills", targets: ["ouro-ax-skills"]),
         .executable(name: "ouro-devicehub", targets: ["ouro-devicehub"]),
         .plugin(name: "OuroAXSkillsLintPlugin", targets: ["OuroAXSkillsLintPlugin"]),
@@ -36,8 +38,18 @@ let package = Package(
 
         // Ouro AX for Apple: outcomes, problems, exit codes, entity helpers, the App Intents package hook.
         .target(name: "OuroAX", swiftSettings: strict),
-        // The App Intents X-ray arrives here in W4 of the program plan.
-        .target(name: "OuroAXTesting", dependencies: ["OuroAX"], swiftSettings: strict),
+        // Siri evaluation helpers and the App Intents X-ray: claims (vendored from ouro-ui-core), the metadata reader,
+        // checks, reports and Siri scenario sets. It never links AppIntentsTesting, so a host command can use it.
+        .target(
+            name: "OuroAXTesting",
+            dependencies: ["OuroAX", "OuroAXSkillsLint"],
+            resources: [.copy("Resources/apple.claims.json")],
+            swiftSettings: strict
+        ),
+        // The X-ray's behaviour stage: runs a probe plan with AppIntentsTesting. It links into a test bundle (see
+        // Templates/XrayProbe), because AppIntentsTesting runs only there.
+        .target(name: "OuroAXTestingProbe", dependencies: ["OuroAXTesting"], swiftSettings: strict),
+        .executableTarget(name: "ouro-ax-xray", dependencies: ["OuroAXTesting"], swiftSettings: strict),
         // The app-skills bundle linter. It runs on the host (the build-tool plugin runs it at build time), so it reads
         // files with Foundation only and reports with OuroAX.Problem.
         .target(name: "OuroAXSkillsLint", dependencies: ["OuroAX"], swiftSettings: strict),
@@ -50,6 +62,12 @@ let package = Package(
 
         .testTarget(name: "OuroHXTests", dependencies: ["OuroHX", "OuroHXTesting"], swiftSettings: strict),
         .testTarget(name: "OuroAXTests", dependencies: ["OuroAX", "OuroAXTesting"], swiftSettings: strict),
+        .testTarget(
+            name: "OuroAXTestingTests",
+            dependencies: ["OuroAXTesting"],
+            resources: [.copy("Fixtures")],
+            swiftSettings: strict
+        ),
         .testTarget(
             name: "OuroAXSkillsLintTests",
             dependencies: ["OuroAXSkillsLint"],

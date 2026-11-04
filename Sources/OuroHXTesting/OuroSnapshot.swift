@@ -99,10 +99,15 @@ public enum OuroSnapshot {
         return bytes
     }
 
+    /// A channel may move this many levels (of 255) without the pixel counting as changed: renders round a computed
+    /// colour, such as one pushed to a contrast by bisection, one level differently from run to run.
+    static let channelNoise = 2
+
     static func difference(_ a: CGImage, _ b: CGImage) -> Double {
         guard a.width == b.width, a.height == b.height, let pa = rgba(a), let pb = rgba(b) else { return 1 }
         var differing = 0
-        for i in stride(from: 0, to: pa.count, by: 4) where pa[i..<i + 4] != pb[i..<i + 4] { differing += 1 }
+        for i in stride(from: 0, to: pa.count, by: 4)
+        where (0..<4).contains(where: { abs(Int(pa[i + $0]) - Int(pb[i + $0])) > channelNoise }) { differing += 1 }
         return Double(differing) / Double(a.width * a.height)
     }
 }

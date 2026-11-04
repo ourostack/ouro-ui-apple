@@ -58,14 +58,49 @@ struct ButtonsPage: View {
     }
 }
 
-/// Wraps buttons onto as many lines as the width and text size need.
+/// Wraps buttons onto as many lines as the width and text size need, 8 points apart, as a row of chips does.
 struct FlowRow<Content: View>: View {
     @ViewBuilder var content: Content
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { content }
-            VStack(alignment: .leading, spacing: 8) { content }
+    var body: some View { Flow(spacing: 8) { content } }
+}
+
+private struct Flow: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = rows(width: proposal.width ?? .infinity, subviews)
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        let width = rows.map(\.width).max() ?? 0
+        return CGSize(width: proposal.width ?? width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(width: bounds.width, subviews) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(width: min(size.width, bounds.width), height: size.height))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
         }
+    }
+
+    private func rows(width: CGFloat, _ subviews: Subviews) -> [(indices: [Int], width: CGFloat, height: CGFloat)] {
+        var rows: [(indices: [Int], width: CGFloat, height: CGFloat)] = []
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(ProposedViewSize(width: width, height: nil))
+            if var last = rows.last, last.width + spacing + size.width <= width {
+                last.indices.append(index)
+                last.width += spacing + size.width
+                last.height = max(last.height, size.height)
+                rows[rows.count - 1] = last
+            } else {
+                rows.append(([index], min(size.width, width), size.height))
+            }
+        }
+        return rows
     }
 }
 
@@ -101,7 +136,7 @@ struct BannersPage: View {
             OuroBanner("Couldn't save", description: "Check your connection and try again.", tone: .destructive, onDismiss: {
                 withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = false }
             }, isPresented: showError) {
-                OuroButton("Try again", tone: .destructive, variant: .soft, size: .sm) {}
+                OuroButton("Try again", tone: .destructive, size: .sm) {}
             }
             .accessibilityIdentifier("banner.destructive")
             OuroBanner("Recipe saved", tone: .success)
@@ -133,6 +168,7 @@ struct SheetsPage: View {
             OuroButton("Save to cookbook", systemImage: "book") { open = true }
                 .accessibilityIdentifier("sheet.open")
             OuroButton("Filters", variant: .soft) { filters = true }
+            RecipeFeed()
         }
         // `-sheetDetent large` shows it at full height, where iOS draws it unscaled, for the audit's clipped-text check.
         .ouroSheet(isPresented: $open, title: "Save to cookbook", description: "Pick where this recipe lives.",
@@ -164,14 +200,24 @@ private struct CookbookRow: View {
     let name: String
     @Binding var picked: String
     @Environment(\.ouroTouchTarget) private var target
+    @Environment(\.ouroColors) private var colors
 
     var body: some View {
         Button {
             picked = name
         } label: {
-            Label(name, systemImage: picked == name ? "checkmark.circle.fill" : "circle")
-                .frame(maxWidth: .infinity, minHeight: target, alignment: .leading)
-                .contentShape(Rectangle())
+            // Settings' pattern: the name, and a checkmark at the trailing edge on the one chosen.
+            HStack {
+                Text(name)
+                Spacer(minLength: 8)
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(colors.primary)
+                    .opacity(picked == name ? 1 : 0)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: target, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(picked == name ? .isSelected : [])
@@ -191,6 +237,7 @@ struct ToastsPage: View {
             OuroButton("Fail", variant: .outline) {
                 toast("Couldn't save", description: "Check your connection.", tone: .destructive)
             }
+            RecipeFeed()
         }
         .task {
             await play("toast", forth: { toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "demo") }, back: { toast.dismiss("demo") })
@@ -215,6 +262,39 @@ struct ToastsPage: View {
             toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "saved")
             toast("Recipe deleted", action: OuroToastAction("Undo") {}, id: "deleted")
             toast("Couldn't save", description: "Check your connection.", tone: .destructive, duration: .untilDismissed, id: "failed")
+        }
+    }
+}
+
+/// A page's own content under the toasts and the sheet, so the glass and the dimming have something real to sit over:
+/// recipes with a coloured thumbnail, a title and a line of detail, laid out openly rather than in cards.
+private struct RecipeFeed: View {
+    @Environment(\.ouroColors) private var colors
+    private let recipes: [(name: String, detail: String, symbol: String)] = [
+        ("Lemon ricotta pancakes", "Breakfast · 25 min", "frying.pan"),
+        ("Charred corn salad", "Weeknights · 15 min", "leaf"),
+        ("Brown butter cookies", "Sunday bakes · 40 min", "birthday.cake"),
+        ("Miso glazed aubergine", "Weeknights · 35 min", "flame"),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Recently cooked").font(.headline).accessibilityAddTraits(.isHeader).padding(.top, 12)
+            ForEach(recipes, id: \.name) { recipe in
+                HStack(spacing: 12) {
+                    Image(systemName: recipe.symbol)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(colors.primaryForeground)
+                        .frame(width: 48, height: 48)
+                        .background(colors.primary.gradient, in: .rect(cornerRadius: 12))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(recipe.name).font(.body.weight(.semibold))
+                        Text(recipe.detail).font(.subheadline).foregroundStyle(colors.mutedForeground)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
         }
     }
 }

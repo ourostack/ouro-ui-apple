@@ -111,20 +111,21 @@ is instead of jumping. The defaults are the designed version; options are for th
 - **Buttons** are capsules, 50 points tall at the medium size (34 drawn small, 56 large, each with at least a
   44-point target). A press answers on touch-down: it shrinks to 97% on a quick spring and springs back with a
   little bounce. A plain tap plays no haptic; pass `haptic:` for a moment that earns one.
-- **An empty state** is open, like the system's `ContentUnavailableView`: a large hierarchical symbol that bounces
-  once on arrival, a title and a line of description in a 340-point column. `variant: .outline` draws a dashed
+- **An empty state** is open, like the system's `ContentUnavailableView`: a 60-point hierarchical symbol in the theme's primary
+  colour that bounces once on arrival, a bold title and a line of description in a 340-point column. `variant: .outline` draws a dashed
   edge, for a drop zone.
 - **A banner** is a soft tint with no border (a 2-point one under Increase Contrast), 18-point corners. Give it
   `isPresented:` rather than an `if` around it: changed inside `withOuroAnimation(.layout, …)` it folds away at its
   top edge as the page closes up, and unfolds again, turning around smoothly if changed mid-way. A stack's spacing
   still leaves a gap where a folded banner was.
-- **A sheet** is the system sheet on the theme's surface, with a glass close disc on iOS 26.
-- **Toasts** are glass capsules at the top centre, at most 420 points wide, that drop in on a bouncy spring and lift
+- **A sheet** is the system sheet on the theme's surface (its raised popover colour in dark), with a solid 30-point
+  close disc.
+- **Toasts** are 56-point glass capsules over the theme's surface, casting a soft shadow, at the top centre, at most 420 points wide, that drop in on a bouncy spring and lift
   away without one. Swipe one up to dismiss it; dragged down, it gives a little and comes back. Up to three stack,
-  the older ones tucked 8 points behind the newest; a tap fans them out, and VoiceOver and Switch Control see them
+  the older ones solid and tucked 10 and 18 points behind the newest; a tap fans them out, and VoiceOver and Switch Control see them
   fanned out from the start; the region's "Show all" action fans them out for Voice Control and Full Keyboard
-  Access. On glass the words use the system's vibrant label styles; under Increase Contrast or Reduce Transparency
-  the toast is solid, in the theme's colours.
+  Access. The glass sits over the theme's opaque surface, so the words hold 5:1 over any page; under Increase
+  Contrast or Reduce Transparency, and before iOS 26, the toast is solid with an edge.
 
 The measurements, and the apps they were studied from, are in decision 15 of `docs/decisions/2026-11-04-hx-components.md`.
 Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).

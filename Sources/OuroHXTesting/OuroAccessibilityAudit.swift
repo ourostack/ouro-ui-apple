@@ -6,7 +6,8 @@ extension XCUIApplication {
     /// Runs Xcode's accessibility audit (`performAccessibilityAudit`, iOS 17 and macOS 14) and fails on every issue
     /// except those whose description contains one of `knownIssues`, each of which should carry a reason in the test.
     ///
-    /// It also excuses "Text clipped" inside an `.ouroSheet` that iOS draws at 96%, a sheet below full height on
+    /// It also excuses "Contrast failed" on page content a toast partly covers and on an element only partly on
+    /// screen (see ``OuroAuditExcuse``), and "Text clipped" inside an `.ouroSheet` that iOS draws at 96%, a sheet below full height on
     /// iOS 26 and later (see ``OuroAuditExcuse``), because the audit reads the scaled text as clipped. That leaves real
     /// clipping in such a sheet unchecked, so audit it once more at full height: present it with `detents: [.large]`
     /// from a launch argument your app reads, as the gallery's `-sheetDetent large` does.
@@ -23,11 +24,16 @@ extension XCUIApplication {
                 return close.exists && OuroSheetMetrics.isDrawnScaled(closeButtonHeight: close.frame.height)
             }
             .map(\.frame)
+        let toasts = descendants(matching: .any)
+            .matching(identifier: OuroToastMetrics.regionIdentifier)
+            .allElementsBoundByIndex
+            .map(\.frame)
+        let screen = windows.firstMatch.exists ? windows.firstMatch.frame : frame
         let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
             if knownIssues.contains(where: { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }) {
                 return true
             }
-            return OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: scaledSheets)
+            return OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: scaledSheets, toasts: toasts, screen: screen)
         }
         do {
             try performAccessibilityAudit(for: types, handler)

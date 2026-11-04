@@ -153,6 +153,10 @@ public enum OuroToastMetrics {
     /// How a toast leaves: on the quick `exit` spring, back up the way it came; or a crossfade.
     public static func departure(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.exit, reduceMotion: reduceMotion) }
 
+    /// How far a toast's shadow reaches past its edge: its 24-point blur plus its 10-point drop.
+    public static let shadowReach: CGFloat = 34
+    /// The accessibility identifier of the region the toasts show in, for UI tests.
+    public static let regionIdentifier = "ouro.toasts"
     /// A toast's height on one line: 56 points.
     public static let height: CGFloat = 56
     /// The scale a toast grows from as it arrives.
@@ -361,6 +365,7 @@ struct OuroToastHost: ViewModifier {
                         .frame(maxWidth: .infinity)
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel(labels.label)
+                        .accessibilityIdentifier(OuroToastMetrics.regionIdentifier)
                         .accessibilityAction(named: Text(labels.showAllLabel)) { showAll(count: visible.count) }
                         .onChange(of: visible.isEmpty) { _, empty in if empty { expandedByHand = false } }
                         .onChange(of: visible.map(\.id)) { _, ids in sizes = sizes.filter { ids.contains($0.key) } }
@@ -462,10 +467,9 @@ struct OuroToastView: View {
         let large = typeSize.isAccessibilitySize
         // A tucked toast is solid too, so the page never smears through the edge that peeks out.
         let solid = contrast == .increased || reduceTransparency || !rendersGlass || tucked != nil
-        // On glass or a material the words take the system's vibrant label styles, which stay readable on whatever
-        // shows through; the theme's colours are made readable against its opaque popover, so they go with it.
-        let message: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.message)) : AnyShapeStyle(.primary)
-        let secondary: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.description)) : AnyShapeStyle(.secondary)
+        // The words are the theme's, made readable on the opaque surface under the glass.
+        let message = Color(p.message)
+        let secondary = Color(p.description)
         // A tucked toast draws only its surface: no words or buttons exist for VoiceOver, the audit or a stray tap to
         // find (hiding them still left them in iOS 26's accessibility tree, scaled below 44 points).
         Group {
@@ -583,22 +587,18 @@ private struct ToastSurface: ViewModifier {
     let solid: Bool
 
     func body(content: Content) -> some View {
-        if solid {
+        if !solid, #available(iOS 26, macOS 26, visionOS 26, *) {
+            // Glass over the theme's opaque surface: the glass gives the edge light and depth, and the surface keeps the
+            // page's words from reading through, so the toast's words hold 5:1 over any page (`contrast.text`; at 55%
+            // and 85% the accessibility audit still measured the page through it). That fill also casts the shadow.
+            content
+                .glassEffect(.regular, in: shape)
+                .background(shape.fill(Color(palette.surface)).shadow(color: .black.opacity(0.12), radius: OuroToastMetrics.shadowReach - 10, y: 10))
+        } else {
+            // Solid: under Increase Contrast or Reduce Transparency, tucked, and before iOS 26.
             content
                 .background(shape.fill(Color(palette.surface)).shadow(color: .black.opacity(0.14), radius: 16, y: 6))
                 .overlay(shape.strokeBorder(Color(palette.border), lineWidth: 1))
-        } else if #available(iOS 26, macOS 26, visionOS 26, *) {
-            // A soft shadow under the glass lifts it off a plain page, where glass alone barely shows. It is drawn
-            // on a shape behind the glass, so it never shades the words.
-            // The glass is tinted with the theme's surface at 55%, drawn behind it, so it reads as a solid little
-            // object over a plain page and the page's words never smear through it; that fill also casts the shadow.
-            content
-                .glassEffect(.regular, in: shape)
-                .background(shape.fill(Color(palette.surface).opacity(0.55)).shadow(color: .black.opacity(0.12), radius: 24, y: 10))
-        } else {
-            content
-                .background(shape.fill(.regularMaterial).shadow(color: .black.opacity(0.14), radius: 16, y: 6))
-                .overlay(shape.strokeBorder(Color(palette.border).opacity(0.6), lineWidth: 0.5))
         }
     }
 }

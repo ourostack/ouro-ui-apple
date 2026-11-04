@@ -73,24 +73,38 @@ Status: accepted (W8 of the HX and AX native program).
       velocity through an interruption, which a fixed curve cannot. `OuroMotion` gains `pressIn` (0.15 s, no
       bounce), `pressOut` (0.35 s, 0.15), `enter` (0.55 s, 0.25), `exit` (0.35 s, none), `settle` and `layout`. Core's
       durations still set the Reduce Motion crossfade.
-    - **Capsule buttons**, 34/50/56 points drawn (taste panel round 1), every one at least 44 points to touch, semibold body type: the
-      shape of iOS 26's own buttons. Press is scale only, on touch-down; no haptic on a plain tap (Apple's apps keep
+    - **Capsule buttons**, 34/50/56 points drawn, every one at least 44 points to touch, semibold body type: the
+      shape of iOS 26's own buttons. The ends are circular, not continuous (a continuous corner at half the height
+      reads slightly square), the icon is a step smaller than the words, and soft fills are stronger in dark. Press is scale only, on touch-down; no haptic on a plain tap (Apple's apps keep
       haptics for moments, not taps).
     - **An open empty state** like `ContentUnavailableView`, not web's dashed card: boxed empty states read as a web
-      page on Apple. The dashed edge stays as `.outline`, for drop zones.
+      page on Apple. The dashed edge stays as `.outline`, for drop zones. Its 60-point symbol is the one note of the
+      theme's primary colour, over a bold `.title2` title.
     - **A borderless banner** that folds in place (`isPresented:`), never sliding over what is above it. An `if`
       around it made a removal transition that could not turn around: the frame captures showed it jump when hidden
       and shown again mid-way, and a stalled frame at the turn when only its frame height animated. One animatable
-      fold value drives height, scale and opacity, so it retargets on the spring.
+      fold value drives height, scale and opacity, so it retargets on the spring. In dark its tint washes the raised
+      card colour, its description leans toward the tone, and at the accessibility sizes the words get the whole width.
     - **A glass toast at the top**, where iOS puts its own (AirPods, Silent mode, Apple Pay), hugging its words, with
       a stack that tucks behind the newest as Sonner and iOS's notification stacks do. Its countdown stays 5 s and
       its close control stays visible: the board suggested 2.5 s and no close button, but `toast.action-stays` and
       `dismiss.reachable` win.
-    - **A glass close disc on the sheet.** The sheet keeps the theme's surface on iOS 26 too: its text and the
+    - **A solid close disc on the sheet**, which sits on the theme's popover colour in dark so it has an edge over the
+      dimmed page. The sheet keeps the theme's surface on iOS 26 too: its text and the
       components in it are made readable on that surface, and the system's glass is not it (`contrast.text` wins
-      over translucency). On a glass toast the words take the system's vibrant `.primary` and `.secondary` styles,
-      which stay readable over whatever shows through; the theme's colours go with its solid surface.
+      over translucency). The toast follows the same rule: its glass sits over the theme's opaque surface, with the
+      theme's words.
+    - **A glass toast over an opaque surface, with a shadow**: the glass alone read as a grey smudge on a white
+      page, and at 55% and 85% tints the accessibility audit still measured the page's words through it, so the
+      theme's surface sits wholly behind the glass and casts the shadow; the glass gives the rim light and depth. Tucked toasts are solid, peek 10 then 18 points and draw
+      only their surface: hidden words left in the accessibility tree were found by the audit as clipped, faint and
+      under 44 points. The audit helper excuses "Contrast failed" only on page content a toast partly covers and
+      on an element partly off screen (`OuroAuditExcuse`); a toast's own words still fail.
     - **The stack under Reduce Motion** is not scaled, and toasts take their places without sliding there.
+    - **The taste panel decides.** Two independent reviewers, one comparing with Apple's own apps and one with fresh
+      eyes, judge each component from captures and frame sequences; round 1 said no to every one, and these changes
+      are round 2's (W8 evidence `taste/`). The gallery shows the components over real content (a recipe list)
+      rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and
       marks each window with an os_signpost interval; `MotionTests` fails a transition above 5 ms of hitch per second
       or any frame two refreshes late. `XCTOSSignpostMetric` reports hitches on a device only, so that test skips

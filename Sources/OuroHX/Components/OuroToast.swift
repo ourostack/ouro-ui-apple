@@ -406,6 +406,9 @@ struct OuroToastView: View {
     var tucked: CGSize? = nil
     /// Off only in snapshot tests: `ImageRenderer` draws nothing inside a view with `accessibilityFocused`.
     var tracksFocus = true
+    /// Off only in snapshot tests: `ImageRenderer` draws nothing for glass or a material, so the toast draws its solid
+    /// surface (the one for Increase Contrast and Reduce Transparency) there.
+    var rendersGlass = true
     let dismiss: @MainActor () -> Void
     @Environment(\.ouroToastModel) private var model
     @Environment(\.ouroTheme) private var theme
@@ -500,7 +503,7 @@ struct OuroToastView: View {
         .clipped()
         // It hugs its words, up to the stack's width; at the accessibility sizes it spans it.
         .frame(maxWidth: large ? .infinity : nil)
-        .modifier(ToastSurface(shape: shape, palette: p, solid: contrast == .increased || reduceTransparency))
+        .modifier(ToastSurface(shape: shape, palette: p, solid: contrast == .increased || reduceTransparency || !rendersGlass))
         .offset(y: drag)
         .opacity(reduceMotion ? 1 - min(0.7, abs(drag) / 90) : 1)
         .gesture(

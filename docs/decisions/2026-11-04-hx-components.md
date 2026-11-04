@@ -64,6 +64,35 @@ Status: accepted (W8 of the HX and AX native program).
     had to guess how to make its own muted text read, so `OuroColor.readable(_:on:contrast:)` is public, and the
     article gains "In your own screen".
 
+15. **Beautiful by default** (Ari, 2026-11-04: an app using the components with no options should look its best;
+    "OK", "clean" and "polished" all fail). The first cut copied web, and on Apple it looked like web. Each component
+    was rebuilt against a reference board of Apple's own apps and the best third-party ones (kept with the desk's
+    W8 evidence), and every transition is recorded frame by frame and probed for hitches in the gallery
+    (`MotionTests`). What changed, and why:
+    - **Springs, not web's curves.** Core's motion tokens are CSS easings for the web; SwiftUI's springs carry
+      velocity through an interruption, which a fixed curve cannot. `OuroMotion` gains `pressIn` (0.15 s, no
+      bounce), `pressOut` (0.35 s, 0.15), `enter` (0.5 s, 0.2), `exit` (0.3 s, none), `settle` and `layout`. Core's
+      durations still set the Reduce Motion crossfade.
+    - **Capsule buttons**, 36/48/54 points drawn, every one at least 44 points to touch, semibold body type: the
+      shape of iOS 26's own buttons. Press is scale only, on touch-down; no haptic on a plain tap (Apple's apps keep
+      haptics for moments, not taps).
+    - **An open empty state** like `ContentUnavailableView`, not web's dashed card: boxed empty states read as a web
+      page on Apple. The dashed edge stays as `.outline`, for drop zones.
+    - **A borderless banner** that folds in place (`isPresented:`), never sliding over what is above it. An `if`
+      around it made a removal transition that could not turn around: the frame captures showed it jump when hidden
+      and shown again mid-way, and a stalled frame at the turn when only its frame height animated. One animatable
+      fold value drives height, scale and opacity, so it retargets on the spring.
+    - **A glass toast at the top**, where iOS puts its own (AirPods, Silent mode, Apple Pay), hugging its words, with
+      a stack that tucks behind the newest as Sonner and iOS's notification stacks do. Its countdown stays 5 s and
+      its close control stays visible: the board suggested 2.5 s and no close button, but `toast.action-stays` and
+      `dismiss.reachable` win.
+    - **The system's glass sheet** with a glass close disc, instead of painting the theme's surface over it on
+      iOS 26.
+    - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and
+      marks each window with an os_signpost interval; `MotionTests` fails a transition above 5 ms of hitch per second
+      or any frame two refreshes late. `XCTOSSignpostMetric` reports hitches on a device only, so that test skips
+      on the simulator. Frame timing on a simulator follows the Mac's load, so the gate is CI's dedicated runner.
+
 ## Prior art
 
 | Find | What it does | Verdict |
@@ -79,4 +108,7 @@ Status: accepted (W8 of the HX and AX native program).
 | [shadcn/ui Sonner](https://ui.shadcn.com/docs/components/sonner) / [emilkowalski/sonner](https://github.com/emilkowalski/sonner) | Web's toast: `toast()` from anywhere, one `<Toaster/>`, visible limit, swipe to dismiss | **Adopt** the shape, as web did: `toast(...)` from the environment, `.ouroToaster()` at the root |
 | [elai950/AlertToast](https://github.com/elai950/AlertToast), [exyte/PopupView](https://github.com/exyte/PopupView) | Popular SwiftUI toast and popup packages, bound per view with `isPresented` | **Ignore** the per-view binding: one queue at the root keeps web's limits and announcement order; **watch** PopupView's drag handling |
 | [pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing) | Snapshot strategies, per-OS reference folders by convention | **Borrow** reference folders per OS; **ignore** the dependency, since `OuroSnapshot` already renders in every appearance |
+| [Apple HIG: Motion](https://developer.apple.com/design/human-interface-guidelines/motion) and WWDC23 "Animate with springs" | Springs keep velocity through interruption; `duration` and `bounce` | **Adopt**: every component moves on a spring (decision 15) |
+| [Apple: Explore UI animation hitches](https://developer.apple.com/documentation/xcode/understanding-hitches-in-your-app) | Hitch ratio in ms per second; under 5 good, over 10 critical | **Adopt**: `MotionTests`' limit |
+| iOS 26 system toasts (AirPods, Silent mode) and notification stacks | Top-centre glass capsules; older items tuck behind | **Borrow** the place and the tuck; **ignore** hiding the close control, for `dismiss.reachable` |
 | [cashapp/AccessibilitySnapshot](https://github.com/cashapp/AccessibilitySnapshot) | Snapshots of the VoiceOver element tree | **Watch**: a natural next proof for `name.spoken` once it supports SwiftUI-only hosts well |

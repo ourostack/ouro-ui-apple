@@ -49,8 +49,14 @@ struct GalleryScreen: View {
             .ouroToaster()
             .ouroTheme(theme)
             .task {
-                // With `-demo` too, the probe times the whole demo and prints its result for the capture script.
-                guard FrameProbe.isOn, UserDefaults.standard.string(forKey: "demo") != nil else { return }
+                // With `-demo` too, the probe times the demo on its own: it starts a second after the page appears,
+                // past launch's own first frames and half a second before the demo's first move, and shows its result
+                // in the "probe" element for MotionTests (and prints it for the capture scripts).
+                // Without a demo, `-probeSeconds` alone times a window for a test's own gesture, `-probeDelay` seconds
+                // in. Either way nothing queries the app while it measures: an XCUITest query takes the main thread.
+                let defaults = UserDefaults.standard
+                guard FrameProbe.isOn, defaults.string(forKey: "demo") != nil || defaults.double(forKey: "probeSeconds") > 0 else { return }
+                try? await Task.sleep(for: .seconds(defaults.object(forKey: "probeDelay") == nil ? 1 : defaults.double(forKey: "probeDelay")))
                 probe.start()
                 try? await Task.sleep(for: .seconds(max(6, UserDefaults.standard.double(forKey: "probeSeconds"))))
                 probe.stop()

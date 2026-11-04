@@ -11,8 +11,8 @@ import UIKit
 /// jitter) is a hitch, and the time past its interval is hitch time. The hitch ratio is hitch milliseconds per second
 /// of measured time, Apple's measure: under 5 ms/s is good, over 10 is critical, so any above 5 fails a test.
 ///
-/// The test marks a window with the hidden "probe.start" and "probe.stop" buttons and reads the result from the
-/// "probe" element's value: `frames=…;hitches=…;hitchMs=…;seconds=…;ratio=…;worstMs=…`. Each window is also an
+/// The app opens the window itself (see `GalleryApp`), so the test need not touch the app while it measures, and the
+/// test reads the result from the "probe" element's label: `frames=…;hitches=…;hitchMs=…;seconds=…;ratio=…;worstMs=…;log=<ms in>:+<ms late>,…`. Each window is also an
 /// os_signpost animation interval (subsystem `bot.ouro.hx.gallery`, category `motion`, name `transition`) for
 /// `XCTOSSignpostMetric` on a device.
 @MainActor
@@ -59,6 +59,7 @@ final class FrameProbe: NSObject, ObservableObject {
         let seconds = max(0.001, CACurrentMediaTime() - began)
         let ratio = hitchTime * 1000 / seconds
         summary = String(format: "frames=%d;hitches=%d;hitchMs=%.1f;seconds=%.2f;ratio=%.2f;worstMs=%.1f", frames, hitches, hitchTime * 1000, seconds, ratio, worst * 1000)
+            + ";log=" + hitchLog.joined(separator: ",")
     }
 
     #if canImport(UIKit)
@@ -81,16 +82,12 @@ final class FrameProbe: NSObject, ObservableObject {
     #endif
 }
 
-/// The probe's hidden controls and readout, drawn only with `-probe 1`.
+/// The probe's near-invisible readout, drawn only with `-probe 1`.
 struct FrameProbeControls: View {
     @ObservedObject var probe: FrameProbe
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button("probe.start") { probe.start() }.accessibilityIdentifier("probe.start")
-            Button("probe.stop") { probe.stop() }.accessibilityIdentifier("probe.stop")
-            Text(probe.summary).accessibilityIdentifier("probe")
-        }
+        Text(probe.summary).accessibilityIdentifier("probe")
         .font(.system(size: 6))
         .opacity(0.02)
         .frame(height: 8)

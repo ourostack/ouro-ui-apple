@@ -96,8 +96,12 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.buttons["Close"].exists)
         app.terminate()
         app = launch("toasts")
+        // Stacked, only the newest toast is shown; the older ones tuck behind it, out of VoiceOver's way. With
+        // VoiceOver or Switch Control running the stack opens by itself; here a tap opens it.
+        XCTAssertEqual(shownDismissButtons(app), 1, "only the front toast is shown")
+        expandToasts(app)
         XCTAssertTrue(app.buttons["Undo"].exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "Dismiss").count, 3, "every toast has a dismiss button")
+        XCTAssertEqual(shownDismissButtons(app), 3, "every toast has a dismiss button")
         XCTAssertTrue(app.otherElements["Notifications"].exists || app.descendants(matching: .any)["Notifications"].exists, "the toasts' region is named")
         app.terminate()
     }
@@ -113,10 +117,23 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Pick where this recipe lives."].waitForNonExistence(timeout: 3))
         app.terminate()
         app = launch("toasts")
+        expandToasts(app)
         app.buttons.matching(identifier: "Dismiss").firstMatch.tap()
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == 2"), object: app.buttons.matching(identifier: "Dismiss"))
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 3), .completed)
         app.terminate()
+    }
+
+    /// Toasts' close buttons a finger can reach. XCUITest's tree still lists a tucked toast's hidden ones.
+    private func shownDismissButtons(_ app: XCUIApplication) -> Int {
+        app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).count
+    }
+
+    /// Opens the toast stack by tapping its front toast, the newest, "Couldn't save".
+    private func expandToasts(_ app: XCUIApplication) {
+        app.staticTexts["Couldn't save"].tap()
+        sleep(1)
+        XCTAssertEqual(shownDismissButtons(app), 3, "a tap opens the stack")
     }
 
     /// Claim toast.action-stays: a toast with an action is still there after the five seconds a plain one gets. The

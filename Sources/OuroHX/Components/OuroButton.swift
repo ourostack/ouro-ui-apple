@@ -68,7 +68,7 @@ public struct OuroButtonPalette: Sendable {
             let muted = OuroInk.r(c.muted)
             fill = muted
             surface = muted
-            border = OuroColor.push(OuroInk.r(c.border), against: muted, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
+            border = OuroColor.push(OuroInk.r(c.border), against: muted, to: style.contrast == .increased ? OuroColor.increasedLineContrast : OuroButtonMetrics.disabledOutlineContrast)
             label = OuroInk.readable(OuroInk.r(c.mutedForeground), on: muted, style)
             return
         }
@@ -114,6 +114,10 @@ public struct OuroButtonPalette: Sendable {
 
 /// Metrics and motion every ``OuroButton`` shares, as data.
 public enum OuroButtonMetrics {
+    /// How strongly a disabled button's outline reads on its muted fill (3:1 under increased contrast): enough to show
+    /// the chip where a theme's tone is close to its muted grey.
+    public static let disabledOutlineContrast = 1.5
+
     /// Core's press scale while pressed, or none under Reduce Motion.
     public static func pressScale(isPressed: Bool, reduceMotion: Bool) -> Double {
         OuroMotion.pressScale(isPressed: isPressed, reduceMotion: reduceMotion)
@@ -246,6 +250,7 @@ public struct OuroButton<Label: View>: View {
     private let role: ButtonRole?
     private let loading: Bool
     private let loadingLabel: String
+    @Environment(\.isEnabled) private var outerEnabled
     private let haptic: OuroHapticMoment?
     @State private var presses = 0
 
@@ -282,7 +287,8 @@ public struct OuroButton<Label: View>: View {
                 .overlay { if loading { ProgressView().accessibilityHidden(true) } }
         }
         .buttonStyle(style)
-        .environment(\.ouroButtonLoading, loading)
+        // Busy, not unavailable, unless something around the button disabled it anyway.
+        .environment(\.ouroButtonLoading, loading && outerEnabled)
         .disabled(loading)
         .accessibilityValue(loading ? Text(loadingLabel) : Text(""))
         .sensoryFeedback(trigger: presses) { _, _ in haptic?.sensoryFeedback }

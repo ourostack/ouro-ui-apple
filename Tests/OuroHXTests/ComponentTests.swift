@@ -98,12 +98,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
                 let p = OuroButtonPalette(tone: tone, variant: variant, style: style, isEnabled: false)
                 #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(tone) \(variant) disabled")
                 // Tellable apart: the label or the fill moves visibly in colour (a tone turning grey, or a grey
-                // moving in lightness), or an outline or a fill comes or goes.
+                // moving in lightness), or an outline reads at 1.5:1 on the fill.
                 let enabled = OuroButtonPalette(tone: tone, variant: variant, style: style)
                 let label = distance(p.label, enabled.label)
                 let fill = distance(p.fill ?? p.surface, enabled.fill ?? enabled.surface)
-                let outline = (p.border == nil) != (enabled.border == nil) || (p.fill == nil) != (enabled.fill == nil)
-                #expect(label >= 0.2 || fill >= 0.2 || outline, "\(name) \(tone) \(variant): looks enabled (label \(label), fill \(fill))")
+                let outline = p.border.map { ratio($0, p.surface) } ?? 1
+                #expect(label >= 0.2 || fill >= 0.2 || outline >= 1.5, "\(name) \(tone) \(variant): looks enabled (label \(label), fill \(fill), outline \(outline))")
             }
         }
     }

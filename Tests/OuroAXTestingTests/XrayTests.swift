@@ -21,7 +21,7 @@ private func verdicts(_ results: [AXXray.CheckResult], _ claim: String) -> [Stri
         let set = try AXXray.ClaimSet.bundled()
         #expect(set.version == "0.1.0")
         #expect(set.claims.count == 30)
-        // core: claimSetHash(standard/ax/surfaces/apple.claims.json) at v0.2.0
+        // core: claimSetHash(standard/ax/surfaces/apple.claims.json) at v0.2.0, unchanged in v0.3.0
         #expect(set.hash == "27b3ea5e80b47c18c90c6bf25a832da489dae4a043532d5f23414917d06be9a0")
         #expect(set.claims.allSatisfy { $0.tier == "should" })
     }

@@ -40,7 +40,7 @@ public enum OuroColor {
     /// The contrast ``increasedContrast(_:)`` raises borders, inputs and focus rings to.
     public static let increasedLineContrast = 3.0
 
-    /// The colours for Increase Contrast. Core v0.2.0 has no high-contrast tokens yet, so they are derived: each text
+    /// The colours for Increase Contrast. Core v0.3.0 has no high-contrast tokens yet, so they are derived: each text
     /// colour moves toward black or white until it reaches 7:1 on its surface (WCAG AAA), and each line until 3:1. A
     /// surface moves only when its text cannot get there alone. Pairs that already pass are left alone.
     public static func increasedContrast(_ c: OuroColors) -> OuroColors {

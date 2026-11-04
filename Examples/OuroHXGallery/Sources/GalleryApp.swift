@@ -78,7 +78,7 @@ private struct ThemedPage: View {
                     .font(.largeTitle.bold())
                     .foregroundStyle(colors.foreground)
             }
-            Text("\(scheme == .dark ? "Dark" : "Light")\(contrast == .increased ? ", increased contrast" : "") · ouro-ui-core v0.2.0")
+            Text("\(scheme == .dark ? "Dark" : "Light")\(contrast == .increased ? ", increased contrast" : "") · ouro-ui-core v0.3.0")
                 .font(.subheadline)
                 .foregroundStyle(colors.mutedForeground)
         }

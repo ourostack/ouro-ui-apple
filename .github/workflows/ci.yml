@@ -42,6 +42,10 @@ jobs:
           python3 -I scripts/check-provenance.py --offline && status=0 || status=$?
           git checkout -- Sources/OuroAXTesting/Resources/apple.claims.json
           test "$status" -eq 3
+          printf ' ' >> Sources/OuroHXTesting/Resources/components.claims.json
+          python3 -I scripts/check-provenance.py --offline && status=0 || status=$?
+          git checkout -- Sources/OuroHXTesting/Resources/components.claims.json
+          test "$status" -eq 3
 
   xcode-27:
     name: Build and test with Xcode 27 (main and releases only)

@@ -31,7 +31,13 @@ let package = Package(
         // Ouro HX for Apple: tokens (vendored from ouro-ui-core), theme, colour, motion, haptics, fold posture.
         .target(name: "OuroHX", swiftSettings: strict),
         // Test helpers for apps that use OuroHX: snapshots, accessibility audits, the iPhone Duo hinge.
-        .target(name: "OuroHXTesting", dependencies: ["OuroHX", "OuroDeviceHub"], swiftSettings: strict),
+        .target(
+            name: "OuroHXTesting",
+            dependencies: ["OuroHX", "OuroDeviceHub"],
+            // Ouro HX's component claims, vendored from ouro-ui-core and pinned in core-provenance.json.
+            resources: [.copy("Resources/components.claims.json")],
+            swiftSettings: strict
+        ),
         // Drives Xcode's Device Hub through accessibility (macOS only). Shared by OuroHXTesting and ouro-devicehub.
         .target(name: "OuroDeviceHub", swiftSettings: strict),
         .executableTarget(name: "ouro-devicehub", dependencies: ["OuroDeviceHub"], swiftSettings: strict),

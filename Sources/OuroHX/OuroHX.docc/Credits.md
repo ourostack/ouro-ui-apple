@@ -12,4 +12,4 @@ Ouro HX for Apple was pulled out of two apps that shipped it first:
   the hinge observer and spine shadow.
 - Both: `devicehub.swift`, byte-identical in each, is now `ouro-devicehub`.
 
-The tokens are [ouro-ui-core](https://github.com/ourostack/ouro-ui-core) v0.2.0's.
+The tokens are [ouro-ui-core](https://github.com/ourostack/ouro-ui-core) v0.3.0's.

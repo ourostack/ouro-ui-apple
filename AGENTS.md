@@ -4,7 +4,7 @@ This repository is the Swift package for Ouro HX for Apple (`OuroHX`, `OuroHXTes
 
 ## Where things live
 
-- **Core:** [ourostack/ouro-ui-core](https://github.com/ourostack/ouro-ui-core) holds the tokens (DTCG JSON), their generators, HX's design language, AX's claims standard and the decision records that span platforms. Its releases publish `dist/apple/OuroTokens.swift`.
+- **Core:** [ourostack/ouro-ui-core](https://github.com/ourostack/ouro-ui-core) holds the tokens (DTCG JSON), their generators, HX's design language, AX's claims standard and the decision records that span platforms. Its releases publish `dist/apple/OuroTokens.swift`, AX's `apple.claims.json` and HX's `components.claims.json`.
 - **Web:** [ourostack/ouro-ui](https://github.com/ourostack/ouro-ui) (becoming `ouro-ui-web`) holds the React components and AX's TypeScript kit. `OuroAX.Outcome` and `OuroAX.Problem` mirror its `ax-outcome` and `ax-problem` field for field.
 - **Here:** Swift only. Package decisions are in `docs/decisions/`.
 
@@ -46,8 +46,8 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 
 ## The X-ray
 
-- `Sources/OuroAXTesting/Resources/apple.claims.json` is core's release asset, byte for byte, pinned in
-  `core-provenance.json`. Change claims in core, then bump here.
+- `Sources/OuroAXTesting/Resources/apple.claims.json` and `Sources/OuroHXTesting/Resources/components.claims.json`
+  are core's release assets, byte for byte, pinned in `core-provenance.json`. Change claims in core, then bump here.
 - `OuroAXTesting` never imports AppIntentsTesting, so `ouro-ax-xray` runs on any Mac; only `OuroAXTestingProbe` does,
   inside the template's test bundles.
 - Run the behaviour stage only through `scripts/xray-probe.sh` or a simulator you created; refusal runs need

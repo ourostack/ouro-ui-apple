@@ -4,8 +4,8 @@
 [ui.ouro.bot](https://ui.ouro.bot/), now on iPhone, iPad and Mac, plus the bits that make an app pleasant for Siri and
 every other agent that comes knocking.
 
-Meets core [v0.2.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.2.0): the tokens are core's, byte for
-byte, and CI checks it.
+Meets core [v0.3.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.3.0): the tokens and the claim sets (AX's
+`apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
 
 ## Install
 

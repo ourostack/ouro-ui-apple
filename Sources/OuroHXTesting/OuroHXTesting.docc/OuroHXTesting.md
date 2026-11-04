@@ -8,6 +8,8 @@ Test helpers for apps that use Ouro HX: snapshots, accessibility audits and the 
   `OURO_SNAPSHOT_RECORD=1` to record. It does not need XCTest.
 - `XCUIApplication.ouroAccessibilityAudit(for:knownIssues:)` runs Xcode's accessibility audit and fails on every issue
   you have not named.
+- ``OuroHXClaims`` is ouro-ui-core's HX component claim set (`components.claims.json`, vendored by hash): what every
+  component promises, and how each platform proves it.
 - ``OuroDuoHinge`` folds and opens the iPhone Duo simulator from a UI test. A Mac job runs
   `swift run ouro-devicehub serve "$DIR"` and the test gets `TEST_RUNNER_OURO_DUO_POSTURE_DIR=$DIR`.
 
@@ -17,4 +19,5 @@ Gatefold each carried.
 ## Topics
 
 - ``OuroSnapshot``
+- ``OuroHXClaims``
 - ``OuroDuoHinge``

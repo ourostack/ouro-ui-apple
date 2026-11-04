@@ -23,12 +23,21 @@ extension XCUIApplication {
                 return close.exists && OuroSheetMetrics.isDrawnScaled(closeButtonHeight: close.frame.height)
             }
             .map(\.frame)
-        try performAccessibilityAudit(for: types) { issue in
+        let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
             if knownIssues.contains(where: { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }) {
                 return true
             }
             return OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: scaledSheets)
         }
+        do {
+            try performAccessibilityAudit(for: types, handler)
+        } catch let error as NSError where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == Self.auditTimedOut {
+            // A long page on a slow CI runner can outrun the audit's own time limit; one more try, then the error.
+            try performAccessibilityAudit(for: types, handler)
+        }
     }
+
+    /// The audit's "Audit failed to complete in time" error code.
+    static let auditTimedOut = -56
 }
 #endif

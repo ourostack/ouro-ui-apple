@@ -99,8 +99,8 @@ public enum OuroSnapshot {
         return bytes
     }
 
-    /// A channel may move this many levels (of 255) without the pixel counting as changed: renders round a computed
-    /// colour, such as one pushed to a contrast by bisection, one level differently from run to run.
+    /// A channel may move this many levels (of 255) without the pixel counting as changed: the renderer's colour
+    /// conversion and antialiasing can land a level apart from run to run. Exact colours are the palette tests' job.
     static let channelNoise = 2
 
     static func difference(_ a: CGImage, _ b: CGImage) -> Double {

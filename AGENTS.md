@@ -30,6 +30,19 @@ Meerkat mode: look around first. Before you design or build something new (a com
 - A component or helper that exists on web keeps web's name: `Button`, `Dialog`, `EmptyState`, `Banner`, `Sheet`, `Toast`. Colour names are HX's CSS variables in camel case (`--primary-foreground` is `primaryForeground`).
 - Every public type starts with `Ouro` or lives under `OuroAX`. A name never carries a platform: it is `OuroHX`, not `OuroHXApple`, and "Apple" appears only after "for" in prose.
 
+## Components
+
+- `Sources/OuroHX/Components/` holds `OuroButton`, `OuroEmptyState`, `OuroBanner`, `.ouroSheet` and the toast. Each
+  resolves its colours as a palette value (`OuroButtonPalette` and friends) that raises every label to 5:1, a margin over 4.5 (7:1
+  under Increase Contrast) on what is behind it; a new component does the same, and `ContrastTests` covers it in
+  every theme.
+- Behaviour is core's [component claims](https://github.com/ourostack/ouro-ui-core/blob/main/standard/hx/components.md),
+  vendored as `Sources/OuroHXTesting/Resources/components.claims.json`. A new claim starts in core. Every claim needs
+  a named Swift test, listed in `Tests/OuroHXTests/ClaimCoverageTests.swift`, which fails on a claim with none.
+- A component change runs the unit tests, the snapshots (`__Snapshots__/macOS-<major>`) and the gallery UI tests
+  (README, "The gallery"), and adds its page to the gallery.
+- Spacing follows web's metrics until core has spacing tokens. Decisions: `docs/decisions/2026-11-04-hx-components.md`.
+
 ## Claims
 
 A factual sentence is a claim on every surface: Markdown, DocC, code comments, a pull request's title and body. Give each its primary source (a file, a test, a command's output or a link) and, where one exists, the check that proves it. Credit the app a piece came from (Spoonjoy, Gatefold) in its DocC article.

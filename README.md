@@ -20,7 +20,7 @@ OS has them.
 
 | Product | For | What it has |
 |---|---|---|
-| `OuroHX` | your app | `.ouroTheme(.pearl)`, `ouroColors` and radii in the environment; `OuroColor` (contrast, increased contrast, adaptive colours); `OuroMotion` (core's spring and curves, polite under Reduce Motion); `OuroHaptics` (one named table of moments); `OuroFoldPosture` and `OuroFoldReader` (tabletop, book, closed) |
+| `OuroHX` | your app | the components: `OuroButton` (solid, soft, outline, plain, glass; rounded or pill), `OuroEmptyState`, `OuroBanner`, `.ouroSheet`, and toasts (`.ouroToaster()` at the root, then `@Environment(\.ouroToast)`); `.ouroTheme(.pearl)`, `ouroColors` and radii in the environment; `OuroColor` (contrast, increased contrast, adaptive colours); `OuroMotion` (core's spring and curves, polite under Reduce Motion); `OuroHaptics` (one named table of moments); `OuroFoldPosture` and `OuroFoldReader` (tabletop, book, closed) |
 | `OuroHXTesting` | your tests | `OuroSnapshot` (light, dark, increased contrast), `ouroAccessibilityAudit`, `OuroDuoHinge` (fold the Duo simulator from a UI test) |
 | `OuroAX` | your app | `OuroAX.Outcome` and `OuroAX.Problem` (web's `ax-outcome` and `ax-problem`, field for field), exit codes, entity queries with fuzzy matching, `OuroAXOutcomeIntent`, `OuroAXPackage` |
 | `OuroAXTesting` | your tests | Siri evaluation wordings and pass rates; the App Intents X-ray's checks, reports and Siri scenario sets (`AXXray`) |
@@ -29,6 +29,34 @@ OS has them.
 | `ouro-ax-skills` | you and CI | lints `Skills.skillsbundle` for Siri: `swift run ouro-ax-skills lint path/to/Skills.skillsbundle` |
 | `OuroAXSkillsLintPlugin` | your build | the same lint at build time, with errors pinned to the line |
 | `ouro-devicehub` | a Mac CI job | presses Device Hub's buttons: `dump`, `press "Partially Open"`, `serve <dir>` |
+
+```swift
+import OuroHX
+
+struct SettingsScreen: View {
+    @Environment(\.ouroToast) private var toast
+
+    var body: some View {
+        VStack(spacing: 16) {
+            OuroEmptyState("No devices yet", systemImage: "iphone", description: "Sign in on another device to sync.")
+            OuroButton("Save settings", systemImage: "checkmark", fullWidth: true) {
+                toast("Settings saved", tone: .success)
+            }
+        }
+        .padding()
+    }
+}
+
+// At the root, once:
+SettingsScreen().ouroToaster().ouroTheme(.pearl)
+```
+
+Every component keeps 44-point targets, crossfades under Reduce Motion, has VoiceOver names, wraps at the largest
+text sizes and reads at 5:1 (7:1 with Increase Contrast): ouro-ui-core's
+[component claims](https://github.com/ourostack/ouro-ui-core/blob/main/standard/hx/components.md), each proven by a
+named test here (`Tests/OuroHXTests/ClaimCoverageTests.swift`). The DocC article "Components" has the details.
+
+Building your own control instead? The tokens are in the environment:
 
 ```swift
 import OuroHX
@@ -48,8 +76,6 @@ struct Card: View {
     }
 }
 
-// At the root:
-ContentView().ouroTheme(.pearl)
 ```
 
 The linter exits 0 when all is well, 1 when it trips over itself, 2 for a usage mistake and 3 when it found something.
@@ -57,14 +83,23 @@ The linter exits 0 when all is well, 1 when it trips over itself, 2 for a usage 
 
 ## The gallery
 
-`Examples/OuroHXGallery` shows every token of every theme in light, dark and increased contrast.
+`Examples/OuroHXGallery` shows every token of every theme in light, dark and increased contrast, and every component
+(the Buttons, Empty states, Banners, Sheets and Toasts pages). Its UI tests (`OuroHXGalleryUITests`) prove the
+component claims on the running app: `performAccessibilityAudit` on each component page at the default and the largest
+accessibility text size, in light and dark, plus 44-point frames, VoiceOver names and the close controls.
 
 ```sh
 cd Examples/OuroHXGallery && xcodegen generate && cd ../..
 xcodebuild build -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/gallery CODE_SIGNING_ALLOWED=NO
 sh scripts/gallery-captures.sh <a simulator UDID you created for it> .build/captures
+xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
+  -destination 'id=<that UDID>' -derivedDataPath .build/gallery
 ```
+
+Component snapshot references live in `Tests/OuroHXTests/__Snapshots__/macOS-<major>`, one folder per host macOS
+major. Record locally with `OURO_SNAPSHOT_RECORD=1 swift test --filter ComponentSnapshotTests`; for CI's macOS 26,
+take the `snapshots-actual-macos-26` artifact of a failed run.
 
 ## X-ray your app's App Intents
 

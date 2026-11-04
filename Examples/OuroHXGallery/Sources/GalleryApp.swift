@@ -1,7 +1,8 @@
 import OuroHX
 import SwiftUI
 
-/// Launch arguments pick what to show, so screenshots need no taps: `-theme abyss -page pairs`.
+/// Launch arguments pick what to show, so screenshots and UI tests need no taps: `-theme abyss -page pairs`,
+/// `-page sheet -open 1` (opens the sheet, or sends the sample toasts), `-scheme dark`.
 @main
 struct GalleryApp: App {
     var body: some Scene {
@@ -10,12 +11,14 @@ struct GalleryApp: App {
                 theme: OuroThemeName(rawValue: UserDefaults.standard.string(forKey: "theme") ?? "") ?? .pearl,
                 page: GalleryPage(rawValue: UserDefaults.standard.string(forKey: "page") ?? "") ?? .colors
             )
+            .preferredColorScheme(UserDefaults.standard.string(forKey: "scheme") == "dark" ? .dark : UserDefaults.standard.string(forKey: "scheme") == "light" ? .light : nil)
         }
     }
 }
 
 enum GalleryPage: String, CaseIterable, Identifiable {
     case colors = "Colours", pairs = "Pairs", feel = "Feel"
+    case buttons = "Buttons", empty = "Empty states", banners = "Banners", sheet = "Sheets", toasts = "Toasts"
     var id: String { rawValue }
 
     init?(rawValue: String) {
@@ -23,6 +26,11 @@ enum GalleryPage: String, CaseIterable, Identifiable {
         case "colors", "colours": self = .colors
         case "pairs": self = .pairs
         case "feel": self = .feel
+        case "buttons", "button": self = .buttons
+        case "empty", "emptystate": self = .empty
+        case "banners", "banner": self = .banners
+        case "sheet", "sheets": self = .sheet
+        case "toasts", "toast": self = .toasts
         default: return nil
         }
     }
@@ -34,6 +42,7 @@ struct GalleryScreen: View {
 
     var body: some View {
         ThemedPage(theme: theme, page: $page, pickTheme: { theme = $0 })
+            .ouroToaster()
             .ouroTheme(theme)
     }
 }
@@ -50,16 +59,34 @@ private struct ThemedPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header
-                Picker("Page", selection: $page) {
-                    ForEach(GalleryPage.allCases) { Text($0.rawValue).tag($0) }
+                // A menu Picker's own button draws about 34 points tall, under the 44 the gallery proves, so the page
+                // picker is a Menu with a 44-point label.
+                Menu {
+                    Picker("Page", selection: $page) {
+                        ForEach(GalleryPage.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                } label: {
+                    Label(page.rawValue, systemImage: "chevron.up.chevron.down")
+                        .labelStyle(TrailingIconLabel())
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(colors.foreground)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .pickerStyle(.segmented)
+                .accessibilityLabel("Page, \(page.rawValue)")
+                .accessibilityIdentifier("gallery.page")
                 switch page {
                 case .colors: ColorGrid()
                 case .pairs: PairList()
                 case .feel: FeelPage()
+                case .buttons: ButtonsPage()
+                case .empty: EmptyStatesPage()
+                case .banners: BannersPage()
+                case .sheet: SheetsPage()
+                case .toasts: ToastsPage()
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
@@ -77,7 +104,9 @@ private struct ThemedPage: View {
                 Text(theme.rawValue.capitalized)
                     .font(.largeTitle.bold())
                     .foregroundStyle(colors.foreground)
+                    .frame(minHeight: 44)
             }
+            .accessibilityIdentifier("gallery.theme")
             Text("\(scheme == .dark ? "Dark" : "Light")\(contrast == .increased ? ", increased contrast" : "") · ouro-ui-core v0.3.0")
                 .font(.subheadline)
                 .foregroundStyle(colors.mutedForeground)
@@ -215,5 +244,15 @@ enum Tokens {
             Pair(name: "sidebarForeground", text: c.sidebarForeground, surface: c.sidebar),
             Pair(name: "sidebarPrimaryForeground", text: c.sidebarPrimaryForeground, surface: c.sidebarPrimary),
         ]
+    }
+}
+
+/// Title first, then the icon, the way a menu Picker draws its current value.
+struct TrailingIconLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.title
+            configuration.icon.imageScale(.small)
+        }
     }
 }

@@ -25,3 +25,26 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
+  # The components' claims, proven against the running gallery: performAccessibilityAudit on every component page
+  # at the default and the largest text size, in light and dark; 44-point targets; VoiceOver labels; close controls.
+  OuroHXGalleryUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: OuroHXGallery
+      - package: OuroUIApple
+        product: OuroHXTesting
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.hx.gallery.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: OuroHXGallery
+schemes:
+  OuroHXGallery:
+    build:
+      targets:
+        OuroHXGallery: all
+    test:
+      targets: [OuroHXGalleryUITests]

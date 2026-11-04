@@ -29,6 +29,7 @@ hash and CI checks it against the core release.
 
 ### Essentials
 
+- <doc:Components>
 - <doc:Theming>
 - <doc:Colour>
 - <doc:Motion>

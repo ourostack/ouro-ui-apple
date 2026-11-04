@@ -92,8 +92,10 @@ Status: accepted (W8 of the HX and AX native program).
     - **A solid close disc on the sheet**, which sits on the theme's popover colour in dark so it has an edge over the
       dimmed page. The sheet keeps the theme's surface on iOS 26 too: its text and the
       components in it are made readable on that surface, and the system's glass is not it (`contrast.text` wins
-      over translucency). The toast follows the same rule: its glass sits over the theme's opaque surface, with the
-      theme's words.
+      over translucency). The toast's glass sits over the theme's opaque surface too, so the page never reads
+      through; its words take the system's vibrant `.primary` and `.secondary`, which the gallery's audit measures in
+      light and dark. Theme colours inside the glass dropped a frame on every departure (5 of 5 in the frame
+      captures, against 0 of 5 for vibrant), so they go with the solid surface only.
     - **A glass toast over an opaque surface, with a shadow**: the glass alone read as a grey smudge on a white
       page, and at 55% and 85% tints the accessibility audit still measured the page's words through it, so the
       theme's surface sits wholly behind the glass and casts the shadow; the glass gives the rim light and depth. Tucked toasts are solid, peek 10 then 18 points and draw

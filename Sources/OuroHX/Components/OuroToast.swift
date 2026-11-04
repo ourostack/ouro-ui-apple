@@ -467,9 +467,11 @@ struct OuroToastView: View {
         let large = typeSize.isAccessibilitySize
         // A tucked toast is solid too, so the page never smears through the edge that peeks out.
         let solid = contrast == .increased || reduceTransparency || !rendersGlass || tucked != nil
-        // The words are the theme's, made readable on the opaque surface under the glass.
-        let message = Color(p.message)
-        let secondary = Color(p.description)
+        // On glass the words take the system's vibrant label styles, which read on the opaque surface under it (the
+        // gallery's accessibility audit measures them in light and dark); solid, the theme's colours, made readable on
+        // that surface. Theme colours inside the glass cost a dropped frame on every departure (W8 frame captures).
+        let message: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.message)) : AnyShapeStyle(.primary)
+        let secondary: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.description)) : AnyShapeStyle(.secondary)
         // A tucked toast draws only its surface: no words or buttons exist for VoiceOver, the audit or a stray tap to
         // find (hiding them still left them in iOS 26's accessibility tree, scaled below 44 points).
         Group {

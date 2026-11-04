@@ -183,8 +183,10 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 Button(action: close) {
                     // A round close button, a solid muted disc as on Apple's own opaque sheets (glass would not show on
                     // an opaque surface); drawn smaller than its target, which stays the full size.
+                    // A fixed 14-point glyph: it stays inside its disc at every text size; the button's name is what
+                    // VoiceOver and Voice Control use.
                     Image(systemName: "xmark")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Color(p.closeMark))
                         .frame(width: OuroSheetMetrics.closeDisc, height: OuroSheetMetrics.closeDisc)
                         .modifier(CloseDisc(fill: Color(p.closeFill)))

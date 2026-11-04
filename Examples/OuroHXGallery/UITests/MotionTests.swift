@@ -102,29 +102,31 @@ final class MotionTests: XCTestCase {
 
     func testAButtonPressesAndReleasesSmoothly() {
         check("press") {
-            let app = window("buttons", delay: 2, seconds: 8)
+            // The window opens 5 s after the page appears, once finding the button (which takes the app's main
+            // thread) is done, and lasts 8 s; the press lands about 1 to 3 s in, and the result is read after it ends.
+            let app = window("buttons", delay: 5, seconds: 8)
             defer { app.terminate() }
             let button = app.buttons["Save recipe"]
             guard button.waitForExistence(timeout: 10) else { return nil }
             let target = point(app, button)
-            // The window opens 2 s after the page appears and lasts 8 s; this lands about 4 s in.
-            Thread.sleep(forTimeInterval: 4)
+            Thread.sleep(forTimeInterval: 6)
             target.press(forDuration: 0.6)
-            return read(app, after: 7)
+            return read(app, after: 8)
         }
     }
 
     func testAToastSwipedAwayLeavesSmoothly() {
         check("swipe") {
             // The page opens with three toasts that stay until dismissed; the front one is swiped away.
-            let app = window("toasts", open: true, delay: 2, seconds: 8)
+            // As for the press: the window opens once finding the toast is done.
+            let app = window("toasts", open: true, delay: 5, seconds: 8)
             defer { app.terminate() }
             let toast = app.staticTexts["Couldn't save"]
             guard toast.waitForExistence(timeout: 10) else { return nil }
             let start = point(app, toast)
-            Thread.sleep(forTimeInterval: 4)
+            Thread.sleep(forTimeInterval: 6)
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)), withVelocity: .fast, thenHoldForDuration: 0)
-            let result = read(app, after: 7)
+            let result = read(app, after: 8)
             XCTAssertFalse(toast.exists, "a toast swiped up goes")
             return result
         }

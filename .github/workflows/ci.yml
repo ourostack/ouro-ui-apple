@@ -46,7 +46,7 @@ jobs:
   xcode-27:
     name: Build and test with Xcode 27 (main and releases only)
     # xcode-27 is GitHub's billed hosted image with Xcode 27 (image xcode-27-arm64). It compiles what the free image
-    # fences out: the iOS 27.1 hinge APIs (`#if canImport(SwiftUICore, _version: 8.1.13)`) and AppIntentsTesting.
+    # fences out: the iOS 27.1 hinge APIs (`#if canImport(SwiftUICore, _version: 8.0.85)`) and AppIntentsTesting.
     if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: xcode-27
     timeout-minutes: 45
@@ -91,11 +91,14 @@ jobs:
           done
       - name: swift build (macOS SDK)
         run: swift build --build-tests
+      # The iOS 27.1 SDK declares the hinge APIs, so with Xcode 27.1 the iOS build must compile them.
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
+          require=""
+          [ '${{ matrix.xcode }}' = '27.1' ] && require='-DOURO_REQUIRE_HINGE'
           xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+            -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS="\$(inherited) $require" 2>&1 | tail -40
 
   swift:
     name: Build, test, DocC and gallery (free macos-26, Xcode 26)

@@ -240,7 +240,7 @@ struct ToastsPage: View {
             OuroButton("Save", systemImage: "checkmark") { toast("Recipe saved", tone: .success) }
                 .accessibilityIdentifier("toast.save")
             OuroButton("Delete", systemImage: "trash", tone: .destructive, variant: .soft) {
-                toast("Recipe deleted", action: OuroToastAction("Undo") {})
+                toast("Recipe deleted", systemImage: "trash", action: OuroToastAction("Undo") {})
             }
             OuroButton("Fail", variant: .outline) {
                 toast("Couldn\u{2019}t save", description: "Check your connection.", tone: .destructive)
@@ -255,9 +255,9 @@ struct ToastsPage: View {
                 Task { @MainActor in
                     toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "a")
                     try? await Task.sleep(for: .seconds(0.6))
-                    toast("Added to Weeknights", duration: .untilDismissed, id: "b")
+                    toast("Added to Weeknights", systemImage: "text.badge.plus", duration: .untilDismissed, id: "b")
                     try? await Task.sleep(for: .seconds(0.6))
-                    toast("Recipe deleted", action: OuroToastAction("Undo") {}, id: "c")
+                    toast("Recipe deleted", systemImage: "trash", action: OuroToastAction("Undo") {}, id: "c")
                 }
             }, back: { toast.dismiss() })
         }

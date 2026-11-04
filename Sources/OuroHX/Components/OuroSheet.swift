@@ -32,8 +32,10 @@ public enum OuroSheetMetrics {
     public static let touchTarget: CGFloat = 46
     /// The close button's target, in layout points (44 as drawn).
     public static let closeTarget: CGFloat = touchTarget
-    /// The close button's drawn disc, inside its target: 30 points, as on Apple's own sheets.
-    public static let closeDisc: CGFloat = 30
+    /// The close button's drawn disc, inside its target: 44 points, the size of iOS 26's own sheet close button.
+    public static let closeDisc: CGFloat = 44
+    /// The close button's glyph: 17 points, semibold, fixed so it stays inside its disc at every text size.
+    public static let closeGlyph: CGFloat = 17
 
     /// Whether a sheet shows its grabber: only with several heights to drag between. A sheet that fits its content,
     /// or has one detent, has none, as on Apple's own.
@@ -171,7 +173,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.title3.weight(.bold))
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(Color(p.title))
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
@@ -187,10 +189,10 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 Button(action: close) {
                     // A round close button, a solid muted disc as on Apple's own opaque sheets (glass would not show on
                     // an opaque surface); drawn smaller than its target, which stays the full size.
-                    // A fixed 14-point glyph: it stays inside its disc at every text size; the button's name is what
-                    // VoiceOver and Voice Control use.
+                    // A fixed glyph: it stays inside its disc at every text size; the button's name is what VoiceOver
+                    // and Voice Control use.
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: OuroSheetMetrics.closeGlyph, weight: .semibold))
                         .foregroundStyle(Color(p.closeMark))
                         .frame(width: OuroSheetMetrics.closeDisc, height: OuroSheetMetrics.closeDisc)
                         .modifier(CloseDisc(fill: Color(p.closeFill)))
@@ -200,7 +202,8 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 .buttonStyle(.ouroPress)
                 .accessibilityLabel(closeLabel)
                 .accessibilityIdentifier(OuroSheetMetrics.closeIdentifier)
-                .padding(.trailing, -10)
+                // The disc's edge 17 points in from the sheet's, where iOS 26 sets its own.
+                .padding(.trailing, -4)
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)

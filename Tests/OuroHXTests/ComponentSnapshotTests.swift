@@ -71,6 +71,7 @@ import Testing
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {
                 OuroButton("Create recipe", systemImage: "plus") {}
             }
+            .still()
         }
     }
 

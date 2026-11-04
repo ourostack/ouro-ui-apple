@@ -95,8 +95,10 @@ public struct OuroButtonPalette: Sendable {
         switch variant {
         case .solid:
             // The label first; where even white or black falls short, the fill moves away from it.
-            let text = OuroInk.readable(OuroInk.r(toneLabel), on: fill, style)
-            let shown = OuroColor.contrastRatio(text, fill) >= OuroInk.target(style) ? fill : OuroColor.push(fill, against: text, to: OuroInk.target(style))
+            // Secondary's pale fill takes a step of the page's foreground, so solid reads stronger than soft.
+            let base = tone == .secondary ? OuroInk.tint(OuroInk.r(c.foreground), over: fill, OuroButtonMetrics.secondarySolidStep) : fill
+            let text = OuroInk.readable(OuroInk.r(toneLabel), on: base, style)
+            let shown = OuroColor.contrastRatio(text, base) >= OuroInk.target(style) ? base : OuroColor.push(base, against: text, to: OuroInk.target(style))
             self.fill = shown
             surface = shown
             label = text
@@ -112,8 +114,10 @@ public struct OuroButtonPalette: Sendable {
             self.fill = nil
             surface = background
             label = OuroInk.readable(toneText, on: background, style)
-            // In its tone at 40% over the page, so an outline row reads as its tones; secondary keeps the border.
-            let line = tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(fill, over: background, OuroButtonMetrics.outlineTint)
+            // In its tone at 50% over the page, so an outline row reads as its tones; secondary keeps the border. Under
+            // increased contrast, the full tone, raised to 3:1, so the line stays its colour rather than going grey.
+            let increased = style.contrast == .increased
+            let line = tone == .secondary ? OuroInk.r(c.border) : (increased ? fill : OuroInk.tint(fill, over: background, OuroButtonMetrics.outlineTint))
             border = OuroColor.push(line, against: background, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
         case .plain:
             self.fill = nil
@@ -149,7 +153,11 @@ public enum OuroButtonMetrics {
     public static func softTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.26 : 0.14 }
 
     /// How much of its tone an outline is drawn with over the page.
-    public static let outlineTint = 0.4
+    public static let outlineTint = 0.5
+    /// An outline's width: a point, or two under increased contrast.
+    public static func outlineWidth(contrast: ColorSchemeContrast) -> CGFloat { contrast == .increased ? 2 : 1 }
+    /// How much of the page's foreground secondary's solid fill takes over its pale colour.
+    public static let secondarySolidStep = 0.07
 
 }
 
@@ -233,12 +241,13 @@ public struct OuroButtonStyle: ButtonStyle {
         @ViewBuilder
         private func background(_ p: OuroButtonPalette, shape: AnyShape, pressed: Bool) -> some View {
             let layer = Color(p.label).opacity(pressed ? 0.12 : 0)
+            let w = OuroButtonMetrics.outlineWidth(contrast: contrast)
             if let fill = p.fill {
                 shape.fill(Color(fill)).overlay(shape.fill(layer)).overlay {
-                    if let border = p.border { shape.stroke(Color(border), lineWidth: 1).padding(0.5) }
+                    if let border = p.border { shape.stroke(Color(border), lineWidth: w).padding(w / 2) }
                 }
             } else if let border = p.border {
-                shape.stroke(Color(border), lineWidth: 1).padding(0.5).background(shape.fill(layer))
+                shape.stroke(Color(border), lineWidth: w).padding(w / 2).background(shape.fill(layer))
             } else {
                 shape.fill(layer)
             }
@@ -410,7 +419,8 @@ struct PillShape: Shape {
 private struct ButtonLabel: LabelStyle {
     let iconFont: Font
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 6) {
+        // On the first line's baseline, so a label wrapped at the accessibility sizes keeps its icon by its first word.
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             configuration.icon.font(iconFont)
             configuration.title
         }

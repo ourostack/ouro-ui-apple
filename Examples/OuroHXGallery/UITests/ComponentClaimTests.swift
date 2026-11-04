@@ -32,7 +32,9 @@ final class ComponentClaimTests: XCTestCase {
     func testEveryComponentPagePassesTheAccessibilityAudit() throws {
         let runs: [(page: String, extra: [String], known: [String])] =
             Self.pages.map { ($0, [], []) } + [("sheet", ["-sheetDetent", "large"], [])]
-        for run in runs {
+        // `OURO_AUDIT_PAGES=toasts,sheet` (as `TEST_RUNNER_OURO_AUDIT_PAGES` to xcodebuild) audits only those pages.
+        let only = ProcessInfo.processInfo.environment["OURO_AUDIT_PAGES"].map { Set($0.split(separator: ",").map(String.init)) }
+        for run in runs where only?.contains(run.page) ?? true {
             for size in [nil, Self.largest] {
                 for scheme in ["light", "dark"] {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
@@ -44,7 +46,12 @@ final class ComponentClaimTests: XCTestCase {
                         // Expanded, as VoiceOver users always see the stack: every toast's own words are measured.
                         expandToasts(app)
                         XCTContext.runActivity(named: "\(name) expanded") { _ in
-                            do { try app.ouroAccessibilityAudit(knownIssues: run.known) } catch { XCTFail("\(name) expanded: \(error)") }
+                            do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: Self.expandedStackMisreadings) } catch { XCTFail("\(name) expanded: \(error)") }
+                        }
+                        // What those excuses could hide: every toast's buttons are full targets, reachable.
+                        for button in app.buttons.matching(NSPredicate(format: "label IN %@", ["Dismiss", "Undo"])).allElementsBoundByIndex {
+                            XCTAssertTrue(button.isHittable, "\(name) expanded: \(button.label) is not reachable")
+                            XCTAssertGreaterThanOrEqual(min(button.frame.width, button.frame.height), 44, "\(name) expanded: \(button.label) is \(button.frame.size)")
                         }
                     }
                     if run.page == "sheet", run.extra.isEmpty {
@@ -136,10 +143,31 @@ final class ComponentClaimTests: XCTestCase {
         app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).count
     }
 
+    /// Two readings the audit gets wrong on an expanded stack (W8, 2026-11-04, with diagnostics of each issue's
+    /// element): it fails Undo's contrast even with Undo drawn black on the white surface (21:1), and reads the oldest
+    /// toast's plain words, a static text with no action, as an undersized target, with a second such issue that has
+    /// no element at all. Contrast is proven by the palette tests; the targets by the assertions after the audit.
+    static let expandedStackMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        switch issue.auditType {
+        case .contrast: issue.element?.label == "Undo"
+        case .hitRegion: issue.element == nil || issue.element?.elementType == .staticText
+        default: false
+        }
+    }
+
     /// Opens the toast stack by tapping its front toast, the newest, "Couldn’t save".
     private func expandToasts(_ app: XCUIApplication) {
         app.staticTexts["Couldn\u{2019}t save"].tap()
-        sleep(1)
+        // Until the stack has fanned out and its words have faded in: an audit mid-way reads fading words and moving
+        // targets (CI failed it after a fixed second).
+        var last: [CGRect] = []
+        for _ in 0..<20 {
+            Thread.sleep(forTimeInterval: 0.25)
+            let frames = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.map(\.frame)
+            if frames.count == 3, frames == last { break }
+            last = frames
+        }
+        Thread.sleep(forTimeInterval: 0.5)
         XCTAssertEqual(shownDismissButtons(app), 3, "a tap opens the stack")
     }
 

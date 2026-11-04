@@ -28,15 +28,20 @@ public struct OuroBannerPalette: Sendable {
         let c = style.colors
         let background = OuroInk.r(c.background)
         let toneColour = OuroInk.r(tone.fill(c).fill)
-        // A soft wash of the tone. In dark mode it washes the raised card colour rather than the page, so it has an
-        // edge over near-black, and stays quiet at 15%.
+        // A soft wash of the tone. In dark mode it washes the raised card colour rather than the page, and stays quiet
+        // at 12%, so the hue lives in the edge and the icon rather than a muddy body.
         let base = style.scheme == .dark ? OuroInk.r(c.card) : background
-        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: base, style.scheme == .dark ? 0.15 : 0.1)
+        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: base, style.scheme == .dark ? 0.12 : 0.1)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         // The words are the page's own colours; the tone is in the wash and the icon only, as Apple's alerts are.
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.mutedForeground) : toneColour, on: surface, style)
-        border = OuroColor.push(tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(toneColour, over: background, 0.35), against: surface, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
+        // An edge in the tone; under increased contrast the full tone, raised to 3:1, so it stays its colour.
+        if style.contrast == .increased {
+            border = OuroColor.push(tone == .secondary ? OuroInk.r(c.border) : toneColour, against: surface, to: OuroColor.increasedLineContrast)
+        } else {
+            border = tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(toneColour, over: base, OuroBannerMetrics.edgeTint(scheme: style.scheme))
+        }
     }
 }
 
@@ -46,8 +51,10 @@ public enum OuroBannerMetrics {
     /// change, not each time it scrolls back into view or its screen is shown again.
     public static func announces(_ words: String, after last: String?) -> Bool { words != last }
 
-    /// The corner radius: 18 points, continuous, the radius of Apple's inset grouped cells and notifications.
-    public static let cornerRadius: CGFloat = 18
+    /// The corner radius: 20 points, continuous, as iOS 26's inset grouped sections.
+    public static let cornerRadius: CGFloat = 20
+    /// How much of its tone a banner's edge is: 25% in light, 30% in dark.
+    public static func edgeTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.3 : 0.25 }
 
     /// The dismiss button's target, in points: 44 on every platform.
     public static let dismissTarget: CGFloat = 44
@@ -142,7 +149,7 @@ public struct OuroBanner<Action: View>: View {
                 }
             } else {
                 HStack(alignment: .top, spacing: 10) {
-                    iconView(p).padding(.top, 1)
+                    iconView(p).padding(.top, -1)
                     words(p)
                     closeButton(p)
                 }
@@ -150,13 +157,11 @@ public struct OuroBanner<Action: View>: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        // A wash of colour with no outline, so it reads as part of the page rather than a box on it; under increased
-        // contrast it gains a 2-point edge.
+        // A wash of colour with a fine edge in its tone; under increased contrast the edge is two points.
         .background(Color(p.surface), in: RoundedRectangle(cornerRadius: OuroBannerMetrics.cornerRadius, style: .continuous))
         .overlay {
-            if contrast == .increased {
-                RoundedRectangle(cornerRadius: OuroBannerMetrics.cornerRadius, style: .continuous).strokeBorder(Color(p.border), lineWidth: 2)
-            }
+            RoundedRectangle(cornerRadius: OuroBannerMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(Color(p.border), lineWidth: contrast == .increased ? 2 : 1)
         }
         .accessibilityElement(children: .contain)
         // Shown and hidden in place: its height, scale and opacity are animated values, so a banner hidden and shown
@@ -174,7 +179,7 @@ extension OuroBanner {
     @ViewBuilder private func iconView(_ p: OuroBannerPalette) -> some View {
         if let name = icon.name(tone, .banner) {
             Image(systemName: name)
-                .font(.body.weight(.semibold))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(Color(p.icon))
                 // A mark beside the words: it stops growing at the largest standard size.
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)

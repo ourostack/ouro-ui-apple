@@ -38,12 +38,15 @@ public struct OuroToast: Identifiable, Sendable {
     public var tone: OuroTone
     public var action: OuroToastAction?
     public var duration: OuroToastDuration
+    /// An SF Symbol to lead with, in place of its tone's (a secondary toast has none of its own).
+    public var systemImage: String?
     /// New for every toast made, so one that replaces another under the same `id` is a new showing: VoiceOver hears
     /// it and its countdown starts over.
     public let showing = UUID()
 
-    public init(_ message: String, description: String? = nil, tone: OuroTone = .secondary, action: OuroToastAction? = nil, duration: OuroToastDuration = .automatic, id: String? = nil) {
+    public init(_ message: String, description: String? = nil, tone: OuroTone = .secondary, systemImage: String? = nil, action: OuroToastAction? = nil, duration: OuroToastDuration = .automatic, id: String? = nil) {
         self.id = id ?? UUID().uuidString
+        self.systemImage = systemImage
         self.message = message
         self.description = description
         self.tone = tone
@@ -61,6 +64,9 @@ public struct OuroToast: Identifiable, Sendable {
         case .untilDismissed: nil
         }
     }
+
+    /// The symbol it leads with: its own, or its tone's.
+    public var symbol: String? { systemImage ?? tone.systemImage(for: .toast) }
 
     /// What VoiceOver says when it shows: the message, then the description.
     public var announcement: String { OuroBannerMetrics.announcement(title: message, description: description) }
@@ -139,7 +145,7 @@ public struct OuroToastPalette: Sendable {
         message = OuroInk.readable(OuroInk.r(c.popoverForeground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.popoverForeground) : OuroInk.r(tone.fill(c).fill), on: surface, style)
-        // 7:1 in every mode: inside the glass, vibrancy lightens tinted words (Xcode's audit failed 5.6:1 there).
+        // 7:1 in every mode: inside the glass, vibrancy lightens tinted words.
         action = OuroColor.push(OuroInk.r(tone == .destructive ? c.destructive : c.primary), against: surface, to: OuroColor.increasedTextContrast)
         vibrant = style.contrast != .increased && Self.vibrantReads(on: surface, scheme: style.scheme, contrast: style.contrast)
         divider = OuroColor.push(OuroInk.r(c.border), against: surface, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1.2)
@@ -180,6 +186,10 @@ public enum OuroToastMetrics {
     }
     /// The stack's one shadow, under the front toast: light, as Apple's notices cast, not a web card's halo.
     public static let shadow = Shadow(opacity: 0.08, radius: 12, y: 4)
+    /// The hairline every toast is edged with, in its words' colour at ``edgeOpacity(scheme:)``: a light toast on a light
+    /// page doesn't lean on its shadow alone.
+    public static let edgeWidth: CGFloat = 0.5
+    public static func edgeOpacity(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0.08 }
     /// Whether a toast casts ``shadow``: only the front one, so tucked toasts never add theirs into a grey band.
     public static func castsShadow(tucked: Bool) -> Bool { !tucked }
     /// How far a toast's shadow reaches past its edge: its blur plus its drop.
@@ -202,14 +212,14 @@ public enum OuroToastMetrics {
     public static let rubberBand: CGFloat = 0.3
 
     /// Where a toast sits in the stack, `depth` toasts behind the newest. Collapsed, older toasts tuck behind the
-    /// newest, peeking out 8 then 14 points below it, 95% then 90% the size and 85% then 65% opaque, on a solid
-    /// surface with their words hidden; expanded (VoiceOver or Switch Control
+    /// newest, peeking out 8 then 14 points below it, 95% then 90% the size, on a solid surface shaded 4% then 8%
+    /// toward the words' colour (opaque, so the page never shows through a peek), with their words hidden; expanded (VoiceOver or Switch Control
     /// running, or the stack tapped open) they list down the screen, `above` points of newer toasts over each. Under
     /// Reduce Motion nothing is scaled, and the host moves toasts to their places without animating them there.
-    public static func placement(depth: Int, expanded: Bool, above: CGFloat, reduceMotion: Bool = false) -> (offset: CGFloat, scale: Double, opacity: Double, showsWords: Bool) {
-        if expanded || depth == 0 { return (depth == 0 ? 0 : above + CGFloat(depth) * stackSpacing, 1, 1, true) }
+    public static func placement(depth: Int, expanded: Bool, above: CGFloat, reduceMotion: Bool = false) -> (offset: CGFloat, scale: Double, shade: Double, showsWords: Bool) {
+        if expanded || depth == 0 { return (depth == 0 ? 0 : above + CGFloat(depth) * stackSpacing, 1, 0, true) }
         let peek = tuck + CGFloat(depth - 1) * (tuck - 2)
-        return (peek, reduceMotion ? 1 : 1 - 0.05 * Double(depth), 1.05 - 0.2 * Double(depth), false)
+        return (peek, reduceMotion ? 1 : 1 - 0.05 * Double(depth), 0.04 * Double(depth), false)
     }
 
     /// The gap between expanded toasts.
@@ -253,8 +263,8 @@ public struct OuroToaster: Sendable {
 
     /// Shows a toast, and returns its id for ``dismiss(_:)``.
     @MainActor @discardableResult
-    public func callAsFunction(_ message: String, description: String? = nil, tone: OuroTone = .secondary, action: OuroToastAction? = nil, duration: OuroToastDuration = .automatic, id: String? = nil) -> String {
-        show(OuroToast(message, description: description, tone: tone, action: action, duration: duration, id: id))
+    public func callAsFunction(_ message: String, description: String? = nil, tone: OuroTone = .secondary, systemImage: String? = nil, action: OuroToastAction? = nil, duration: OuroToastDuration = .automatic, id: String? = nil) -> String {
+        show(OuroToast(message, description: description, tone: tone, systemImage: systemImage, action: action, duration: duration, id: id))
     }
 
     /// Shows a toast you built, and returns its id.
@@ -374,13 +384,12 @@ struct OuroToastHost: ViewModifier {
                                 let above = visible[(index + 1)...].reduce(CGFloat(0)) { $0 + (sizes[$1.id]?.height ?? OuroToastMetrics.height) }
                                 let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above, reduceMotion: reduceMotion)
                                 let front = visible.last.flatMap { sizes[$0.id] }
-                                OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : front) { toaster.dismiss(toast.id) }
+                                OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : front, shade: place.shade) { toaster.dismiss(toast.id) }
                                     .onGeometryChange(for: CGSize.self) { $0.size } action: { if place.showsWords { sizes[toast.id] = $0 } }
                                     // A tucked toast can't be dragged or tapped unseen; a tap on the front one opens
                                     // the stack.
                                     .allowsHitTesting(place.showsWords)
                                     .scaleEffect(place.scale, anchor: .bottom)
-                                    .opacity(place.opacity)
                                     .offset(y: place.offset)
                                     .zIndex(Double(index))
                                     .transaction { if reduceMotion { $0.animation = nil } }
@@ -453,6 +462,8 @@ struct OuroToastView: View {
     var showsWords = true
     /// The size of the toast in front, when this one is tucked behind it.
     var tucked: CGSize? = nil
+    /// How far its surface is shaded toward its words' colour: deeper the further back it is tucked.
+    var shade: Double = 0
     /// Off only in snapshot tests: `ImageRenderer` draws nothing inside a view with `accessibilityFocused`.
     var tracksFocus = true
     /// Off only in snapshot tests: `ImageRenderer` draws nothing for glass or a material, so the toast draws its solid
@@ -476,6 +487,7 @@ struct OuroToastView: View {
     /// VoiceOver or Switch Control on any part of the toast, which holds its countdown.
     @AccessibilityFocusState private var focus: Part?
     @State private var hovering = false
+    @State private var landed = false
 
     enum Part: Hashable { case words, action, dismiss }
 
@@ -515,13 +527,15 @@ struct OuroToastView: View {
         HStack(alignment: large ? .top : .center, spacing: 10) {
             // The icon sits on the message's first line, not between the message and description.
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                if let name = toast.tone.systemImage(for: .toast) {
+                if let name = toast.symbol {
                     Image(systemName: name)
                         .font(.title3.weight(.semibold))
                         .symbolRenderingMode(.monochrome)
                         .foregroundStyle(Color(p.icon))
                         // A mark beside the words, not a word: it stops growing at the largest standard size.
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        // It bounces once as the toast lands, on the frame its haptic plays.
+                        .symbolEffect(.bounce, value: landed)
                         .accessibilityHidden(true)
                 }
                 VStack(alignment: .leading, spacing: 8) {
@@ -551,7 +565,6 @@ struct OuroToastView: View {
                     .frame(width: 1, height: 22)
                     .accessibilityHidden(true)
                 actionButton(action, palette: p).fixedSize().modifier(Held(focus: $focus, part: .action, on: tracksFocus))
-                    .padding(.horizontal, -6)
             }
             Button(action: dismiss) {
                 Image(systemName: "xmark")
@@ -580,7 +593,7 @@ struct OuroToastView: View {
         .clipped()
         // It hugs its words, up to the stack's width; at the accessibility sizes it spans it.
         .frame(maxWidth: large ? .infinity : nil)
-        .modifier(ToastSurface(shape: shape, palette: p, solid: solid, casts: OuroToastMetrics.castsShadow(tucked: tucked != nil), rendersGlass: rendersGlass))
+        .modifier(ToastSurface(shape: shape, palette: p, solid: solid, casts: OuroToastMetrics.castsShadow(tucked: tucked != nil), shade: shade, edge: OuroToastMetrics.edgeOpacity(scheme: scheme), rendersGlass: rendersGlass))
         .offset(y: drag)
         .opacity(reduceMotion ? 1 - min(0.7, abs(drag) / 90) : 1)
         .gesture(
@@ -609,6 +622,7 @@ struct OuroToastView: View {
             guard model?.arrives(toast.showing) ?? true else { return }
             OuroAnnounce.post(toast.announcement, priority: toast.tone.announcementPriority(for: .toast))
             if let moment = toast.tone.haptic { OuroHaptics.play(moment) }
+            if !reduceMotion { landed.toggle() }
         }
         // Runs again for a new showing, and whenever someone arrives on or leaves the toast.
         .task(id: Countdown(showing: toast.showing, held: held)) {
@@ -629,7 +643,8 @@ struct OuroToastView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color(p.action))
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12)
+                // Its target stays clear of the hairline before it, so the audit measures the words alone.
+                .padding(.horizontal, 6)
                 .frame(minWidth: OuroToastMetrics.dismissTarget, minHeight: OuroToastMetrics.dismissTarget)
                 .contentShape(Rectangle())
         }
@@ -646,6 +661,9 @@ private struct ToastSurface: ViewModifier {
     let solid: Bool
     /// Whether it casts the stack's shadow: the front toast only.
     let casts: Bool
+    /// How far it is shaded toward its words' colour (tucked), and how strongly its hairline edge shows.
+    let shade: Double
+    let edge: Double
     /// Off only in snapshot tests, where `ImageRenderer` draws nothing inside any glass effect, `.identity` included.
     /// It never changes while a toast shows.
     let rendersGlass: Bool
@@ -662,12 +680,27 @@ private struct ToastSurface: ViewModifier {
             // Solid (Increase Contrast, Reduce Transparency, tucked): no glass, and an edge.
             content
                 .glassEffect(solid ? .identity : .regular, in: shape)
-                .background(shape.fill(Color(palette.surface)).shadow(color: shadow, radius: s.radius, y: s.y))
-                .overlay(shape.strokeBorder(Color(palette.border).opacity(solid ? 1 : 0), lineWidth: 1))
+                .background(plate(shadow, s))
+                .overlay(outline(solid: solid))
         } else {
             content
-                .background(shape.fill(Color(palette.surface)).shadow(color: shadow, radius: s.radius, y: s.y))
-                .overlay(shape.strokeBorder(Color(palette.border), lineWidth: 1))
+                .background(plate(shadow, s))
+                .overlay(outline(solid: true))
+        }
+    }
+
+    /// The opaque surface, shaded when tucked, casting the stack's shadow.
+    private func plate(_ shadow: Color, _ s: OuroToastMetrics.Shadow) -> some View {
+        shape.fill(Color(palette.surface))
+            .overlay(shape.fill(Color(palette.message).opacity(shade)))
+            .shadow(color: shadow, radius: s.radius, y: s.y)
+    }
+
+    /// The theme's border when solid (raised under increased contrast); on glass, a hairline in the words' colour.
+    private func outline(solid: Bool) -> some View {
+        ZStack {
+            shape.strokeBorder(Color(palette.message).opacity(solid ? 0 : edge), lineWidth: OuroToastMetrics.edgeWidth)
+            shape.strokeBorder(Color(palette.border).opacity(solid ? 1 : 0), lineWidth: 1)
         }
     }
 }

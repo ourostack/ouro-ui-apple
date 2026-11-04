@@ -65,6 +65,14 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroEmptyStateMetrics.symbolSize(alignment: .leading) == 44)
         #expect(OuroEmptyStateMetrics.maximumSymbolSize == 80)
         #expect(OuroEmptyStateMetrics.descriptionSpacing == 8)
+        #expect(OuroEmptyStateMetrics.symbolSpacing == 6)
+    }
+
+    /// An empty state arrives in a short cascade: symbol, title, sentence, action, 40 ms apart, each rising 8 points.
+    @Test func anEmptyStateArrivesInACascade() {
+        #expect(OuroEmptyStateMetrics.arrivalRise == 8)
+        #expect(OuroEmptyStateMetrics.arrivalDelay(step: 0) == 0)
+        #expect(abs(OuroEmptyStateMetrics.arrivalDelay(step: 3) - 0.12) < 1e-9)
     }
 
     /// A sheet with one height has nothing to drag between, so it has no grabber; one with several heights shows it.
@@ -92,6 +100,13 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroBannerMetrics.dismissTarget >= 44)
         #expect(OuroToastMetrics.dismissTarget >= 44)
         #expect(OuroSheetMetrics.closeTarget >= 44)
+    }
+
+    /// A sheet's close control is drawn at the size of iOS 26's own: a 44-point disc with a 17-point glyph.
+    @Test func aSheetsCloseIsIOS26Sized() {
+        #expect(OuroSheetMetrics.closeDisc == 44)
+        #expect(OuroSheetMetrics.closeGlyph == 17)
+        #expect(OuroSheetMetrics.closeDisc <= OuroSheetMetrics.closeTarget)
     }
 
     /// iOS 26 and later draw a sheet below its full height at 96% (measured: a 44-point button reads 42.2 in the
@@ -186,12 +201,25 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
     /// A soft fill is a 14% wash of its tone in light and 26% in dark, where a fainter one over near-black reads as
     /// mud.
+    /// Secondary's solid fill is a step stronger than its soft one, so the two variants never look the same; under
+    /// increased contrast an outline is two points wide, in its full tone.
+    @Test func aSecondarySolidIsStrongerThanItsSoft() {
+        for (name, style) in styles {
+            let solid = OuroButtonPalette(tone: .secondary, variant: .solid, style: style).fill!
+            let soft = OuroButtonPalette(tone: .secondary, variant: .soft, style: style).fill!
+            let background = OuroInk.r(style.colors.background)
+            #expect(ratio(solid, background) > ratio(soft, background) * 1.06, "\(name): \(ratio(solid, background)) vs \(ratio(soft, background))")
+        }
+        #expect(OuroButtonMetrics.outlineWidth(contrast: .standard) == 1)
+        #expect(OuroButtonMetrics.outlineWidth(contrast: .increased) == 2)
+    }
+
     @Test func aSoftFillIsStrongerInDark() {
         #expect(OuroButtonMetrics.softTint(scheme: .light) == 0.14)
         #expect(OuroButtonMetrics.softTint(scheme: .dark) == 0.26)
     }
 
-    /// An outline is drawn in its tone at 40% over the page, not the theme's neutral border, so the outline row reads
+    /// An outline is drawn in its tone at 50% over the page, not the theme's neutral border, so the outline row reads
     /// as five tones; secondary keeps the border. Under increased contrast it reads at 3:1.
     @Test func anOutlineIsDrawnInItsTone() {
         for (name, style) in styles {
@@ -203,7 +231,7 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
                 if style.contrast == .increased {
                     #expect(ratio(border, background) >= OuroColor.increasedLineContrast, "\(name) \(tone)")
                 } else {
-                    let wash = OuroInk.tint(OuroInk.r(tone.fill(c).fill), over: background, 0.4)
+                    let wash = OuroInk.tint(OuroInk.r(tone.fill(c).fill), over: background, 0.5)
                     #expect(distance(border, wash) < 0.01, "\(name) \(tone): \(distance(border, wash))")
                 }
             }
@@ -213,6 +241,29 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     /// A banner's description is the plain secondary colour, not tinted toward the tone, and the neutral banner's
     /// icon is secondary too, not the heaviest mark on the page. In dark the wash is 15% of the tone over the raised
     /// card colour.
+    /// A banner has an edge in its tone (25% in light, 30% in dark) so it reads as a surface rather than a stain; under
+    /// increased contrast the edge is its full tone, raised to 3:1, two points wide. Corners are 20 points.
+    @Test func aBannerIsEdgedInItsTone() {
+        #expect(OuroBannerMetrics.cornerRadius == 20)
+        #expect(OuroBannerMetrics.edgeTint(scheme: .light) == 0.25)
+        #expect(OuroBannerMetrics.edgeTint(scheme: .dark) == 0.3)
+        for (name, style) in styles {
+            let c = style.colors
+            let background = OuroInk.r(c.background)
+            for tone in OuroTone.allCases where tone != .secondary {
+                let p = OuroBannerPalette(tone: tone, style: style)
+                let toneColour = OuroInk.r(tone.fill(c).fill)
+                if style.contrast == .increased {
+                    #expect(ratio(p.border, p.surface) >= OuroColor.increasedLineContrast, "\(name) \(tone)")
+                } else {
+                    let base = style.scheme == .dark ? OuroInk.r(c.card) : background
+                    let edge = OuroInk.tint(toneColour, over: base, OuroBannerMetrics.edgeTint(scheme: style.scheme))
+                    #expect(distance(p.border, edge) < 0.01, "\(name) \(tone): \(distance(p.border, edge))")
+                }
+            }
+        }
+    }
+
     @Test func aBannersWordsAreNotTinted() {
         for (name, style) in styles {
             let c = style.colors
@@ -222,7 +273,7 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
                 #expect(distance(p.description, plain) < 0.01, "\(name) \(tone) description")
                 if tone == .secondary { #expect(distance(p.icon, plain) < 0.01, "\(name) secondary icon") }
                 if tone != .secondary, style.scheme == .dark {
-                    let wash = OuroInk.tint(OuroInk.r(tone.fill(c).fill), over: OuroInk.r(c.card), 0.15)
+                    let wash = OuroInk.tint(OuroInk.r(tone.fill(c).fill), over: OuroInk.r(c.card), 0.12)
                     #expect(distance(p.surface, wash) < 0.01, "\(name) \(tone) surface")
                 }
             }
@@ -262,8 +313,7 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         for (name, style) in styles {
             for tone in OuroTone.allCases {
                 let p = OuroToastPalette(tone: tone, style: style)
-                // 7:1 in every mode: inside the glass, vibrancy lightens tinted words, and the audit measured 5.6:1 as
-                // failing there.
+                // 7:1 in every mode: inside the glass, vibrancy lightens tinted words.
                 #expect(ratio(p.action, p.surface) >= OuroColor.increasedTextContrast, "\(name) \(tone) action")
                 #expect(ratio(p.divider, p.surface) > 1, "\(name) \(tone) divider")
             }
@@ -318,17 +368,33 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(!OuroToastMetrics.dragDismisses(translation: 60, predictedEnd: 200))
     }
 
-    /// Collapsed, older toasts tuck behind the newest, peeking 8 then 14 points, at 95% and 90% and 85% and 65%
-    /// opacity, words hidden; expanded, every toast shows its words, listed below the newer ones.
+    /// Collapsed, older toasts tuck behind the newest, peeking 8 then 14 points, at 95% and 90%, words hidden. They stay
+    /// opaque, shaded 4% then 8% toward the words' colour, so the page never shows through a peek; expanded, every toast
+    /// shows its words, listed below the newer ones.
     @Test func olderToastsTuckBehindTheNewest() {
         let front = OuroToastMetrics.placement(depth: 0, expanded: false, above: 0)
-        #expect(front.offset == 0 && front.scale == 1 && front.opacity == 1 && front.showsWords)
+        #expect(front.offset == 0 && front.scale == 1 && front.shade == 0 && front.showsWords)
         let second = OuroToastMetrics.placement(depth: 1, expanded: false, above: 56)
-        #expect(second.offset == 8 && abs(second.scale - 0.95) < 1e-9 && abs(second.opacity - 0.85) < 1e-9 && !second.showsWords)
+        #expect(second.offset == 8 && abs(second.scale - 0.95) < 1e-9 && abs(second.shade - 0.04) < 1e-9 && !second.showsWords)
         let third = OuroToastMetrics.placement(depth: 2, expanded: false, above: 112)
-        #expect(third.offset == 14 && abs(third.scale - 0.9) < 1e-9 && abs(third.opacity - 0.65) < 1e-9)
+        #expect(third.offset == 14 && abs(third.scale - 0.9) < 1e-9 && abs(third.shade - 0.08) < 1e-9)
         let listed = OuroToastMetrics.placement(depth: 2, expanded: true, above: 100)
-        #expect(listed.offset == 116 && listed.scale == 1 && listed.opacity == 1 && listed.showsWords)
+        #expect(listed.offset == 116 && listed.scale == 1 && listed.shade == 0 && listed.showsWords)
+    }
+
+    /// A toast has a hairline edge in every mode, so a light toast on a light page doesn't lean on its shadow alone.
+    @Test func aToastHasAHairlineEdge() {
+        #expect(OuroToastMetrics.edgeWidth == 0.5)
+        #expect(OuroToastMetrics.edgeOpacity(scheme: .light) == 0.08)
+        #expect(OuroToastMetrics.edgeOpacity(scheme: .dark) == 0.12)
+    }
+
+    /// A toast can carry its own symbol, so a secondary one ("Recipe deleted") has a mark like the rest; without one,
+    /// its tone's.
+    @Test func aToastCanCarryItsOwnSymbol() {
+        #expect(OuroToast("Recipe deleted", systemImage: "trash").symbol == "trash")
+        #expect(OuroToast("Saved", tone: .success).symbol == "checkmark.circle.fill")
+        #expect(OuroToast("Plain").symbol == nil)
     }
 
     /// One light shadow under the stack, as Apple's notices cast: black at 8%, a 12-point blur dropped 4 points. Tucked

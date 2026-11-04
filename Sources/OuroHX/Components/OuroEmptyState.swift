@@ -57,6 +57,8 @@ public struct OuroEmptyState<Action: View>: View {
     /// The symbol's size, which grows with Dynamic Type like the title under it.
     @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
     @State private var arrived = false
+    /// Off only in snapshot tests: `ImageRenderer` runs `onAppear` and draws the arrival's first frame, which is clear.
+    var arrives = true
 
     public init(
         _ title: String,
@@ -90,7 +92,8 @@ public struct OuroEmptyState<Action: View>: View {
                     .symbolEffect(.bounce.down, options: .nonRepeating, value: arrived)
                     // A symbol's own side bearing sets it in from a leading edge; this lines its ink up with the title.
                     .padding(.leading, alignment == .leading ? -symbolSize * 0.08 : 0)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, OuroEmptyStateMetrics.symbolSpacing)
+                    .modifier(Rises(arrived: arrived, step: 0))
                     .accessibilityHidden(true)
             }
             Text(title)
@@ -99,6 +102,7 @@ public struct OuroEmptyState<Action: View>: View {
                 .multilineTextAlignment(text)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+                .modifier(Rises(arrived: arrived, step: 1))
             if let description {
                 Text(description)
                     .font(.callout)
@@ -106,11 +110,13 @@ public struct OuroEmptyState<Action: View>: View {
                     .multilineTextAlignment(text)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, OuroEmptyStateMetrics.descriptionSpacing)
+                    .modifier(Rises(arrived: arrived, step: 2))
             }
             if Action.self != EmptyView.self {
                 action
                     .environment(\.ouroButtonFillsWidth, typeSize.isAccessibilitySize)
                     .padding(.top, 20)
+                    .modifier(Rises(arrived: arrived, step: 3))
             }
         }
         // A short measure keeps the sentence to two or three balanced lines, as Apple's empty states do.
@@ -120,7 +126,9 @@ public struct OuroEmptyState<Action: View>: View {
         // Centred it keeps clear of the edges; leading, it lines up with the page's own margin, like the text around it.
         // An outline keeps its inset either way, so the dashed edge never touches the words.
         .padding(.horizontal, alignment == .center || variant == .outline ? 24 : 0)
-        .onAppear { if !reduceMotion { arrived = true } }
+        // It cascades in as it arrives: the symbol bounces once, and each line rises into place a beat after the one
+        // above (not under Reduce Motion). Keyframes from its settled look, so a still render shows it settled.
+        .onAppear { if arrives, !reduceMotion { arrived = true } }
         .overlay {
             if variant == .outline {
                 RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous)
@@ -129,6 +137,15 @@ public struct OuroEmptyState<Action: View>: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+extension OuroEmptyState {
+    /// Settled, with no arrival: for snapshot tests.
+    func still() -> Self {
+        var copy = self
+        copy.arrives = false
+        return copy
     }
 }
 
@@ -150,4 +167,36 @@ public enum OuroEmptyStateMetrics {
     public static let maximumSymbolSize: CGFloat = 80
     /// The gap from the title to the description.
     public static let descriptionSpacing: CGFloat = 8
+    /// The gap from the symbol to the title, which ties the symbol to its words.
+    public static let symbolSpacing: CGFloat = 6
+    /// How far each line rises as it arrives.
+    public static let arrivalRise: CGFloat = 8
+    /// How long after the first line the `step`th one starts: 40 ms a step.
+    public static func arrivalDelay(step: Int) -> Double { 0.04 * Double(step) }
+}
+
+/// One line of an arriving empty state: on arrival, from clear and lowered, rising in on its beat.
+private struct Rises: ViewModifier {
+    let arrived: Bool
+    let step: Int
+
+    struct Lift { var opacity = 1.0; var y: CGFloat = 0 }
+
+    func body(content: Content) -> some View {
+        let delay = OuroEmptyStateMetrics.arrivalDelay(step: step)
+        content.keyframeAnimator(initialValue: Lift(), trigger: arrived) { view, lift in
+            view.opacity(lift.opacity).offset(y: lift.y)
+        } keyframes: { _ in
+            KeyframeTrack(\.opacity) {
+                LinearKeyframe(0, duration: 0)
+                LinearKeyframe(0, duration: delay)
+                CubicKeyframe(1, duration: 0.3)
+            }
+            KeyframeTrack(\.y) {
+                LinearKeyframe(OuroEmptyStateMetrics.arrivalRise, duration: 0)
+                LinearKeyframe(OuroEmptyStateMetrics.arrivalRise, duration: delay)
+                SpringKeyframe(0, duration: 0.5, spring: .smooth(duration: 0.45))
+            }
+        }
+    }
 }

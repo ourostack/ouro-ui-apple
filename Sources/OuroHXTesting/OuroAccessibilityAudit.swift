@@ -11,10 +11,14 @@ extension XCUIApplication {
     /// iOS 26 and later (see ``OuroAuditExcuse``), because the audit reads the scaled text as clipped. That leaves real
     /// clipping in such a sheet unchecked, so audit it once more at full height: present it with `detents: [.large]`
     /// from a launch argument your app reads, as the gallery's `-sheetDetent large` does.
+    ///
+    /// `excuse` excuses single issues the audit is known to misread, by element; say why in the test and prove what it
+    /// hides another way.
     @MainActor
     public func ouroAccessibilityAudit(
         for types: XCUIAccessibilityAuditType = .all,
-        knownIssues: [String] = []
+        knownIssues: [String] = [],
+        excuse: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil
     ) throws {
         let scaledSheets = descendants(matching: .any)
             .matching(identifier: OuroSheetMetrics.accessibilityIdentifier)
@@ -32,6 +36,7 @@ extension XCUIApplication {
             if knownIssues.contains(where: { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }) {
                 return true
             }
+            if excuse?(issue) == true { return true }
             return OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: scaledSheets, toasts: toasts, screen: screen)
         }
         do {

@@ -124,7 +124,15 @@ Status: accepted (W8 of the HX and AX native program).
       audit read the page through 55% and 85%), white labels on core's bright dark-mode solids (they fall short of
       5:1; raised with core), the system's glass behind sheets (the theme's words are made readable on a known
       surface, and theme colours on glass dropped frames), and a zoom morph from the source button (it needs an API
-      change). The gallery shows the components over real content (a recipe list)
+      change). Round 3 said no again, and round 4 adopted: opaque tucked plates shaded 4% and 8% (fading them let
+      the page show through), a hairline edge on every toast, a symbol bounce as a toast lands, a toast's own
+      `systemImage`, a stronger secondary solid, outlines at 50% (full tone, two points, under increased contrast),
+      icons on a label's first baseline, an empty state that cascades in (40 ms a line, from its settled look, so a
+      still render shows it whole; `.drawOn` starts hidden and was declined for that), banners edged in their tone
+      with 20-point corners and a Title 3 icon, and a 44-point sheet close disc with a Title 2 title. The audit of the
+      expanded stack excuses two readings it gets wrong there, with the proof in the test: Undo "fails contrast" even
+      drawn black on white, and the oldest toast's plain words read as an undersized target; the toasts' buttons are
+      asserted at 44 points and hittable instead. The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and
       marks each window with an os_signpost interval; `MotionTests` fails a transition above 5 ms of hitch per second

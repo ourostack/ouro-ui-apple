@@ -1,5 +1,6 @@
 #!/bin/sh
-# Captures the gallery in light, dark and increased contrast on a simulator you created for it:
+# Captures the gallery in light, dark and increased contrast, and its component pages at the largest accessibility
+# text size too, on a simulator you created for it:
 #   udid=$(xcrun simctl create ouro-hx-gallery "iPhone 17 Pro" com.apple.CoreSimulator.SimRuntime.iOS-27-1)
 #   sh scripts/gallery-captures.sh <that UDID> <output folder>
 #   xcrun simctl delete <that UDID>
@@ -15,13 +16,17 @@ xcrun simctl bootstatus "$udid" -b >/dev/null
 xcrun simctl install "$udid" "$app"
 xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
 shoot() { # theme page mode
+  size=large
   case "$3" in
     light) xcrun simctl ui "$udid" appearance light; xcrun simctl ui "$udid" increase_contrast disabled ;;
     dark) xcrun simctl ui "$udid" appearance dark; xcrun simctl ui "$udid" increase_contrast disabled ;;
     increased) xcrun simctl ui "$udid" appearance light; xcrun simctl ui "$udid" increase_contrast enabled ;;
+    xxxl) xcrun simctl ui "$udid" appearance light; xcrun simctl ui "$udid" increase_contrast disabled; size=accessibility-extra-extra-extra-large ;;
   esac
+  xcrun simctl ui "$udid" content_size "$size"
   xcrun simctl terminate "$udid" bot.ouro.hx.gallery 2>/dev/null || true
-  xcrun simctl launch "$udid" bot.ouro.hx.gallery -theme "$1" -page "$2" >/dev/null
+  # -open 1 opens the sheet page's sheet and sends the toast page's toasts.
+  xcrun simctl launch "$udid" bot.ouro.hx.gallery -theme "$1" -page "$2" -open 1 >/dev/null
   sleep 3
   xcrun simctl io "$udid" screenshot --type=png "$out/$1-$2-$3.png" >/dev/null 2>&1
   echo "$out/$1-$2-$3.png"
@@ -31,3 +36,7 @@ for theme in pearl abyss brass chart cookbook coral; do
 done
 for mode in light dark increased; do shoot pearl pairs "$mode"; shoot abyss pairs "$mode"; done
 shoot pearl feel light
+for page in buttons empty banners sheet toasts; do
+  for mode in light dark increased xxxl; do shoot pearl "$page" "$mode"; done
+done
+xcrun simctl ui "$udid" content_size large

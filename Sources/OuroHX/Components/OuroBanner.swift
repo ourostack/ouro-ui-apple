@@ -15,7 +15,7 @@ public enum OuroIcon: Sendable, Equatable {
     }
 }
 
-/// The resolved colours of a banner as seen: a soft tint of its tone over the page, with its words and icon at 4.5:1
+/// The resolved colours of a banner as seen: a soft tint of its tone over the page, with its words and icon at 5:1
 /// (7:1 under increased contrast).
 public struct OuroBannerPalette: Sendable {
     public var title: Color.Resolved

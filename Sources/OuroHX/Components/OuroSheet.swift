@@ -1,6 +1,6 @@
 public import SwiftUI
 
-/// The resolved colours of a sheet as seen: the page's background, with its words at 4.5:1 (7:1 under increased
+/// The resolved colours of a sheet as seen: the page's background, with its words at 5:1 (7:1 under increased
 /// contrast).
 public struct OuroSheetPalette: Sendable {
     public var title: Color.Resolved

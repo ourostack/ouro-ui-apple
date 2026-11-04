@@ -63,12 +63,14 @@ claim has no test here.
   close buttons are named ("Close", "Dismiss"; pass your own words to translate them).
 - **Large text wraps** (`text.reflows`): no label, title or message has a line limit; at the accessibility sizes an
   empty state's action spans the width and a toast's action moves under its words.
-- **Contrast** (`contrast.text`): every label reads at 4.5:1 on what is behind it in all six themes, light and dark,
-  and 7:1 under Increase Contrast. The palettes (``OuroButtonPalette``, ``OuroBannerPalette``, ``OuroToastPalette``,
+- **Contrast** (`contrast.text`): every label reads at 5:1 on what is behind it in all six themes, light and dark,
+  and 7:1 under Increase Contrast. That is a margin over WCAG's 4.5, because Xcode's audit measures antialiased
+  pixels. The palettes (``OuroButtonPalette``, ``OuroBannerPalette``, ``OuroToastPalette``,
   ``OuroEmptyStatePalette``, ``OuroSheetPalette``) raise a theme colour only where it falls short.
 - **Announcements by urgency** (`announce.urgency`): destructive banners and toasts and warning banners interrupt
   VoiceOver; the others, warning toasts included, wait. See ``OuroTone/announcementPriority(for:)``.
 - **A toast with an action waits** (`toast.action-stays`): it stays until dismissed unless you give it a duration.
+  Up to three toasts show at once, one at the accessibility text sizes, so a stack never hides the screen.
 - **A close control** (`dismiss.reachable`) on every sheet, dismissible banner and toast.
 
 ### Spacing

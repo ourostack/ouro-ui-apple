@@ -52,7 +52,7 @@ SettingsScreen().ouroToaster().ouroTheme(.pearl)
 ```
 
 Every component keeps 44-point targets, crossfades under Reduce Motion, has VoiceOver names, wraps at the largest
-text sizes and reads at 4.5:1 (7:1 with Increase Contrast): ouro-ui-core's
+text sizes and reads at 5:1 (7:1 with Increase Contrast): ouro-ui-core's
 [component claims](https://github.com/ourostack/ouro-ui-core/blob/main/standard/hx/components.md), each proven by a
 named test here (`Tests/OuroHXTests/ClaimCoverageTests.swift`). The DocC article "Components" has the details.
 

@@ -115,13 +115,15 @@ enum OuroAnnounce {
 enum OuroInk {
     static func r(_ c: Color) -> Color.Resolved { OuroColor.resolve(c) }
 
-    /// `text` raised until it reads on `surface` at the style's target: 4.5:1, or 7:1 under increased contrast.
+    /// `text` raised until it reads on `surface` at the style's target: 5:1, or 7:1 under increased contrast. WCAG asks
+    /// for 4.5; the margin is because Xcode's audit measures antialiased pixels, and read a soft button's label and a
+    /// banner's description at exactly 4.5:1 as "Contrast nearly passed".
     static func readable(_ text: Color.Resolved, on surface: Color.Resolved, _ style: OuroHXStyle) -> Color.Resolved {
         OuroColor.push(text, against: surface, to: target(style))
     }
 
     static func target(_ style: OuroHXStyle) -> Double {
-        style.contrast == .increased ? OuroColor.increasedTextContrast : 4.5
+        style.contrast == .increased ? OuroColor.increasedTextContrast : 5
     }
 
     /// The tone's colour laid over `base` at `amount`, the way a soft fill looks.

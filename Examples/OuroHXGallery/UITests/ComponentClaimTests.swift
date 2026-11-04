@@ -10,9 +10,9 @@ final class ComponentClaimTests: XCTestCase {
 
     override func setUp() { continueAfterFailure = true }
 
-    private func launch(_ page: String, open: Bool = true, size: String? = nil, scheme: String = "light") -> XCUIApplication {
+    private func launch(_ page: String, open: Bool = true, size: String? = nil, scheme: String = "light", extra: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-theme", "pearl", "-page", page, "-open", open ? "1" : "0", "-scheme", scheme]
+        app.launchArguments = ["-theme", "pearl", "-page", page, "-open", open ? "1" : "0", "-scheme", scheme] + extra
         if let size { app.launchArguments += ["-UIPreferredContentSizeCategoryName", size] }
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
@@ -24,13 +24,20 @@ final class ComponentClaimTests: XCTestCase {
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,
     /// descriptions, traits, clipped text, Dynamic Type, contrast) on every component page, at the default and the
     /// largest accessibility text size, in light and dark.
+    ///
+    /// The sheet runs twice. iOS 26 draws a sheet below full height at 96% (see `OuroSheetMetrics.drawnScale`), and the
+    /// audit reads that scaled text as "Text clipped", so the fitted sheet is audited for everything else and the same
+    /// sheet at full height (`-sheetDetent large`, drawn unscaled) is audited for clipping too.
     func testEveryComponentPagePassesTheAccessibilityAudit() throws {
-        for page in Self.pages {
+        let runs: [(page: String, extra: [String], known: [String])] =
+            Self.pages.map { ($0, [], $0 == "sheet" ? ["Text clipped"] : []) } + [("sheet", ["-sheetDetent", "large"], [])]
+        for run in runs {
             for size in [nil, Self.largest] {
                 for scheme in ["light", "dark"] {
-                    let app = launch(page, size: size, scheme: scheme)
-                    XCTContext.runActivity(named: "\(page) \(size ?? "default") \(scheme)") { _ in
-                        do { try app.ouroAccessibilityAudit() } catch { XCTFail("\(page) \(size ?? "default") \(scheme): \(error)") }
+                    let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
+                    let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
+                    XCTContext.runActivity(named: name) { _ in
+                        do { try app.ouroAccessibilityAudit(knownIssues: run.known) } catch { XCTFail("\(name): \(error)") }
                     }
                     app.terminate()
                 }

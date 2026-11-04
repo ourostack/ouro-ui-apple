@@ -13,7 +13,9 @@ private let styles: [(String, OuroHXStyle)] = OuroThemeName.allCases.flatMap { n
 }
 
 private func ratio(_ a: Color.Resolved, _ b: Color.Resolved) -> Double { OuroColor.contrastRatio(a, b) }
-private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increased ? 7 : 4.5 }
+/// 5:1, a margin over WCAG's 4.5, or 7:1 under increased contrast. Xcode's audit measures antialiased pixels and read
+/// a soft button's label and a banner's description at exactly 4.5:1 as "Contrast nearly passed".
+private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increased ? 7 : 5 }
 
 // MARK: target.touch
 
@@ -179,6 +181,25 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(q.visible.map(\.id) == ["t1", "t3", "bad"])
         q.dismiss()
         #expect(q.visible.isEmpty && q.waiting.isEmpty)
+    }
+
+    /// At the accessibility text sizes one toast is as tall as a third of the screen, so only one shows at a time and
+    /// the rest wait their turn in order; the page under them stays readable.
+    @Test func atAccessibilitySizesOneToastShowsAndTheRestWait() {
+        #expect(OuroToastMetrics.maximumVisible(accessibilitySize: false) == 3)
+        #expect(OuroToastMetrics.maximumVisible(accessibilitySize: true) == 1)
+        var q = OuroToastQueue()
+        for i in 1...3 { q.show(OuroToast("t\(i)", id: "t\(i)")) }
+        q.limit = 1
+        #expect(q.visible.map(\.id) == ["t1"])
+        #expect(q.waiting.map(\.id) == ["t2", "t3"])
+        q.show(OuroToast("t4", id: "t4"))
+        #expect(q.visible.map(\.id) == ["t1"])
+        q.dismiss("t1")
+        #expect(q.visible.map(\.id) == ["t2"])
+        q.limit = 3
+        #expect(q.visible.map(\.id) == ["t2", "t3", "t4"])
+        #expect(q.waiting.isEmpty)
     }
 
     @Test func aToastWithTheIdOfOneShowingReplacesItInPlace() {

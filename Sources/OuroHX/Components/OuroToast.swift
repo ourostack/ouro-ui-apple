@@ -68,13 +68,22 @@ public struct OuroToast: Identifiable, Sendable {
 public struct OuroToastQueue: Sendable {
     public private(set) var visible: [OuroToast] = []
     public private(set) var waiting: [OuroToast] = []
+    /// How many show at once: ``OuroToastMetrics/maximumVisible(accessibilitySize:)``. Lowering it sends the newest
+    /// back to the front of the waiting line; raising it brings waiting toasts in.
+    public var limit = OuroToastMetrics.maximumVisible(accessibilitySize: false) {
+        didSet {
+            limit = max(1, limit)
+            while visible.count > limit { waiting.insert(visible.removeLast(), at: 0) }
+            refill()
+        }
+    }
 
     public init() {}
 
     public mutating func show(_ toast: OuroToast) {
         if let i = visible.firstIndex(where: { $0.id == toast.id }) { visible[i] = toast; return }
         if let i = waiting.firstIndex(where: { $0.id == toast.id }) { waiting[i] = toast; return }
-        if visible.count < OuroToastMetrics.maximumVisible { visible.append(toast); return }
+        if visible.count < limit { visible.append(toast); return }
         if toast.tone == .destructive, let i = waiting.firstIndex(where: { $0.tone != .destructive }) {
             waiting.insert(toast, at: i)
         } else {
@@ -87,11 +96,15 @@ public struct OuroToastQueue: Sendable {
         guard let id else { visible = []; waiting = []; return }
         waiting.removeAll { $0.id == id }
         visible.removeAll { $0.id == id }
-        while visible.count < OuroToastMetrics.maximumVisible, !waiting.isEmpty { visible.append(waiting.removeFirst()) }
+        refill()
+    }
+
+    private mutating func refill() {
+        while visible.count < limit, !waiting.isEmpty { visible.append(waiting.removeFirst()) }
     }
 }
 
-/// The resolved colours of a toast as seen: the popover surface, its words and icon at 4.5:1 (7:1 under increased
+/// The resolved colours of a toast as seen: the popover surface, its words and icon at 5:1 (7:1 under increased
 /// contrast).
 public struct OuroToastPalette: Sendable {
     public var message: Color.Resolved
@@ -112,8 +125,9 @@ public struct OuroToastPalette: Sendable {
 public enum OuroToastMetrics {
     /// How long a toast without an action stays: five seconds, as on web.
     public static let defaultSeconds = 5.0
-    /// How many show at once.
-    public static let maximumVisible = 3
+    /// How many show at once: three, as on web, or one at the accessibility text sizes, where a toast can be a third
+    /// of the screen tall and a stack would hide the page.
+    public static func maximumVisible(accessibilitySize: Bool) -> Int { accessibilitySize ? 1 : 3 }
     /// The dismiss and action buttons' target, in points.
     public static let dismissTarget: CGFloat = 44
 
@@ -170,7 +184,7 @@ extension EnvironmentValues {
 
 extension View {
     /// Shows the toasts sent with `@Environment(\.ouroToast)` from anywhere below: put it once at the app's root,
-    /// inside `.ouroTheme(_:)`. Toasts stack at the bottom; VoiceOver hears each once (a destructive one at once,
+    /// inside `.ouroTheme(_:)`. Toasts stack at the bottom, up to three (one at the accessibility text sizes); VoiceOver hears each once (a destructive one at once,
     /// the others when it is free), a toast plays its tone's haptic, a swipe down dismisses one, and each has a
     /// 44-point dismiss button named `closeLabel`. `label` names the region for VoiceOver.
     public func ouroToaster(label: String = "Notifications", closeLabel: String = "Dismiss") -> some View {
@@ -188,6 +202,7 @@ private struct OuroToasterModifier: ViewModifier {
     let closeLabel: String
     @State private var model = OuroToastModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     func body(content: Content) -> some View {
         let model = model
@@ -212,6 +227,9 @@ private struct OuroToasterModifier: ViewModifier {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(label)
             }
+            .onChange(of: typeSize.isAccessibilitySize, initial: true) { _, large in
+                model.queue.limit = OuroToastMetrics.maximumVisible(accessibilitySize: large)
+            }
     }
 }
 
@@ -229,8 +247,11 @@ struct OuroToastView: View {
     var body: some View {
         let p = OuroToastPalette(tone: toast.tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: 10) {
+            // The icon sits on the message's first line, as in a banner, not between the message and description.
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
             if let name = toast.tone.systemImage(for: .toast) {
                 Image(systemName: name)
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color(p.icon))
                     .accessibilityHidden(true)
             }
@@ -252,6 +273,7 @@ struct OuroToastView: View {
                 // At the accessibility sizes the action goes under the words, so neither has to squeeze.
                 if typeSize.isAccessibilitySize, let action = toast.action { actionButton(action) }
             }
+            }
             if !typeSize.isAccessibilitySize, let action = toast.action {
                 actionButton(action).fixedSize()
             }
@@ -270,9 +292,15 @@ struct OuroToastView: View {
         .padding(.trailing, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity)
-        .background(Color(p.surface), in: RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous))
+        // The shadow goes on the surface alone, and stays inside the 8-point gap above it (radius 10, 4 down, so 6
+        // up). On the whole toast it shaded every glyph, and reaching the toast above it shaded that one's words; the
+        // accessibility audit reads both as failed text contrast.
+        .background {
+            RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous)
+                .fill(Color(p.surface))
+                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        }
         .overlay(RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous).strokeBorder(Color(theme.colors(scheme).border), lineWidth: 1))
-        .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
         .offset(y: reduceMotion ? 0 : max(0, drag))
         .opacity(reduceMotion ? 1 - min(0.6, max(0, drag) / 120) : 1)
         .gesture(

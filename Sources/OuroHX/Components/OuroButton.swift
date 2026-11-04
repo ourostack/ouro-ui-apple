@@ -50,7 +50,7 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
 public enum OuroButtonShape: String, CaseIterable, Sendable { case rounded, pill }
 
 /// The resolved colours of a button, for one tone, variant and theme as seen. `surface` is what the label sits on:
-/// the fill, or the page (`background`) when the variant has none. Its label reads at 4.5:1 on it (7:1 under
+/// the fill, or the page (`background`) when the variant has none. Its label reads at 5:1 on it (7:1 under
 /// increased contrast) in every theme; core claim `contrast.text`.
 public struct OuroButtonPalette: Sendable {
     public var label: Color.Resolved
@@ -67,9 +67,12 @@ public struct OuroButtonPalette: Sendable {
         let toneText = tone == .secondary ? OuroInk.r(c.foreground) : fill
         switch variant {
         case .solid:
-            self.fill = fill
-            surface = fill
-            label = OuroInk.readable(OuroInk.r(toneLabel), on: fill, style)
+            // The label first; where even white or black falls short, the fill moves away from it.
+            let text = OuroInk.readable(OuroInk.r(toneLabel), on: fill, style)
+            let shown = OuroColor.contrastRatio(text, fill) >= OuroInk.target(style) ? fill : OuroColor.push(fill, against: text, to: OuroInk.target(style))
+            self.fill = shown
+            surface = shown
+            label = text
             border = nil
         case .soft:
             let tinted = tone == .secondary ? fill : OuroInk.tint(fill, over: background, 0.14)

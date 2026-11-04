@@ -59,11 +59,21 @@ private struct ThemedPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 header
-                Picker("Page", selection: $page) {
-                    ForEach(GalleryPage.allCases) { Text($0.rawValue).tag($0) }
+                // A menu Picker's own button draws about 34 points tall, under the 44 the gallery proves, so the page
+                // picker is a Menu with a 44-point label.
+                Menu {
+                    Picker("Page", selection: $page) {
+                        ForEach(GalleryPage.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                } label: {
+                    Label(page.rawValue, systemImage: "chevron.up.chevron.down")
+                        .labelStyle(TrailingIconLabel())
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(colors.foreground)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .pickerStyle(.menu)
-                .frame(minHeight: 44)
+                .accessibilityLabel("Page, \(page.rawValue)")
                 .accessibilityIdentifier("gallery.page")
                 switch page {
                 case .colors: ColorGrid()
@@ -234,5 +244,16 @@ enum Tokens {
             Pair(name: "sidebarForeground", text: c.sidebarForeground, surface: c.sidebar),
             Pair(name: "sidebarPrimaryForeground", text: c.sidebarPrimaryForeground, surface: c.sidebarPrimary),
         ]
+    }
+}
+
+
+/// Title first, then the icon, the way a menu Picker draws its current value.
+struct TrailingIconLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.title
+            configuration.icon.imageScale(.small)
+        }
     }
 }

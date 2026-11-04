@@ -18,8 +18,13 @@ Status: accepted (W8 of the HX and AX native program).
    light and dark, standard and increased contrast), snapshot references, and gallery UI tests running
    `performAccessibilityAudit` on every component page at the default and the largest accessibility text size.
 4. **Contrast by construction.** Each component resolves its colours as a palette value (`OuroButtonPalette` and
-   friends) and raises a label to 4.5:1 (7:1 under Increase Contrast) on what is actually behind it, rather than
+   friends) and raises a label to 5:1 (7:1 under Increase Contrast) on what is actually behind it, rather than
    trusting a theme pair. Pearl's solid primary needs no raising; the derived increased-contrast colours sometimes do.
+   The target is 5:1, not WCAG's 4.5: the audit measures antialiased pixels and read a soft warning button and a
+   banner description at exactly 4.5:1 as "Contrast nearly passed". Where even white or black can't reach it on a
+   solid fill, the fill moves away from the label. A toast's shadow is drawn by its surface alone and
+   stays inside the gap above it: on the whole toast it shaded every glyph, and reaching the toast above it shaded
+   that one's words, and the audit read both as failed contrast, even for black text.
 5. **Spacing is web's metrics** until core has a spacing token: a medium button is 44 points tall with 16 at its sides
    (web's `h-11 px-4`). A spacing token is a core follow-up, web first.
 6. **Touch and pointer.** On a touch screen every button is at least 44 points. With a pointer (macOS) buttons take
@@ -29,7 +34,8 @@ Status: accepted (W8 of the HX and AX native program).
 8. **Glass and pill** are a variant (`.glass`, Liquid Glass from iOS 26 and macOS 26, a material before) and a shape
    (`.pill`), from Spoonjoy's and Gatefold's buttons. Web's defaults stay: solid, rounded.
 9. **The toast is an environment action**, not a binding per screen: `.ouroToaster()` once at the root owns the queue
-   (`OuroToastQueue`, a value type with web Toaster's rules: three show, a destructive toast waits ahead of others, an
+   (`OuroToastQueue`, a value type with web Toaster's rules: three show (one at the accessibility text sizes, where
+   three would cover the page and hide its text, which the audit flagged), a destructive toast waits ahead of others, an
    id replaces in place), and any view sends with `toast("Saved")`. Without the root modifier, sending logs the fix.
 10. **Snapshots are kept per host macOS major** (`Tests/OuroHXTests/__Snapshots__/macOS-26`, `macOS-27`): text
     renders differently on each. Pull-request CI sets `OURO_SNAPSHOT_RECORD=never` and uploads `.actual.png` files,

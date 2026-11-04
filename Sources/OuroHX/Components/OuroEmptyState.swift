@@ -7,7 +7,7 @@ public enum OuroEmptyStateAlignment: Sendable { case center, leading }
 /// already has an edge.
 public enum OuroEmptyStateVariant: Sendable { case outline, plain }
 
-/// The resolved colours of an empty state as seen; its words read at 4.5:1 (7:1 under increased contrast).
+/// The resolved colours of an empty state as seen; its words read at 5:1 (7:1 under increased contrast).
 public struct OuroEmptyStatePalette: Sendable {
     public var title: Color.Resolved
     public var description: Color.Resolved

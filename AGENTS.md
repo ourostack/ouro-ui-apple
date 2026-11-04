@@ -33,7 +33,7 @@ Meerkat mode: look around first. Before you design or build something new (a com
 ## Components
 
 - `Sources/OuroHX/Components/` holds `OuroButton`, `OuroEmptyState`, `OuroBanner`, `.ouroSheet` and the toast. Each
-  resolves its colours as a palette value (`OuroButtonPalette` and friends) that raises every label to 4.5:1 (7:1
+  resolves its colours as a palette value (`OuroButtonPalette` and friends) that raises every label to 5:1, a margin over 4.5 (7:1
   under Increase Contrast) on what is behind it; a new component does the same, and `ContrastTests` covers it in
   every theme.
 - Behaviour is core's [component claims](https://github.com/ourostack/ouro-ui-core/blob/main/standard/hx/components.md),

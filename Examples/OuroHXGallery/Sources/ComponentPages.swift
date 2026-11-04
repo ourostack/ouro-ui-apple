@@ -1,7 +1,7 @@
 import OuroHX
 import SwiftUI
 
-private var opensAtLaunch: Bool { UserDefaults.standard.bool(forKey: "open") }
+private var opensAtLaunch: Bool { UserDefaults.standard.integer(forKey: "open") > 0 }
 
 /// Every tone in every variant, the sizes, the pill, glass, loading and disabled.
 struct ButtonsPage: View {
@@ -104,7 +104,9 @@ struct SheetsPage: View {
                 .accessibilityIdentifier("sheet.open")
             OuroButton("Filters", variant: .soft) { filters = true }
         }
-        .ouroSheet(isPresented: $open, title: "Save to cookbook", description: "Pick where this recipe lives.") {
+        // `-sheetDetent large` shows it at full height, where iOS draws it unscaled, for the audit's clipped-text check.
+        .ouroSheet(isPresented: $open, title: "Save to cookbook", description: "Pick where this recipe lives.",
+                   detents: UserDefaults.standard.string(forKey: "sheetDetent") == "large" ? [.large] : nil) {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(["Weeknights", "Sunday bakes", "Party food"], id: \.self) { name in
                     CookbookRow(name: name, picked: $picked)

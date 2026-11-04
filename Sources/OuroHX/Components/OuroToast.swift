@@ -210,10 +210,36 @@ final class OuroToastModel {
     /// The open sheets, oldest first. The newest hosts the toasts; with none open, the root does.
     private var sheets: [UUID] = []
 
+    /// Showings already announced, and when each counting one goes. A toast that moves to another host (a sheet
+    /// opening or closing) is drawn afresh there, so these live here rather than in the view.
+    @ObservationIgnored private var heard: Set<UUID> = []
+    @ObservationIgnored private var deadlines: [UUID: Date] = [:]
+
     func enter(_ sheet: UUID) { sheets.append(sheet) }
     func leave(_ sheet: UUID) { sheets.removeAll { $0 == sheet } }
     /// Whether `host` (a sheet, or nil for the root) draws the toasts.
     func hosts(_ host: UUID?) -> Bool { sheets.last == host }
+
+    /// True the first time a showing is drawn anywhere: the moment to announce it and play its haptic.
+    func arrives(_ showing: UUID) -> Bool { heard.insert(showing).inserted }
+
+    /// Seconds left before `toast` goes, or nil while it waits. Held, it waits, and the time starts over afterwards.
+    func remaining(for toast: OuroToast, held: Bool, now: Date = .now) -> Double? {
+        guard let seconds = OuroToastMetrics.countdown(for: toast, held: held) else {
+            deadlines[toast.showing] = nil
+            return nil
+        }
+        let deadline = deadlines[toast.showing] ?? now.addingTimeInterval(seconds)
+        deadlines[toast.showing] = deadline
+        return max(0, deadline.timeIntervalSince(now))
+    }
+
+    func dismiss(_ id: String?) {
+        queue.dismiss(id)
+        let live = Set((queue.visible + queue.waiting).map(\.showing))
+        heard.formIntersection(live)
+        deadlines = deadlines.filter { live.contains($0.key) }
+    }
 }
 
 extension EnvironmentValues {
@@ -234,6 +260,7 @@ struct OuroToastHost: ViewModifier {
     @Environment(\.ouroToasterLabels) private var labels
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.isPresented) private var isPresented
     @State private var id = UUID()
 
     func body(content: Content) -> some View {
@@ -255,6 +282,8 @@ struct OuroToastHost: ViewModifier {
                     }
                 }
                 .onAppear { if !isRoot { model.enter(id) } }
+                // A sheet hands the toasts back as it starts to close, so one sent on its way out shows at the root.
+                .onChange(of: isPresented) { _, now in if !isRoot, !now { model.leave(id) } }
                 .onDisappear { if !isRoot { model.leave(id) } }
                 .onChange(of: typeSize.isAccessibilitySize, initial: true) { _, large in
                     if isRoot { model.queue.limit = OuroToastMetrics.maximumVisible(accessibilitySize: large) }
@@ -277,7 +306,7 @@ private struct OuroToasterModifier: ViewModifier {
         let toaster = OuroToaster(
             isInstalled: true,
             send: { toast in withAnimation(OuroToastMetrics.appearance(reduceMotion: reduceMotion).step(reduceMotion: reduceMotion).animation) { model.queue.show(toast) } },
-            remove: { id in withAnimation(OuroToastMetrics.appearance(reduceMotion: reduceMotion).step(reduceMotion: reduceMotion).animation) { model.queue.dismiss(id) } }
+            remove: { id in withAnimation(OuroToastMetrics.appearance(reduceMotion: reduceMotion).step(reduceMotion: reduceMotion).animation) { model.dismiss(id) } }
         )
         content
             .modifier(OuroToastHost(isRoot: true))
@@ -293,6 +322,7 @@ struct OuroToastView: View {
     /// Off only in snapshot tests: `ImageRenderer` draws nothing inside a view with `accessibilityFocused`.
     var tracksFocus = true
     let dismiss: @MainActor () -> Void
+    @Environment(\.ouroToastModel) private var model
     @Environment(\.ouroTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
@@ -388,12 +418,15 @@ struct OuroToastView: View {
         .accessibilityElement(children: .contain)
         .onHover { hovering = $0 }
         .task(id: toast.showing) {
+            // Once per showing, even when a sheet opening or closing draws it again in another place.
+            guard model?.arrives(toast.showing) ?? true else { return }
             OuroAnnounce.post(toast.announcement, priority: toast.tone.announcementPriority(for: .toast))
             if let moment = toast.tone.haptic { OuroHaptics.play(moment) }
         }
-        // Restarts for a new showing, and whenever someone arrives on or leaves the toast.
+        // Runs again for a new showing, and whenever someone arrives on or leaves the toast.
         .task(id: Countdown(showing: toast.showing, held: focus != nil || hovering)) {
-            guard let seconds = OuroToastMetrics.countdown(for: toast, held: focus != nil || hovering) else { return }
+            let held = focus != nil || hovering
+            guard let seconds = model?.remaining(for: toast, held: held) ?? OuroToastMetrics.countdown(for: toast, held: held) else { return }
             try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled { dismiss() }
         }

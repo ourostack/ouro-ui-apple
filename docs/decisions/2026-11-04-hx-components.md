@@ -47,7 +47,9 @@ Status: accepted (W8 of the HX and AX native program).
     instead of the root while it is the newest open sheet, as web portals its Toaster above dialogs.
 12. **A toast's countdown waits while someone is on it**: VoiceOver or Switch Control focus on any part, or a pointer
     over it, as web pauses on focus and hover; it starts over when they leave. A replacement under the same id is a
-    new showing, announced and timed afresh.
+    new showing, announced and timed afresh. The model, not the view, remembers which showings were announced and
+    when each goes, so a toast drawn again in another host (a sheet opening or closing) is heard once and keeps its
+    time; a closing sheet hands the toasts back as it starts to close.
 13. **A banner speaks once** on arrival and again only when its words change, not on every `onAppear`.
 
 ## Prior art

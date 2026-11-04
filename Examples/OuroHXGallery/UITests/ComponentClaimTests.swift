@@ -131,7 +131,8 @@ final class ComponentClaimTests: XCTestCase {
         app.terminate()
     }
 
-    /// A toast sent while a sheet is open shows above the sheet, where it can be read and dismissed.
+    /// Claim dismiss.reachable: a toast sent while a sheet is open shows above the sheet, where it can be read and
+    /// closed from its Dismiss button.
     func testAToastShowsAboveASheet() {
         let app = launch("sheet", open: false)
         app.buttons["Filters"].tap()
@@ -139,6 +140,8 @@ final class ComponentClaimTests: XCTestCase {
         app.buttons["Remember these"].tap()
         XCTAssertTrue(app.staticTexts["Filters remembered"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Filters remembered"].isHittable, "the toast is behind the sheet")
+        app.buttons.matching(identifier: "Dismiss").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Filters remembered"].waitForNonExistence(timeout: 3), "its Dismiss closes it")
         app.terminate()
     }
 

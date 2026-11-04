@@ -250,6 +250,21 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(model.hosts(nil))
     }
 
+    /// A toast moving between hosts (a sheet opening or closing) is the same showing: VoiceOver hears it and its
+    /// haptic plays once, and its countdown carries on rather than starting over.
+    @MainActor @Test func aToastMovingBetweenHostsIsHeardOnceAndKeepsItsTime() {
+        let model = OuroToastModel()
+        let saved = OuroToast("Saved")
+        #expect(model.arrives(saved.showing))
+        #expect(!model.arrives(saved.showing))
+        let start = Date(timeIntervalSince1970: 1000)
+        #expect(model.remaining(for: saved, held: false, now: start) == OuroToastMetrics.defaultSeconds)
+        #expect(model.remaining(for: saved, held: false, now: start + 2) == OuroToastMetrics.defaultSeconds - 2)
+        #expect(model.remaining(for: saved, held: true, now: start + 3) == nil)
+        #expect(model.remaining(for: saved, held: false, now: start + 4) == OuroToastMetrics.defaultSeconds)
+        #expect(model.remaining(for: OuroToast("Undo me", action: OuroToastAction("Undo") {}), held: false, now: start) == nil)
+    }
+
     @Test func aToastsBorderReadsUnderIncreasedContrast() {
         for (name, style) in styles where style.contrast == .increased {
             let p = OuroToastPalette(tone: .secondary, style: style)

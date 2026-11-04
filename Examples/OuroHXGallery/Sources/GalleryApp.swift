@@ -247,7 +247,6 @@ enum Tokens {
     }
 }
 
-
 /// Title first, then the icon, the way a menu Picker draws its current value.
 struct TrailingIconLabel: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {

@@ -6,3 +6,4 @@ Examples/OuroHXGallery/OuroHXGallery.xcodeproj/
 .DS_Store
 Examples/OuroAXXrayFixture/OuroAXXrayFixture.xcodeproj/
 Templates/XrayProbe/XrayProbe.xcodeproj/
+*.actual.png

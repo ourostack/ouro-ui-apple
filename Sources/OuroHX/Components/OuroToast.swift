@@ -143,9 +143,56 @@ public enum OuroToastMetrics {
     /// The dismiss and action buttons' target, in points.
     public static let dismissTarget: CGFloat = 44
 
-    /// Toasts slide up from the bottom, or crossfade under Reduce Motion.
+    /// Toasts drop in from the top, where the system's own notices appear, or crossfade under Reduce Motion.
     public static func appearance(reduceMotion: Bool) -> OuroAppearance {
-        .choose(.move(edge: .bottom), reduceMotion: reduceMotion)
+        .choose(.move(edge: .top), reduceMotion: reduceMotion)
+    }
+
+    /// How a toast arrives: on the `enter` spring, falling from above while growing from 92%; or a crossfade.
+    public static func arrival(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.enter, reduceMotion: reduceMotion) }
+    /// How a toast leaves: on the quick `exit` spring, back up the way it came; or a crossfade.
+    public static func departure(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.exit, reduceMotion: reduceMotion) }
+
+    static func transition(reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : .asymmetric(
+            insertion: .move(edge: .top).combined(with: .scale(scale: arrivalScale, anchor: .top)).combined(with: .opacity),
+            removal: .move(edge: .top).combined(with: .opacity)
+        )
+    }
+
+    /// The scale a toast grows from as it arrives.
+    public static let arrivalScale = 0.92
+    /// The corner radius: a capsule on one line, a rounded rectangle when the words wrap.
+    public static let cornerRadius: CGFloat = 26
+    /// The widest a toast grows, below the accessibility text sizes.
+    public static let maximumWidth: CGFloat = 420
+    /// How far a toast is dragged up (or flung) before it goes; below that it springs back.
+    public static let dismissDistance: CGFloat = 30
+    /// How much of a downward drag a toast follows: a rubber band, as there is nowhere for it to go.
+    public static let rubberBand: CGFloat = 0.3
+
+    /// Where a toast sits in the stack, `depth` toasts behind the newest. Collapsed, older toasts tuck behind the
+    /// newest, each 8 points lower and 5% smaller, with their words hidden; expanded (VoiceOver or Switch Control
+    /// running, or the stack tapped open) they list down the screen, `above` points of newer toasts over each.
+    public static func placement(depth: Int, expanded: Bool, above: CGFloat) -> (offset: CGFloat, scale: Double, showsWords: Bool) {
+        if expanded || depth == 0 { return (depth == 0 ? 0 : above + CGFloat(depth) * stackSpacing, 1, true) }
+        return (CGFloat(depth) * tuck, 1 - 0.05 * Double(depth), false)
+    }
+
+    /// The gap between expanded toasts.
+    public static let stackSpacing: CGFloat = 8
+    /// How far each older toast peeks out below the one in front, collapsed.
+    public static let tuck: CGFloat = 8
+
+    /// Where a drag of `translation` points (negative is up) leaves the toast: following the finger up, and only a
+    /// third of the way down.
+    public static func dragOffset(_ translation: CGFloat) -> CGFloat {
+        translation < 0 ? translation : translation * rubberBand
+    }
+
+    /// Whether letting go of a drag dismisses the toast: dragged far enough up, or flung up.
+    public static func dragDismisses(translation: CGFloat, predictedEnd: CGFloat) -> Bool {
+        translation < -dismissDistance || predictedEnd < -dismissDistance * 3
     }
 }
 
@@ -196,8 +243,10 @@ extension EnvironmentValues {
 
 extension View {
     /// Shows the toasts sent with `@Environment(\.ouroToast)` from anywhere below: put it once at the app's root,
-    /// inside `.ouroTheme(_:)`. Toasts stack at the bottom, up to three (one at the accessibility text sizes); VoiceOver hears each once (a destructive one at once,
-    /// the others when it is free), a toast plays its tone's haptic, a swipe down dismisses one, and each has a
+    /// inside `.ouroTheme(_:)`. Toasts drop in at the top as Liquid Glass capsules (a material before iOS 26), up to
+    /// three tucked behind one another (one at the accessibility text sizes; listed out while VoiceOver or Switch
+    /// Control runs, or when the stack is tapped). VoiceOver hears each once (a destructive one at once, the others
+    /// when it is free), a toast plays its tone's haptic as it arrives, a swipe up dismisses one, and each has a
     /// 44-point dismiss button named `closeLabel`. `label` names the region for VoiceOver.
     public func ouroToaster(label: String = "Notifications", closeLabel: String = "Dismiss") -> some View {
         modifier(OuroToasterModifier(label: label, closeLabel: closeLabel))
@@ -271,24 +320,46 @@ struct OuroToastHost: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.isPresented) private var isPresented
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.accessibilitySwitchControlEnabled) private var switchControl
     @State private var id = UUID()
+    @State private var sizes: [String: CGSize] = [:]
+    @State private var expandedByHand = false
 
     func body(content: Content) -> some View {
         if let model {
             content
-                .overlay(alignment: .bottom) {
+                .overlay(alignment: .top) {
                     if model.hosts(isRoot ? nil : id) {
-                        VStack(spacing: 8) {
-                            ForEach(model.queue.visible) { toast in
-                                OuroToastView(toast: toast, closeLabel: labels.closeLabel) { toaster.dismiss(toast.id) }
-                                    .transition(OuroToastMetrics.appearance(reduceMotion: reduceMotion).transition)
+                        let visible = model.queue.visible
+                        let expanded = expandedByHand || voiceOver || switchControl
+                        ZStack(alignment: .top) {
+                            ForEach(Array(visible.enumerated()), id: \.element.id) { index, toast in
+                                let depth = visible.count - 1 - index
+                                let above = visible[(index + 1)...].reduce(CGFloat(0)) { $0 + (sizes[$1.id]?.height ?? 50) }
+                                let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above)
+                                let front = visible.last.flatMap { sizes[$0.id] }
+                                OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : front) { toaster.dismiss(toast.id) }
+                                    .onGeometryChange(for: CGSize.self) { $0.size } action: { if place.showsWords { sizes[toast.id] = $0 } }
+                                    .scaleEffect(place.scale, anchor: .bottom)
+                                    .offset(y: place.offset)
+                                    .zIndex(Double(index))
+                                    .transition(OuroToastMetrics.transition(reduceMotion: reduceMotion))
                             }
                         }
+                        // Tapping a collapsed stack lays it out; it tucks back once it empties.
+                        .simultaneousGesture(TapGesture().onEnded {
+                            guard visible.count > 1, !expandedByHand else { return }
+                            withAnimation(OuroMotion.animation(.layout, reduceMotion: reduceMotion)) { expandedByHand = true }
+                        })
+                        .animation(OuroMotion.animation(.layout, reduceMotion: reduceMotion), value: expanded)
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
-                        .frame(maxWidth: 560)
+                        .padding(.top, 8)
+                        .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : OuroToastMetrics.maximumWidth + 32)
+                        .frame(maxWidth: .infinity)
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel(labels.label)
+                        .onChange(of: visible.isEmpty) { _, empty in if empty { expandedByHand = false } }
                     }
                 }
                 .onAppear { if !isRoot { model.enter(id) } }
@@ -315,8 +386,8 @@ private struct OuroToasterModifier: ViewModifier {
         let reduceMotion = reduceMotion
         let toaster = OuroToaster(
             isInstalled: true,
-            send: { toast in withAnimation(OuroToastMetrics.appearance(reduceMotion: reduceMotion).step(reduceMotion: reduceMotion).animation) { model.queue.show(toast) } },
-            remove: { id in withAnimation(OuroToastMetrics.appearance(reduceMotion: reduceMotion).step(reduceMotion: reduceMotion).animation) { model.dismiss(id) } }
+            send: { toast in withAnimation(OuroToastMetrics.arrival(reduceMotion: reduceMotion).animation) { model.queue.show(toast) } },
+            remove: { id in withAnimation(OuroToastMetrics.departure(reduceMotion: reduceMotion).animation) { model.dismiss(id) } }
         )
         content
             .modifier(OuroToastHost(isRoot: true))
@@ -329,6 +400,10 @@ private struct OuroToasterModifier: ViewModifier {
 struct OuroToastView: View {
     let toast: OuroToast
     let closeLabel: String
+    /// False for a toast tucked behind a newer one: its surface peeks out, its words and buttons are hidden.
+    var showsWords = true
+    /// The size of the toast in front, when this one is tucked behind it.
+    var tucked: CGSize? = nil
     /// Off only in snapshot tests: `ImageRenderer` draws nothing inside a view with `accessibilityFocused`.
     var tracksFocus = true
     let dismiss: @MainActor () -> Void
@@ -337,8 +412,12 @@ struct OuroToastView: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.dynamicTypeSize) private var typeSize
-    @GestureState private var drag: CGFloat = 0
+    /// Where the finger has the toast. A plain state, not a gesture state, so a toast flung away leaves from where it
+    /// was let go rather than snapping back first.
+    @State private var drag: CGFloat = 0
+    @State private var dragging = false
     /// VoiceOver or Switch Control on any part of the toast, which holds its countdown.
     @AccessibilityFocusState private var focus: Part?
     @State private var hovering = false
@@ -359,71 +438,85 @@ struct OuroToastView: View {
         let held: Bool
     }
 
+    private var held: Bool { focus != nil || hovering || dragging }
+
     var body: some View {
         let p = OuroToastPalette(tone: toast.tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
-        HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: 10) {
-            // The icon sits on the message's first line, as in a banner, not between the message and description.
+        let shape = RoundedRectangle(cornerRadius: OuroToastMetrics.cornerRadius, style: .continuous)
+        let large = typeSize.isAccessibilitySize
+        HStack(alignment: large ? .top : .center, spacing: 10) {
+            // The icon sits on the message's first line, not between the message and description.
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-            if let name = toast.tone.systemImage(for: .toast) {
-                Image(systemName: name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(p.icon))
-                    .accessibilityHidden(true)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(toast.message)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(p.message))
-                    .fixedSize(horizontal: false, vertical: true)
-                if let description = toast.description {
-                    Text(description)
-                        .font(.footnote)
-                        .foregroundStyle(Color(p.description))
-                        .fixedSize(horizontal: false, vertical: true)
+                if let name = toast.tone.systemImage(for: .toast) {
+                    Image(systemName: name)
+                        .font(.body.weight(.semibold))
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(Color(p.icon))
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(toast.message)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color(p.message))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let description = toast.description {
+                            Text(description)
+                                .font(.footnote)
+                                .foregroundStyle(Color(p.description))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: large ? .infinity : nil, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                    .modifier(Held(focus: $focus, part: .words, on: tracksFocus))
+                    // At the accessibility sizes the action goes under the words, so neither has to squeeze.
+                    if large, let action = toast.action { actionButton(action).modifier(Held(focus: $focus, part: .action, on: tracksFocus)) }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            .modifier(Held(focus: $focus, part: .words, on: tracksFocus))
-                // At the accessibility sizes the action goes under the words, so neither has to squeeze.
-                if typeSize.isAccessibilitySize, let action = toast.action { actionButton(action).modifier(Held(focus: $focus, part: .action, on: tracksFocus)) }
-            }
-            }
-            if !typeSize.isAccessibilitySize, let action = toast.action {
+            if !large, let action = toast.action {
                 actionButton(action).fixedSize().modifier(Held(focus: $focus, part: .action, on: tracksFocus))
             }
             Button(action: dismiss) {
                 Image(systemName: "xmark")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color(p.message))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color(p.description))
                     .frame(width: OuroToastMetrics.dismissTarget, height: OuroToastMetrics.dismissTarget)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.ouroPress)
             .accessibilityLabel(closeLabel)
             .modifier(Held(focus: $focus, part: .dismiss, on: tracksFocus))
-            .padding(.trailing, -8)
+            .padding(.trailing, -10)
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 8)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity)
-        // The shadow goes on the surface alone, and stays inside the 8-point gap above it (radius 10, 4 down, so 6
-        // up). On the whole toast it shaded every glyph, and reaching the toast above it shaded that one's words; the
-        // accessibility audit reads both as failed text contrast.
-        .background {
-            RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous)
-                .fill(Color(p.surface))
-                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-        }
-        .overlay(RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous).strokeBorder(Color(p.border), lineWidth: 1))
-        .offset(y: reduceMotion ? 0 : max(0, drag))
-        .opacity(reduceMotion ? 1 - min(0.6, max(0, drag) / 120) : 1)
+        .padding(.leading, 18)
+        .padding(.trailing, 10)
+        .padding(.vertical, 3)
+        .frame(minHeight: 50)
+        .opacity(showsWords ? 1 : 0)
+        .accessibilityHidden(!showsWords)
+        // Tucked behind a newer toast, it takes that toast's size, so its edge peeks out evenly below it.
+        .frame(width: tucked?.width, height: tucked?.height, alignment: .top)
+        .clipped()
+        // It hugs its words, up to the stack's width; at the accessibility sizes it spans it.
+        .frame(maxWidth: large ? .infinity : nil)
+        .modifier(ToastSurface(shape: shape, palette: p, solid: contrast == .increased || reduceTransparency))
+        .offset(y: drag)
+        .opacity(reduceMotion ? 1 - min(0.7, abs(drag) / 90) : 1)
         .gesture(
-            DragGesture(minimumDistance: 12)
-                .updating($drag) { value, state, _ in state = value.translation.height }
-                .onEnded { value in if value.translation.height > 40 { dismiss() } }
+            DragGesture(minimumDistance: 8)
+                .onChanged { value in
+                    dragging = true
+                    drag = OuroToastMetrics.dragOffset(value.translation.height)
+                }
+                .onEnded { value in
+                    dragging = false
+                    if OuroToastMetrics.dragDismisses(translation: value.translation.height, predictedEnd: value.predictedEndTranslation.height) {
+                        dismiss()
+                    } else {
+                        withAnimation(OuroMotion.animation(.settle, reduceMotion: reduceMotion)) { drag = 0 }
+                    }
+                }
         )
         .accessibilityElement(children: .contain)
         .onHover { hovering = $0 }
@@ -434,8 +527,8 @@ struct OuroToastView: View {
             if let moment = toast.tone.haptic { OuroHaptics.play(moment) }
         }
         // Runs again for a new showing, and whenever someone arrives on or leaves the toast.
-        .task(id: Countdown(showing: toast.showing, held: focus != nil || hovering)) {
-            let held = focus != nil || hovering
+        .task(id: Countdown(showing: toast.showing, held: held)) {
+            let held = held
             guard let seconds = model?.remaining(for: toast, held: held) ?? OuroToastMetrics.countdown(for: toast, held: held) else { return }
             try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled { dismiss() }
@@ -446,6 +539,33 @@ struct OuroToastView: View {
         OuroButton(action.label, tone: toast.tone == .destructive ? .destructive : .primary, variant: .soft, size: .sm) {
             action.handler()
             dismiss()
+        }
+    }
+}
+
+/// A toast's surface: Liquid Glass from iOS 26, a thick material with a hairline before it, and the theme's opaque
+/// popover colour with an outline under increased contrast or Reduce Transparency, where the words must not depend
+/// on what is behind them.
+private struct ToastSurface: ViewModifier {
+    let shape: RoundedRectangle
+    let palette: OuroToastPalette
+    let solid: Bool
+
+    func body(content: Content) -> some View {
+        if solid {
+            content
+                .background(shape.fill(Color(palette.surface)).shadow(color: .black.opacity(0.14), radius: 16, y: 6))
+                .overlay(shape.strokeBorder(Color(palette.border), lineWidth: 1))
+        } else if #available(iOS 26, macOS 26, visionOS 26, *) {
+            // A soft shadow under the glass lifts it off a plain page, where glass alone barely shows. It is drawn
+            // on a shape behind the glass, so it never shades the words.
+            content
+                .glassEffect(.regular, in: shape)
+                .background(shape.fill(.black.opacity(0.001)).shadow(color: .black.opacity(0.16), radius: 18, y: 8))
+        } else {
+            content
+                .background(shape.fill(.regularMaterial).shadow(color: .black.opacity(0.14), radius: 16, y: 6))
+                .overlay(shape.strokeBorder(Color(palette.border).opacity(0.6), lineWidth: 0.5))
         }
     }
 }

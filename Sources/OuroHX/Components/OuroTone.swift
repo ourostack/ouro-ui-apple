@@ -74,14 +74,18 @@ public enum OuroInput: Sendable {
 /// How a component comes and goes, as data, so a test can check it without rendering. Under Reduce Motion every
 /// component uses ``fade``: a crossfade over `ouro.duration.base`. Core claim `motion.reduced`.
 public enum OuroAppearance: Equatable, Sendable {
-    /// Slides in from an edge on core's spring.
+    /// Slides in from an edge on core's spring: for something that floats over the page, such as a toast.
     case move(edge: Edge)
+    /// Grows from 96% at its top edge while fading in, as the page makes room: for something in the page's flow,
+    /// such as a banner, which must not slide over what is above it.
+    case unfold
     /// Crossfades.
     case fade
 
     public var transition: AnyTransition {
         switch self {
         case let .move(edge): .move(edge: edge).combined(with: .opacity)
+        case .unfold: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
         case .fade: .opacity
         }
     }
@@ -89,6 +93,7 @@ public enum OuroAppearance: Equatable, Sendable {
     public func step(reduceMotion: Bool) -> OuroMotion.Step {
         switch self {
         case .move: OuroMotion.step(.spring, reduceMotion: reduceMotion)
+        case .unfold: OuroMotion.step(.layout, reduceMotion: reduceMotion)
         case .fade: .crossfade(duration: OuroMotion.reducedMotionCrossfade)
         }
     }

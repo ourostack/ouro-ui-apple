@@ -6,10 +6,13 @@ public struct OuroSheetPalette: Sendable {
     public var title: Color.Resolved
     public var description: Color.Resolved
     public var surface: Color.Resolved
+    /// The close button's disc before iOS 26 (from iOS 26 it is Liquid Glass): the theme's muted fill.
+    public var closeFill: Color.Resolved
 
     public init(style: OuroHXStyle) {
         let c = style.colors
         surface = OuroInk.r(c.background)
+        closeFill = OuroInk.r(c.muted)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
     }
@@ -25,6 +28,8 @@ public enum OuroSheetMetrics {
     public static let touchTarget: CGFloat = 46
     /// The close button's target, in layout points (44 as drawn).
     public static let closeTarget: CGFloat = touchTarget
+    /// The close button's drawn disc, inside its target: 34 points, as on Apple's own sheets.
+    public static let closeDisc: CGFloat = 34
 
     /// The accessibility identifier of every `.ouroSheet`'s content, which `OuroHXTesting`'s audit looks for.
     public static let accessibilityIdentifier = "ouro.sheet"
@@ -158,7 +163,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.headline)
+                        .font(.title3.weight(.bold))
                         .foregroundStyle(Color(p.title))
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
@@ -172,13 +177,17 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Button(action: close) {
+                    // A round close button, Liquid Glass from iOS 26 as on Apple's own sheets, a muted disc before;
+                    // drawn smaller than its target, which stays the full size.
                     Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
+                        .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color(p.title))
+                        .frame(width: OuroSheetMetrics.closeDisc, height: OuroSheetMetrics.closeDisc)
+                        .modifier(CloseDisc(fill: Color(p.closeFill)))
                         .frame(width: OuroSheetMetrics.closeTarget, height: OuroSheetMetrics.closeTarget)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.ouroPress)
                 .accessibilityLabel(closeLabel)
                 .accessibilityIdentifier(OuroSheetMetrics.closeIdentifier)
                 .padding(.trailing, -10)
@@ -218,7 +227,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
         .presentationDragIndicator(.visible)
         // Toasts sent while the sheet is open show above it, not behind it.
         .modifier(OuroToastHost())
-        .presentationBackground(Color(p.surface))
+        .modifier(SheetBackground(surface: Color(p.surface)))
         .opacity(visible || !reduceMotion ? 1 : 0)
         .onAppear { withAnimation(OuroMotion.animation(.base, reduceMotion: reduceMotion)) { visible = true } }
     }
@@ -231,6 +240,31 @@ private struct VisuallyHidden: ViewModifier {
             content.frame(width: 1, height: 1).clipped().opacity(0.011)
         } else {
             content
+        }
+    }
+}
+
+/// The close button's disc: Liquid Glass from iOS 26, the theme's muted fill before it.
+private struct CloseDisc: ViewModifier {
+    let fill: Color
+    func body(content: Content) -> some View {
+        if #available(iOS 26, macOS 26, visionOS 26, *) {
+            content.glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            content.background(fill, in: Circle())
+        }
+    }
+}
+
+/// From iOS 26 the system draws the sheet, Liquid Glass at partial heights and opaque at full, with its own corners;
+/// before it the sheet is the theme's page colour.
+private struct SheetBackground: ViewModifier {
+    let surface: Color
+    func body(content: Content) -> some View {
+        if #available(iOS 26, macOS 26, visionOS 26, *) {
+            content
+        } else {
+            content.presentationBackground(surface)
         }
     }
 }

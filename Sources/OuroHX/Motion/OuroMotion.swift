@@ -20,6 +20,21 @@ public enum OuroMotion {
         case sheet
         /// A line drawing itself (`ouro.duration.draw`, ease out).
         case draw
+        /// A finger landing on a control: a critically damped spring, quick enough to feel under the finger.
+        case pressIn
+        /// A finger lifting: a slower spring with a little bounce, which picks up wherever the press had got to.
+        case pressOut
+        /// Something arriving, such as a toast: a spring with a little bounce.
+        case enter
+        /// Something leaving: a quick spring with no bounce, so it never wobbles on its way out.
+        case exit
+        /// Something let go of mid-drag, springing back or on: it keeps the finger's speed.
+        case settle
+        /// A size or position change in a layout, such as a banner pushing the page down: smooth, no bounce.
+        case layout
+
+        /// The two press kinds, which do nothing under Reduce Motion.
+        public var isPress: Bool { self == .press || self == .pressIn || self == .pressOut }
     }
 
     /// How a change moves, as data, so a test can check it without rendering.
@@ -44,7 +59,7 @@ public enum OuroMotion {
     public static let reducedMotionCrossfade = OuroTokens.Duration.base
 
     public static func step(_ kind: Kind, reduceMotion: Bool) -> Step {
-        if reduceMotion { return kind == .press ? .none : .crossfade(duration: reducedMotionCrossfade) }
+        if reduceMotion { return kind.isPress ? .none : .crossfade(duration: reducedMotionCrossfade) }
         typealias D = OuroTokens.Duration
         typealias E = OuroTokens.Ease
         switch kind {
@@ -55,6 +70,14 @@ public enum OuroMotion {
         case .press: return .curve(E.out, duration: D.press)
         case .sheet: return .curve(E.drawer, duration: D.sheet)
         case .draw: return .curve(E.out, duration: D.draw)
+        // Native springs, not core's web curves (decision 15): springs retarget without a jump. The settings are
+        // Apple's own presets where one fits (`.smooth` is bounce 0), and the reference board's estimates otherwise.
+        case .pressIn: return .spring(visualDuration: 0.15, bounce: 0)
+        case .pressOut: return .spring(visualDuration: 0.35, bounce: 0.15)
+        case .enter: return .spring(visualDuration: 0.5, bounce: 0.2)
+        case .exit: return .spring(visualDuration: 0.3, bounce: 0)
+        case .settle: return .spring(visualDuration: 0.35, bounce: 0.2)
+        case .layout: return .spring(visualDuration: 0.35, bounce: 0)
         }
     }
 
@@ -125,7 +148,7 @@ public struct OuroPressStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .scaleEffect(OuroMotion.pressScale(isPressed: configuration.isPressed, reduceMotion: reduceMotion))
-                .animation(OuroMotion.animation(.press, reduceMotion: reduceMotion), value: configuration.isPressed)
+                .animation(OuroMotion.animation(configuration.isPressed ? .pressIn : .pressOut, reduceMotion: reduceMotion), value: configuration.isPressed)
         }
     }
 }

@@ -3,8 +3,8 @@ public import SwiftUI
 /// How an ``OuroEmptyState`` lines up: `center` for a page or panel, `leading` with the text around it.
 public enum OuroEmptyStateAlignment: Sendable { case center, leading }
 
-/// `outline` draws a dashed edge around the empty area; `plain` has none, for one inside a list or card that
-/// already has an edge.
+/// `plain`, the default, sits open on the page the way Apple's `ContentUnavailableView` does; `outline` draws a dashed
+/// edge around the empty area, for a drop zone or a slot that something will fill.
 public enum OuroEmptyStateVariant: Sendable { case outline, plain }
 
 /// The resolved colours of an empty state as seen; its words read at 5:1 (7:1 under increased contrast).
@@ -22,7 +22,8 @@ public struct OuroEmptyStatePalette: Sendable {
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         iconWell = OuroInk.r(c.muted)
-        icon = OuroInk.readable(OuroInk.r(c.mutedForeground), on: iconWell, style)
+        // The symbol stands on the page, as large as a title, so it reads at the same contrast as the words.
+        icon = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         border = OuroColor.push(OuroInk.r(c.border), against: surface, to: OuroColor.increasedLineContrast)
     }
 }
@@ -49,13 +50,17 @@ public struct OuroEmptyState<Action: View>: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The symbol's size, which grows with Dynamic Type like the title under it.
+    @ScaledMetric(relativeTo: .largeTitle) private var symbolSize: CGFloat = 50
+    @State private var arrived = false
 
     public init(
         _ title: String,
         systemImage: String? = nil,
         description: String? = nil,
         alignment: OuroEmptyStateAlignment = .center,
-        variant: OuroEmptyStateVariant = .outline,
+        variant: OuroEmptyStateVariant = .plain,
         @ViewBuilder action: () -> Action
     ) {
         self.title = title
@@ -70,13 +75,16 @@ public struct OuroEmptyState<Action: View>: View {
         let p = OuroEmptyStatePalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         let horizontal: HorizontalAlignment = alignment == .center ? .center : .leading
         let text: TextAlignment = alignment == .center ? .center : .leading
-        VStack(alignment: horizontal, spacing: 12) {
+        VStack(alignment: horizontal, spacing: 0) {
             if let systemImage {
+                // A large symbol on the page, no well or tile around it, as in Apple's own empty states. It gives
+                // one small bounce as it arrives (not under Reduce Motion).
                 Image(systemName: systemImage)
-                    .font(.title2)
+                    .font(.system(size: symbolSize, weight: .regular))
+                    .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(Color(p.icon))
-                    .frame(width: 56, height: 56)
-                    .background(Color(p.iconWell), in: Circle())
+                    .symbolEffect(.bounce.down, options: .nonRepeating, value: arrived)
+                    .padding(.bottom, 16)
                     .accessibilityHidden(true)
             }
             Text(title)
@@ -87,19 +95,24 @@ public struct OuroEmptyState<Action: View>: View {
                 .accessibilityAddTraits(.isHeader)
             if let description {
                 Text(description)
-                    .font(.body)
+                    .font(.callout)
                     .foregroundStyle(Color(p.description))
                     .multilineTextAlignment(text)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
             }
             if Action.self != EmptyView.self {
                 action
                     .environment(\.ouroButtonFillsWidth, typeSize.isAccessibilitySize)
-                    .padding(.top, 4)
+                    .padding(.top, 20)
             }
         }
+        // A short measure keeps the sentence to two or three balanced lines, as Apple's empty states do.
+        .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : OuroEmptyStateMetrics.maximumTextWidth, alignment: alignment == .center ? .center : .leading)
         .frame(maxWidth: .infinity, alignment: alignment == .center ? .center : .leading)
-        .padding(24)
+        .padding(.vertical, 32)
+        .padding(.horizontal, 24)
+        .onAppear { if !reduceMotion { arrived = true } }
         .overlay {
             if variant == .outline {
                 RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous)
@@ -113,7 +126,13 @@ public struct OuroEmptyState<Action: View>: View {
 
 extension OuroEmptyState where Action == EmptyView {
     /// An empty state with no action.
-    public init(_ title: String, systemImage: String? = nil, description: String? = nil, alignment: OuroEmptyStateAlignment = .center, variant: OuroEmptyStateVariant = .outline) {
+    public init(_ title: String, systemImage: String? = nil, description: String? = nil, alignment: OuroEmptyStateAlignment = .center, variant: OuroEmptyStateVariant = .plain) {
         self.init(title, systemImage: systemImage, description: description, alignment: alignment, variant: variant) { EmptyView() }
     }
+}
+
+/// Metrics every ``OuroEmptyState`` shares, as data.
+public enum OuroEmptyStateMetrics {
+    /// The widest its words run, below the accessibility text sizes: 340 points.
+    public static let maximumTextWidth: CGFloat = 340
 }

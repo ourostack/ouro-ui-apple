@@ -31,6 +31,25 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroButtonSize.minimumTarget(on: .touch) == 44)
     }
 
+    /// Apple's proportions on a touch screen: a small capsule drawn 36 tall inside its 44-point target, a 48-point
+    /// default and a 54-point large button. What you see never outgrows what you can press.
+    @Test func aSmallButtonIsDrawnSmallerThanItsTarget() {
+        #expect(OuroButtonSize.sm.visualHeight(on: .touch, target: 44) == 36)
+        #expect(OuroButtonSize.md.visualHeight(on: .touch, target: 44) == 48)
+        #expect(OuroButtonSize.lg.visualHeight(on: .touch, target: 44) == 54)
+        for size in OuroButtonSize.allCases {
+            for input in [OuroInput.touch, .pointer] {
+                #expect(size.visualHeight(on: input, target: 44) <= size.minimumHeight(on: input, target: 44))
+            }
+            #expect(size.visualHeight(on: .pointer, target: 44) == size.minimumHeight(on: .pointer))
+        }
+    }
+
+    /// A button's default outline is a capsule, as Apple's own buttons are from iOS 26.
+    @Test func theDefaultShapeIsACapsule() {
+        #expect(OuroButtonStyle().shape == .pill)
+    }
+
     @Test func aPointerGetsDesktopDensity() {
         #expect(OuroButtonSize.sm.minimumHeight(on: .pointer) == 28)
         #expect(OuroButtonSize.md.minimumHeight(on: .pointer) == 32)
@@ -59,8 +78,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         for size in OuroButtonSize.allCases {
             #expect(size.minimumHeight(on: .touch, target: OuroSheetMetrics.touchTarget) * OuroSheetMetrics.drawnScale >= 44)
         }
-        #expect(OuroButtonSize.md.minimumHeight(on: .touch, target: 44) == 44)
-        #expect(OuroButtonSize.lg.minimumHeight(on: .touch, target: OuroSheetMetrics.touchTarget) == 48)
+        #expect(OuroButtonSize.md.minimumHeight(on: .touch, target: 44) == 48)
+        #expect(OuroButtonSize.lg.minimumHeight(on: .touch, target: OuroSheetMetrics.touchTarget) == 54)
         #expect(OuroButtonSize.sm.minimumHeight(on: .pointer, target: OuroSheetMetrics.touchTarget) == 28)
     }
 }
@@ -152,9 +171,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
 @Suite struct ComponentMotionTests {
     @Test func nothingMovesUnderReduceMotion() {
-        #expect(OuroToastMetrics.appearance(reduceMotion: false) == .move(edge: .bottom))
+        #expect(OuroToastMetrics.appearance(reduceMotion: false) == .move(edge: .top))
         #expect(OuroToastMetrics.appearance(reduceMotion: true) == .fade)
-        #expect(OuroBannerMetrics.appearance(reduceMotion: false) == .move(edge: .top))
+        #expect(OuroToastMetrics.arrival(reduceMotion: true) == .crossfade(duration: OuroTokens.Duration.base))
+        #expect(OuroToastMetrics.departure(reduceMotion: true) == .crossfade(duration: OuroTokens.Duration.base))
+        #expect(OuroBannerMetrics.appearance(reduceMotion: false) == .unfold)
+        #expect(OuroAppearance.unfold.step(reduceMotion: false) == OuroMotion.step(.layout, reduceMotion: false))
         #expect(OuroBannerMetrics.appearance(reduceMotion: true) == .fade)
         #expect(OuroSheetMetrics.presentation(reduceMotion: false) == .move(edge: .bottom))
         #expect(OuroSheetMetrics.presentation(reduceMotion: true) == .fade)
@@ -166,6 +188,34 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     @Test func aSheetOpensAndClosesWithoutAnimationUnderReduceMotion() {
         #expect(OuroSheetMetrics.transaction(reduceMotion: true).disablesAnimations)
         #expect(!OuroSheetMetrics.transaction(reduceMotion: false).disablesAnimations)
+    }
+
+    /// A toast arrives on a spring with a little bounce and leaves on one with none, so it never wobbles away.
+    @Test func aToastArrivesWithABounceAndLeavesWithout() {
+        #expect(OuroToastMetrics.arrival(reduceMotion: false) == OuroMotion.step(.enter, reduceMotion: false))
+        #expect(OuroToastMetrics.departure(reduceMotion: false) == OuroMotion.step(.exit, reduceMotion: false))
+    }
+
+    /// A drag follows the finger up, the way out, and only a third of the way down, where there is nowhere to go.
+    /// Let go far enough up, or flung up, it goes; otherwise it springs back.
+    @Test func aToastFollowsADragUpAndRubberBandsDown() {
+        #expect(OuroToastMetrics.dragOffset(-40) == -40)
+        #expect(OuroToastMetrics.dragOffset(30) == 9)
+        #expect(OuroToastMetrics.dragDismisses(translation: -31, predictedEnd: -31))
+        #expect(OuroToastMetrics.dragDismisses(translation: -10, predictedEnd: -120))
+        #expect(!OuroToastMetrics.dragDismisses(translation: -20, predictedEnd: -40))
+        #expect(!OuroToastMetrics.dragDismisses(translation: 60, predictedEnd: 200))
+    }
+
+    /// Collapsed, older toasts tuck behind the newest, each 8 points lower and 5% smaller with their words hidden;
+    /// expanded, every toast shows its words, listed below the newer ones.
+    @Test func olderToastsTuckBehindTheNewest() {
+        let front = OuroToastMetrics.placement(depth: 0, expanded: false, above: 0)
+        #expect(front.offset == 0 && front.scale == 1 && front.showsWords)
+        let second = OuroToastMetrics.placement(depth: 1, expanded: false, above: 50)
+        #expect(second.offset == 8 && abs(second.scale - 0.95) < 1e-9 && !second.showsWords)
+        let listed = OuroToastMetrics.placement(depth: 2, expanded: true, above: 100)
+        #expect(listed.offset == 116 && listed.scale == 1 && listed.showsWords)
     }
 
     @Test func aFadeIsACrossfadeOverBase() {

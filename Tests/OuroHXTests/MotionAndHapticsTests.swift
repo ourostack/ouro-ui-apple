@@ -16,12 +16,25 @@ import Testing
     @Test(arguments: OuroMotion.Kind.allCases)
     func reduceMotionCrossfadesEverythingButPress(kind: OuroMotion.Kind) {
         let step = OuroMotion.step(kind, reduceMotion: true)
-        if kind == .press {
+        if kind.isPress {
             #expect(step == .none)
         } else {
             #expect(step == .crossfade(duration: OuroTokens.Duration.base))
         }
         #expect(OuroMotion.step(kind, reduceMotion: true).animation == nil || step != .none)
+    }
+
+    /// The components move on springs, which keep the finger's or the last animation's velocity when retargeted, so
+    /// a press released early or a toast dismissed while arriving turns around smoothly. Fixed-duration curves restart.
+    @Test func componentsMoveOnSprings() {
+        #expect(OuroMotion.step(.pressIn, reduceMotion: false) == .spring(visualDuration: 0.15, bounce: 0))
+        #expect(OuroMotion.step(.pressOut, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.15))
+        #expect(OuroMotion.step(.enter, reduceMotion: false) == .spring(visualDuration: 0.5, bounce: 0.2))
+        #expect(OuroMotion.step(.exit, reduceMotion: false) == .spring(visualDuration: 0.3, bounce: 0))
+        #expect(OuroMotion.step(.settle, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.2))
+        #expect(OuroMotion.step(.layout, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0))
+        #expect(OuroMotion.step(.pressIn, reduceMotion: true) == .none)
+        #expect(OuroMotion.step(.pressOut, reduceMotion: true) == .none)
     }
 
     @Test func pressScalesOnlyWithMotion() {

@@ -3,6 +3,21 @@ import SwiftUI
 
 private var opensAtLaunch: Bool { UserDefaults.standard.integer(forKey: "open") > 0 }
 
+/// `-demo <name>` plays one transition by itself, for frame captures: it waits `lead` seconds, does `forth`, waits
+/// `hold`, then does `back`.
+private var demo: String? { UserDefaults.standard.string(forKey: "demo") }
+
+@MainActor private func play(_ name: String, lead: Double = 1.5, hold: Double = 2.5, forth: @escaping @MainActor () -> Void, back: @escaping @MainActor () -> Void) async {
+    guard demo == name else { return }
+    // `-repeat n` plays it n times, to tell a first-time cost from one paid every time.
+    for _ in 0..<max(1, UserDefaults.standard.integer(forKey: "repeat")) {
+        try? await Task.sleep(for: .seconds(lead))
+        forth()
+        try? await Task.sleep(for: .seconds(hold))
+        back()
+    }
+}
+
 /// Every tone in every variant, the sizes, the pill, glass, loading and disabled.
 struct ButtonsPage: View {
     @State private var saving = false
@@ -56,14 +71,24 @@ struct FlowRow<Content: View>: View {
 
 struct EmptyStatesPage: View {
     @Environment(\.ouroToast) private var toast
+    @State private var shown = demo != "empty"
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 16) {
+            if shown { firstEmpty.transition(.opacity.combined(with: .scale(scale: 0.97))) }
+            OuroEmptyState("Nothing matches \u{201C}saffron\u{201D}", systemImage: "magnifyingglass", description: "Try fewer words, or check the spelling.", alignment: .leading, variant: .plain)
+        }
+        .frame(minHeight: 300, alignment: .top)
+        .task {
+            await play("empty", forth: { withOuroAnimation(.layout, reduceMotion: reduceMotion) { shown = true } }, back: { withOuroAnimation(.exit, reduceMotion: reduceMotion) { shown = false } })
+        }
+    }
+
+    private var firstEmpty: some View {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe, or import one from the web.") {
                 OuroButton("Create recipe", systemImage: "plus") { toast("A fresh page, ready for a recipe", tone: .success) }
             }
-            OuroEmptyState("Nothing matches \u{201C}saffron\u{201D}", systemImage: "magnifyingglass", description: "Try fewer words, or check the spelling.", alignment: .leading, variant: .plain)
-        }
     }
 }
 
@@ -73,22 +98,26 @@ struct BannersPage: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            if showError {
-                OuroBanner("Couldn't save", description: "Check your connection and try again.", tone: .destructive, onDismiss: {
-                    withOuroAnimation(.spring, reduceMotion: reduceMotion) { showError = false }
-                }) {
-                    OuroButton("Try again", tone: .destructive, variant: .soft, size: .sm) {}
-                }
-                .accessibilityIdentifier("banner.destructive")
-            } else {
-                OuroButton("Show the error again", variant: .outline) {
-                    withOuroAnimation(.spring, reduceMotion: reduceMotion) { showError = true }
-                }
+            OuroBanner("Couldn't save", description: "Check your connection and try again.", tone: .destructive, onDismiss: {
+                withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = false }
+            }, isPresented: showError) {
+                OuroButton("Try again", tone: .destructive, variant: .soft, size: .sm) {}
             }
+            .accessibilityIdentifier("banner.destructive")
             OuroBanner("Recipe saved", tone: .success)
             OuroBanner("Your oven runs hot", description: "Recipes here assume a fan oven; take 20 degrees off.", tone: .warning)
             OuroBanner("New: cook along with Siri", description: "Ask Siri for the next step while your hands are floury.", tone: .primary)
             OuroBanner("Shared with the household", tone: .secondary)
+            OuroButton("Show the error again", variant: .outline) {
+                withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = true }
+            }
+            .disabled(showError)
+        }
+        .task {
+            await play("banner-interrupt", hold: 0.12, forth: { withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = false } }, back: { withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = true } })
+        }
+        .task {
+            await play("banner", forth: { withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = false } }, back: { withOuroAnimation(.layout, reduceMotion: reduceMotion) { showError = true } })
         }
     }
 }
@@ -119,6 +148,7 @@ struct SheetsPage: View {
                 toast("Saved to \(picked)", tone: .success)
             }
         }
+        .task { await play("sheet", hold: 3, forth: { open = true }, back: { open = false }) }
         .ouroSheet(isPresented: $filters, title: "Filters", detents: [.medium, .large]) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Quick, vegetarian, one pot.")
@@ -163,7 +193,25 @@ struct ToastsPage: View {
             }
         }
         .task {
-            guard opensAtLaunch else { return }
+            await play("toast", forth: { toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "demo") }, back: { toast.dismiss("demo") })
+        }
+        .task {
+            await play("stack", hold: 3, forth: {
+                Task { @MainActor in
+                    toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "a")
+                    try? await Task.sleep(for: .seconds(0.6))
+                    toast("Added to Weeknights", duration: .untilDismissed, id: "b")
+                    try? await Task.sleep(for: .seconds(0.6))
+                    toast("Recipe deleted", action: OuroToastAction("Undo") {}, id: "c")
+                }
+            }, back: { toast.dismiss() })
+        }
+        .task {
+            // Dismissed 0.15 s into its arrival: it must turn around where it is, not jump.
+            await play("toast-interrupt", hold: 0.15, forth: { toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "demo") }, back: { toast.dismiss("demo") })
+        }
+        .task {
+            guard opensAtLaunch, demo == nil else { return }
             toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "saved")
             toast("Recipe deleted", action: OuroToastAction("Undo") {}, id: "deleted")
             toast("Couldn't save", description: "Check your connection.", tone: .destructive, duration: .untilDismissed, id: "failed")

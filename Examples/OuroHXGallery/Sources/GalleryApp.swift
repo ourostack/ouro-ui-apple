@@ -39,11 +39,23 @@ enum GalleryPage: String, CaseIterable, Identifiable {
 struct GalleryScreen: View {
     @State var theme: OuroThemeName
     @State var page: GalleryPage
+    @StateObject private var probe = FrameProbe()
 
     var body: some View {
         ThemedPage(theme: theme, page: $page, pickTheme: { theme = $0 })
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if FrameProbe.isOn { FrameProbeControls(probe: probe) }
+            }
             .ouroToaster()
             .ouroTheme(theme)
+            .task {
+                // With `-demo` too, the probe times the whole demo and prints its result for the capture script.
+                guard FrameProbe.isOn, UserDefaults.standard.string(forKey: "demo") != nil else { return }
+                probe.start()
+                try? await Task.sleep(for: .seconds(max(6, UserDefaults.standard.double(forKey: "probeSeconds"))))
+                probe.stop()
+                print("PROBE \(probe.summary) \(probe.hitchLog)")
+            }
     }
 }
 

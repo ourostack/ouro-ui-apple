@@ -71,9 +71,9 @@ Status: accepted (W8 of the HX and AX native program).
     (`MotionTests`). What changed, and why:
     - **Springs, not web's curves.** Core's motion tokens are CSS easings for the web; SwiftUI's springs carry
       velocity through an interruption, which a fixed curve cannot. `OuroMotion` gains `pressIn` (0.15 s, no
-      bounce), `pressOut` (0.35 s, 0.15), `enter` (0.5 s, 0.2), `exit` (0.3 s, none), `settle` and `layout`. Core's
+      bounce), `pressOut` (0.35 s, 0.15), `enter` (0.55 s, 0.25), `exit` (0.35 s, none), `settle` and `layout`. Core's
       durations still set the Reduce Motion crossfade.
-    - **Capsule buttons**, 36/48/54 points drawn, every one at least 44 points to touch, semibold body type: the
+    - **Capsule buttons**, 34/50/56 points drawn (taste panel round 1), every one at least 44 points to touch, semibold body type: the
       shape of iOS 26's own buttons. Press is scale only, on touch-down; no haptic on a plain tap (Apple's apps keep
       haptics for moments, not taps).
     - **An open empty state** like `ContentUnavailableView`, not web's dashed card: boxed empty states read as a web

@@ -29,8 +29,8 @@ import Testing
     @Test func componentsMoveOnSprings() {
         #expect(OuroMotion.step(.pressIn, reduceMotion: false) == .spring(visualDuration: 0.15, bounce: 0))
         #expect(OuroMotion.step(.pressOut, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.15))
-        #expect(OuroMotion.step(.enter, reduceMotion: false) == .spring(visualDuration: 0.5, bounce: 0.2))
-        #expect(OuroMotion.step(.exit, reduceMotion: false) == .spring(visualDuration: 0.3, bounce: 0))
+        #expect(OuroMotion.step(.enter, reduceMotion: false) == .spring(visualDuration: 0.55, bounce: 0.25))
+        #expect(OuroMotion.step(.exit, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0))
         #expect(OuroMotion.step(.settle, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.2))
         #expect(OuroMotion.step(.layout, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0))
         #expect(OuroMotion.step(.pressIn, reduceMotion: true) == .none)

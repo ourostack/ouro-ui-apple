@@ -22,8 +22,9 @@ public struct OuroEmptyStatePalette: Sendable {
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         iconWell = OuroInk.r(c.muted)
-        // The symbol stands on the page, as large as a title, so it reads at the same contrast as the words.
-        icon = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
+        // The symbol is the state's one note of colour: the theme's primary, hierarchical, reading at the words'
+        // contrast where it is solid.
+        icon = OuroInk.readable(OuroInk.r(c.primary), on: surface, style)
         border = OuroColor.push(OuroInk.r(c.border), against: surface, to: OuroColor.increasedLineContrast)
     }
 }
@@ -52,7 +53,7 @@ public struct OuroEmptyState<Action: View>: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The symbol's size, which grows with Dynamic Type like the title under it.
-    @ScaledMetric(relativeTo: .largeTitle) private var symbolSize: CGFloat = 50
+    @ScaledMetric(relativeTo: .largeTitle) private var symbolSize: CGFloat = 60
     @State private var arrived = false
 
     public init(
@@ -80,15 +81,17 @@ public struct OuroEmptyState<Action: View>: View {
                 // A large symbol on the page, no well or tile around it, as in Apple's own empty states. It gives
                 // one small bounce as it arrives (not under Reduce Motion).
                 Image(systemName: systemImage)
-                    .font(.system(size: symbolSize, weight: .regular))
+                    .font(.system(size: symbolSize, weight: .medium))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(Color(p.icon))
                     .symbolEffect(.bounce.down, options: .nonRepeating, value: arrived)
-                    .padding(.bottom, 16)
+                    // A symbol's own side bearing sets it in from a leading edge; this lines its ink up with the title.
+                    .padding(.leading, alignment == .leading ? -symbolSize * 0.08 : 0)
+                    .padding(.bottom, 12)
                     .accessibilityHidden(true)
             }
             Text(title)
-                .font(.title3.weight(.semibold))
+                .font(.title2.weight(.bold))
                 .foregroundStyle(Color(p.title))
                 .multilineTextAlignment(text)
                 .fixedSize(horizontal: false, vertical: true)
@@ -99,7 +102,7 @@ public struct OuroEmptyState<Action: View>: View {
                     .foregroundStyle(Color(p.description))
                     .multilineTextAlignment(text)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 6)
+                    .padding(.top, 4)
             }
             if Action.self != EmptyView.self {
                 action

@@ -28,10 +28,14 @@ public struct OuroBannerPalette: Sendable {
         let c = style.colors
         let background = OuroInk.r(c.background)
         let toneColour = OuroInk.r(tone.fill(c).fill)
-        // A soft wash of the tone: a touch stronger in dark mode, where the same tint reads as grey.
-        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: background, style.scheme == .dark ? 0.16 : 0.1)
+        // A soft wash of the tone. In dark mode it is stronger and washes the raised card colour rather than the page,
+        // since a faint tint over near-black reads as mud.
+        let base = style.scheme == .dark ? OuroInk.r(c.card) : background
+        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: base, style.scheme == .dark ? 0.18 : 0.1)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
-        description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
+        // The description leans toward the tone, so the words belong to the wash rather than sitting grey on it.
+        let leaning = tone == .secondary ? OuroInk.r(c.mutedForeground) : OuroInk.tint(toneColour, over: OuroInk.r(c.mutedForeground), 0.3)
+        description = OuroInk.readable(leaning, on: surface, style)
         icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.foreground) : toneColour, on: surface, style)
         border = OuroColor.push(tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(toneColour, over: background, 0.35), against: surface, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
     }
@@ -95,6 +99,7 @@ public struct OuroBanner<Action: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.ouroTouchTarget) private var touchTarget
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// What VoiceOver last heard from this banner.
     @State private var announced: String?
 
@@ -120,43 +125,24 @@ public struct OuroBanner<Action: View>: View {
 
     public var body: some View {
         let p = OuroBannerPalette(tone: tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
-        HStack(alignment: .top, spacing: 10) {
-            if let name = icon.name(tone, .banner) {
-                Image(systemName: name)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color(p.icon))
-                    .padding(.top, 1)
-                    .accessibilityHidden(true)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color(p.title))
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let description {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundStyle(Color(p.description))
-                            .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if typeSize.isAccessibilitySize {
+                // At the accessibility sizes the words get the whole width: the icon and the close button share a row
+                // above them, so nothing squeezes the sentence to a word a line.
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top) {
+                        iconView(p)
+                        Spacer(minLength: 0)
+                        closeButton(p)
                     }
+                    words(p)
                 }
-                .accessibilityElement(children: .combine)
-                if Action.self != EmptyView.self { action }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let onDismiss {
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color(p.description))
-                        .frame(width: max(OuroBannerMetrics.dismissTarget, touchTarget), height: max(OuroBannerMetrics.dismissTarget, touchTarget))
-                        .contentShape(Rectangle())
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    iconView(p).padding(.top, 1)
+                    words(p)
+                    closeButton(p)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(dismissLabel)
-                .padding(.trailing, -12)
-                .padding(.vertical, -12)
             }
         }
         .padding(.horizontal, 16)
@@ -182,6 +168,51 @@ public struct OuroBanner<Action: View>: View {
 }
 
 extension OuroBanner {
+    @ViewBuilder private func iconView(_ p: OuroBannerPalette) -> some View {
+        if let name = icon.name(tone, .banner) {
+            Image(systemName: name)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color(p.icon))
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func words(_ p: OuroBannerPalette) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color(p.title))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let description {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundStyle(Color(p.description))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            if Action.self != EmptyView.self { action }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func closeButton(_ p: OuroBannerPalette) -> some View {
+        if let onDismiss {
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color(p.description))
+                    .frame(width: max(OuroBannerMetrics.dismissTarget, touchTarget), height: max(OuroBannerMetrics.dismissTarget, touchTarget))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.ouroPress)
+            .accessibilityLabel(dismissLabel)
+            .padding(.trailing, -12)
+            .padding(.vertical, -12)
+        }
+    }
+
     private func announceIfNew() {
         guard isPresented else { return }
         let words = OuroBannerMetrics.announcement(title: title, description: description)

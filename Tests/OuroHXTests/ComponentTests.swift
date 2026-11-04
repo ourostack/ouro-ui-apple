@@ -31,12 +31,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroButtonSize.minimumTarget(on: .touch) == 44)
     }
 
-    /// Apple's proportions on a touch screen: a small capsule drawn 36 tall inside its 44-point target, a 48-point
-    /// default and a 54-point large button. What you see never outgrows what you can press.
+    /// Apple's proportions on a touch screen: a small capsule drawn 34 tall inside its 44-point target, a 50-point
+    /// default and a 56-point large button. What you see never outgrows what you can press.
     @Test func aSmallButtonIsDrawnSmallerThanItsTarget() {
-        #expect(OuroButtonSize.sm.visualHeight(on: .touch, target: 44) == 36)
-        #expect(OuroButtonSize.md.visualHeight(on: .touch, target: 44) == 48)
-        #expect(OuroButtonSize.lg.visualHeight(on: .touch, target: 44) == 54)
+        #expect(OuroButtonSize.sm.visualHeight(on: .touch, target: 44) == 34)
+        #expect(OuroButtonSize.md.visualHeight(on: .touch, target: 44) == 50)
+        #expect(OuroButtonSize.lg.visualHeight(on: .touch, target: 44) == 56)
         for size in OuroButtonSize.allCases {
             for input in [OuroInput.touch, .pointer] {
                 #expect(size.visualHeight(on: input, target: 44) <= size.minimumHeight(on: input, target: 44))
@@ -78,8 +78,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         for size in OuroButtonSize.allCases {
             #expect(size.minimumHeight(on: .touch, target: OuroSheetMetrics.touchTarget) * OuroSheetMetrics.drawnScale >= 44)
         }
-        #expect(OuroButtonSize.md.minimumHeight(on: .touch, target: 44) == 48)
-        #expect(OuroButtonSize.lg.minimumHeight(on: .touch, target: OuroSheetMetrics.touchTarget) == 54)
+        #expect(OuroButtonSize.md.minimumHeight(on: .touch, target: 44) == 50)
+        #expect(OuroButtonSize.lg.minimumHeight(on: .touch, target: OuroSheetMetrics.touchTarget) == 56)
         #expect(OuroButtonSize.sm.minimumHeight(on: .pointer, target: OuroSheetMetrics.touchTarget) == 28)
     }
 }
@@ -208,15 +208,17 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(!OuroToastMetrics.dragDismisses(translation: 60, predictedEnd: 200))
     }
 
-    /// Collapsed, older toasts tuck behind the newest, each 8 points lower and 5% smaller with their words hidden;
-    /// expanded, every toast shows its words, listed below the newer ones.
+    /// Collapsed, older toasts tuck behind the newest, peeking 10 then 18 points, at 94% and 88% and 80% and 60%
+    /// opacity, words hidden; expanded, every toast shows its words, listed below the newer ones.
     @Test func olderToastsTuckBehindTheNewest() {
         let front = OuroToastMetrics.placement(depth: 0, expanded: false, above: 0)
-        #expect(front.offset == 0 && front.scale == 1 && front.showsWords)
-        let second = OuroToastMetrics.placement(depth: 1, expanded: false, above: 50)
-        #expect(second.offset == 8 && abs(second.scale - 0.95) < 1e-9 && !second.showsWords)
+        #expect(front.offset == 0 && front.scale == 1 && front.opacity == 1 && front.showsWords)
+        let second = OuroToastMetrics.placement(depth: 1, expanded: false, above: 56)
+        #expect(second.offset == 10 && abs(second.scale - 0.94) < 1e-9 && abs(second.opacity - 0.8) < 1e-9 && !second.showsWords)
+        let third = OuroToastMetrics.placement(depth: 2, expanded: false, above: 112)
+        #expect(third.offset == 18 && abs(third.scale - 0.88) < 1e-9 && abs(third.opacity - 0.6) < 1e-9)
         let listed = OuroToastMetrics.placement(depth: 2, expanded: true, above: 100)
-        #expect(listed.offset == 116 && listed.scale == 1 && listed.showsWords)
+        #expect(listed.offset == 116 && listed.scale == 1 && listed.opacity == 1 && listed.showsWords)
     }
 
     @Test func aStackIsNotScaledUnderReduceMotion() {

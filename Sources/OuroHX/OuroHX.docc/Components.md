@@ -108,7 +108,7 @@ What the components don't do for you, and how to match them:
 Everything moves on springs (``OuroMotion``), never fixed durations, so a change mid-way turns around from where it
 is instead of jumping. The defaults are the designed version; options are for the exceptions.
 
-- **Buttons** are capsules, 48 points tall at the medium size (36 drawn small, 54 large, each with at least a
+- **Buttons** are capsules, 50 points tall at the medium size (34 drawn small, 56 large, each with at least a
   44-point target). A press answers on touch-down: it shrinks to 97% on a quick spring and springs back with a
   little bounce. A plain tap plays no haptic; pass `haptic:` for a moment that earns one.
 - **An empty state** is open, like the system's `ContentUnavailableView`: a large hierarchical symbol that bounces

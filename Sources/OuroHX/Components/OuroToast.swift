@@ -153,6 +153,8 @@ public enum OuroToastMetrics {
     /// How a toast leaves: on the quick `exit` spring, back up the way it came; or a crossfade.
     public static func departure(reduceMotion: Bool) -> OuroMotion.Step { OuroMotion.step(.exit, reduceMotion: reduceMotion) }
 
+    /// A toast's height on one line: 56 points.
+    public static let height: CGFloat = 56
     /// The scale a toast grows from as it arrives.
     public static let arrivalScale = 0.92
     /// The corner radius: a capsule on one line, a rounded rectangle when the words wrap.
@@ -165,18 +167,20 @@ public enum OuroToastMetrics {
     public static let rubberBand: CGFloat = 0.3
 
     /// Where a toast sits in the stack, `depth` toasts behind the newest. Collapsed, older toasts tuck behind the
-    /// newest, each 8 points lower and 5% smaller, with their words hidden; expanded (VoiceOver or Switch Control
+    /// newest, peeking out 10 then 18 points below it, 94% then 88% the size and 80% then 60% opaque, on a solid
+    /// surface with their words hidden; expanded (VoiceOver or Switch Control
     /// running, or the stack tapped open) they list down the screen, `above` points of newer toasts over each. Under
     /// Reduce Motion nothing is scaled, and the host moves toasts to their places without animating them there.
-    public static func placement(depth: Int, expanded: Bool, above: CGFloat, reduceMotion: Bool = false) -> (offset: CGFloat, scale: Double, showsWords: Bool) {
-        if expanded || depth == 0 { return (depth == 0 ? 0 : above + CGFloat(depth) * stackSpacing, 1, true) }
-        return (CGFloat(depth) * tuck, reduceMotion ? 1 : 1 - 0.05 * Double(depth), false)
+    public static func placement(depth: Int, expanded: Bool, above: CGFloat, reduceMotion: Bool = false) -> (offset: CGFloat, scale: Double, opacity: Double, showsWords: Bool) {
+        if expanded || depth == 0 { return (depth == 0 ? 0 : above + CGFloat(depth) * stackSpacing, 1, 1, true) }
+        let peek = tuck + CGFloat(depth - 1) * (tuck - 2)
+        return (peek, reduceMotion ? 1 : 1 - 0.06 * Double(depth), 1 - 0.2 * Double(depth), false)
     }
 
     /// The gap between expanded toasts.
     public static let stackSpacing: CGFloat = 8
-    /// How far each older toast peeks out below the one in front, collapsed.
-    public static let tuck: CGFloat = 8
+    /// How far the first older toast peeks out below the one in front, collapsed; the next peeks 8 points more.
+    public static let tuck: CGFloat = 10
 
     /// Where a drag of `translation` points (negative is up) leaves the toast: following the finger up, and only a
     /// third of the way down.
@@ -332,7 +336,7 @@ struct OuroToastHost: ViewModifier {
                         ZStack(alignment: .top) {
                             ForEach(Array(visible.enumerated()), id: \.element.id) { index, toast in
                                 let depth = visible.count - 1 - index
-                                let above = visible[(index + 1)...].reduce(CGFloat(0)) { $0 + (sizes[$1.id]?.height ?? 50) }
+                                let above = visible[(index + 1)...].reduce(CGFloat(0)) { $0 + (sizes[$1.id]?.height ?? OuroToastMetrics.height) }
                                 let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above, reduceMotion: reduceMotion)
                                 let front = visible.last.flatMap { sizes[$0.id] }
                                 OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : front) { toaster.dismiss(toast.id) }
@@ -340,6 +344,7 @@ struct OuroToastHost: ViewModifier {
                                     // A tucked toast can't be dragged away unseen; a tap on it opens the stack.
                                     .allowsHitTesting(place.showsWords)
                                     .scaleEffect(place.scale, anchor: .bottom)
+                                    .opacity(place.opacity)
                                     .offset(y: place.offset)
                                     .zIndex(Double(index))
                                     .transaction { if reduceMotion { $0.animation = nil } }
@@ -455,17 +460,22 @@ struct OuroToastView: View {
         let p = OuroToastPalette(tone: toast.tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         let shape = RoundedRectangle(cornerRadius: OuroToastMetrics.cornerRadius, style: .continuous)
         let large = typeSize.isAccessibilitySize
-        let solid = contrast == .increased || reduceTransparency || !rendersGlass
+        // A tucked toast is solid too, so the page never smears through the edge that peeks out.
+        let solid = contrast == .increased || reduceTransparency || !rendersGlass || tucked != nil
         // On glass or a material the words take the system's vibrant label styles, which stay readable on whatever
         // shows through; the theme's colours are made readable against its opaque popover, so they go with it.
         let message: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.message)) : AnyShapeStyle(.primary)
         let secondary: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.description)) : AnyShapeStyle(.secondary)
+        // A tucked toast draws only its surface: no words or buttons exist for VoiceOver, the audit or a stray tap to
+        // find (hiding them still left them in iOS 26's accessibility tree, scaled below 44 points).
+        Group {
+        if showsWords {
         HStack(alignment: large ? .top : .center, spacing: 10) {
             // The icon sits on the message's first line, not between the message and description.
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
                 if let name = toast.tone.systemImage(for: .toast) {
                     Image(systemName: name)
-                        .font(.body.weight(.semibold))
+                        .font(.title3.weight(.semibold))
                         .symbolRenderingMode(.monochrome)
                         .foregroundStyle(Color(p.icon))
                         .accessibilityHidden(true)
@@ -495,7 +505,7 @@ struct OuroToastView: View {
             }
             Button(action: dismiss) {
                 Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(secondary)
                     .frame(width: OuroToastMetrics.dismissTarget, height: OuroToastMetrics.dismissTarget)
                     .contentShape(Rectangle())
@@ -507,10 +517,12 @@ struct OuroToastView: View {
         }
         .padding(.leading, 18)
         .padding(.trailing, 10)
-        .padding(.vertical, 3)
-        .frame(minHeight: 50)
-        .opacity(showsWords ? 1 : 0)
-        .accessibilityHidden(!showsWords)
+        .padding(.vertical, 6)
+        .frame(minHeight: OuroToastMetrics.height)
+        } else {
+            Color.clear.frame(minHeight: OuroToastMetrics.height).accessibilityHidden(true)
+        }
+        }
         // Tucked behind a newer toast, it takes that toast's size, so its edge peeks out evenly below it.
         .frame(width: tucked?.width, height: tucked?.height, alignment: .top)
         .clipped()
@@ -578,9 +590,11 @@ private struct ToastSurface: ViewModifier {
         } else if #available(iOS 26, macOS 26, visionOS 26, *) {
             // A soft shadow under the glass lifts it off a plain page, where glass alone barely shows. It is drawn
             // on a shape behind the glass, so it never shades the words.
+            // The glass is tinted with the theme's surface at 55%, drawn behind it, so it reads as a solid little
+            // object over a plain page and the page's words never smear through it; that fill also casts the shadow.
             content
                 .glassEffect(.regular, in: shape)
-                .background(shape.fill(.black.opacity(0.001)).shadow(color: .black.opacity(0.16), radius: 18, y: 8))
+                .background(shape.fill(Color(palette.surface).opacity(0.55)).shadow(color: .black.opacity(0.12), radius: 24, y: 10))
         } else {
             content
                 .background(shape.fill(.regularMaterial).shadow(color: .black.opacity(0.14), radius: 16, y: 6))

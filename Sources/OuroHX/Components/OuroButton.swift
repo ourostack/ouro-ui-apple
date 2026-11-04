@@ -23,24 +23,32 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
     public func minimumHeight(on input: OuroInput, target: CGFloat) -> CGFloat {
         switch (self, input) {
         case (.sm, .touch): max(44, target)
-        case (.md, .touch): max(48, target)
-        case (.lg, .touch): max(54, target)
+        case (.md, .touch): max(50, target)
+        case (.lg, .touch): max(56, target)
         case (.sm, .pointer): 28
         case (.md, .pointer): 32
         case (.lg, .pointer): 40
         }
     }
 
-    /// The height the button is drawn at, which grows with the text: on a touch screen a small button is a 36-point
+    /// The height the button is drawn at, which grows with the text: on a touch screen a small button is a 34-point
     /// capsule centred in its 44-point target, Apple's small-control proportion; the others are drawn at their full
-    /// target.
+    /// target, 50 and 56 points, the proportions of iOS 26's prominent buttons.
     public func visualHeight(on input: OuroInput, target: CGFloat) -> CGFloat {
-        self == .sm && input == .touch ? 36 : minimumHeight(on: input, target: target)
+        self == .sm && input == .touch ? 34 : minimumHeight(on: input, target: target)
     }
 
-    /// Padding at the label's sides: web's `px-3`, `px-4` and `px-5`.
+    /// Padding at the label's sides: generous, so a capsule's ends have room to round.
     public var horizontalPadding: CGFloat {
-        switch self { case .sm: 12; case .md: 16; case .lg: 20 }
+        switch self { case .sm: 14; case .md: 20; case .lg: 24 }
+    }
+
+    /// An icon beside the words, a step smaller than them so it never outweighs them.
+    var iconFont: Font {
+        switch self {
+        case .sm: .footnote.weight(.semibold)
+        case .md, .lg: .subheadline.weight(.semibold)
+        }
     }
 
     /// Semibold, as Apple's prominent buttons are; a regular weight reads as a link rather than a control.
@@ -94,7 +102,8 @@ public struct OuroButtonPalette: Sendable {
             label = text
             border = nil
         case .soft:
-            let tinted = tone == .secondary ? fill : OuroInk.tint(fill, over: background, 0.14)
+            // A little stronger in dark, where a faint tint over near-black reads as mud.
+            let tinted = tone == .secondary ? fill : OuroInk.tint(fill, over: background, style.scheme == .dark ? 0.2 : 0.14)
             self.fill = tinted
             surface = tinted
             label = OuroInk.readable(toneText, on: tinted, style)
@@ -182,8 +191,10 @@ public struct OuroButtonStyle: ButtonStyle {
             let pressable = style.size.minimumHeight(on: .current, target: touchTarget)
             // A pill is a capsule on one line; when large text wraps the label it keeps that end radius as a rounded
             // rectangle rather than ballooning into an oval.
-            let shape = style.shape == .pill ? AnyShape(RoundedRectangle(cornerRadius: visual / 2, style: .continuous)) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
+            // Circular ends, a true capsule: a continuous corner at half the height reads slightly square.
+            let shape = style.shape == .pill ? AnyShape(RoundedRectangle(cornerRadius: visual / 2, style: .circular)) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             configuration.label
+                .labelStyle(ButtonLabel(iconFont: style.size.iconFont))
                 .font(style.size.font)
                 .multilineTextAlignment(.center)
                 // Wraps instead of truncating at every text size (core claim `text.reflows`).
@@ -360,4 +371,15 @@ extension EnvironmentValues {
     /// Whether ``OuroButton``s here span the width they are offered, as if `fullWidth` were set. ``OuroEmptyState``
     /// sets it for its action at the accessibility text sizes.
     @Entry public var ouroButtonFillsWidth = false
+}
+
+/// A button's icon and words: 6 points apart, the icon a step smaller and centred on the words.
+private struct ButtonLabel: LabelStyle {
+    let iconFont: Font
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon.font(iconFont)
+            configuration.title
+        }
+    }
 }

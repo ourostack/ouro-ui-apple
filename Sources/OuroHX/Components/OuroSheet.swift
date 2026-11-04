@@ -1,18 +1,22 @@
 public import SwiftUI
 
-/// The resolved colours of a sheet as seen: the page's background, with its words at 5:1 (7:1 under increased
-/// contrast).
+/// The resolved colours of a sheet as seen: the page's background in light, the raised popover colour in dark (so a
+/// sheet has an edge over a dimmed black page), with its words at 5:1 (7:1 under increased contrast).
 public struct OuroSheetPalette: Sendable {
     public var title: Color.Resolved
     public var description: Color.Resolved
     public var surface: Color.Resolved
-    /// The close button's disc before iOS 26 (from iOS 26 it is Liquid Glass): the theme's muted fill.
+    /// The close button's disc: the theme's muted fill, a step off the surface.
     public var closeFill: Color.Resolved
+    /// The close button's xmark, readable on its disc.
+    public var closeMark: Color.Resolved
 
     public init(style: OuroHXStyle) {
         let c = style.colors
-        surface = OuroInk.r(c.background)
-        closeFill = OuroInk.r(c.muted)
+        surface = OuroInk.r(style.scheme == .dark ? c.popover : c.background)
+        // Always a visible step off the surface, even where a theme's muted colour is the popover's.
+        closeFill = OuroColor.push(OuroInk.r(c.muted), against: surface, to: 1.2)
+        closeMark = OuroInk.readable(OuroInk.r(c.mutedForeground), on: closeFill, style)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
     }
@@ -29,7 +33,7 @@ public enum OuroSheetMetrics {
     /// The close button's target, in layout points (44 as drawn).
     public static let closeTarget: CGFloat = touchTarget
     /// The close button's drawn disc, inside its target: 34 points, as on Apple's own sheets.
-    public static let closeDisc: CGFloat = 34
+    public static let closeDisc: CGFloat = 30
 
     /// The accessibility identifier of every `.ouroSheet`'s content, which `OuroHXTesting`'s audit looks for.
     public static let accessibilityIdentifier = "ouro.sheet"
@@ -177,11 +181,11 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Button(action: close) {
-                    // A round close button, Liquid Glass from iOS 26 as on Apple's own sheets, a muted disc before;
-                    // drawn smaller than its target, which stays the full size.
+                    // A round close button, a solid muted disc as on Apple's own opaque sheets (glass would not show on
+                    // an opaque surface); drawn smaller than its target, which stays the full size.
                     Image(systemName: "xmark")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Color(p.title))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color(p.closeMark))
                         .frame(width: OuroSheetMetrics.closeDisc, height: OuroSheetMetrics.closeDisc)
                         .modifier(CloseDisc(fill: Color(p.closeFill)))
                         .frame(width: OuroSheetMetrics.closeTarget, height: OuroSheetMetrics.closeTarget)
@@ -244,20 +248,14 @@ private struct VisuallyHidden: ViewModifier {
     }
 }
 
-/// The close button's disc: Liquid Glass from iOS 26, the theme's muted fill before it.
+/// The close button's disc: the theme's muted fill.
 private struct CloseDisc: ViewModifier {
     let fill: Color
     func body(content: Content) -> some View {
-        if #available(iOS 26, macOS 26, visionOS 26, *) {
-            content.glassEffect(.regular.interactive(), in: Circle())
-        } else {
-            content.background(fill, in: Circle())
-        }
+        content.background(fill, in: Circle())
     }
 }
 
-/// From iOS 26 the system draws the sheet, Liquid Glass at partial heights and opaque at full, with its own corners;
-/// before it the sheet is the theme's page colour.
 /// The theme's surface behind the sheet, on iOS 26 too: the sheet's text and the components in it are made readable
 /// on that surface (`contrast.text`), and a theme's surface is not the system sheet's glass. iOS 26 still floats a
 /// partial sheet and rounds it.

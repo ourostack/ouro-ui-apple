@@ -74,8 +74,8 @@ public enum OuroMotion {
         // Apple's own presets where one fits (`.smooth` is bounce 0), and the reference board's estimates otherwise.
         case .pressIn: return .spring(visualDuration: 0.15, bounce: 0)
         case .pressOut: return .spring(visualDuration: 0.35, bounce: 0.15)
-        case .enter: return .spring(visualDuration: 0.5, bounce: 0.2)
-        case .exit: return .spring(visualDuration: 0.3, bounce: 0)
+        case .enter: return .spring(visualDuration: 0.55, bounce: 0.25)
+        case .exit: return .spring(visualDuration: 0.35, bounce: 0)
         case .settle: return .spring(visualDuration: 0.35, bounce: 0.2)
         case .layout: return .spring(visualDuration: 0.35, bounce: 0)
         }

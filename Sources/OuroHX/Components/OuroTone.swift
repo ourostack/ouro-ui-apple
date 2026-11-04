@@ -32,7 +32,7 @@ public enum OuroTone: String, CaseIterable, Sendable {
     public func systemImage(for component: OuroToneComponent) -> String? {
         switch self {
         case .primary: "info.circle.fill"
-        case .secondary: component == .banner ? "info.circle" : nil
+        case .secondary: component == .banner ? "info.circle.fill" : nil
         case .destructive: "xmark.octagon.fill"
         case .success: "checkmark.circle.fill"
         case .warning: "exclamationmark.triangle.fill"

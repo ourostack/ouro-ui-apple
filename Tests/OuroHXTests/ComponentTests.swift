@@ -265,6 +265,22 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(model.remaining(for: OuroToast("Undo me", action: OuroToastAction("Undo") {}), held: false, now: start) == nil)
     }
 
+    /// A toast sent back to wait (the limit falling to one at the accessibility sizes) shows afresh when its turn
+    /// comes: announced again, with its full time.
+    @MainActor @Test func aToastSentBackToWaitShowsAfresh() {
+        let model = OuroToastModel()
+        let a = OuroToast("A", id: "a"), b = OuroToast("B", id: "b")
+        model.queue.show(a)
+        model.queue.show(b)
+        let start = Date(timeIntervalSince1970: 1000)
+        _ = model.arrives(b.showing)
+        _ = model.remaining(for: b, held: false, now: start)
+        model.setLimit(1)
+        #expect(model.queue.waiting.map(\.id) == ["b"])
+        #expect(model.arrives(b.showing))
+        #expect(model.remaining(for: b, held: false, now: start + 4) == OuroToastMetrics.defaultSeconds)
+    }
+
     @Test func aToastsBorderReadsUnderIncreasedContrast() {
         for (name, style) in styles where style.contrast == .increased {
             let p = OuroToastPalette(tone: .secondary, style: style)

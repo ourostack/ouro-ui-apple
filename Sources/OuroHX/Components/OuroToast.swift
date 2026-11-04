@@ -234,6 +234,16 @@ final class OuroToastModel {
         return max(0, deadline.timeIntervalSince(now))
     }
 
+    /// Changes how many show at once. A toast sent back to wait forgets it was heard and its time, so it shows
+    /// afresh when its turn comes.
+    func setLimit(_ limit: Int) {
+        queue.limit = limit
+        for toast in queue.waiting {
+            heard.remove(toast.showing)
+            deadlines[toast.showing] = nil
+        }
+    }
+
     func dismiss(_ id: String?) {
         queue.dismiss(id)
         let live = Set((queue.visible + queue.waiting).map(\.showing))
@@ -286,7 +296,7 @@ struct OuroToastHost: ViewModifier {
                 .onChange(of: isPresented) { _, now in if !isRoot, !now { model.leave(id) } }
                 .onDisappear { if !isRoot { model.leave(id) } }
                 .onChange(of: typeSize.isAccessibilitySize, initial: true) { _, large in
-                    if isRoot { model.queue.limit = OuroToastMetrics.maximumVisible(accessibilitySize: large) }
+                    if isRoot { model.setLimit(OuroToastMetrics.maximumVisible(accessibilitySize: large)) }
                 }
         } else {
             content

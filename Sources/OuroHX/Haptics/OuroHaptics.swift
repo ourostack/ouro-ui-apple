@@ -55,6 +55,29 @@ public struct OuroHapticMoment: Hashable, Sendable {
     }
 }
 
+extension OuroHapticMoment.Feedback: CustomStringConvertible {
+    /// The feedback as a person names it, in English: "Selection", "Light impact, 70%", "Success". An impact whose
+    /// intensity rounds to 100% or more leaves the percentage out; one below 0 (or not a number) reads as 0%.
+    public var label: String {
+        switch self {
+        case .selection: "Selection"
+        case let .impact(weight, intensity):
+            Self.percent(intensity) >= 100
+                ? "\(weight.rawValue.capitalized) impact"
+                : "\(weight.rawValue.capitalized) impact, \(Self.percent(intensity))%"
+        case .success: "Success"
+        case .warning: "Warning"
+        case .error: "Error"
+        }
+    }
+
+    public var description: String { label }
+
+    private static func percent(_ intensity: Double) -> Int {
+        intensity.isNaN ? 0 : Int((min(max(intensity, 0), 1) * 100).rounded())
+    }
+}
+
 public enum OuroHaptics {
     /// Every named moment, in the order the docs list them.
     public static let table: [OuroHapticMoment] = [.selected, .checked, .stepped, .turned, .started, .finished, .warned, .failed]

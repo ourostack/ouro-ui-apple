@@ -1,7 +1,7 @@
 public import Foundation
 
 /// Ouro HX's component claims, vendored from ouro-ui-core (`components.claims.json`, pinned by hash in
-/// core-provenance.json): what Button, Empty, Alert, Sheet and Toast promise on every platform. Core's page is
+/// core-provenance.json): what the shared components (`button`, `empty`, `alert`, `sheet`, `toast` in web's names) promise on every platform. Core's page is
 /// https://github.com/ourostack/ouro-ui-core/blob/main/standard/hx/components.md.
 public enum OuroHXClaims {
     public enum Tier: String, Sendable, Decodable { case must, should }

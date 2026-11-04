@@ -41,7 +41,7 @@ struct SettingsScreen: View {
 
 | Web | Apple | What it is |
 |---|---|---|
-| `Button` | ``OuroButton``, ``OuroButtonStyle`` (`.buttonStyle(.ouro())`) | Any action. Tones, variants (`solid`, `soft`, `outline`, `plain`, `glass`), sizes and a `pill` shape. |
+| `Button` | ``OuroButton``, ``OuroButtonStyle`` (`.buttonStyle(.ouro())`) | Any action. Tones, variants (`solid`, `soft`, `outline`, `plain`, `glass`), sizes and a `pill` shape. `role: .destructive` draws the destructive tone. |
 | `Empty` | ``OuroEmptyState`` | What a list or page shows when it has nothing in it. |
 | `Alert` | ``OuroBanner`` | An inline message in the page. On Apple an "alert" is SwiftUI's modal `.alert`, so it is a banner here. |
 | `Sheet` | `.ouroSheet(isPresented:title:…)` | A panel from the bottom edge with a title, a body, an actions row and a close button. |
@@ -65,12 +65,18 @@ claim has no test here.
   empty state's action spans the width and a toast's action moves under its words.
 - **Contrast** (`contrast.text`): every label reads at 5:1 on what is behind it in all six themes, light and dark,
   and 7:1 under Increase Contrast. That is a margin over WCAG's 4.5, because Xcode's audit measures antialiased
-  pixels. The palettes (``OuroButtonPalette``, ``OuroBannerPalette``, ``OuroToastPalette``,
+  pixels. A glass button's label is measured against the page's background; over a photo, check it yourself. The
+  palettes (``OuroButtonPalette``, ``OuroBannerPalette``, ``OuroToastPalette``,
   ``OuroEmptyStatePalette``, ``OuroSheetPalette``) raise a theme colour only where it falls short.
 - **Announcements by urgency** (`announce.urgency`): destructive banners and toasts and warning banners interrupt
   VoiceOver; the others, warning toasts included, wait. See ``OuroTone/announcementPriority(for:)``.
 - **A toast with an action waits** (`toast.action-stays`): it stays until dismissed unless you give it a duration.
-  Up to three toasts show at once, one at the accessibility text sizes, so a stack never hides the screen.
+  Any toast's countdown waits while VoiceOver, Switch Control or a pointer is on it, and starts over when they leave.
+  Up to three toasts show at once, one at the accessibility text sizes, so a stack never hides the screen. Toasts
+  show above an open `.ouroSheet`, and one sent with the id of a toast already showing replaces it as a new
+  showing: VoiceOver hears it and its countdown starts over.
+- **A banner speaks once** when it arrives, and again only when its words change, not each time it scrolls back
+  into view.
 - **A close control** (`dismiss.reachable`) on every sheet, dismissible banner and toast.
 
 ### Spacing

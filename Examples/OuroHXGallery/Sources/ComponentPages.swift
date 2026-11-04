@@ -119,7 +119,11 @@ struct SheetsPage: View {
             }
         }
         .ouroSheet(isPresented: $filters, title: "Filters", detents: [.medium, .large]) {
-            Text("Quick, vegetarian, one pot.")
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Quick, vegetarian, one pot.")
+                // A toast sent with the sheet open shows above it.
+                OuroButton("Remember these", variant: .soft) { toast("Filters remembered", tone: .success) }
+            }
         }
     }
 }

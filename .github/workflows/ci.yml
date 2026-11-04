@@ -124,8 +124,11 @@ jobs:
         run: swift build --build-tests
       - name: swift test
         run: swift test --skip ComponentSnapshotTests
-      # A missing or changed component snapshot fails here; its render goes up as an artifact to record from.
+      # A missing or changed component snapshot fails the job (in the last step, so the builds and DocC below still
+      # run); its render goes up as an artifact to record from.
       - name: Component snapshots (references in Tests/OuroHXTests/__Snapshots__/macOS-<major>)
+        id: snapshots
+        continue-on-error: true
         run: OURO_SNAPSHOT_RECORD=never swift test --filter ComponentSnapshotTests
       - if: always()
         uses: actions/upload-artifact@v4
@@ -160,6 +163,11 @@ jobs:
         with:
           name: docc
           path: .build/docc.tgz
+      - name: Component snapshots matched
+        if: steps.snapshots.outcome == 'failure'
+        run: |
+          echo "::error::A component snapshot is missing or changed. Record it from the snapshots-actual-macos-26 artifact into Tests/OuroHXTests/__Snapshots__/macOS-26."
+          exit 1
 
   gallery-ui:
     name: Gallery UI tests, the component claims (free macos-26, Xcode 26)

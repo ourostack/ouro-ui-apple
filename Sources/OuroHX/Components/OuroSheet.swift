@@ -31,6 +31,13 @@ public enum OuroSheetMetrics {
     public static func presentation(reduceMotion: Bool) -> OuroAppearance {
         .choose(.move(edge: .bottom), reduceMotion: reduceMotion)
     }
+
+    /// The transaction a sheet opens and closes in, its close button included: without animation under Reduce Motion.
+    public static func transaction(reduceMotion: Bool) -> Transaction {
+        var t = Transaction()
+        t.disablesAnimations = presentation(reduceMotion: reduceMotion) == .fade
+        return t
+    }
 }
 
 extension View {
@@ -100,13 +107,11 @@ private struct OuroSheetModifier<SheetContent: View, Footer: View>: ViewModifier
             .onAppear { shown = isPresented }
             .onChange(of: isPresented) { _, now in
                 guard now != shown else { return }
-                var t = Transaction()
-                t.disablesAnimations = OuroSheetMetrics.presentation(reduceMotion: reduceMotion) == .fade
-                withTransaction(t) { shown = now }
+                withTransaction(OuroSheetMetrics.transaction(reduceMotion: reduceMotion)) { shown = now }
             }
             .onChange(of: shown) { _, now in if isPresented != now { isPresented = now } }
             .sheet(isPresented: $shown, onDismiss: onDismiss) {
-                OuroSheetBody(title: title, description: description, hideTitle: hideTitle, detents: detents, closeLabel: closeLabel, close: { shown = false }, content: sheetContent, footer: footer)
+                OuroSheetBody(title: title, description: description, hideTitle: hideTitle, detents: detents, closeLabel: closeLabel, close: { withTransaction(OuroSheetMetrics.transaction(reduceMotion: reduceMotion)) { shown = false } }, content: sheetContent, footer: footer)
                     .environment(\.ouroTouchTarget, OuroSheetMetrics.touchTarget)
             }
     }
@@ -128,6 +133,9 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
     @State private var header: CGFloat = 60
     @State private var bodyHeight: CGFloat = 200
     @State private var footerHeight: CGFloat = 0
+
+    /// Header, body and actions row, measured as laid out.
+    private var fittedHeight: CGFloat { max(160, header + bodyHeight + footerHeight + 16) }
     @State private var visible = false
 
     var body: some View {
@@ -181,8 +189,14 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
             }
         }
-        .presentationDetents(detents ?? [.height(max(160, header + bodyHeight + footerHeight + 16))])
+        #if os(macOS)
+        // macOS has no detents and sizes a sheet to its content's ideal size, which a ScrollView doesn't give.
+        .frame(minWidth: 360, minHeight: min(fittedHeight, 640))
+        #endif
+        .presentationDetents(detents ?? [.height(fittedHeight)])
         .presentationDragIndicator(.visible)
+        // Toasts sent while the sheet is open show above it, not behind it.
+        .modifier(OuroToastHost())
         .presentationBackground(Color(p.surface))
         .opacity(visible || !reduceMotion ? 1 : 0)
         .onAppear { withAnimation(OuroMotion.animation(.base, reduceMotion: reduceMotion)) { visible = true } }

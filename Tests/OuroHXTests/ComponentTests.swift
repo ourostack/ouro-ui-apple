@@ -1,4 +1,4 @@
-import OuroHX
+@testable import OuroHX
 import SwiftUI
 import Testing
 
@@ -127,6 +127,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroButtonMetrics.pressScale(isPressed: true, reduceMotion: false) == OuroTokens.Press.scale)
     }
 
+    /// Opening and closing (the close button too) go through one transaction, without animation under Reduce Motion.
+    @Test func aSheetOpensAndClosesWithoutAnimationUnderReduceMotion() {
+        #expect(OuroSheetMetrics.transaction(reduceMotion: true).disablesAnimations)
+        #expect(!OuroSheetMetrics.transaction(reduceMotion: false).disablesAnimations)
+    }
+
     @Test func aFadeIsACrossfadeOverBase() {
         #expect(OuroAppearance.fade.step(reduceMotion: true) == .crossfade(duration: OuroTokens.Duration.base))
         #expect(OuroAppearance.move(edge: .bottom).step(reduceMotion: false) == OuroMotion.step(.spring, reduceMotion: false))
@@ -137,6 +143,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
 @Suite struct AnnouncementTests {
     /// As on web: a destructive or warning banner is `role="alert"`; a toast interrupts only when destructive.
+    @Test func aBannerSpeaksOnArrivalAndWhenItsWordsChange() {
+        #expect(OuroBannerMetrics.announces("Couldn't save", after: nil))
+        #expect(!OuroBannerMetrics.announces("Couldn't save", after: "Couldn't save"))
+        #expect(OuroBannerMetrics.announces("Saved", after: "Couldn't save"))
+    }
+
     @Test(arguments: OuroTone.allCases)
     func destructiveAndWarningBannersInterruptOnlyDestructiveToastsDo(tone: OuroTone) {
         #expect(tone.announcementPriority(for: .banner) == ((tone == .destructive || tone == .warning) ? .high : .default))
@@ -202,6 +214,49 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(q.waiting.isEmpty)
     }
 
+    /// "Saving" replaced by "Saved" under the same id is a new showing: it is announced and its countdown starts over.
+    @Test func aReplacementIsANewShowing() {
+        var q = OuroToastQueue()
+        let saving = OuroToast("Saving", duration: .untilDismissed, id: "s")
+        q.show(saving)
+        let saved = OuroToast("Saved", tone: .success, id: "s")
+        q.show(saved)
+        #expect(q.visible.map(\.id) == ["s"])
+        #expect(q.visible[0].showing == saved.showing)
+        #expect(saving.showing != saved.showing)
+        #expect(q.visible[0].seconds == OuroToastMetrics.defaultSeconds)
+    }
+
+    /// The countdown waits while VoiceOver or Switch Control is on the toast, or a pointer is over it, as web pauses on
+    /// focus and hover; it starts over when they leave.
+    @Test func theCountdownWaitsWhileSomeoneIsOnTheToast() {
+        let saved = OuroToast("Saved")
+        #expect(OuroToastMetrics.countdown(for: saved, held: false) == OuroToastMetrics.defaultSeconds)
+        #expect(OuroToastMetrics.countdown(for: saved, held: true) == nil)
+    }
+
+    /// A toast shows above a sheet: the newest open sheet hosts the toasts, and the root hosts them when none is open.
+    @MainActor @Test func toastsShowAboveTheNewestSheet() {
+        let model = OuroToastModel()
+        #expect(model.hosts(nil))
+        let sheet = UUID(), inner = UUID()
+        model.enter(sheet)
+        #expect(!model.hosts(nil) && model.hosts(sheet))
+        model.enter(inner)
+        #expect(!model.hosts(sheet) && model.hosts(inner))
+        model.leave(inner)
+        #expect(model.hosts(sheet))
+        model.leave(sheet)
+        #expect(model.hosts(nil))
+    }
+
+    @Test func aToastsBorderReadsUnderIncreasedContrast() {
+        for (name, style) in styles where style.contrast == .increased {
+            let p = OuroToastPalette(tone: .secondary, style: style)
+            #expect(ratio(p.border, p.surface) >= OuroColor.increasedLineContrast, "\(name) toast border")
+        }
+    }
+
     @Test func aToastWithTheIdOfOneShowingReplacesItInPlace() {
         var q = OuroToastQueue()
         q.show(OuroToast("Saving", id: "s"))
@@ -237,5 +292,18 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroTone.secondary.systemImage(for: .toast) == nil)
         #expect(OuroTone.secondary.systemImage(for: .banner) != nil)
         for tone in OuroTone.allCases { #expect(tone.systemImage(for: .banner) != nil) }
+    }
+}
+
+// MARK: role
+
+@Suite struct ButtonRoleTests {
+    /// `Button(role: .destructive)` draws in the destructive tone unless another tone than primary was asked for.
+    @Test func aDestructiveRoleDrawsDestructive() {
+        #expect(OuroButtonStyle(.solid).resolvedTone(for: .destructive) == .destructive)
+        #expect(OuroButtonStyle(.soft).resolvedTone(for: .destructive) == .destructive)
+        #expect(OuroButtonStyle(.solid).resolvedTone(for: nil) == .primary)
+        #expect(OuroButtonStyle(.solid).resolvedTone(for: .cancel) == .primary)
+        #expect(OuroButtonStyle(.solid, tone: .secondary).resolvedTone(for: .destructive) == .secondary)
     }
 }

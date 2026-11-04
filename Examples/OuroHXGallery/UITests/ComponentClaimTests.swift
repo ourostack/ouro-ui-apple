@@ -39,6 +39,13 @@ final class ComponentClaimTests: XCTestCase {
                     XCTContext.runActivity(named: name) { _ in
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known) } catch { XCTFail("\(name): \(error)") }
                     }
+                    if run.page == "sheet", run.extra.isEmpty {
+                        // What the excused "Text clipped" could hide: the fitted sheet's last row and its action
+                        // are on screen and reachable.
+                        for control in ["Party food", "Save"] {
+                            XCTAssertTrue(app.buttons[control].firstMatch.isHittable, "\(name): \"\(control)\" is not reachable in the fitted sheet")
+                        }
+                    }
                     app.terminate()
                 }
             }
@@ -111,14 +118,36 @@ final class ComponentClaimTests: XCTestCase {
         app.terminate()
     }
 
-    /// Claim toast.action-stays: a toast with an action is still there after the five seconds a plain one gets.
+    /// Claim toast.action-stays: a toast with an action is still there after the five seconds a plain one gets. The
+    /// Undo toast goes first, so by the time the plain one has gone it has outlived five seconds.
     func testAToastWithAnActionWaits() {
         let app = launch("toasts", open: false)
-        app.buttons["Save"].tap()
         app.buttons["Delete"].tap()
+        app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Recipe saved"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Recipe saved"].waitForNonExistence(timeout: 8), "a plain toast dismisses itself")
+        sleep(1)
         XCTAssertTrue(app.buttons["Undo"].exists, "the toast with Undo stays")
+        app.terminate()
+    }
+
+    /// A toast sent while a sheet is open shows above the sheet, where it can be read and dismissed.
+    func testAToastShowsAboveASheet() {
+        let app = launch("sheet", open: false)
+        app.buttons["Filters"].tap()
+        XCTAssertTrue(app.buttons["Remember these"].waitForExistence(timeout: 3))
+        app.buttons["Remember these"].tap()
+        XCTAssertTrue(app.staticTexts["Filters remembered"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Filters remembered"].isHittable, "the toast is behind the sheet")
+        app.terminate()
+    }
+
+    /// Claim text.reflows: at the accessibility sizes an empty state's action spans the width, so its words have room.
+    func testAnEmptyStatesActionSpansTheWidthAtAccessibilitySizes() {
+        let app = launch("empty", size: Self.largest)
+        let action = app.buttons["Create recipe"]
+        XCTAssertTrue(action.waitForExistence(timeout: 3))
+        XCTAssertGreaterThan(action.frame.width, app.windows.firstMatch.frame.width * 0.7, "the action hugs its label")
         app.terminate()
     }
 }

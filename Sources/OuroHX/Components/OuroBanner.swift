@@ -38,6 +38,10 @@ public struct OuroBannerPalette: Sendable {
 
 /// Metrics, motion and words every ``OuroBanner`` shares, as data.
 public enum OuroBannerMetrics {
+    /// Whether a banner says `words`, given what it last said: once when it arrives, and again only when its words
+    /// change, not each time it scrolls back into view or its screen is shown again.
+    public static func announces(_ words: String, after last: String?) -> Bool { words != last }
+
     /// The dismiss button's target, in points: 44 on every platform.
     public static let dismissTarget: CGFloat = 44
 
@@ -81,6 +85,8 @@ public struct OuroBanner<Action: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.ouroTouchTarget) private var touchTarget
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// What VoiceOver last heard from this banner.
+    @State private var announced: String?
 
     public init(
         _ title: String,
@@ -146,7 +152,18 @@ public struct OuroBanner<Action: View>: View {
         .overlay(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous).strokeBorder(Color(p.border), lineWidth: 1))
         .accessibilityElement(children: .contain)
         .transition(OuroBannerMetrics.appearance(reduceMotion: reduceMotion).transition)
-        .onAppear { OuroAnnounce.post(OuroBannerMetrics.announcement(title: title, description: description), priority: tone.announcementPriority(for: .banner)) }
+        // Spoken once when it arrives and again when its words change, not each time it scrolls back into view.
+        .onAppear { announceIfNew() }
+        .onChange(of: OuroBannerMetrics.announcement(title: title, description: description)) { announceIfNew() }
+    }
+}
+
+extension OuroBanner {
+    private func announceIfNew() {
+        let words = OuroBannerMetrics.announcement(title: title, description: description)
+        guard OuroBannerMetrics.announces(words, after: announced) else { return }
+        announced = words
+        OuroAnnounce.post(words, priority: tone.announcementPriority(for: .banner))
     }
 }
 

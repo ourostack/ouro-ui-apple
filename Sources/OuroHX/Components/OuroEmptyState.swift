@@ -94,7 +94,7 @@ public struct OuroEmptyState<Action: View>: View {
             }
             if Action.self != EmptyView.self {
                 action
-                    .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil)
+                    .environment(\.ouroButtonFillsWidth, typeSize.isAccessibilitySize)
                     .padding(.top, 4)
             }
         }

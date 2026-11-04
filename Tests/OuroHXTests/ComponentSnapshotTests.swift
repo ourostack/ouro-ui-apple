@@ -85,8 +85,8 @@ import Testing
     @Test(arguments: Mode.allCases) func toast(_ mode: Mode) throws {
         try check("toast", mode) {
             VStack(spacing: 8) {
-                OuroToastView(toast: OuroToast("Recipe saved", tone: .success), closeLabel: "Dismiss") {}
-                OuroToastView(toast: OuroToast("Recipe deleted", action: OuroToastAction("Undo") {}), closeLabel: "Dismiss") {}
+                OuroToastView(toast: OuroToast("Recipe saved", tone: .success), closeLabel: "Dismiss", tracksFocus: false) {}
+                OuroToastView(toast: OuroToast("Recipe deleted", action: OuroToastAction("Undo") {}), closeLabel: "Dismiss", tracksFocus: false) {}
             }
         }
     }

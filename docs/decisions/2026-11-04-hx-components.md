@@ -39,8 +39,16 @@ Status: accepted (W8 of the HX and AX native program).
    id replaces in place), and any view sends with `toast("Saved")`. Without the root modifier, sending logs the fix.
 10. **Snapshots are kept per host macOS major** (`Tests/OuroHXTests/__Snapshots__/macOS-26`, `macOS-27`): text
     renders differently on each. Pull-request CI sets `OURO_SNAPSHOT_RECORD=never` and uploads `.actual.png` files,
-    which are the source for the macOS 26 references. `ImageRenderer` draws no Liquid Glass and no `ScrollView`
-    content, and macOS has no Dynamic Type, so those three are proven on iOS by the gallery tests and captures.
+    which are the source for the macOS 26 references. `ImageRenderer` draws no Liquid Glass, no `ScrollView`
+    content and nothing inside `accessibilityFocused` (the toast's snapshot turns its focus tracking off), and macOS
+    has no Dynamic Type, so those are proven on iOS by the gallery tests and captures.
+
+11. **Toasts show above sheets.** The root `.ouroToaster()` owns the queue; an open `.ouroSheet` draws the toasts
+    instead of the root while it is the newest open sheet, as web portals its Toaster above dialogs.
+12. **A toast's countdown waits while someone is on it**: VoiceOver or Switch Control focus on any part, or a pointer
+    over it, as web pauses on focus and hover; it starts over when they leave. A replacement under the same id is a
+    new showing, announced and timed afresh.
+13. **A banner speaks once** on arrival and again only when its words change, not on every `onAppear`.
 
 ## Prior art
 

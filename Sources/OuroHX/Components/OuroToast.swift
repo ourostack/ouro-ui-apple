@@ -38,6 +38,9 @@ public struct OuroToast: Identifiable, Sendable {
     public var tone: OuroTone
     public var action: OuroToastAction?
     public var duration: OuroToastDuration
+    /// New for every toast made, so one that replaces another under the same `id` is a new showing: VoiceOver hears
+    /// it and its countdown starts over.
+    public let showing = UUID()
 
     public init(_ message: String, description: String? = nil, tone: OuroTone = .secondary, action: OuroToastAction? = nil, duration: OuroToastDuration = .automatic, id: String? = nil) {
         self.id = id ?? UUID().uuidString
@@ -111,10 +114,13 @@ public struct OuroToastPalette: Sendable {
     public var description: Color.Resolved
     public var icon: Color.Resolved
     public var surface: Color.Resolved
+    /// The outline: the theme's border, raised under increased contrast as a banner's is.
+    public var border: Color.Resolved
 
     public init(tone: OuroTone, style: OuroHXStyle) {
         let c = style.colors
         surface = OuroInk.r(c.popover)
+        border = OuroColor.push(OuroInk.r(c.border), against: surface, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
         message = OuroInk.readable(OuroInk.r(c.popoverForeground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.popoverForeground) : OuroInk.r(tone.fill(c).fill), on: surface, style)
@@ -128,6 +134,12 @@ public enum OuroToastMetrics {
     /// How many show at once: three, as on web, or one at the accessibility text sizes, where a toast can be a third
     /// of the screen tall and a stack would hide the page.
     public static func maximumVisible(accessibilitySize: Bool) -> Int { accessibilitySize ? 1 : 3 }
+    /// How long `toast` counts down before it goes, or nil when it waits: while `held` (VoiceOver or Switch Control
+    /// is on it, or a pointer is over it, as web pauses on focus and hover) and when it has no time limit.
+    public static func countdown(for toast: OuroToast, held: Bool) -> Double? {
+        held ? nil : toast.seconds
+    }
+
     /// The dismiss and action buttons' target, in points.
     public static let dismissTarget: CGFloat = 44
 
@@ -195,6 +207,62 @@ extension View {
 @MainActor @Observable
 final class OuroToastModel {
     var queue = OuroToastQueue()
+    /// The open sheets, oldest first. The newest hosts the toasts; with none open, the root does.
+    private var sheets: [UUID] = []
+
+    func enter(_ sheet: UUID) { sheets.append(sheet) }
+    func leave(_ sheet: UUID) { sheets.removeAll { $0 == sheet } }
+    /// Whether `host` (a sheet, or nil for the root) draws the toasts.
+    func hosts(_ host: UUID?) -> Bool { sheets.last == host }
+}
+
+extension EnvironmentValues {
+    @Entry var ouroToastModel: OuroToastModel? = nil
+    @Entry var ouroToasterLabels = OuroToasterLabels(label: "Notifications", closeLabel: "Dismiss")
+}
+
+struct OuroToasterLabels: Sendable {
+    var label: String
+    var closeLabel: String
+}
+
+/// Draws the toasts where this view is when it is the newest host: the root, or an open sheet.
+struct OuroToastHost: ViewModifier {
+    var isRoot = false
+    @Environment(\.ouroToastModel) private var model
+    @Environment(\.ouroToast) private var toaster
+    @Environment(\.ouroToasterLabels) private var labels
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var id = UUID()
+
+    func body(content: Content) -> some View {
+        if let model {
+            content
+                .overlay(alignment: .bottom) {
+                    if model.hosts(isRoot ? nil : id) {
+                        VStack(spacing: 8) {
+                            ForEach(model.queue.visible) { toast in
+                                OuroToastView(toast: toast, closeLabel: labels.closeLabel) { toaster.dismiss(toast.id) }
+                                    .transition(OuroToastMetrics.appearance(reduceMotion: reduceMotion).transition)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
+                        .frame(maxWidth: 560)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel(labels.label)
+                    }
+                }
+                .onAppear { if !isRoot { model.enter(id) } }
+                .onDisappear { if !isRoot { model.leave(id) } }
+                .onChange(of: typeSize.isAccessibilitySize, initial: true) { _, large in
+                    if isRoot { model.queue.limit = OuroToastMetrics.maximumVisible(accessibilitySize: large) }
+                }
+        } else {
+            content
+        }
+    }
 }
 
 private struct OuroToasterModifier: ViewModifier {
@@ -202,7 +270,6 @@ private struct OuroToasterModifier: ViewModifier {
     let closeLabel: String
     @State private var model = OuroToastModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var typeSize
 
     func body(content: Content) -> some View {
         let model = model
@@ -213,29 +280,18 @@ private struct OuroToasterModifier: ViewModifier {
             remove: { id in withAnimation(OuroToastMetrics.appearance(reduceMotion: reduceMotion).step(reduceMotion: reduceMotion).animation) { model.queue.dismiss(id) } }
         )
         content
+            .modifier(OuroToastHost(isRoot: true))
             .environment(\.ouroToast, toaster)
-            .overlay(alignment: .bottom) {
-                VStack(spacing: 8) {
-                    ForEach(model.queue.visible) { toast in
-                        OuroToastView(toast: toast, closeLabel: closeLabel) { toaster.dismiss(toast.id) }
-                            .transition(OuroToastMetrics.appearance(reduceMotion: reduceMotion).transition)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-                .frame(maxWidth: 560)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(label)
-            }
-            .onChange(of: typeSize.isAccessibilitySize, initial: true) { _, large in
-                model.queue.limit = OuroToastMetrics.maximumVisible(accessibilitySize: large)
-            }
+            .environment(\.ouroToastModel, model)
+            .environment(\.ouroToasterLabels, OuroToasterLabels(label: label, closeLabel: closeLabel))
     }
 }
 
 struct OuroToastView: View {
     let toast: OuroToast
     let closeLabel: String
+    /// Off only in snapshot tests: `ImageRenderer` draws nothing inside a view with `accessibilityFocused`.
+    var tracksFocus = true
     let dismiss: @MainActor () -> Void
     @Environment(\.ouroTheme) private var theme
     @Environment(\.colorScheme) private var scheme
@@ -243,6 +299,25 @@ struct OuroToastView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @GestureState private var drag: CGFloat = 0
+    /// VoiceOver or Switch Control on any part of the toast, which holds its countdown.
+    @AccessibilityFocusState private var focus: Part?
+    @State private var hovering = false
+
+    enum Part: Hashable { case words, action, dismiss }
+
+    private struct Held: ViewModifier {
+        let focus: AccessibilityFocusState<Part?>.Binding
+        let part: Part
+        let on: Bool
+        func body(content: Content) -> some View {
+            if on { content.accessibilityFocused(focus, equals: part) } else { content }
+        }
+    }
+
+    private struct Countdown: Hashable {
+        let showing: UUID
+        let held: Bool
+    }
 
     var body: some View {
         let p = OuroToastPalette(tone: toast.tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
@@ -270,12 +345,13 @@ struct OuroToastView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
+            .modifier(Held(focus: $focus, part: .words, on: tracksFocus))
                 // At the accessibility sizes the action goes under the words, so neither has to squeeze.
-                if typeSize.isAccessibilitySize, let action = toast.action { actionButton(action) }
+                if typeSize.isAccessibilitySize, let action = toast.action { actionButton(action).modifier(Held(focus: $focus, part: .action, on: tracksFocus)) }
             }
             }
             if !typeSize.isAccessibilitySize, let action = toast.action {
-                actionButton(action).fixedSize()
+                actionButton(action).fixedSize().modifier(Held(focus: $focus, part: .action, on: tracksFocus))
             }
             Button(action: dismiss) {
                 Image(systemName: "xmark")
@@ -286,6 +362,7 @@ struct OuroToastView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(closeLabel)
+            .modifier(Held(focus: $focus, part: .dismiss, on: tracksFocus))
             .padding(.trailing, -8)
         }
         .padding(.leading, 14)
@@ -300,7 +377,7 @@ struct OuroToastView: View {
                 .fill(Color(p.surface))
                 .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
         }
-        .overlay(RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous).strokeBorder(Color(theme.colors(scheme).border), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous).strokeBorder(Color(p.border), lineWidth: 1))
         .offset(y: reduceMotion ? 0 : max(0, drag))
         .opacity(reduceMotion ? 1 - min(0.6, max(0, drag) / 120) : 1)
         .gesture(
@@ -309,10 +386,14 @@ struct OuroToastView: View {
                 .onEnded { value in if value.translation.height > 40 { dismiss() } }
         )
         .accessibilityElement(children: .contain)
-        .task(id: toast.id) {
+        .onHover { hovering = $0 }
+        .task(id: toast.showing) {
             OuroAnnounce.post(toast.announcement, priority: toast.tone.announcementPriority(for: .toast))
             if let moment = toast.tone.haptic { OuroHaptics.play(moment) }
-            guard let seconds = toast.seconds else { return }
+        }
+        // Restarts for a new showing, and whenever someone arrives on or leaves the toast.
+        .task(id: Countdown(showing: toast.showing, held: focus != nil || hovering)) {
+            guard let seconds = OuroToastMetrics.countdown(for: toast, held: focus != nil || hovering) else { return }
             try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled { dismiss() }
         }

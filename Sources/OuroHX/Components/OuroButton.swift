@@ -134,6 +134,12 @@ public struct OuroButtonStyle: ButtonStyle {
         ButtonBody(style: self, configuration: configuration)
     }
 
+    /// The tone drawn for a button with `role`: a destructive role draws in the destructive tone unless a tone other
+    /// than primary was asked for, so `Button("Delete", role: .destructive) {}.buttonStyle(.ouro())` reads as one.
+    public func resolvedTone(for role: ButtonRole?) -> OuroTone {
+        role == .destructive && tone == .primary ? .destructive : tone
+    }
+
     private struct ButtonBody: View {
         let style: OuroButtonStyle
         let configuration: Configuration
@@ -143,9 +149,10 @@ public struct OuroButtonStyle: ButtonStyle {
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @Environment(\.isEnabled) private var isEnabled
         @Environment(\.ouroTouchTarget) private var touchTarget
+        @Environment(\.ouroButtonFillsWidth) private var fillsWidth
 
         var body: some View {
-            let palette = OuroButtonPalette(tone: style.tone, variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
+            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
             let shape = style.shape == .pill ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             let pressed = configuration.isPressed
             configuration.label
@@ -156,7 +163,7 @@ public struct OuroButtonStyle: ButtonStyle {
                 .foregroundStyle(Color(palette.label))
                 .padding(.horizontal, style.size.horizontalPadding)
                 .padding(.vertical, 8)
-                .frame(maxWidth: style.fullWidth ? .infinity : nil, minHeight: style.size.minimumHeight(on: .current, target: touchTarget))
+                .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: style.size.minimumHeight(on: .current, target: touchTarget))
                 .frame(minWidth: OuroInput.current == .touch ? max(touchTarget, OuroButtonSize.minimumTarget(on: .touch)) : OuroButtonSize.minimumTarget(on: .pointer))
                 .background { background(palette, shape: shape, pressed: pressed) }
                 .modifier(GlassIfNeeded(enabled: style.variant == .glass, shape: shape))
@@ -305,4 +312,10 @@ extension OuroButton where Label == Text {
             Text(title)
         }
     }
+}
+
+extension EnvironmentValues {
+    /// Whether ``OuroButton``s here span the width they are offered, as if `fullWidth` were set. ``OuroEmptyState``
+    /// sets it for its action at the accessibility text sizes.
+    @Entry public var ouroButtonFillsWidth = false
 }

@@ -17,7 +17,10 @@ import Testing
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testVoiceOverLabels",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
         ],
-        "text.reflows": ["Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit"],
+        "text.reflows": [
+            "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
+            "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAnEmptyStatesActionSpansTheWidthAtAccessibilitySizes",
+        ],
         "contrast.text": [
             "Tests/OuroHXTests/ComponentTests.swift: ContrastTests",
             "Tests/OuroHXTests/ComponentSnapshotTests.swift: ComponentSnapshotTests",
@@ -27,7 +30,10 @@ import Testing
             "Tests/OuroHXTests/ComponentTests.swift: ToastTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAToastWithAnActionWaits",
         ],
-        "dismiss.reachable": ["Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testCloseControlsClose"],
+        "dismiss.reachable": [
+            "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testCloseControlsClose",
+            "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAToastShowsAboveASheet",
+        ],
     ]
 
     static var root: URL { URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent() }

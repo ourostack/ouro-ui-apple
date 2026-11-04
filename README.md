@@ -10,7 +10,7 @@ Meets core [v0.3.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.3.
 ## Install
 
 ```swift
-.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "0.1.0")
+.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "0.3.0")
 ```
 
 iOS 18 and macOS 15 or later, Swift 6. Newer things (the iPhone Duo's hinge, Siri AI) switch on by themselves where the

@@ -26,6 +26,16 @@ public enum OuroSheetMetrics {
     /// The close button's target, in layout points (44 as drawn).
     public static let closeTarget: CGFloat = touchTarget
 
+    /// The accessibility identifier of every `.ouroSheet`'s content, which `OuroHXTesting`'s audit looks for.
+    public static let accessibilityIdentifier = "ouro.sheet"
+
+    /// Whether a sheet with this frame is below full height, and so drawn at ``drawnScale``: shorter than 90% of
+    /// the window. Xcode's audit reads scaled text as "Text clipped"; `ouroAccessibilityAudit` excuses that inside
+    /// such a sheet only.
+    public static func isDrawnScaled(sheet: CGRect, in window: CGRect) -> Bool {
+        sheet.height < window.height * 0.9
+    }
+
     /// A sheet slides up from the bottom, as the system's do. Under Reduce Motion it appears without sliding and its
     /// content crossfades in.
     public static func presentation(reduceMotion: Bool) -> OuroAppearance {
@@ -189,6 +199,8 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(OuroSheetMetrics.accessibilityIdentifier)
         #if os(macOS)
         // macOS has no detents and sizes a sheet to its content's ideal size, which a ScrollView doesn't give.
         .frame(minWidth: 360, minHeight: min(fittedHeight, 640))

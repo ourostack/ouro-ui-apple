@@ -37,6 +37,7 @@ struct ButtonsPage: View {
                 }
                 .accessibilityIdentifier("button.loading")
                 OuroButton("Unavailable", variant: .outline) {}.disabled(true)
+                OuroButton("Publish") {}.disabled(true)
             }
         }
     }

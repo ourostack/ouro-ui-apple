@@ -26,11 +26,12 @@ final class ComponentClaimTests: XCTestCase {
     /// largest accessibility text size, in light and dark.
     ///
     /// The sheet runs twice. iOS 26 draws a sheet below full height at 96% (see `OuroSheetMetrics.drawnScale`), and the
-    /// audit reads that scaled text as "Text clipped", so the fitted sheet is audited for everything else and the same
-    /// sheet at full height (`-sheetDetent large`, drawn unscaled) is audited for clipping too.
+    /// audit reads that scaled text as "Text clipped"; `ouroAccessibilityAudit` excuses that inside a scaled
+    /// `.ouroSheet` only, so the same sheet at full height (`-sheetDetent large`, drawn unscaled) is audited for
+    /// clipping too.
     func testEveryComponentPagePassesTheAccessibilityAudit() throws {
         let runs: [(page: String, extra: [String], known: [String])] =
-            Self.pages.map { ($0, [], $0 == "sheet" ? ["Text clipped"] : []) } + [("sheet", ["-sheetDetent", "large"], [])]
+            Self.pages.map { ($0, [], []) } + [("sheet", ["-sheetDetent", "large"], [])]
         for run in runs {
             for size in [nil, Self.largest] {
                 for scheme in ["light", "dark"] {

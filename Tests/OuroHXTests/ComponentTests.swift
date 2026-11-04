@@ -63,12 +63,37 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 // MARK: contrast.text
 
 @Suite struct ContrastTests {
+    /// Your own text on a theme surface reads at the components' target: muted text on a card, in every theme and mode.
+    @Test func yourOwnTextReadsAtTheComponentsTarget() {
+        for (name, style) in styles {
+            let c = style.colors
+            let shown = OuroColor.readable(c.mutedForeground, on: c.card, contrast: style.contrast)
+            #expect(ratio(OuroColor.resolve(shown), OuroColor.resolve(c.card)) >= target(style), "\(name)")
+        }
+        // A colour that already reads is left alone.
+        #expect(OuroColor.readable(.black, on: .white) == .black)
+    }
+
     @Test(arguments: OuroButtonVariant.allCases)
     func everyButtonLabelReadsOnItsFillInEveryThemeAndMode(variant: OuroButtonVariant) {
         for (name, style) in styles {
             for tone in OuroTone.allCases {
                 let p = OuroButtonPalette(tone: tone, variant: variant, style: style)
                 #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(tone) \(variant): \(ratio(p.label, p.surface))")
+            }
+        }
+    }
+
+    /// A disabled button looks disabled (the muted colours, not its tone) and its label still reads: Xcode's audit
+    /// fails a half-transparent label, and people with low vision still need to read what they can't press yet.
+    @Test(arguments: OuroButtonVariant.allCases)
+    func aDisabledButtonsLabelStillReads(variant: OuroButtonVariant) {
+        for (name, style) in styles {
+            for tone in OuroTone.allCases {
+                let p = OuroButtonPalette(tone: tone, variant: variant, style: style, isEnabled: false)
+                #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(tone) \(variant) disabled")
+                let enabled = OuroButtonPalette(tone: tone, variant: variant, style: style)
+                #expect(p.fill != enabled.fill || p.label != enabled.label, "\(name) \(tone) \(variant): looks enabled")
             }
         }
     }
@@ -279,6 +304,14 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(model.queue.waiting.map(\.id) == ["b"])
         #expect(model.arrives(b.showing))
         #expect(model.remaining(for: b, held: false, now: start + 4) == OuroToastMetrics.defaultSeconds)
+    }
+
+    /// The audit helper excuses "Text clipped" only inside a sheet drawn below full height (and so at 96%).
+    @Test func onlyASheetBelowFullHeightIsDrawnScaled() {
+        let window = CGRect(x: 0, y: 0, width: 402, height: 874)
+        #expect(OuroSheetMetrics.isDrawnScaled(sheet: CGRect(x: 8, y: 520, width: 386, height: 354), in: window))
+        #expect(!OuroSheetMetrics.isDrawnScaled(sheet: CGRect(x: 0, y: 62, width: 402, height: 812), in: window))
+        #expect(OuroSheetMetrics.accessibilityIdentifier == "ouro.sheet")
     }
 
     @Test func aToastsBorderReadsUnderIncreasedContrast() {

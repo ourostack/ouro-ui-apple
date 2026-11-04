@@ -58,8 +58,30 @@ public struct OuroButtonPalette: Sendable {
     public var border: Color.Resolved?
     public var surface: Color.Resolved
 
-    public init(tone: OuroTone, variant: OuroButtonVariant, style: OuroHXStyle) {
+    /// `isEnabled: false` gives the disabled look: the theme's muted colours instead of the tone, with the label
+    /// still reading at the target, rather than web's half opacity, which Xcode's audit fails.
+    public init(tone: OuroTone, variant: OuroButtonVariant, style: OuroHXStyle, isEnabled: Bool = true) {
         let c = style.colors
+        guard isEnabled else {
+            let background = OuroInk.r(c.background)
+            let muted = OuroInk.r(c.muted)
+            switch variant {
+            case .solid, .soft:
+                fill = muted
+                surface = muted
+                border = nil
+            case .outline:
+                fill = nil
+                surface = background
+                border = OuroColor.push(OuroInk.r(c.border), against: background, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
+            case .plain, .glass:
+                fill = nil
+                surface = background
+                border = nil
+            }
+            label = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
+            return
+        }
         let background = OuroInk.r(c.background)
         let (toneFill, toneLabel) = tone.fill(c)
         let fill = OuroInk.r(toneFill)
@@ -107,8 +129,6 @@ public enum OuroButtonMetrics {
         OuroMotion.pressScale(isPressed: isPressed, reduceMotion: reduceMotion)
     }
 
-    /// A disabled button's opacity, as on web.
-    public static let disabledOpacity = 0.5
 }
 
 /// Ouro HX's button look for any SwiftUI `Button`: `.buttonStyle(.ouro(.soft, tone: .destructive))`.
@@ -152,7 +172,7 @@ public struct OuroButtonStyle: ButtonStyle {
         @Environment(\.ouroButtonFillsWidth) private var fillsWidth
 
         var body: some View {
-            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
+            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled)
             let shape = style.shape == .pill ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             let pressed = configuration.isPressed
             configuration.label
@@ -168,7 +188,6 @@ public struct OuroButtonStyle: ButtonStyle {
                 .background { background(palette, shape: shape, pressed: pressed) }
                 .modifier(GlassIfNeeded(enabled: style.variant == .glass, shape: shape))
                 .contentShape(shape)
-                .opacity(isEnabled ? 1 : OuroButtonMetrics.disabledOpacity)
                 .scaleEffect(OuroButtonMetrics.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
                 .animation(OuroMotion.animation(.press, reduceMotion: reduceMotion), value: pressed)
         }

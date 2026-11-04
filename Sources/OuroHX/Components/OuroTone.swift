@@ -123,7 +123,7 @@ enum OuroInk {
     }
 
     static func target(_ style: OuroHXStyle) -> Double {
-        style.contrast == .increased ? OuroColor.increasedTextContrast : 5
+        style.contrast == .increased ? OuroColor.increasedTextContrast : OuroColor.textContrast
     }
 
     /// The tone's colour laid over `base` at `amount`, the way a soft fill looks.

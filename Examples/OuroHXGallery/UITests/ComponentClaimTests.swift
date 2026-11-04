@@ -206,4 +206,41 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertGreaterThan(action.frame.width, app.windows.firstMatch.frame.width * 0.7, "the action hugs its label")
         app.terminate()
     }
+
+    /// An empty state's symbol is drawn just above its title, centred on it, once it has arrived (round 4's cascade drew
+    /// it at the screen's origin, over the page title). The symbol is hidden from VoiceOver, so this reads the pixels.
+    func testAnEmptyStatesSymbolSitsAboveItsTitle() throws {
+        let app = launch("empty")
+        let title = app.staticTexts["No recipes yet"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        Thread.sleep(forTimeInterval: 1.5)
+        let shot = app.windows.firstMatch.screenshot().image
+        let t = title.frame
+        let above = CGRect(x: t.midX - 40, y: t.minY - 64, width: 80, height: 56)
+        let corner = CGRect(x: 0, y: 60, width: 80, height: 56)
+        let inked = Self.inkedFraction(shot, in: above)
+        XCTAssertGreaterThan(inked, 0.05, "no symbol drawn above the title (\(inked))")
+        let stray = Self.inkedFraction(shot, in: corner)
+        let pageTitle = app.staticTexts.matching(NSPredicate(format: "label == 'Pearl'")).firstMatch
+        XCTAssertTrue(pageTitle.exists)
+        // The corner holds only the page title's ink, never more than the title alone draws there.
+        XCTAssertLessThan(stray, 0.35, "something drawn over the page title (\(stray))")
+        app.terminate()
+    }
+
+    /// The share of pixels in `rect` (points) darker than the page, on a light page.
+    static func inkedFraction(_ image: UIImage, in rect: CGRect) -> Double {
+        guard let cg = image.cgImage else { return 0 }
+        let scale = image.scale
+        let r = CGRect(x: rect.minX * scale, y: rect.minY * scale, width: rect.width * scale, height: rect.height * scale).integral
+        guard let crop = cg.cropping(to: r) else { return 0 }
+        let w = crop.width, h = crop.height
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        ctx?.draw(crop, in: CGRect(x: 0, y: 0, width: w, height: h))
+        var inked = 0
+        for i in stride(from: 0, to: px.count, by: 4) where Int(px[i]) + Int(px[i + 1]) + Int(px[i + 2]) < 600 { inked += 1 }
+        return Double(inked) / Double(w * h)
+    }
 }

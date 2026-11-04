@@ -24,6 +24,11 @@ public struct OuroSheetPalette: Sendable {
 
 /// Metrics and motion every Ouro sheet shares, as data.
 public enum OuroSheetMetrics {
+    /// How much of its words' colour a sheet's rim takes: a hairline in dark, so it doesn't melt into the dimmed
+    /// page; none in light, where the page dims to grey around a white sheet.
+    public static func rimOpacity(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0 }
+    /// The rim's width, in points.
+    public static let rimWidth: CGFloat = 0.5
     /// How large iOS 26 and later draw a sheet below its full height: 96%, measured in the gallery's UI tests (a
     /// 44-point button reads 42.2 points on screen).
     public static let drawnScale: CGFloat = 0.96
@@ -240,7 +245,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
         .presentationDragIndicator(OuroSheetMetrics.showsGrabber(detents: detents) ? .visible : .hidden)
         // Toasts sent while the sheet is open show above it, not behind it.
         .modifier(OuroToastHost())
-        .modifier(SheetBackground(surface: Color(p.surface)))
+        .modifier(SheetBackground(surface: Color(p.surface), rim: Color(p.title).opacity(OuroSheetMetrics.rimOpacity(scheme: scheme))))
         .opacity(visible || !reduceMotion ? 1 : 0)
         .onAppear { withAnimation(OuroMotion.animation(.base, reduceMotion: reduceMotion)) { visible = true } }
     }
@@ -270,7 +275,16 @@ private struct CloseDisc: ViewModifier {
 /// partial sheet and rounds it.
 private struct SheetBackground: ViewModifier {
     let surface: Color
+    let rim: Color
     func body(content: Content) -> some View {
-        content.presentationBackground(surface)
+        if #available(iOS 26, macOS 26, *) {
+            // The sheet's own corners, from its container, so the rim follows the shape iOS draws; stroked double and clipped,
+                // so the half inside shows.
+            content.presentationBackground {
+                surface.overlay { ConcentricRectangle().stroke(rim, lineWidth: OuroSheetMetrics.rimWidth * 2).clipShape(ConcentricRectangle()) }
+            }
+        } else {
+            content.presentationBackground(surface)
+        }
     }
 }

@@ -229,8 +229,8 @@ public enum OuroToastMetrics {
 
     /// The gap between expanded toasts.
     public static let stackSpacing: CGFloat = 8
-    /// How far the first older toast peeks out below the one in front, collapsed; the next peeks 6 points more.
-    public static let tuck: CGFloat = 8
+    /// How far the first older toast peeks out below the one in front, collapsed; the next peeks 10 points more.
+    public static let tuck: CGFloat = 12
 
     /// Where a drag of `translation` points (negative is up) leaves the toast: following the finger up, and only a
     /// third of the way down.

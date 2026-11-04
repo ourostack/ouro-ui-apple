@@ -111,12 +111,14 @@ struct EmptyStatesPage: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // It fades in and out where it stands, so nothing else on the page moves under it.
-            firstEmpty
-                .opacity(shown ? 1 : 0)
-                .scaleEffect(shown || reduceMotion ? 1 : 0.97)
-                .accessibilityHidden(!shown)
-                .allowsHitTesting(shown)
+            // It arrives (and cascades in) and leaves where it stands: a hidden copy holds its place, so nothing else on
+            // the page moves under it.
+            ZStack {
+                firstEmpty.hidden().accessibilityHidden(true)
+                if shown {
+                    firstEmpty.transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.97)))
+                }
+            }
             OuroEmptyState("Nothing matches \u{201C}saffron\u{201D}", systemImage: "text.magnifyingglass", description: "Try fewer words, or check the spelling.", alignment: .leading, variant: .plain)
         }
         .frame(minHeight: 300, alignment: .top)

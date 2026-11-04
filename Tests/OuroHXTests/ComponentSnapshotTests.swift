@@ -33,6 +33,21 @@ import Testing
         #expect(result == .matched || result == .recorded, "\(name) \(mode): \(result); see \(Self.directory.path)")
     }
 
+    /// Disabled buttons: muted, with labels that still read. (Glass is drawn by the gallery; ImageRenderer has none.)
+    @Test(arguments: Mode.allCases) func buttonDisabled(_ mode: Mode) throws {
+        try check("button-disabled", mode) {
+            VStack(alignment: .leading, spacing: 10) {
+                OuroButton("Publish recipe", systemImage: "paperplane", fullWidth: true) {}
+                HStack(spacing: 8) {
+                    OuroButton("Soft", variant: .soft) {}
+                    OuroButton("Outline", variant: .outline) {}
+                    OuroButton("Secondary", tone: .secondary) {}
+                }
+            }
+            .disabled(true)
+        }
+    }
+
     @Test(arguments: Mode.allCases) func button(_ mode: Mode) throws {
         try check("button", mode) {
             VStack(alignment: .leading, spacing: 10) {

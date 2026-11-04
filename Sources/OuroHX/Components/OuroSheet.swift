@@ -29,11 +29,15 @@ public enum OuroSheetMetrics {
     /// The accessibility identifier of every `.ouroSheet`'s content, which `OuroHXTesting`'s audit looks for.
     public static let accessibilityIdentifier = "ouro.sheet"
 
-    /// Whether a sheet with this frame is below full height, and so drawn at ``drawnScale``: shorter than 90% of
-    /// the window. Xcode's audit reads scaled text as "Text clipped"; `ouroAccessibilityAudit` excuses that inside
+    /// The accessibility identifier of every `.ouroSheet`'s close button.
+    public static let closeIdentifier = "ouro.sheet.close"
+
+    /// Whether a sheet is drawn at ``drawnScale``, judged by its close button: drawn shorter than its layout size
+    /// (``closeTarget``), as it is in a sheet below full height on iOS 26 and later, and never on macOS or before
+    /// iOS 26. Xcode's audit reads the scaled text as "Text clipped"; `ouroAccessibilityAudit` excuses that inside
     /// such a sheet only.
-    public static func isDrawnScaled(sheet: CGRect, in window: CGRect) -> Bool {
-        sheet.height < window.height * 0.9
+    public static func isDrawnScaled(closeButtonHeight: CGFloat) -> Bool {
+        closeButtonHeight > 0 && closeButtonHeight < closeTarget * (1 + drawnScale) / 2
     }
 
     /// A sheet slides up from the bottom, as the system's do. Under Reduce Motion it appears without sliding and its
@@ -176,6 +180,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(closeLabel)
+                .accessibilityIdentifier(OuroSheetMetrics.closeIdentifier)
                 .padding(.trailing, -10)
             }
             .padding(.horizontal, 20)
@@ -199,8 +204,12 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
             }
         }
+        #if !os(macOS)
+        // A container the audit helper can find; on macOS it would add a group VoiceOver has to enter, and nothing
+        // there is scaled.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(OuroSheetMetrics.accessibilityIdentifier)
+        #endif
         #if os(macOS)
         // macOS has no detents and sizes a sheet to its content's ideal size, which a ScrollView doesn't give.
         .frame(minWidth: 360, minHeight: min(fittedHeight, 640))

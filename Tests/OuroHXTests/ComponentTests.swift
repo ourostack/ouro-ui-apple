@@ -15,6 +15,11 @@ private let styles: [(String, OuroHXStyle)] = OuroThemeName.allCases.flatMap { n
 private func ratio(_ a: Color.Resolved, _ b: Color.Resolved) -> Double { OuroColor.contrastRatio(a, b) }
 /// 5:1, a margin over WCAG's 4.5, or 7:1 under increased contrast. Xcode's audit measures antialiased pixels and read
 /// a soft button's label and a banner's description at exactly 4.5:1 as "Contrast nearly passed".
+/// Distance between two colours in gamma-encoded sRGB, from 0 to about 1.73.
+private func distance(_ a: Color.Resolved, _ b: Color.Resolved) -> Double {
+    let (r, g, bl) = (Double(a.red - b.red), Double(a.green - b.green), Double(a.blue - b.blue))
+    return (r * r + g * g + bl * bl).squareRoot()
+}
 private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increased ? 7 : 5 }
 
 // MARK: target.touch
@@ -92,8 +97,13 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             for tone in OuroTone.allCases {
                 let p = OuroButtonPalette(tone: tone, variant: variant, style: style, isEnabled: false)
                 #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(tone) \(variant) disabled")
+                // Tellable apart: the label or the fill moves visibly in colour (a tone turning grey, or a grey
+                // moving in lightness), or an outline or a fill comes or goes.
                 let enabled = OuroButtonPalette(tone: tone, variant: variant, style: style)
-                #expect(p.fill != enabled.fill || p.label != enabled.label, "\(name) \(tone) \(variant): looks enabled")
+                let label = distance(p.label, enabled.label)
+                let fill = distance(p.fill ?? p.surface, enabled.fill ?? enabled.surface)
+                let outline = (p.border == nil) != (enabled.border == nil) || (p.fill == nil) != (enabled.fill == nil)
+                #expect(label >= 0.2 || fill >= 0.2 || outline, "\(name) \(tone) \(variant): looks enabled (label \(label), fill \(fill))")
             }
         }
     }
@@ -306,12 +316,14 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(model.remaining(for: b, held: false, now: start + 4) == OuroToastMetrics.defaultSeconds)
     }
 
-    /// The audit helper excuses "Text clipped" only inside a sheet drawn below full height (and so at 96%).
-    @Test func onlyASheetBelowFullHeightIsDrawnScaled() {
-        let window = CGRect(x: 0, y: 0, width: 402, height: 874)
-        #expect(OuroSheetMetrics.isDrawnScaled(sheet: CGRect(x: 8, y: 520, width: 386, height: 354), in: window))
-        #expect(!OuroSheetMetrics.isDrawnScaled(sheet: CGRect(x: 0, y: 62, width: 402, height: 812), in: window))
+    /// A sheet counts as drawn scaled only when its close button is drawn smaller than its layout size: 44.2 points
+    /// at 96%, 46 unscaled. That holds on any platform and OS, where a sheet's height says nothing.
+    @Test func aSheetIsScaledOnlyWhenItsCloseButtonIsDrawnSmall() {
+        #expect(OuroSheetMetrics.isDrawnScaled(closeButtonHeight: 46 * 0.96))
+        #expect(!OuroSheetMetrics.isDrawnScaled(closeButtonHeight: 46))
+        #expect(!OuroSheetMetrics.isDrawnScaled(closeButtonHeight: 0))
         #expect(OuroSheetMetrics.accessibilityIdentifier == "ouro.sheet")
+        #expect(OuroSheetMetrics.closeIdentifier == "ouro.sheet.close")
     }
 
     @Test func aToastsBorderReadsUnderIncreasedContrast() {

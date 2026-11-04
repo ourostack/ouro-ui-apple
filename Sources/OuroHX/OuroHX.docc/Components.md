@@ -91,12 +91,14 @@ What the components don't do for you, and how to match them:
 - **A screen that is the whole app.** `.ouroToaster()` and `.ouroTheme(_:)` can go on the screen itself instead of in
   `@main`; `@Environment(\.ouroToast)` only reaches views inside the toaster, so send from a child view. A toaster
   inside another one takes over for the views inside it.
-- **Disabled buttons** draw the theme's muted colours with a label that still reads at the target, not web's half
-  opacity, which Xcode's audit fails. SwiftUI tells VoiceOver they are dimmed.
+- **Disabled buttons** all look the same: a muted chip with an outline and a label that still reads at the target,
+  not web's half opacity, which Xcode's audit fails. SwiftUI tells VoiceOver they are dimmed. A `loading` button is
+  disabled too but keeps its tone: it is busy, not unavailable.
 - **Auditing.** In a UI test, `OuroHXTesting`'s `ouroAccessibilityAudit()` runs Xcode's audit and excuses only the
-  "Text clipped" it reports inside a sheet below full height, which iOS draws at 96%
-  (``OuroSheetMetrics/drawnScale``). To check that sheet's text for real clipping too, audit it once with
-  `detents: [.large]`.
+  "Text clipped" it reports inside a sheet that iOS draws at 96% (``OuroSheetMetrics/drawnScale``), a sheet below
+  full height on iOS 26 and later, which it recognises by its close button being drawn small. That leaves real
+  clipping there unchecked, so audit the sheet once more at full height: present it with `detents: [.large]` from a
+  launch argument your app reads.
 
 ### Spacing
 

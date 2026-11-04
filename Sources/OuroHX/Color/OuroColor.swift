@@ -39,7 +39,9 @@ public enum OuroColor {
 
     /// `text` raised just enough to read on `surface` the way the components' text does: at ``textContrast``, or
     /// ``increasedTextContrast`` when `contrast` is increased. Returned unchanged when it already reads. Use it for
-    /// your own secondary text, such as `colors.mutedForeground` on `colors.card`:
+    /// your own secondary text, such as `colors.mutedForeground` on `colors.card`. Pass concrete colours, such as
+    /// those from `\.ouroColors`: a system colour that adapts to light and dark (`.secondary`, an asset colour) is
+    /// measured in light mode and comes back fixed.
     ///
     /// ```swift
     /// @Environment(\.ouroColors) private var colors

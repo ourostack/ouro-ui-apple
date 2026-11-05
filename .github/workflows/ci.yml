@@ -142,6 +142,27 @@ jobs:
           swift run ouro-ax-skills lint Tests/OuroAXSkillsLintTests/Fixtures/Good/Skills.skillsbundle --json
           swift run ouro-ax-skills lint Tests/OuroAXSkillsLintTests/Fixtures/Bad/Skills.skillsbundle --json && status=0 || status=$?
           test "$status" -eq 3
+      - name: Ouro Reins, as an agent runs it (ls, do, a refusal, the exit codes)
+        run: |
+          set -u
+          swift build --product ouro-reins-sample
+          bin="$(swift build --show-bin-path)/ouro-reins-sample"
+          "$bin" ls 'do openItem {"id":"flour"}' 'do toggleStocked' 'do goBack' > .build/reins-ok.ndjson
+          printf 'ls\ndo nope\n{"id":3,"op":"do","action":"openItem","input":{"id":7}}\n' | "$bin" > .build/reins-refused.ndjson && status=0 || status=$?
+          test "$status" -eq 2
+          python3 -I - .build/reins-ok.ndjson .build/reins-refused.ndjson <<'PY'
+          import json, sys
+          ok = [json.loads(l) for l in open(sys.argv[1])]
+          assert [r["ok"] for r in ok] == [True] * 4, ok
+          assert [r["screen"]["focus"] for r in ok] == ["list", "item", "item", "list"], ok
+          assert ok[2]["screen"]["state"]["stocked"] is False, ok[2]
+          bad = [json.loads(l) for l in open(sys.argv[2])]
+          assert bad[1]["error"]["code"] == "action-unavailable" and "openItem" in bad[1]["error"]["fix"], bad[1]
+          assert bad[2]["id"] == 3 and bad[2]["error"]["code"] == "input-invalid", bad[2]
+          print("reins: ls/do round trip and refusals as documented")
+          PY
+      - name: Ouro Reins' debug socket is compiled out of release
+        run: sh scripts/check-reins-release.sh
       - name: Build for iOS Simulator
         run: |
           set -o pipefail

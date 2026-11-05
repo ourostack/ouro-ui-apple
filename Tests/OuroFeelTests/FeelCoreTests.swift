@@ -273,13 +273,14 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(f.snaps(of: "panel").passed)
     }
 
-    /// XCUITest's snapshot waits while the app animates, so a transition shows up as one long gap in fast sampling.
-    @Test func aMoveInsideAStallInFastSamplingIsATransitionByInference() {
+    /// A stall in otherwise quick sampling hides the move: a transition and a snap with heavy layout both cause one
+    /// (seen on the iOS 27.2 simulator), so the check cannot judge it and fails saying so.
+    @Test func aMoveInsideAStallCannotBeJudged() {
         var frames = stride(from: 0.0, to: 1.0, by: 0.02).map { FeelFrame(t: $0, seen: [box(200)]) }
         frames += stride(from: 1.9, to: 2.5, by: 0.02).map { FeelFrame(t: $0, seen: [box(520)]) }
         let r = FeelFilm(window: phone, frames: frames).snaps(of: "panel")
-        #expect(r.passed)
-        #expect(r.findings.contains { $0.inferred && $0.what.contains("busy") })
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.what.contains("busy") })
     }
 
     /// A gap only a little longer than usual is not a stall: a move across it is judged as usual.
@@ -353,7 +354,7 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
 @Suite struct SettleFromMotionTests {
     @Test func settleIsTimedFromTheFirstMove() {
         let still = (0..<10).map { FeelFrame(t: Double($0) * 0.1, seen: [card(200)]) }
-        let moving = [FeelFrame(t: 1.0, seen: [card(300)]), FeelFrame(t: 1.1, seen: [card(400)]), FeelFrame(t: 1.2, seen: [card(400)])]
+        let moving = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5].map { t in FeelFrame(t: t, seen: [card(t == 1.0 ? 300 : 400)]) }
         let f = FeelFilm(window: phone, frames: still + moving)
         let r = f.settles("card", within: 0.5)
         #expect(r.passed)
@@ -370,5 +371,75 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
     @Test func aLateJumpMakesSettlingSlow() {
         let frames = [0, 0.1, 0.2, 1.4, 1.5].enumerated().map { i, t in FeelFrame(t: t, seen: [card(i == 0 ? 200 : (i < 3 ? 500 : 540))]) }
         #expect(!FeelFilm(window: phone, frames: frames).settles("card", within: 1).passed)
+    }
+}
+
+/// A check never passes on what it could not see (decision record, point 6).
+@Suite struct NothingSeenTests {
+    @Test func motionChecksFailWhenTheElementIsNeverSeen() {
+        let f = film((0..<20).map { (Double($0) * 0.05, [card(200, key: "other", label: "Other")]) })
+        for r in [f.jumps(of: "card"), f.snaps(of: "card"), f.doubleDraws(of: ["Card"]), f.chrome(from: "bar.a", to: "bar.b"),
+                  f.settles("card", within: 1)] {
+            #expect(!r.passed, "\(r.check)")
+            #expect(r.findings.contains { $0.what.contains("never on screen") || $0.what.contains("not on screen") || $0.what.contains("ever on screen") }, "\(r.check)")
+        }
+    }
+
+    @Test func noControlsCountedFails() {
+        let r = FeelLayout.check([], window: phone, pose: "portrait")
+        #expect(!r.passed)
+        #expect(r.findings.first?.what.contains("no controls") == true)
+    }
+
+    @Test func settlingStillMovingWhenTheFilmEndsFails() {
+        let f = film((0..<10).map { (Double($0) * 0.05, [card(200 + Double($0) * 20)]) })
+        let r = f.settles("card", within: 5)
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.what.contains("still moving when the film ended") })
+    }
+
+    @Test func settlingOfSomethingThatNeverMovedFails() {
+        let r = film((0..<20).map { (Double($0) * 0.05, [card(200)]) }).settles("card", within: 1)
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.what.contains("never seen moving") })
+    }
+
+    @Test func noTimestampsAreNoHitchReading() {
+        #expect(!FeelHitches.analyze(timestamps: [], refresh: 1.0 / 60).result().passed)
+    }
+
+    @Test func anOverlayCheckNotTriedIsAFinding() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "full", appeared: true, outsideDismisses: nil, pickDismisses: true)])
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.what.contains("no place outside") })
+    }
+
+    @Test func nonFiniteMeasuresStayOutOfTheReport() {
+        let r = FeelResult(check: "x", passed: false, summary: "s", measures: ["gap": .infinity, "nan": .nan, "ok": 1])
+        #expect(r.measures == ["ok": 1])
+        #expect(!r.json.isEmpty)
+    }
+}
+
+@Suite struct ScrollAxisTests {
+    @Test func aVerticalListDoesNotExcuseAControlOffTheSide() {
+        let list = CGRect(x: 0, y: 100, width: 402, height: 700)
+        let off = FeelElement(key: "t", type: "switch", frame: CGRect(x: 420, y: 300, width: 51, height: 31), scroll: list)
+        #expect(!FeelLayout.check([off], window: phone, pose: "portrait").passed)
+    }
+
+    @Test func aHorizontalCarouselExcusesItsOffscreenItems() {
+        let strip = CGRect(x: 0, y: 100, width: 402, height: 160)
+        let next = FeelElement(key: "card 5", type: "button", frame: CGRect(x: 900, y: 110, width: 140, height: 140), scroll: strip, scrollsHorizontally: true)
+        #expect(FeelLayout.check([next], window: phone, pose: "portrait").passed)
+    }
+}
+
+@Suite struct SafetyTests {
+    @Test func dangerousWordsMatchWhateverTheCase() {
+        for key in ["account.signOut", "logout", "settings.delete-account", "Checkout", "trash_item", "Clear History"] {
+            #expect(FeelSafety.isDangerous(key), "\(key)")
+        }
+        for key in ["recipe.pancakes", "Chefs", "nav.settings"] { #expect(!FeelSafety.isDangerous(key), "\(key)") }
     }
 }

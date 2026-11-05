@@ -64,6 +64,7 @@ public enum FeelOverlays {
         for t in trials {
             if !t.appeared { findings.append(FeelFinding(what: "\(t.name): never appeared, so it could not be checked")); continue }
             if t.outsideDismisses == false { findings.append(FeelFinding(what: "\(t.name): a tap outside it did not dismiss it")) }
+            if t.outsideDismisses == nil { findings.append(FeelFinding(what: "\(t.name): there was no place outside it to tap, so a tap outside was not tried")) }
             if t.pickDismisses == false { findings.append(FeelFinding(what: "\(t.name): still on screen after picking an item")) }
         }
         if trials.isEmpty { findings.append(FeelFinding(what: "no overlays were named")) }

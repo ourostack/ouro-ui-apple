@@ -320,10 +320,10 @@ jobs:
           done
           echo "Using $device on $runtime: $udid"
           echo "UDID=$udid" >> "$GITHUB_ENV"
-      - name: Fixture UI tests (cold start, fresh simulator)
+      - name: Fixture UI tests (a fresh simulator; only the first test starts cold, so reports say "not labelled")
         run: |
           set -o pipefail
-          TEST_RUNNER_OURO_FEEL_START=cold TEST_RUNNER_OURO_FEEL_REPORT_DIR="$PWD/.build/feel-reports" \
+          TEST_RUNNER_OURO_FEEL_REPORT_DIR="$PWD/.build/feel-reports" \
           xcodebuild test -project Examples/OuroFeelFixture/OuroFeelFixture.xcodeproj -scheme OuroFeelFixture \
             -destination "id=$UDID" -derivedDataPath .build/feel-fixture -resultBundlePath .build/feel-fixture.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" | tail -200

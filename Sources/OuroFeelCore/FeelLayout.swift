@@ -8,12 +8,15 @@ public struct FeelElement: Codable, Equatable, Sendable {
     public var frame: CGRect
     /// The frame of the nearest scroll view around it, if any.
     public var scroll: CGRect?
+    /// Whether that scroll view scrolls sideways (a carousel) rather than up and down.
+    public var scrollsHorizontally: Bool
 
-    public init(key: String, type: String, frame: CGRect, scroll: CGRect? = nil) {
+    public init(key: String, type: String, frame: CGRect, scroll: CGRect? = nil, scrollsHorizontally: Bool = false) {
         self.key = key
         self.type = type
         self.frame = frame
         self.scroll = scroll
+        self.scrollsHorizontally = scrollsHorizontally
     }
 }
 
@@ -21,7 +24,8 @@ public struct FeelElement: Codable, Equatable, Sendable {
 ///
 /// XCUITest's `isHittable` and `tap()` accept points past the window's edge on the simulator, where no finger can
 /// reach (Gatefold build 19's portrait Fine-Tune panel passed taps this way), so this compares frames and never asks
-/// `isHittable`. A control scrolled out of view is fine when the scroll view around it is itself inside the window.
+/// `isHittable`. A control scrolled out of view is fine when the scroll view around it is itself inside the window and
+/// the control is off only along the axis it scrolls: a vertical list does not excuse a control off the side.
 public enum FeelLayout {
     /// Half a point of slack for rounding at the window's edge.
     public static let tolerance: CGFloat = 0.5
@@ -33,11 +37,19 @@ public enum FeelLayout {
         for control in controls where control.frame.width > 0 && control.frame.height > 0 {
             counted += 1
             if slack.contains(control.frame) { continue }
-            if let scroll = control.scroll, slack.contains(scroll) { continue }
+            if let scroll = control.scroll, slack.contains(scroll) {
+                let across = control.scrollsHorizontally
+                    ? control.frame.minY >= slack.minY && control.frame.maxY <= slack.maxY
+                    : control.frame.minX >= slack.minX && control.frame.maxX <= slack.maxX
+                if across { continue }
+            }
             findings.append(FeelFinding(what: "\(control.type) \"\(control.key)\" at \(describe(control.frame)) is outside the "
                 + "\(describe(window)) window in \(pose)"))
         }
-        let summary = findings.isEmpty
+        if counted == 0 {
+            findings.append(FeelFinding(what: "no controls were seen in \(pose), so nothing was checked"))
+        }
+        let summary = counted == 0 ? "no controls seen in \(pose)" : findings.isEmpty
             ? "all \(counted) controls inside the window in \(pose)"
             : "\(findings.count) of \(counted) controls outside the window in \(pose)"
         return FeelResult(check: FeelGenre.insideWindow.rawValue, passed: findings.isEmpty, summary: summary,

@@ -95,7 +95,8 @@ public struct FeelResult: Codable, Equatable, Sendable {
         self.check = check
         self.passed = passed
         self.summary = summary
-        self.measures = measures
+        // JSON has no infinity or NaN; a measure that is not a number stays out of the report.
+        self.measures = measures.filter { $0.value.isFinite }
         self.findings = findings
         self.environment = environment
     }

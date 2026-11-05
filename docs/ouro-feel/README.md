@@ -41,13 +41,14 @@ caught.
 
 ## The genres
 
-Each check covers one genre of jank (`FeelGenre`). Most run app-wide: give the walkers your entry points and they
-visit every screen they can reach.
+Each check covers one genre of jank (`FeelGenre`). The way back is the app-wide one: give it your entry points and it
+visits every screen it can reach by tapping cells, links and buttons, checking each screen's layout on the way. Name the
+overlays to check; the motion and place checks watch the elements and steps you give them.
 
 | Genre | What good feels like | Check |
 |---|---|---|
 | the way back | Every screen you reach has a visible way back and a gesture back, and both return you where you were. | `feel.wayBack(from:follow:depth:)` |
-| overlay dismissal | Every sidebar, popover, sheet and menu goes away with a tap outside, a swipe, or once you pick something. | `feel.overlays(_:)` |
+| overlay dismissal | Every sidebar, popover and menu goes away with a tap outside it, and once you pick something in it. | `feel.overlays(_:)` |
 | inside the window | Every control sits wholly inside the window, in every orientation and after turning the device and back. | `feel.insideWindow(poses:)`; also on every screen `wayBack` reaches |
 | tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:)`, `feel.osBaseline()` |
 | double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
@@ -66,9 +67,13 @@ a gesture (an edge swipe, else a swipe down) that returns. It also checks each r
 the window (`alsoInsideWindow: false` turns that off).
 
 Flags: `from:` entry points (`.launch`, `.tab("Kitchen")`, or `FeelEntry("name") { app in … }`); `follow:` what it
-may tap (cells and links by default; `FeelFollow(types: [], prefixes: ["recipe."])` for your own identifiers); it never
-taps controls whose names say delete, remove, sign out, buy, send or share. `depth:` (default 2), `limit:` (default 40
-screens). It relaunches to recover, so launch into a state that is safe to repeat.
+may tap (cells, links and buttons by default, so it reaches sheets and covers too; `FeelFollow(types: [], prefixes:
+["recipe."])` for only your own identifiers). It never taps a back control, or one whose identifier or label says
+delete, remove, sign out, clear, pay, checkout, send, share or the like (`FeelSafety.dangerous`, matched across
+camelCase and punctuation). A button such as Save or Add can still be tapped, so launch into a fixture state that is
+safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
+relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe starts at the navigation bar's height,
+above any list row, so a missing pop gesture never fires a row's swipe action.
 
 ```swift
 feel.expect(feel.wayBack(from: [.launch], follow: FeelFollow(prefixes: ["recipe.", "chef."]), depth: 2))
@@ -136,14 +141,16 @@ seconds after the screen appears (past XCUITest's own launch wait), as the fixtu
 What the samples show mid-transition (seen on the iOS 27.2 simulator): SwiftUI stretches an animating element's
 accessibility frame from where it is drawn to where it is going, so a sample at another size than the element's resting
 size is an in-between position. A snap is a big move between two samples at the resting size with the element still on
-both sides. Sometimes a snapshot waits out the animation instead, and the move shows up as one long gap in otherwise
-quick samples (at least three times the usual gap); the snap check passes that as a transition and marks it as
-inference. When samples are usually more than 0.15 s apart (from watching too many elements, or a busy machine) the
-snap and settle checks fail and say so, rather than pass on what they could not see.
+both sides. Sometimes a snapshot waits instead, and the move shows up inside one long gap in otherwise quick samples
+(at least three times the usual gap). A transition and a snap with heavy layout both cause that, so the snap check
+fails saying the move was not seen. When samples are usually more than 0.15 s apart (from watching too many elements,
+or a busy machine) the snap and settle checks fail and say so. No motion check passes on an element it never saw.
 
 Each snapshot holds the app's main thread while it answers, so a film samples every 0.05 s by default (`every:`);
-in one run with back-to-back sampling a 0.8 s ease measured 1.84 s (we infer the sampling slowed it). Settle times are therefore an upper bound, timed on the
-test runner's clock. `jumps` counts moves after the first one, so start the film before the transition. Seeing every
+in one run with back-to-back sampling a 0.8 s ease measured 1.84 s (we infer the sampling slowed it). Settle times are
+timed on the test runner's clock and can run long under load, so leave margin in the limit. Settle fails when the
+element was never seen moving (a film started by a tap begins after the motion is over) or was still moving when the
+film ended. `jumps` counts moves after the first one, so start the film before the transition. Seeing every
 frame of a transition needs host video or an in-app probe (planned for v0.2).
 
 ### Place stability

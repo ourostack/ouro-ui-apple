@@ -87,15 +87,28 @@ public struct OuroFeel {
         guard let root = try? app.snapshot() else { return (.zero, []) }
         let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
         var found: [FeelElement] = []
-        func walk(_ node: any XCUIElementSnapshot, scroll: CGRect?) {
+        // Accessibility does not say which way a scroll view scrolls; a short, wide one whose content runs off its sides
+        // is taken to be a carousel (sideways), any other one a list (up and down).
+        func sideways(_ node: any XCUIElementSnapshot) -> Bool {
+            let f = node.frame
+            guard f.width > f.height * 1.5 else { return false }
+            func extends(_ n: any XCUIElementSnapshot) -> Bool {
+                n.children.contains { $0.frame.maxX > f.maxX + 1 || $0.frame.minX < f.minX - 1 || extends($0) }
+            }
+            return extends(node)
+        }
+        func walk(_ node: any XCUIElementSnapshot, scroll: CGRect?, across: Bool) {
             let type = node.elementType
             if Self.controlTypes.contains(type), node.isEnabled {
-                found.append(FeelElement(key: Self.key(node), type: Self.name(type), frame: node.frame, scroll: scroll))
+                found.append(FeelElement(key: Self.key(node), type: Self.name(type), frame: node.frame, scroll: scroll,
+                                         scrollsHorizontally: across))
             }
-            let inner = Self.scrollTypes.contains(type) ? node.frame : scroll
-            for child in node.children { walk(child, scroll: inner) }
+            let isScroll = Self.scrollTypes.contains(type)
+            for child in node.children {
+                walk(child, scroll: isScroll ? node.frame : scroll, across: isScroll ? sideways(node) : across)
+            }
         }
-        walk(root, scroll: nil)
+        walk(root, scroll: nil, across: false)
         return (window, found)
     }
 
@@ -161,7 +174,14 @@ public struct OuroFeel {
         for pose in poses {
             pose.apply(self)
             let (window, found) = controls()
-            results.append(FeelLayout.check(found, window: window, pose: pose.name))
+            var result = FeelLayout.check(found, window: window, pose: pose.name)
+            #if os(iOS)
+            // An app that stays portrait (an iPhone app without landscape) is fine, but say so: its "landscape" was not one.
+            if let o = pose.orientation, o.isLandscape, window.height > window.width {
+                result.findings.append(FeelFinding(what: "the app stayed portrait when the device turned to \(pose.name); its layout there was not checked"))
+            }
+            #endif
+            results.append(result)
         }
         #if os(iOS)
         if poses.contains(where: { $0.orientation != nil }) { FeelPose.portrait.apply(self) }
@@ -186,6 +206,10 @@ public struct OuroFeel {
         baseline: Double? = nil,
         read: (() -> String)? = nil
     ) -> FeelResult {
+        guard control.waitForExistence(timeout: timeout), control.frame.width > 0 else {
+            return FeelResult(check: FeelGenre.tapLanding.rawValue, passed: false, summary: "the control to tap was not on screen",
+                              findings: [FeelFinding(what: "\(control) did not exist or had no size, so no taps were tried")], environment: environment)
+        }
         let read = read ?? { (control.value as? String) ?? control.label }
         var results: [FeelTapTrial] = []
         func trial(_ spot: FeelTapSpot, expected: Bool, _ act: () -> Void) {

@@ -25,27 +25,29 @@ public struct FeelEntry {
     }
 }
 
-/// Which controls a walk may tap to find new screens. It never taps one whose label or identifier holds a word in
-/// `avoid`, so a walk does not delete, sign out or buy.
+/// Which controls a walk may tap to find new screens: cells, links and buttons by default, so it reaches pushed
+/// screens, sheets and covers. It never taps one whose label or identifier holds a word in `avoid` (identifiers split
+/// at case changes and punctuation, see ``FeelSafety``), so a walk does not delete, sign out or pay, and it never taps a
+/// back control. Buttons that change data without such a word (Save, Add) can still be tapped: launch the walk into a
+/// fixture state that is safe to change, or narrow `types` and `prefixes`.
 public struct FeelFollow: Sendable {
     public var types: Set<XCUIElement.ElementType>
     /// Identifier prefixes to follow as well, whatever their type (for example `"recipe."`).
     public var prefixes: [String]
     public var avoid: [String]
 
-    public init(types: Set<XCUIElement.ElementType> = [.cell, .link], prefixes: [String] = [],
+    public init(types: Set<XCUIElement.ElementType> = [.cell, .link, .button], prefixes: [String] = [],
                 avoid: [String] = FeelFollow.dangerous) {
         self.types = types
         self.prefixes = prefixes
         self.avoid = avoid
     }
 
-    public static let dangerous = ["delete", "remove", "sign out", "log out", "erase", "reset", "buy", "purchase", "subscribe", "send", "share"]
+    public static let dangerous = FeelSafety.dangerous
     public static let `default` = FeelFollow()
 
     func allows(type: XCUIElement.ElementType, key: String, label: String) -> Bool {
-        let words = (key + " " + label).lowercased()
-        if avoid.contains(where: { words.contains($0) }) { return false }
+        if FeelSafety.isDangerous(key, label, avoid: avoid) { return false }
         return types.contains(type) || prefixes.contains { key.hasPrefix($0) }
     }
 }
@@ -139,10 +141,13 @@ extension OuroFeel {
         return named.allElementsBoundByIndex.first { window.contains($0.frame) && $0.isEnabled }
     }
 
+    /// From the leading edge at the navigation bar's height (or near the top), where no list row sits, so a missing
+    /// pop gesture never turns into a full swipe across a row and fires its swipe action.
     func edgeSwipe() {
         let w = app.windows.firstMatch.frame
-        let from = point(w.minX + 1, w.midY)
-        from.press(forDuration: 0.05, thenDragTo: point(w.minX + w.width * 0.85, w.midY), withVelocity: .default, thenHoldForDuration: 0)
+        let bar = app.navigationBars.firstMatch
+        let y = bar.exists && w.contains(bar.frame) ? bar.frame.midY : w.minY + min(100, w.height * 0.12)
+        point(w.minX + 1, y).press(forDuration: 0.05, thenDragTo: point(w.minX + w.width * 0.7, y), withVelocity: .default, thenHoldForDuration: 0)
     }
 
     func swipeDown() {
@@ -272,7 +277,9 @@ extension OuroFeel {
             }
             var pickDismisses: Bool?
             if let pick = overlay.pick {
-                if shown() || { overlay.open(app); return wait(timeout, until: shown) }() {
+                if !(shown() || { overlay.open(app); return wait(timeout, until: shown) }()) {
+                    pickDismisses = false  // it would not open again, so the pick was never tried
+                } else {
                     let item = element(pick)
                     if item.waitForExistence(timeout: timeout) {
                         item.tap()

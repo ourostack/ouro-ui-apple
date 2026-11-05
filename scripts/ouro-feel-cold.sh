@@ -15,17 +15,18 @@
 #   --out DIR                     where reports go (default .build/ouro-feel-cold)
 #   --derived-data DIR            DerivedData for the one build (default .build/ouro-feel-dd)
 #
+# Name one test method in --test: with a whole class, only its first test really starts cold.
 # Each run gets TEST_RUNNER_OURO_FEEL_START (cold or warm) and TEST_RUNNER_OURO_FEEL_REPORT_DIR, so every Ouro Feel
 # report says how it started. It builds once (build-for-testing), then runs test-without-building. Simulators it creates
 # are deleted when it ends, even on failure. Exit status: 0 when every run passed, 1 when any failed, 2 on bad usage.
 set -u
 
-project=""; scheme=""; test=""; runs=3; device="iPhone 17 Pro"; runtime=""; udid=""; warm=0
+project=(); scheme=""; test=""; runs=3; device="iPhone 17 Pro"; runtime=""; udid=""; warm=0
 out=".build/ouro-feel-cold"; dd=".build/ouro-feel-dd"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --project) project="-project $2"; shift 2 ;;
-    --workspace) project="-workspace $2"; shift 2 ;;
+    --project) project=(-project "$2"); shift 2 ;;
+    --workspace) project=(-workspace "$2"); shift 2 ;;
     --scheme) scheme="$2"; shift 2 ;;
     --test) test="$2"; shift 2 ;;
     --runs) runs="$2"; shift 2 ;;
@@ -35,39 +36,41 @@ while [ $# -gt 0 ]; do
     --warm) warm=1; shift ;;
     --out) out="$2"; shift 2 ;;
     --derived-data) dd="$2"; shift 2 ;;
-    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "$0"; exit 0 ;;
     *) echo "ouro-feel-cold: unknown option $1" >&2; exit 2 ;;
   esac
 done
-if [ -z "$project" ] || [ -z "$scheme" ] || [ -z "$test" ]; then
+if [ ${#project[@]} -eq 0 ] || [ -z "$scheme" ] || [ -z "$test" ]; then
   echo "ouro-feel-cold: --project (or --workspace), --scheme and --test are required; see --help" >&2; exit 2
 fi
-case "$runs" in ''|*[!0-9]*) echo "ouro-feel-cold: --runs must be a number" >&2; exit 2 ;; esac
+case "$runs" in ''|*[!0-9]*|0) echo "ouro-feel-cold: --runs must be a number of at least 1" >&2; exit 2 ;; esac
+if [ "$warm" = 1 ] && [ -n "$udid" ]; then echo "ouro-feel-cold: --warm and --udid do not combine; --udid erases before every run" >&2; exit 2; fi
 
 if [ -z "$runtime" ] && [ -z "$udid" ]; then
   runtime="$(xcrun simctl list runtimes -j | python3 -I -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(sorted(r,key=lambda x:[int(p) for p in x["version"].split(".")])[-1]["identifier"])')"
 fi
 mkdir -p "$out"
+out="$(cd "$out" && pwd)"
 
 created=()
 cleanup() {
   for u in "${created[@]+"${created[@]}"}"; do
+    [ -n "$u" ] || continue
     xcrun simctl shutdown "$u" >/dev/null 2>&1 || true
     xcrun simctl delete "$u" >/dev/null 2>&1 && echo "ouro-feel-cold: deleted simulator $u"
   done
 }
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 
+# Sets `made` (not echoed through $(...), which would run in a subshell and hide `created` from the cleanup trap).
 fresh() {
-  local u
-  u="$(xcrun simctl create "ouro-feel-cold-$$-$1" "$device" "$runtime")" || { echo "ouro-feel-cold: could not create a $device on $runtime" >&2; exit 2; }
-  created+=("$u")
-  echo "$u"
+  made="$(xcrun simctl create "ouro-feel-cold-$$-$1" "$device" "$runtime")" || { echo "ouro-feel-cold: could not create a $device on $runtime" >&2; exit 2; }
+  created+=("$made")
 }
 
 echo "ouro-feel-cold: building $scheme for testing"
-# shellcheck disable=SC2086
-if ! xcodebuild build-for-testing $project -scheme "$scheme" -destination "generic/platform=iOS Simulator" \
+if ! xcodebuild build-for-testing "${project[@]}" -scheme "$scheme" -destination "generic/platform=iOS Simulator" \
     -derivedDataPath "$dd" CODE_SIGNING_ALLOWED=NO > "$out/build.log" 2>&1; then
   tail -30 "$out/build.log"; echo "ouro-feel-cold: the build failed; the full log is $out/build.log" >&2; exit 2
 fi
@@ -75,10 +78,12 @@ xctestrun="$(find "$dd/Build/Products" -maxdepth 1 -name '*.xctestrun' | head -1
 [ -n "$xctestrun" ] || { echo "ouro-feel-cold: no .xctestrun in $dd/Build/Products" >&2; exit 2; }
 
 shared=""
-if [ "$warm" = 1 ] && [ -z "$udid" ]; then shared="$(fresh warm)"; fi
+if [ "$warm" = 1 ]; then fresh warm; shared="$made"; fi
 
 cold_pass=0; cold_runs=0; warm_pass=0; warm_runs=0; lines=""
-for i in $(seq 1 "$runs"); do
+i=0
+while [ "$i" -lt "$runs" ]; do
+  i=$((i+1))
   if [ -n "$udid" ]; then
     xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
     xcrun simctl erase "$udid" || { echo "ouro-feel-cold: could not erase $udid" >&2; exit 2; }
@@ -86,11 +91,11 @@ for i in $(seq 1 "$runs"); do
   elif [ -n "$shared" ]; then
     sim="$shared"; if [ "$i" = 1 ]; then start=cold; else start=warm; fi
   else
-    sim="$(fresh "$i")"; start=cold
+    fresh "$i"; sim="$made"; start=cold
   fi
   dir="$out/run-$i"; mkdir -p "$dir"
   started=$(date +%s)
-  TEST_RUNNER_OURO_FEEL_START="$start" TEST_RUNNER_OURO_FEEL_REPORT_DIR="$PWD/$dir/reports" \
+  TEST_RUNNER_OURO_FEEL_START="$start" TEST_RUNNER_OURO_FEEL_REPORT_DIR="$dir/reports" \
     xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$sim" -only-testing:"$test" \
     -resultBundlePath "$dir/result.xcresult" > "$dir/test.log" 2>&1
   status=$?

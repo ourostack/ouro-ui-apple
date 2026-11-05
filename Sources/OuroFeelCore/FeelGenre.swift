@@ -18,7 +18,7 @@ public enum FeelGenre: String, CaseIterable, Codable, Sendable {
     public var good: String {
         switch self {
         case .wayBack: "Every screen you reach has a visible way back and a gesture back, and both return you where you were."
-        case .overlayDismissal: "Every sidebar, popover, sheet and menu goes away with a tap outside, a swipe, or once you pick something."
+        case .overlayDismissal: "Every sidebar, popover and menu goes away with a tap outside it, and once you pick something in it."
         case .insideWindow: "Every control sits wholly inside the window, in every orientation and after turning the device and back."
         case .tapLanding: "One tap anywhere on a control works, every time, with no second try."
         case .doubleDraw: "Each piece of content is on screen once; nothing shows a ghost copy mid-transition."

@@ -53,7 +53,7 @@ public enum FeelTaps {
                     + "so some misses may be the simulator's; confirm on a device", inferred: true))
             }
         }
-        return FeelResult(check: "taps", passed: passed, summary: "\(landed) of \(should.count) single taps landed, no retries",
+        return FeelResult(check: FeelGenre.tapLanding.rawValue, passed: passed, summary: "\(landed) of \(should.count) single taps landed, no retries",
                           measures: measures, findings: findings)
     }
 }

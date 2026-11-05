@@ -215,3 +215,100 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(FeelEnvironment.Start(environment: [:]) == .unlabelled)
     }
 }
+
+@Suite struct GenreTests {
+    @Test func everyGenreSaysWhatGoodFeelsLike() {
+        #expect(FeelGenre.allCases.count == 11)
+        for genre in FeelGenre.allCases { #expect(!genre.good.isEmpty) }
+        #expect(FeelGenre.wayBack.rawValue == "the way back")
+    }
+
+    @Test func everyCheckReportsItsGenre() {
+        let phone = CGRect(x: 0, y: 0, width: 402, height: 874)
+        #expect(FeelLayout.check([], window: phone, pose: "p").check == FeelGenre.insideWindow.rawValue)
+        #expect(FeelTaps.evaluate([]).check == FeelGenre.tapLanding.rawValue)
+        #expect(FeelPlace.compare(start: "a", after: [:]).check == FeelGenre.placeStability.rawValue)
+        let f = FeelFilm(window: phone, frames: [])
+        #expect(f.jumps(of: "x").check == FeelGenre.jumpAfterLanding.rawValue)
+        #expect(f.doubleDraws(of: []).check == FeelGenre.doubleDraw.rawValue)
+        #expect(f.chrome(from: "a", to: "b").check == FeelGenre.chrome.rawValue)
+        #expect(f.settles("x", within: 1).check == FeelGenre.settleTime.rawValue)
+        #expect(f.snaps(of: "x").check == FeelGenre.snap.rawValue)
+    }
+}
+
+@Suite struct SnapTests {
+    private func box(_ y: Double) -> FeelSeen { FeelSeen(key: "panel", frame: CGRect(x: 0, y: y, width: 300, height: 300)) }
+
+    @Test func aBigMoveInOneSampleIsASnap() {
+        let f = FeelFilm(window: phone, frames: [FeelFrame(t: 0, seen: [box(800)]), FeelFrame(t: 0.05, seen: [box(400)]), FeelFrame(t: 0.1, seen: [box(400)])])
+        let r = f.snaps(of: "panel")
+        #expect(!r.passed)
+        #expect(r.findings.first?.what.contains("400") == true)
+    }
+
+    @Test func aMoveSeenInBetweenIsATransition() {
+        let f = FeelFilm(window: phone, frames: [0, 0.05, 0.1, 0.15, 0.2].enumerated().map { i, t in
+            FeelFrame(t: t, seen: [box(800 - Double(i) * 100)]) })
+        #expect(f.snaps(of: "panel").passed)
+    }
+
+    @Test func appearingInFullBetweenTwoSamplesIsASnap() {
+        let f = FeelFilm(window: phone, frames: [FeelFrame(t: 0, seen: []), FeelFrame(t: 0.05, seen: [box(400)]), FeelFrame(t: 0.1, seen: [box(400)])])
+        #expect(!f.snaps(of: "panel", appearing: true).passed)
+        #expect(f.snaps(of: "panel").passed)
+    }
+
+    @Test func samplesTooSparseToJudgeSayso() {
+        let f = FeelFilm(window: phone, frames: [FeelFrame(t: 0, seen: [box(800)]), FeelFrame(t: 0.5, seen: [box(400)])])
+        let r = f.snaps(of: "panel")
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.what.contains("too far apart") })
+    }
+}
+
+@Suite struct WayBackTests {
+    @Test func aScreenWithAButtonAndAGestureBackPasses() {
+        let d = FeelDestination(path: ["Recipes", "Pancakes"], affordance: "Back", affordanceReturns: true, gesture: "edge swipe")
+        let r = FeelWayBack.evaluate([d])
+        #expect(r.passed)
+        #expect(r.check == FeelGenre.wayBack.rawValue)
+        #expect(r.measures["screens"] == 1)
+    }
+
+    @Test func aScreenWithNoGestureBackFailsAndNamesThePath() {
+        let d = FeelDestination(path: ["Recipes", "Chef"], affordance: "Back", affordanceReturns: true, gesture: nil)
+        let r = FeelWayBack.evaluate([d])
+        #expect(!r.passed)
+        #expect(r.findings[0].what.contains("Recipes › Chef"))
+        #expect(r.findings[0].what.contains("no gesture"))
+    }
+
+    @Test func aScreenWithNoButtonBackFails() {
+        let r = FeelWayBack.evaluate([FeelDestination(path: ["Cook"], affordance: nil, affordanceReturns: false, gesture: "swipe down")])
+        #expect(!r.passed)
+        #expect(r.findings[0].what.contains("no visible way back"))
+    }
+
+    @Test func findingNoScreensAtAllFails() {
+        #expect(!FeelWayBack.evaluate([]).passed)
+    }
+}
+
+@Suite struct OverlayTests {
+    @Test func anOverlayThatGoesOnATapOutsideAndAfterAPickPasses() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "sidebar", appeared: true, outsideDismisses: true, pickDismisses: true)])
+        #expect(r.passed)
+        #expect(r.check == FeelGenre.overlayDismissal.rawValue)
+    }
+
+    @Test func aSidebarThatStaysAfterAPickFails() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "sidebar", appeared: true, outsideDismisses: true, pickDismisses: false)])
+        #expect(!r.passed)
+        #expect(r.findings[0].what.contains("after picking"))
+    }
+
+    @Test func anOverlayThatNeverOpenedFails() {
+        #expect(!FeelOverlays.evaluate([FeelOverlayTrial(name: "menu", appeared: false)]).passed)
+    }
+}

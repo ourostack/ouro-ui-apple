@@ -40,7 +40,7 @@ public enum FeelLayout {
         let summary = findings.isEmpty
             ? "all \(counted) controls inside the window in \(pose)"
             : "\(findings.count) of \(counted) controls outside the window in \(pose)"
-        return FeelResult(check: "layout", passed: findings.isEmpty, summary: summary,
+        return FeelResult(check: FeelGenre.insideWindow.rawValue, passed: findings.isEmpty, summary: summary,
                           measures: ["controls": Double(counted), "outside": Double(findings.count)], findings: findings)
     }
 
@@ -51,7 +51,7 @@ public enum FeelLayout {
         let summary = failed.isEmpty
             ? "every control inside the window in \(results.count) poses"
             : "controls outside the window in \(failed.count) of \(results.count) poses"
-        return FeelResult(check: "layout", passed: failed.isEmpty, summary: summary,
+        return FeelResult(check: FeelGenre.insideWindow.rawValue, passed: failed.isEmpty, summary: summary,
                           measures: ["poses": Double(results.count), "outside": outside],
                           findings: results.flatMap(\.findings), environment: results.first?.environment)
     }

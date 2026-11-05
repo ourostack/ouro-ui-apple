@@ -38,7 +38,7 @@ public struct FeelHitches: Codable, Equatable, Sendable {
         if worstFrames > worstFramesLimit {
             findings.append(FeelFinding(what: "one frame came \(FeelResult.number(worstFrames)) refreshes late (limit \(FeelResult.number(worstFramesLimit)))"))
         }
-        return FeelResult(check: "hitches", passed: ok, summary: "\(count) hitches in \(frames) frames over \(FeelResult.number(seconds)) s",
+        return FeelResult(check: FeelGenre.hitches.rawValue, passed: ok, summary: "\(count) hitches in \(frames) frames over \(FeelResult.number(seconds)) s",
                           measures: ["ratio": ratio, "hitches": Double(count), "worstFrames": worstFrames, "frames": Double(frames)], findings: findings)
     }
 }

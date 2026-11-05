@@ -23,7 +23,7 @@ public enum FeelPlace {
             findings.append(FeelFinding(what: "after \(name) the screen showed different content (\(steps[name]!) instead of \(start))"))
         }
         let kept = steps.count - findings.filter { !$0.what.hasPrefix("nothing") }.count
-        return FeelResult(check: "place", passed: findings.isEmpty, summary: "\(kept) of \(steps.count) steps kept the place",
+        return FeelResult(check: FeelGenre.placeStability.rawValue, passed: findings.isEmpty, summary: "\(kept) of \(steps.count) steps kept the place",
                           measures: ["steps": Double(steps.count), "kept": Double(kept)], findings: findings)
     }
 }

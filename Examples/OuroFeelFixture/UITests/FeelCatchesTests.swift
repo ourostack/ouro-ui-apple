@@ -59,10 +59,13 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
-    /// The motion genres from one film each: the card's travel starts four seconds after the page appears, well after XCUITest's launch wait.
+    /// The motion genres from one film each: the film taps Play, and the card's travel starts two seconds later, after
+    /// XCUITest's idle wait for the tap (a start timed from launch was missed when launching took longer under load).
     private func motion(_ judge: (FeelFilm) -> FeelResult) {
-        both("motion", ["-autoplay", "4"]) { _, feel in
-            let film = feel.film(["motion.card", "motion.ghost", "Pancakes", "bar.full", "bar.compact"], for: 7)
+        both("motion") { app, feel in
+            let play = app.buttons["motion.play"]
+            _ = play.waitForExistence(timeout: 10)
+            let film = feel.film(["motion.card", "motion.ghost", "Pancakes", "bar.full", "bar.compact"], for: 7) { play.tap() }
             return (judge(film), film)
         }
     }
@@ -79,11 +82,10 @@ final class FeelCatchesTests: XCTestCase {
     /// simulator reports (a proxy; gate hitches on a device).
     func testHitchMetricReading() throws {
         guard #available(iOS 26.0, *) else { throw XCTSkip("XCTHitchMetric needs iOS 26") }
-        let (app, feel) = launch("motion", bug: false, ["-autoplay", "0.5"])
+        let (app, feel) = launch("motion", bug: false, ["-autoplay", "0.1"])
         feel.measureHitches(in: self, iterations: 1) {
-            app.terminate()
-            app.launch()
-            Thread.sleep(forTimeInterval: 2)
+            app.buttons["motion.play"].tap()
+            Thread.sleep(forTimeInterval: 1.5)
         }
     }
 }

@@ -261,7 +261,8 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
     @Test func appearingInFullBetweenTwoSamplesIsASnap() {
         let f = FeelFilm(window: phone, frames: [FeelFrame(t: 0, seen: []), FeelFrame(t: 0.05, seen: [box(400)]), FeelFrame(t: 0.1, seen: [box(400)])])
         #expect(!f.snaps(of: "panel", appearing: true).passed)
-        #expect(f.snaps(of: "panel").passed)
+        // Without `appearing`, arriving is not motion, so a film of it cannot judge a snap.
+        #expect(f.snaps(of: "panel").summary.hasPrefix("could not check"))
     }
 
     /// Mid-animation, SwiftUI's accessibility frame stretches from where the element is drawn to where it is going
@@ -569,5 +570,17 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
                                        FeelOverlayTrial(name: "b", appeared: false)])
         #expect(!r.passed)
         #expect(r.summary.hasPrefix("1 of 2 overlays"), "\(r.summary)")
+    }
+}
+
+@Suite struct SnapNeedsMotionTests {
+    /// Fixture run 7b: the card had already moved when the film began, so only the late 40-point nudge was seen. A
+    /// snap check that saw no move past its distance cannot pass.
+    @Test func aSnapCheckThatSawNoMotionCannotPass() {
+        let f = film((0..<60).map { (Double($0) * 0.05, [card($0 < 30 ? 582 : 622)]) })
+        let r = f.snaps(of: "card")
+        #expect(!r.passed)
+        #expect(r.summary.hasPrefix("could not check"))
+        #expect(r.measures["snaps"] == 0)
     }
 }

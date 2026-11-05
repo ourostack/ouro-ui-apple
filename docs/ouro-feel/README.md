@@ -143,8 +143,10 @@ feel.expect(film.settles("cook.cover", within: 1.0))
 
 **What a film can and cannot see.** XCUITest waits for the app to go idle after every tap, so a film started by a tap
 (`film(_:for:every:during:)`) sees what happens after the transition (late jumps, lingering chrome, ghost copies that stay),
-not the frames inside it. To film a transition itself, let the app start it: a launch argument that runs it a few
-seconds after the screen appears (past XCUITest's own launch wait), as the fixture's `-autoplay 4` does.
+not the frames inside it. To film a transition itself, have the app start it a moment after the tap: a test-only
+launch argument that delays it, as the fixture's Play button does (`-autoplay 2`, two seconds after the tap). Timing it
+from launch is fragile: under load, launching took longer than the delay and the film began after the motion. A check
+that sees no motion says "could not check"; it never passes.
 
 What the samples show mid-transition (seen on the iOS 27.2 simulator): SwiftUI stretches an animating element's
 accessibility frame from where it is drawn to where it is going, so a sample at another size than the element's resting

@@ -218,7 +218,8 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// The samples must be at most `maxGap` seconds apart around such a move, or the check cannot tell a snap from a
     /// quick transition. XCUITest's snapshot waits while the app animates, so when sampling is otherwise quick (the
     /// median gap within `maxGap`) a move inside a gap at least three times the median was not seen, and the check fails
-    /// saying so; so does sampling usually slower than `maxGap`, moves seen or not. It never passes on what it did not see.
+    /// saying so; so does sampling usually slower than `maxGap`, moves seen or not, and a film in which the element
+    /// never moved more than `distance` (or, with `appearing`, never arrived). It never passes on what it did not see.
     public func snaps(of key: String, distance: Double = 40, appearing: Bool = false, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
         let places: [CGRect?] = frames.map { find(key, in: $0)?.frame }
         func moved(_ i: Int) -> Double? {
@@ -257,6 +258,12 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             }
         }
         if let sparse = tooSparse(maxGap) { findings.insert(sparse, at: 0) }
+        let seen = places.compactMap { $0 }
+        let arrived = appearing && places.contains { $0 == nil } && !seen.isEmpty
+        if let first = seen.first, !arrived, !seen.contains(where: { Self.distance(first, $0) > distance }) {
+            findings.insert(.couldNotCheck("\"\(key)\" never moved more than \(FeelResult.number(distance)) pt in the film, so no snap could be "
+                + "seen; start the film before the motion"), at: 0)
+        }
         if let unseen = unseen(key) { findings.insert(unseen, at: 0) }
         return FeelResult.judged(check: FeelGenre.snap.rawValue, passing: "\"\(key)\" travelled wherever it moved",
                                  failing: { "\"\(key)\" snapped \(Self.times($0))" },

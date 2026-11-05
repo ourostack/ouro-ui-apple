@@ -59,8 +59,8 @@ struct TapsPage: View {
     }
 }
 
-/// Settle, jumps, double draws, chrome and snaps. `-autoplay N` seconds (default 2) after it appears the card travels down (so the motion
-/// runs while the test is free to sample). The bug: it snaps there with no transition, a ghost copy stays behind for a
+/// Settle, jumps, double draws, chrome and snaps. `-autoplay N` seconds (default 2) after Play is tapped the card travels
+/// down (so the motion runs while the test is free to sample). The bug: it snaps there with no transition, a ghost copy stays behind for a
 /// second, both bars show at once for a second, and the card jumps 40 points 2 s after it landed (so it also settles late).
 struct MotionPage: View {
     @State private var down = false
@@ -78,8 +78,15 @@ struct MotionPage: View {
             }
             if ghost { card.offset(y: 200).accessibilityIdentifier("motion.ghost") }
             card.offset(y: (down ? 520 : 200) + nudge).accessibilityIdentifier("motion.card")
+            Button("Play") { Task { await play() } }
+                .accessibilityIdentifier("motion.play")
+                .offset(y: 700)
         }
-        .task {
+    }
+
+    /// Starts `-autoplay` seconds (default 2) after the Play tap, so the motion runs after XCUITest's idle wait for
+    /// the tap ends, however long launching took.
+    func play() async {
             try? await Task.sleep(for: .seconds(UserDefaults.standard.double(forKey: "autoplay").nonZero ?? 2))
             if bug {
                 ghost = true
@@ -94,7 +101,6 @@ struct MotionPage: View {
                 withAnimation(.easeInOut(duration: 0.8)) { down = true }
                 withAnimation(.easeInOut(duration: 0.15)) { fullBar = false; compactBar = true }
             }
-        }
     }
 
     var card: some View {

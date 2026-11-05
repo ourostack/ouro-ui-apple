@@ -88,7 +88,7 @@ public struct OuroFeel {
         let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
         var found: [FeelElement] = []
         // Accessibility does not say which way a scroll view scrolls; a short, wide one whose content runs off its sides
-        // is marked sideways; FeelLayout counts it as a carousel only while it is under a third of the window's height.
+        // is marked sideways; FeelLayout counts it as a carousel only while it is under 60% of the window's height.
         func sideways(_ node: any XCUIElementSnapshot) -> Bool {
             let f = node.frame
             guard f.width > f.height * 1.5 else { return false }
@@ -177,9 +177,8 @@ public struct OuroFeel {
             var result = FeelLayout.check(found, window: window, pose: pose.name)
             #if os(iOS)
             // An app that stays portrait (an iPhone app without landscape) is fine, but say so: its "landscape" was not one.
-            if let o = pose.orientation, o.isLandscape, window.height > window.width {
-                result.findings.append(FeelFinding(what: "the app stayed portrait when the device turned to \(pose.name), so it likely supports portrait only; "
-                    + "its controls were checked in portrait there", inferred: true))
+            if let note = FeelLayout.stayedPortrait(window: window, pose: pose.name, deviceLandscape: pose.orientation?.isLandscape == true) {
+                result.findings.append(note)
             }
             #endif
             results.append(result)

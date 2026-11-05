@@ -515,3 +515,59 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         for key in ["Feedback", "Playback", "backgroundPicker", "Closet", "Undone"] { #expect(!FeelWayBack.saysBack(key), "\(key)") }
     }
 }
+
+@Suite struct ReviewThreeTests {
+    @Test func aPortraitOnlyAppPassesWithANote() {
+        let portrait = FeelLayout.check([FeelElement(key: "b", type: "button", frame: CGRect(x: 20, y: 20, width: 80, height: 44))],
+                                        window: phone, pose: "portrait")
+        var turned = FeelLayout.check([FeelElement(key: "b", type: "button", frame: CGRect(x: 20, y: 20, width: 80, height: 44))],
+                                      window: phone, pose: "landscape")
+        if let note = FeelLayout.stayedPortrait(window: phone, pose: "landscape", deviceLandscape: true) { turned.findings.append(note) }
+        #expect(turned.findings.count == 1)
+        let all = FeelLayout.combine([portrait, turned, portrait])
+        #expect(all.passed)
+        #expect(all.detections.isEmpty)
+        #expect(all.text.contains("(note)"))
+        #expect(FeelLayout.stayedPortrait(window: CGRect(x: 0, y: 0, width: 874, height: 402), pose: "landscape", deviceLandscape: true) == nil)
+    }
+
+    @Test func aCardCarouselInLandscapeExcusesItsOffscreenCards() {
+        let landscape = CGRect(x: 0, y: 0, width: 874, height: 402)
+        let strip = CGRect(x: 0, y: 120, width: 874, height: 200)
+        let next = FeelElement(key: "card 6", type: "button", frame: CGRect(x: 900, y: 130, width: 180, height: 180), scroll: strip, scrollsHorizontally: true)
+        #expect(FeelLayout.check([next], window: landscape, pose: "landscape").passed)
+        let listUnderABar = CGRect(x: 0, y: 60, width: 874, height: 342)
+        let off = FeelElement(key: "t", type: "switch", frame: CGRect(x: 900, y: 200, width: 51, height: 31), scroll: listUnderABar, scrollsHorizontally: true)
+        #expect(!FeelLayout.check([off], window: landscape, pose: "landscape").passed)
+    }
+
+    /// A tap that leaves the navigation bar as it was and the screen underneath still there (a menu opening, edit mode,
+    /// a row expanding) changed this screen; it did not reach a new one.
+    @Test func anInPlaceChangeIsNotANewScreen() {
+        #expect(!FeelWayBack.isNewScreen(barsBefore: ["Recipes"], barsAfter: ["Recipes"], stillThere: 4, of: 5))
+        #expect(FeelWayBack.isNewScreen(barsBefore: ["Recipes"], barsAfter: ["Pancakes"], stillThere: 5, of: 5))
+        #expect(FeelWayBack.isNewScreen(barsBefore: ["Recipes"], barsAfter: ["Recipes"], stillThere: 0, of: 5))
+        #expect(FeelWayBack.isNewScreen(barsBefore: ["Recipes"], barsAfter: ["Recipes", "Settings"], stillThere: 5, of: 5))
+        #expect(FeelWayBack.isNewScreen(barsBefore: [], barsAfter: [], stillThere: 0, of: 0))
+    }
+
+    @Test func emptyStartKeepsNothing() {
+        let r = FeelPlace.compare(start: FeelPlace.empty, after: ["relaunch": FeelPlace.empty])
+        #expect(!r.passed)
+        #expect(r.measures["kept"] == nil)
+    }
+
+    @Test func noHitchReadingHasNoMeasures() {
+        let r = FeelHitches.analyze(timestamps: [], refresh: 1.0 / 60).result()
+        #expect(r.measures["ratio"] == nil)
+        #expect(r.measures["hitches"] == nil)
+    }
+
+    @Test func anOverlayThatNeverAppearedIsNotCountedAsFailing() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "a", appeared: true, outsideDismisses: false, pickDismisses: true),
+                                       FeelOverlayTrial(name: "c", appeared: true, outsideDismisses: true, pickDismisses: true),
+                                       FeelOverlayTrial(name: "b", appeared: false)])
+        #expect(!r.passed)
+        #expect(r.summary.hasPrefix("1 of 2 overlays"), "\(r.summary)")
+    }
+}

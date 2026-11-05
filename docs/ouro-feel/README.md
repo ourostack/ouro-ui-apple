@@ -71,8 +71,10 @@ may tap (cells and links by default; `FeelFollow(types: [.cell, .link, .button])
 `FeelFollow(types: [], prefixes: ["recipe."])` for only your own identifiers). It never taps a back control, a menu
 button, anything inside a tab bar, segmented control, picker or menu (they switch what a screen shows), or one whose
 identifier or label says delete, remove, sign out, clear, pay, checkout, send, share or the like
-(`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). When buttons are followed, Save or Add
-can still be tapped, so launch into a fixture state that is safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
+(`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). A tap that leaves the navigation bars as they were and most of the screen still there
+(a menu opening, edit mode, a row expanding) changed the screen in place, so the walk resets and moves on rather than
+asking it for a way back. When buttons are followed, Save or Add can still be tapped, so launch into a fixture state
+that is safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
 relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe starts at the navigation bar's height,
 above any list row, so a missing pop gesture never fires a row's swipe action.
 
@@ -99,9 +101,9 @@ the round trip (`FeelPose.roundTrip`). It compares frames and never asks `isHitt
 XCUITest taps past the window's edge where no finger can reach. A control scrolled out of view passes when its scroll
 view is inside the window and the control is off only along the way it scrolls. Accessibility does not say which way
 that is, so a scroll view counts as a sideways carousel only when it is wide, its content runs off its sides, and it is
-under a third of the window's height; any other is a list, which never excuses a control off the side. A full-screen
+under 60% of the window's height; any other is a list, which never excuses a control off the side. A full-screen
 sideways pager therefore fails with its next page off the side: check it with `poses:` on a screen without one, or
-read the finding. When the app stays portrait as the device turns, the report says so, marked as inference.
+read the finding. When the app stays portrait as the device turns, the report adds a note, marked as inference, and the check still passes.
 
 ```swift
 feel.expect(feel.insideWindow())                     // portrait, landscape, portrait again

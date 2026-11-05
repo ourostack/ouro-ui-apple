@@ -41,6 +41,8 @@ public struct FeelHitches: Codable, Equatable, Sendable {
         }
         let summary = frames < 2 ? "could not check: no hitch reading" : "\(count) hitches in \(frames) frames over \(FeelResult.number(seconds)) s"
         return FeelResult(check: FeelGenre.hitches.rawValue, passed: ok, summary: summary,
-                          measures: ["ratio": ratio, "hitches": Double(count), "worstFrames": worstFrames, "frames": Double(frames)], findings: findings)
+                          measures: frames < 2 ? ["frames": Double(frames)]
+                            : ["ratio": ratio, "hitches": Double(count), "worstFrames": worstFrames, "frames": Double(frames)],
+                          findings: findings)
     }
 }

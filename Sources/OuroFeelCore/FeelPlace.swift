@@ -22,9 +22,10 @@ public enum FeelPlace {
         for name in steps.keys.sorted() where start != empty && (steps[name] != start || steps[name] == empty) {
             findings.append(FeelFinding(what: "after \(name) the screen showed different content (\(steps[name]!) instead of \(start))"))
         }
-        let kept = steps.count - findings.filter { !$0.unchecked }.count
+        let kept = start == empty ? 0 : steps.count - findings.filter { !$0.unchecked }.count
         let summary = "\(kept) of \(steps.count) steps kept the place"
         return FeelResult.judged(check: FeelGenre.placeStability.rawValue, passing: summary, failing: { _ in summary },
-                          measures: ["steps": Double(steps.count), "kept": Double(kept)], findings: findings)
+                          measures: start == empty ? ["steps": Double(steps.count)] : ["steps": Double(steps.count), "kept": Double(kept)],
+                          findings: findings)
     }
 }

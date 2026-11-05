@@ -99,6 +99,22 @@ extension OuroFeel {
         return parts.sorted().joined(separator: "|")
     }
 
+    static func holdsSwitcher(_ node: any XCUIElementSnapshot) -> Bool {
+        node.children.contains { switcherTypes.contains($0.elementType) || holdsSwitcher($0) }
+    }
+
+    /// The titles of the navigation bars on screen.
+    func barTitles() -> [String] {
+        guard let root = try? app.snapshot() else { return [] }
+        var titles: [String] = []
+        func walk(_ node: any XCUIElementSnapshot) {
+            if node.elementType == .navigationBar { titles.append(Self.key(node)) }
+            node.children.forEach(walk)
+        }
+        walk(root)
+        return titles
+    }
+
     static func isBack(_ node: any XCUIElementSnapshot) -> Bool {
         FeelWayBack.saysBack(node.identifier, node.label)
     }
@@ -114,7 +130,7 @@ extension OuroFeel {
             // Never the screen's own way back (following it would walk backwards), and never a control that switches
             // what this screen shows (a tab, a segment, a menu), which is not a new screen to find a way back from.
             if !switcher, !key.isEmpty, node.isEnabled, node.frame.intersects(window), !Self.isBack(node),
-               !Self.switcherTypes.contains(node.elementType),
+               !Self.switcherTypes.contains(node.elementType), !(node.elementType == .cell && Self.holdsSwitcher(node)),
                follow.allows(type: node.elementType, key: key, label: node.label), !keys.contains(key) {
                 keys.append(key)
             }
@@ -131,7 +147,7 @@ extension OuroFeel {
     }
 
     /// The visible back control: a navigation bar's leading button, or any button whose label or identifier says
-    /// back, close, done, cancel or dismiss, inside the window.
+    /// back, close, done, cancel or dismiss as a whole word (``FeelWayBack/saysBack(_:)``), inside the window.
     func backAffordance() -> XCUIElement? {
         let window = app.windows.firstMatch.frame
         let bar = app.navigationBars.firstMatch
@@ -139,10 +155,18 @@ extension OuroFeel {
             let leading = bar.buttons.allElementsBoundByIndex.filter { $0.frame.minX < window.minX + 120 && window.contains($0.frame) }
             if let first = leading.first { return first }
         }
-        let named = app.buttons.matching(NSPredicate(format:
-            "label ==[c] 'back' OR label ==[c] 'close' OR label ==[c] 'done' OR label ==[c] 'cancel' OR label ==[c] 'dismiss' OR "
-            + "identifier CONTAINS[c] 'back' OR identifier CONTAINS[c] 'close' OR identifier CONTAINS[c] 'dismiss'"))
-        return named.allElementsBoundByIndex.first { window.contains($0.frame) && $0.isEnabled }
+        guard let root = try? app.snapshot() else { return nil }
+        var found: String?
+        func walk(_ node: any XCUIElementSnapshot) {
+            if found != nil { return }
+            if node.elementType == .button, node.isEnabled, window.contains(node.frame), Self.isBack(node) {
+                found = Self.key(node)
+                return
+            }
+            node.children.forEach(walk)
+        }
+        walk(root)
+        return found.map(element)
     }
 
     /// From the leading edge at the navigation bar's height (or near the top), where no list row sits, so a missing
@@ -193,11 +217,17 @@ extension OuroFeel {
                   visited: &visited, check: alsoInsideWindow)
         }
         var result = FeelWayBack.evaluate(screens)
-        let outside = layouts.filter { !$0.passed }
+        let outside = layouts.filter { !$0.detections.isEmpty }
+        let unchecked = layouts.filter { $0.detections.isEmpty && !$0.passed }
         if !outside.isEmpty {
             result.passed = false
             result.findings += outside.flatMap(\.findings)
             result.summary += "; \(outside.count) screens have controls outside the window"
+        }
+        if !unchecked.isEmpty {
+            result.passed = false
+            result.findings += unchecked.flatMap(\.findings)
+            result.summary += "; \(unchecked.count) screens could not be checked for the window"
         }
         return result
     }
@@ -205,8 +235,10 @@ extension OuroFeel {
     private func visit(_ entry: FeelEntry, path: [String], depth: Int, limit: Int, follow: FeelFollow,
                        screens: inout [FeelDestination], layouts: inout [FeelResult], visited: inout Set<String>, check: Bool) {
         let here = signature(follow)
+        let bars = barTitles()
         visited.insert(here)
-        for key in followable(follow) {
+        let keys = followable(follow)
+        for key in keys {
             guard screens.count < limit else { return }
             if signature(follow) != here, !replay(entry, path) { return }
             let target = element(key)
@@ -216,6 +248,14 @@ extension OuroFeel {
             let there = signature(follow)
             guard there != here, !visited.contains(there) else {
                 if there != here { _ = replay(entry, path) }
+                continue
+            }
+            // A menu that opened, edit mode, a row that expanded: this screen changed in place, so there is no new
+            // screen to leave. Up to eight of its other controls are enough to tell.
+            let others = keys.filter { $0 != key }.prefix(8)
+            let stillThere = others.filter { let e = element($0); return e.exists && e.isHittable }.count
+            if !FeelWayBack.isNewScreen(barsBefore: bars, barsAfter: barTitles(), stillThere: stillThere, of: others.count) {
+                _ = replay(entry, path)
                 continue
             }
             let name = [entry.name] + path + [key]

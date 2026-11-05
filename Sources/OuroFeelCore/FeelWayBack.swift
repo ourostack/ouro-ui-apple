@@ -39,6 +39,15 @@ public enum FeelWayBack {
                                  measures: ["screens": Double(screens.count), "good": Double(good)], findings: findings)
     }
 
+    /// Whether a tap reached a new screen. A tap that left the navigation bars as they were (`barsBefore`, their
+    /// titles) and most of the screen's followable controls still there and hittable (`stillThere` of `of`) changed
+    /// the screen in place (a menu opened, edit mode, a row expanded), so the walk does not ask it for a way back.
+    public static func isNewScreen(barsBefore: [String], barsAfter: [String], stillThere: Int, of total: Int) -> Bool {
+        if barsBefore.sorted() != barsAfter.sorted() { return true }
+        guard total > 0 else { return true }
+        return Double(stillThere) / Double(total) < 0.5
+    }
+
     /// Words that mark a control as a way back. They match whole words only, so "Feedback" and "Playback" are not.
     public static let backWords = ["back", "close", "done", "cancel", "dismiss"]
 
@@ -77,7 +86,9 @@ public enum FeelOverlays {
             if t.pickDismisses == false { findings.append(FeelFinding(what: "\(t.name): still on screen after picking an item")) }
         }
         if trials.isEmpty { findings.append(.couldNotCheck("no overlays were named")) }
-        let summary = "\(trials.count - Set(findings.map { $0.what.components(separatedBy: ":")[0] }).count) of \(trials.count) overlays dismiss as they should"
+        let tried = trials.filter(\.appeared).count
+        let failing = Set(findings.filter { !$0.unchecked }.map { $0.what.components(separatedBy: ":")[0] }).count
+        let summary = "\(tried - failing) of \(tried) overlays dismiss as they should"
         return FeelResult.judged(check: FeelGenre.overlayDismissal.rawValue, passing: summary, failing: { _ in summary },
                                  measures: ["overlays": Double(trials.count)], findings: findings)
     }

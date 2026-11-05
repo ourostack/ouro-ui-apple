@@ -300,3 +300,41 @@ jobs:
           xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath .build/xcode-beta CODE_SIGNING_ALLOWED=NO \
             OTHER_SWIFT_FLAGS='$(inherited) -DOURO_SIRI_AI_SDK' 2>&1 | tail -40
+
+  feel-fixture:
+    name: Ouro Feel catches every genre's bug (free macos-26, Xcode 26)
+    # Examples/OuroFeelFixture has one page per genre of jank with a known bug behind `-bug 1`; FeelCatchesTests proves
+    # each check fails on the bug and passes without it. Reports go up as an artifact.
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: A fresh simulator for this job
+        run: |
+          set -eu
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          (cd Examples/OuroFeelFixture && xcodegen generate)
+          runtime="$(xcrun simctl list runtimes -j | python3 -I -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(sorted(r,key=lambda x:[int(p) for p in x["version"].split(".")])[-1]["identifier"])')"
+          for device in "iPhone 17 Pro" "iPhone 16 Pro" "iPhone 16"; do
+            udid="$(xcrun simctl create ouro-feel-ci "$device" "$runtime" 2>/dev/null)" && break
+          done
+          echo "Using $device on $runtime: $udid"
+          echo "UDID=$udid" >> "$GITHUB_ENV"
+      - name: Fixture UI tests (cold start, fresh simulator)
+        run: |
+          set -o pipefail
+          TEST_RUNNER_OURO_FEEL_START=cold TEST_RUNNER_OURO_FEEL_REPORT_DIR="$PWD/.build/feel-reports" \
+          xcodebuild test -project Examples/OuroFeelFixture/OuroFeelFixture.xcodeproj -scheme OuroFeelFixture \
+            -destination "id=$UDID" -derivedDataPath .build/feel-fixture -resultBundlePath .build/feel-fixture.xcresult \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" | tail -200
+      - if: always()
+        name: Pack the reports and result bundle
+        run: |
+          mkdir -p .build/feel-reports
+          test -d .build/feel-fixture.xcresult && tar -czf .build/feel-reports/feel-fixture-xcresult.tgz -C .build feel-fixture.xcresult || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ouro-feel-fixture-reports
+          path: .build/feel-reports
+          if-no-files-found: ignore

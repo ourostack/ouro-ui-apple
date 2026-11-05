@@ -1,4 +1,5 @@
 public import CoreGraphics
+public import Foundation
 
 /// One element in one sample.
 public struct FeelSeen: Codable, Equatable, Sendable {
@@ -38,6 +39,13 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         self.frames = frames
     }
 
+    /// The film as JSON, to attach beside a report when a motion check needs explaining (frames, not pixels).
+    public var json: Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(self)) ?? Data()
+    }
+
     /// Mean time between samples, in seconds.
     public var cadence: Double {
         guard let first = frames.first, let last = frames.last, frames.count > 1 else { return 0 }
@@ -61,6 +69,18 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         Double(max(abs(a.minX - b.minX), abs(a.minY - b.minY), abs(a.width - b.width), abs(a.height - b.height)))
     }
 
+    /// The median time between samples: what the film's sampling usually managed, unlike `cadence` (the mean), which
+    /// one long stall can drag up.
+    public var typicalGap: Double {
+        let gaps = zip(frames, frames.dropFirst()).map { $1.t - $0.t }.sorted()
+        return gaps.isEmpty ? .infinity : gaps[gaps.count / 2]
+    }
+
+    func tooSparse(_ maxGap: Double) -> FeelFinding? {
+        typicalGap <= maxGap ? nil : FeelFinding(what: "samples were usually \(FeelResult.number(round3(typicalGap))) s apart, too far apart to judge "
+            + "(at most \(FeelResult.number(maxGap)) s); watch fewer elements, or rerun on a less busy machine")
+    }
+
     // MARK: Settle
 
     /// Seconds from the film's start until the element reached the place it then kept to the end, within
@@ -76,29 +96,53 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         return settled
     }
 
-    /// Passes when the element settles within `limit` seconds of the film's start.
-    public func settles(_ key: String, within limit: Double, tolerance: Double = 0.5) -> FeelResult {
-        guard let t = settleTime(of: key, tolerance: tolerance) else {
+    /// When the element first moved (or appeared after the film began): the time of the last sample before it.
+    public func motionStart(of key: String, tolerance: Double = 0.5) -> Double? {
+        let track = track(key)
+        guard let first = track.first else { return nil }
+        if let firstFrame = frames.first, first.t > firstFrame.t {
+            return frames.last { $0.t < first.t }?.t ?? first.t
+        }
+        for (a, b) in zip(track, track.dropFirst()) where Self.distance(a.frame, first.frame) <= tolerance && Self.distance(b.frame, first.frame) > tolerance {
+            return a.t
+        }
+        return nil
+    }
+
+    /// Passes when the element comes to rest within `limit` seconds of starting to move. An element that never moved
+    /// passes with a settle time of zero.
+    /// Samples usually more than `maxGap` apart cannot time it, and the check fails saying so.
+    public func settles(_ key: String, within limit: Double, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
+        guard let end = settleTime(of: key, tolerance: tolerance) else {
             return FeelResult(check: FeelGenre.settleTime.rawValue, passed: false, summary: "\"\(key)\" never appeared",
                               findings: [FeelFinding(what: "\"\(key)\" was not on screen in any of \(frames.count) samples")])
         }
+        let t = round3(max(0, end - (motionStart(of: key, tolerance: tolerance) ?? end)))
+        if let sparse = tooSparse(maxGap) {
+            return FeelResult(check: FeelGenre.settleTime.rawValue, passed: false, summary: "could not time \"\(key)\" settling",
+                              measures: ["settle": t, "cadence": round3(cadence), "typicalGap": round3(typicalGap)], findings: [sparse])
+        }
         let ok = t <= limit
-        return FeelResult(check: FeelGenre.settleTime.rawValue, passed: ok, summary: "\"\(key)\" settled at \(FeelResult.number(round3(t))) s (limit \(FeelResult.number(limit)) s)",
-                          measures: ["settle": round3(t), "cadence": round3(cadence)],
-                          findings: ok ? [] : [FeelFinding(what: "\"\(key)\" was still moving \(FeelResult.number(round3(t))) s in")])
+        return FeelResult(check: FeelGenre.settleTime.rawValue, passed: ok,
+                          summary: "\"\(key)\" came to rest \(FeelResult.number(t)) s after it started moving (limit \(FeelResult.number(limit)) s)",
+                          measures: ["settle": t, "cadence": round3(cadence)],
+                          findings: ok ? [] : [FeelFinding(what: "\"\(key)\" was still moving \(FeelResult.number(t)) s after it started")])
     }
 
     // MARK: Jumps
 
-    /// A jump is the element moving more than `limit` points after it had been still for `rest` seconds.
+    /// A jump is the element moving more than `limit` points after it had landed: after its first move, then `rest`
+    /// seconds still. Its first move from rest is the transition itself, so start the film before the transition.
     public func jumps(of key: String, rest: Double = 0.3, limit: Double = 2, tolerance: Double = 0.5) -> FeelResult {
         let track = track(key)
         var findings: [FeelFinding] = []
         var stillSince = track.first?.t ?? 0
+        var landed = false
         for (previous, sample) in zip(track, track.dropFirst()) {
             let moved = Self.distance(previous.frame, sample.frame)
             if moved <= tolerance { continue }
-            if moved > limit && previous.t - stillSince >= rest {
+            defer { landed = true }
+            if landed && moved > limit && previous.t - stillSince >= rest {
                 findings.append(FeelFinding(what: "\"\(key)\" jumped \(FeelResult.number(round3(moved))) pt at \(FeelResult.number(round3(sample.t))) s, "
                     + "after \(FeelResult.number(round3(previous.t - stillSince))) s at rest"))
             }
@@ -146,43 +190,60 @@ public struct FeelFilm: Codable, Equatable, Sendable {
 
     // MARK: Snaps
 
-    /// A snap is a move of more than `distance` points between two samples with the element still on both sides, so
-    /// no in-between position was ever on screen. With `appearing`, arriving in full between two samples counts too.
+    /// A snap is a move of more than `distance` points between two samples with the element still, and at its resting
+    /// size, on both sides, so no in-between position was ever on screen. With `appearing`, arriving in full between two samples counts too.
     /// The samples must be at most `maxGap` seconds apart around such a move, or the check cannot tell a snap from a
-    /// quick transition and fails saying so.
-    public func snaps(of key: String, distance: Double = 40, appearing: Bool = false, maxGap: Double = 0.1, tolerance: Double = 0.5) -> FeelResult {
+    /// quick transition. XCUITest's snapshot waits while the app animates, so when sampling is otherwise quick (the
+    /// median gap within `maxGap`) a move inside a gap at least three times the median passes as a transition, reported
+    /// as inference; when sampling is usually slower than `maxGap` the check fails and says so, moves seen or not.
+    public func snaps(of key: String, distance: Double = 40, appearing: Bool = false, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
         let places: [CGRect?] = frames.map { find(key, in: $0)?.frame }
         func moved(_ i: Int) -> Double? {
             guard i >= 0, i + 1 < places.count, let a = places[i], let b = places[i + 1] else { return nil }
             return Self.distance(a, b)
         }
-        var findings: [FeelFinding] = []
+        // Its resting size: the size it shows most. Mid-animation SwiftUI stretches the accessibility frame from where
+        // the element is drawn to where it is going, so a sample at another size is an in-between position.
+        let sizes = places.compactMap { $0.map { "\(Int(($0.width).rounded()))x\(Int(($0.height).rounded()))" } }
+        let restingSize = Dictionary(sizes.map { ($0, 1) }, uniquingKeysWith: +).max { $0.value < $1.value }?.key
+        func atRest(_ i: Int) -> Bool {
+            guard let r = places[i] else { return false }
+            return "\(Int(r.width.rounded()))x\(Int(r.height.rounded()))" == restingSize
+        }
+        var findings: [FeelFinding] = [], busy: [FeelFinding] = []
         for i in 0..<max(0, frames.count - 1) {
             let gap = frames[i + 1].t - frames[i].t
             let quietBefore = (moved(i - 1) ?? 0) <= tolerance
             let quietAfter = (moved(i + 1) ?? 0) <= tolerance
             var what: String?
-            if let m = moved(i), m > distance, quietBefore, quietAfter {
+            if let m = moved(i), m > distance, quietBefore, quietAfter, atRest(i), atRest(i + 1) {
                 what = "\"\(key)\" moved \(FeelResult.number(round3(m))) pt between \(FeelResult.number(round3(frames[i].t))) s and \(FeelResult.number(round3(frames[i + 1].t))) s with nothing in between"
             } else if appearing, places[i] == nil, places[i + 1] != nil, quietAfter, i + 2 < places.count {
                 what = "\"\(key)\" appeared in full at \(FeelResult.number(round3(frames[i + 1].t))) s with no transition"
             }
             guard let what else { continue }
-            findings.append(FeelFinding(what: gap > maxGap
-                ? "samples \(FeelResult.number(round3(gap))) s apart are too far apart to tell a snap from a transition (\(what)); watch fewer elements"
-                : what))
+            if gap <= maxGap {
+                findings.append(FeelFinding(what: what))
+            } else if typicalGap <= maxGap && gap >= typicalGap * 3 {
+                // Sampling was quick except around this move: the snapshot was waiting for the app to go idle.
+                busy.append(FeelFinding(what: "the app was busy for \(FeelResult.number(round3(gap))) s while \"\(key)\" moved "
+                    + "\(FeelResult.number(round3(moved(i) ?? 0))) pt, as it is while a transition runs; the frames inside it were not seen", inferred: true))
+            } else {
+                findings.append(FeelFinding(what: "samples \(FeelResult.number(round3(gap))) s apart are too far apart to tell a snap from a transition (\(what)); watch fewer elements"))
+            }
         }
+        if let sparse = tooSparse(maxGap) { findings.insert(sparse, at: 0) }
         return FeelResult(check: FeelGenre.snap.rawValue, passed: findings.isEmpty,
                           summary: findings.isEmpty ? "\"\(key)\" travelled wherever it moved" : "\"\(key)\" snapped \(findings.count) times",
-                          measures: ["snaps": Double(findings.count), "cadence": round3(cadence)], findings: findings)
+                          measures: ["snaps": Double(findings.count), "cadence": round3(cadence)], findings: findings + busy)
     }
 
     // MARK: Chrome
 
     /// A hand-over from one chrome state to another (a full bar to a compact one, a toolbar to its edit mode): it
-    /// fails when both are on screen together, or neither is, for longer than `grace` seconds, counted from the first
+    /// fails when both are on screen together, or neither is, for longer than `grace` seconds (a short crossfade is fine), counted from the first
     /// sample that shows either.
-    public func chrome(from a: String, to b: String, grace: Double = 0.1) -> FeelResult {
+    public func chrome(from a: String, to b: String, grace: Double = 0.25) -> FeelResult {
         var both = 0.0, neither = 0.0, longestBoth = 0.0, longestNeither = 0.0, runBoth = 0.0, runNeither = 0.0
         var started = false
         for (f, next) in zip(frames, frames.dropFirst()) {

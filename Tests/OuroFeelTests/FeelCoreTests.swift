@@ -96,12 +96,17 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(film([(0, [])]).settleTime(of: "card") == nil)
     }
 
-    @Test func aMoveAfterRestIsAJump() {
-        let f = film([(0, [card(400)]), (0.2, [card(400)]), (0.5, [card(400)]), (0.6, [card(440)]), (0.7, [card(440)])])
+    @Test func aMoveAfterLandingIsAJump() {
+        let f = film([(0, [card(700)]), (0.1, [card(400)]), (0.2, [card(400)]), (0.5, [card(400)]), (0.6, [card(440)]), (0.7, [card(440)])])
         let result = f.jumps(of: "card")
         #expect(!result.passed)
         #expect(result.measures["jumps"] == 1)
-        #expect(result.findings[0].what.contains("40"))
+        #expect(result.findings.first?.what.contains("40") == true)
+    }
+
+    @Test func theFirstMoveFromRestIsTheTransitionNotAJump() {
+        let f = film([(0, [card(200)]), (1.0, [card(200)]), (2.0, [card(200)]), (2.1, [card(520)]), (2.5, [card(520)])])
+        #expect(f.jumps(of: "card").passed)
     }
 
     @Test func movingWhileStillAnimatingIsNotAJump() {
@@ -259,6 +264,38 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(f.snaps(of: "panel").passed)
     }
 
+    /// Mid-animation, SwiftUI's accessibility frame stretches from where the element is drawn to where it is going
+    /// (seen on the iOS 27.2 simulator), so a stretched sample is an in-between position, however big the step to it.
+    @Test func aStretchedFrameIsAnInBetweenPositionNotASnap() {
+        func at(_ t: Double, _ y: Double, _ h: Double) -> FeelFrame { FeelFrame(t: t, seen: [FeelSeen(key: "panel", frame: CGRect(x: 0, y: y, width: 300, height: h))]) }
+        let f = FeelFilm(window: phone, frames: [at(0, 200, 120), at(0.03, 200, 120), at(0.06, 200, 393.17), at(0.09, 200.26, 392.9),
+                                                 at(0.12, 260, 333), at(0.15, 473, 120), at(0.18, 473, 120)])
+        #expect(f.snaps(of: "panel").passed)
+    }
+
+    /// XCUITest's snapshot waits while the app animates, so a transition shows up as one long gap in fast sampling.
+    @Test func aMoveInsideAStallInFastSamplingIsATransitionByInference() {
+        var frames = stride(from: 0.0, to: 1.0, by: 0.02).map { FeelFrame(t: $0, seen: [box(200)]) }
+        frames += stride(from: 1.9, to: 2.5, by: 0.02).map { FeelFrame(t: $0, seen: [box(520)]) }
+        let r = FeelFilm(window: phone, frames: frames).snaps(of: "panel")
+        #expect(r.passed)
+        #expect(r.findings.contains { $0.inferred && $0.what.contains("busy") })
+    }
+
+    /// A gap only a little longer than usual is not a stall: a move across it is judged as usual.
+    @Test func aMoveInASlightlyLongGapIsStillASnap() {
+        var frames = stride(from: 0.0, to: 1.0, by: 0.07).map { FeelFrame(t: $0, seen: [box(200)]) }
+        frames += stride(from: 1.12, to: 2.0, by: 0.07).map { FeelFrame(t: $0, seen: [box(520)]) }
+        #expect(!FeelFilm(window: phone, frames: frames).snaps(of: "panel").passed)
+    }
+
+    @Test func aSparseFilmCannotPassEvenWithNoMoveSeen() {
+        let frames = stride(from: 0.0, to: 4.0, by: 0.5).map { FeelFrame(t: $0, seen: [box(200)]) }
+        let r = FeelFilm(window: phone, frames: frames).snaps(of: "panel")
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.what.contains("too far apart") })
+    }
+
     @Test func samplesTooSparseToJudgeSayso() {
         let f = FeelFilm(window: phone, frames: [FeelFrame(t: 0, seen: [box(800)]), FeelFrame(t: 0.5, seen: [box(400)])])
         let r = f.snaps(of: "panel")
@@ -310,5 +347,28 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
 
     @Test func anOverlayThatNeverOpenedFails() {
         #expect(!FeelOverlays.evaluate([FeelOverlayTrial(name: "menu", appeared: false)]).passed)
+    }
+}
+
+@Suite struct SettleFromMotionTests {
+    @Test func settleIsTimedFromTheFirstMove() {
+        let still = (0..<10).map { FeelFrame(t: Double($0) * 0.1, seen: [card(200)]) }
+        let moving = [FeelFrame(t: 1.0, seen: [card(300)]), FeelFrame(t: 1.1, seen: [card(400)]), FeelFrame(t: 1.2, seen: [card(400)])]
+        let f = FeelFilm(window: phone, frames: still + moving)
+        let r = f.settles("card", within: 0.5)
+        #expect(r.passed)
+        #expect(r.measures["settle"] == 0.2)
+    }
+
+    @Test func aSparseFilmCannotTimeSettling() {
+        let f = film([(0, [card(200)]), (1.0, [card(200)]), (1.5, [card(500)]), (2.2, [card(500)]), (2.9, [card(500)])])
+        let r = f.settles("card", within: 1.0)
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.what.contains("too far apart") })
+    }
+
+    @Test func aLateJumpMakesSettlingSlow() {
+        let frames = [0, 0.1, 0.2, 1.4, 1.5].enumerated().map { i, t in FeelFrame(t: t, seen: [card(i == 0 ? 200 : (i < 3 ? 500 : 540))]) }
+        #expect(!FeelFilm(window: phone, frames: frames).settles("card", within: 1).passed)
     }
 }

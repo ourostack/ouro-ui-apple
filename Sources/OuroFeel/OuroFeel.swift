@@ -42,7 +42,7 @@ public struct OuroFeel {
     /// Records the result without failing: for a test that expects a check to fail, such as a regression test that
     /// proves the check still catches a known bug.
     @discardableResult
-    public func record(_ input: FeelResult, name: String? = nil) -> FeelResult {
+    public func record(_ input: FeelResult, name: String? = nil, film: FeelFilm? = nil) -> FeelResult {
         var result = input
         if result.environment == nil { result.environment = environment }
         let slug = (name ?? result.check).replacingOccurrences(of: " ", with: "-")
@@ -56,6 +56,12 @@ public struct OuroFeel {
             json.name = "ouro-feel-\(slug).json"
             json.lifetime = .keepAlways
             activity.add(json)
+            if let film {
+                let raw = XCTAttachment(data: film.json, uniformTypeIdentifier: "public.json")
+                raw.name = "ouro-feel-\(slug)-film.json"
+                raw.lifetime = .keepAlways
+                activity.add(raw)
+            }
         }
         if let dir = ProcessInfo.processInfo.environment["OURO_FEEL_REPORT_DIR"], !dir.isEmpty {
             let base = URL(fileURLWithPath: dir)
@@ -63,6 +69,7 @@ public struct OuroFeel {
             let stamp = Int(Date().timeIntervalSince1970 * 1000)
             try? Data(result.text.utf8).write(to: base.appendingPathComponent("\(slug)-\(stamp).txt"))
             try? result.json.write(to: base.appendingPathComponent("\(slug)-\(stamp).json"))
+            if let film { try? film.json.write(to: base.appendingPathComponent("\(slug)-\(stamp)-film.json")) }
         }
         return result
     }
@@ -164,14 +171,16 @@ public struct OuroFeel {
 
     // MARK: Tap landing
 
-    /// Single taps on `control`, never retried: `trials` at each spot. A tap lands when `read` (by default the
+    /// Single taps on `control`, never retried: `trials` at each spot. `.zeroPress` is not a default: on the iOS 27.2
+    /// simulator a system `Toggle` ignored XCUITest's zero-length press 3 times in 3, so it measures XCUITest's event,
+    /// not the app; add it only for a control that acts on touch-down. A tap lands when `read` (by default the
     /// control's value) changes within a second. With `title`, it also taps the row's title and the gap between title
     /// and control; `rowToggles` says whether those should change the control (a row that acts as one button) or
     /// should not (iOS Settings rows). `baseline` is ``osBaseline(trials:)``.
     public func tapLanding(
         on control: XCUIElement,
         trials: Int = 5,
-        spots: [FeelTapSpot] = [.centre, .leadingEdge, .trailingEdge, .topEdge, .bottomEdge, .zeroPress],
+        spots: [FeelTapSpot] = [.centre, .leadingEdge, .trailingEdge, .topEdge, .bottomEdge],
         title: XCUIElement? = nil,
         rowToggles: Bool = false,
         baseline: Double? = nil,
@@ -254,14 +263,23 @@ public struct OuroFeel {
     /// The film's clock starts just before `action`. XCUITest waits for the app to go idle after a tap, so the first
     /// sample comes when that wait ends: a film sees what happens after an action settles (jumps, late chrome, ghost
     /// copies that stay) and every motion the app starts on its own, but not the frames inside XCUITest's idle wait.
-    public func film(_ keys: [String], for seconds: TimeInterval, during action: (() -> Void)? = nil) -> FeelFilm {
+    ///
+    /// Samples start `every` seconds apart (default 0.05). Each snapshot holds the app's main thread while it answers,
+    /// so sampling back to back can slow the very motion it watches: on the iOS 27.2 simulator a 0.8 s ease sampled
+    /// back to back measured 1.84 s.
+    public func film(_ keys: [String], for seconds: TimeInterval, every interval: TimeInterval = 0.05,
+                     during action: (() -> Void)? = nil) -> FeelFilm {
         let wanted = Set(keys)
         let start = Date()
         action?()
         var frames: [FeelFrame] = []
         var window = CGRect.zero
+        var next = 0.0
         while Date().timeIntervalSince(start) < seconds {
+            let wait = next - Date().timeIntervalSince(start)
+            if wait > 0 { Thread.sleep(forTimeInterval: wait) }
             let now = Date().timeIntervalSince(start)
+            next = now + interval
             let (w, seen) = self.seen(wanted)
             if w != .zero { window = w }
             frames.append(FeelFrame(t: now, seen: seen))
@@ -269,6 +287,7 @@ public struct OuroFeel {
         return FeelFilm(window: window, frames: frames)
     }
 
+    #if !os(visionOS)
     /// Wraps `XCTHitchMetric` (iOS 26 and later) around `action`, `iterations` times. The figures go to the result
     /// bundle, not to a ``FeelResult``. Apple's simulator has reported no hitch figures for the signpost metrics in our
     /// runs, so on a simulator treat a missing figure as "not measured", never as "no hitches".
@@ -278,6 +297,7 @@ public struct OuroFeel {
         options.iterationCount = iterations
         testCase.measure(metrics: [XCTHitchMetric(application: app)], options: options, block: action)
     }
+    #endif
 
     // MARK: Place stability
 

@@ -100,14 +100,16 @@ extension OuroFeel {
         return backWords.contains { words.contains($0) }
     }
 
-    /// The followable controls on screen, in order, by key.
+    /// The followable controls on screen, in order, by key. Back, close, done, cancel and dismiss controls are never
+    /// followed, so following buttons (`FeelFollow(types: [.button])`) does not walk back out of the screen.
     func followable(_ follow: FeelFollow) -> [String] {
         guard let root = try? app.snapshot() else { return [] }
         let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
         var keys: [String] = []
         func walk(_ node: any XCUIElementSnapshot) {
             let key = Self.key(node)
-            if !key.isEmpty, node.isEnabled, node.frame.intersects(window),
+            // Never the screen's own way back: following it would walk backwards.
+            if !key.isEmpty, node.isEnabled, node.frame.intersects(window), !Self.isBack(node),
                follow.allows(type: node.elementType, key: key, label: node.label), !keys.contains(key) {
                 keys.append(key)
             }
@@ -250,7 +252,6 @@ extension OuroFeel {
     public func overlays(_ overlays: [FeelOverlay]) -> FeelResult {
         var trials: [FeelOverlayTrial] = []
         for overlay in overlays {
-            let container = element(overlay.overlay)
             func shown() -> Bool {
                 let c = element(overlay.overlay)
                 return c.exists && c.frame.intersects(app.windows.firstMatch.frame) && c.frame.width > 0
@@ -260,7 +261,7 @@ extension OuroFeel {
                 trials.append(FeelOverlayTrial(name: overlay.name, appeared: false))
                 continue
             }
-            let frame = container.frame, w = app.windows.firstMatch.frame
+            let frame = element(overlay.overlay).frame, w = app.windows.firstMatch.frame
             let outside = [CGPoint(x: w.maxX - 20, y: w.midY), CGPoint(x: w.minX + 20, y: w.midY),
                            CGPoint(x: w.midX, y: w.maxY - 60), CGPoint(x: w.midX, y: w.minY + 80)]
                 .first { !frame.insetBy(dx: -8, dy: -8).contains($0) }

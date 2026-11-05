@@ -1,0 +1,196 @@
+# Ouro Feel
+
+Ouro Feel measures how an Apple app feels, deterministically, from a UI test. It turns the checks taste reviewers kept
+rewriting by hand into one library every app runs in CI, so agents spend their own judgement only on taste
+([taste-rubric.md](taste-rubric.md)).
+
+- **`OuroFeel`** (link it into your UI test bundle) drives XCUITest and reads accessibility snapshots.
+- **`OuroFeelCore`** is the pure analysis behind it: no XCTest, so every rule has a unit test (`Tests/OuroFeelTests`).
+- **`scripts/ouro-feel-cold.sh`** runs one test N times on fresh simulators and reports the pass rate.
+
+Credit: the checks come from Gatefold's build 17 to 19 reviewer drivers (tap rate, row feel, Settings control,
+portrait panel, rotation), Spoonjoy's W10 and W10b jank tools (frame sheets, jump and double-draw scans) and the HX
+gallery's motion gate (hitch ratio, from `FrameProbe`).
+
+## Add it
+
+```swift
+// Package.swift or Xcode: the UI test target depends on the OuroFeel product.
+.package(url: "https://github.com/ourostack/ouro-ui-apple", from: "0.4.0")
+```
+
+```swift
+import OuroFeel
+import XCTest
+
+@MainActor
+final class FeelTests: XCTestCase {
+    func testTheWayBack() {
+        let app = XCUIApplication()
+        app.launch()
+        let feel = OuroFeel(app)
+        feel.expect(feel.wayBack(from: [.launch, .tab("Kitchen")]))
+    }
+}
+```
+
+`feel.expect(result)` attaches the report to the test, prints it with an `[ouro-feel]` prefix, writes it as text and
+JSON to `OURO_FEEL_REPORT_DIR` (pass `TEST_RUNNER_OURO_FEEL_REPORT_DIR=<dir>` to `xcodebuild`), and fails the test if
+the check failed. `feel.record(result)` does the same without failing, for a test that expects a known bug to be
+caught.
+
+## The genres
+
+Each check covers one genre of jank (`FeelGenre`). Most run app-wide: give the walkers your entry points and they
+visit every screen they can reach.
+
+| Genre | What good feels like | Check |
+|---|---|---|
+| the way back | Every screen you reach has a visible way back and a gesture back, and both return you where you were. | `feel.wayBack(from:follow:depth:)` |
+| overlay dismissal | Every sidebar, popover, sheet and menu goes away with a tap outside, a swipe, or once you pick something. | `feel.overlays(_:)` |
+| inside the window | Every control sits wholly inside the window, in every orientation and after turning the device and back. | `feel.insideWindow(poses:)`; also on every screen `wayBack` reaches |
+| tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:)`, `feel.osBaseline()` |
+| double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
+| jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)` |
+| late or lingering chrome | Bars and controls hand over in one beat: never two states at once, never a blank between them. | `film.chrome(from:to:grace:)` |
+| snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
+| settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
+| place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
+| hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `feel.measureHitches(in:)` |
+
+### The way back
+
+Proves: every screen reachable from your entry points, up to `depth` taps deep, has a visible back control (a
+navigation bar's leading button, or a Back, Close, Done, Cancel or Dismiss button inside the window) that returns, and
+a gesture (an edge swipe, else a swipe down) that returns. It also checks each reached screen's controls lie inside
+the window (`alsoInsideWindow: false` turns that off).
+
+Flags: `from:` entry points (`.launch`, `.tab("Kitchen")`, or `FeelEntry("name") { app in … }`); `follow:` what it
+may tap (cells and links by default; `FeelFollow(types: [], prefixes: ["recipe."])` for your own identifiers); it never
+taps controls whose names say delete, remove, sign out, buy, send or share. `depth:` (default 2), `limit:` (default 40
+screens). It relaunches to recover, so launch into a state that is safe to repeat.
+
+```swift
+feel.expect(feel.wayBack(from: [.launch], follow: FeelFollow(prefixes: ["recipe.", "chef."]), depth: 2))
+```
+
+### Overlay dismissal
+
+Proves: each overlay you name appears, goes away on a tap outside it, and (with `pick:`) goes away once you pick an
+item in it, as a compact sidebar should.
+
+```swift
+feel.expect(feel.overlays([
+    .button("sidebar.toggle", overlay: "sidebar", pick: "sidebar.saved"),
+    .button("Sort", overlay: "sort.menu"),
+]))
+```
+
+### Inside the window
+
+Proves: every enabled control's frame lies inside the window frame in portrait, landscape, and portrait again after
+the round trip (`FeelPose.roundTrip`). It compares frames and never asks `isHittable`, because the simulator accepts
+XCUITest taps past the window's edge where no finger can reach. A control scrolled out of view passes when its scroll
+view is inside the window.
+
+```swift
+feel.expect(feel.insideWindow())                     // portrait, landscape, portrait again
+feel.expect(feel.insideWindow(poses: [.current]))    // just as it is
+```
+
+### Tap landing
+
+Proves: single taps, never retried, land at the centre and the four edges (4 pt in). A zero-length press
+(`.zeroPress`) is opt-in: a system Toggle ignored it 3 times in 3 on the iOS 27.2 simulator, so it is only fair for a
+control that acts on touch-down. With a
+`title:` it also taps the row's title and the gap beside it: `rowToggles: true` when the row acts as one button,
+`false` (default) when it should not. A tap lands when `read` (default: the control's value) changes within a second.
+`baseline:` takes `feel.osBaseline()`, the same loop on a Settings switch on this simulator; when that misses too, the
+report marks "the simulator may be dropping taps" as inference.
+
+```swift
+let baseline = feel.osBaseline()
+feel.expect(feel.tapLanding(on: app.switches["appearance.pageNumbers"], trials: 5,
+                            title: app.staticTexts["Page Numbers"], rowToggles: true, baseline: baseline))
+```
+
+### Motion: double-draw, jump after landing, chrome, snap, settle
+
+A film samples the elements you name (identifiers or labels) from accessibility snapshots for a number of seconds;
+every motion check reads the same film.
+
+```swift
+let film = feel.film(["cook.cover", "Pancakes", "bar.full", "bar.compact"], for: 4)
+feel.expect(film.snaps(of: "cook.cover"))
+feel.expect(film.jumps(of: "cook.cover"))                 // > 2 pt after 0.3 s at rest
+feel.expect(film.doubleDraws(of: ["Pancakes"]))
+feel.expect(film.chrome(from: "bar.full", to: "bar.compact"))
+feel.expect(film.settles("cook.cover", within: 1.0))
+```
+
+**What a film can and cannot see.** XCUITest waits for the app to go idle after every tap, so a film started by a tap
+(`film(_:for:every:during:)`) sees what happens after the transition (late jumps, lingering chrome, ghost copies that stay),
+not the frames inside it. To film a transition itself, let the app start it: a launch argument that runs it a few
+seconds after the screen appears (past XCUITest's own launch wait), as the fixture's `-autoplay 4` does.
+
+What the samples show mid-transition (seen on the iOS 27.2 simulator): SwiftUI stretches an animating element's
+accessibility frame from where it is drawn to where it is going, so a sample at another size than the element's resting
+size is an in-between position. A snap is a big move between two samples at the resting size with the element still on
+both sides. Sometimes a snapshot waits out the animation instead, and the move shows up as one long gap in otherwise
+quick samples (at least three times the usual gap); the snap check passes that as a transition and marks it as
+inference. When samples are usually more than 0.15 s apart (from watching too many elements, or a busy machine) the
+snap and settle checks fail and say so, rather than pass on what they could not see.
+
+Each snapshot holds the app's main thread while it answers, so a film samples every 0.05 s by default (`every:`);
+in one run with back-to-back sampling a 0.8 s ease measured 1.84 s (we infer the sampling slowed it). Settle times are therefore an upper bound, timed on the
+test runner's clock. `jumps` counts moves after the first one, so start the film before the transition. Seeing every
+frame of a transition needs host video or an in-app probe (planned for v0.2).
+
+### Place stability
+
+Proves: the place (by default every static text on screen) reads the same after each step: `.background`, `.rotate`,
+`.relaunch` (the default list), or `FeelPlaceStep("reopen") { feel in … }`. It stores and reports only the first 16
+hex digits of a SHA-256 of what it read, never the content.
+
+```swift
+feel.expect(feel.place(read: { app.otherElements["reader.page"].value as? String ?? "" }))
+```
+
+`.relaunch` reuses `app.launchArguments`, so drop any reset arguments before calling it.
+
+### Hitches
+
+`FeelHitches.analyze(timestamps:refresh:)` turns display-link timestamps (from a probe in your app, such as the HX
+gallery's `FrameProbe`) into a hitch ratio: under 5 ms/s is good, over 10 is critical (WWDC20, "Eliminate animation
+hitches with XCTest"). `feel.measureHitches(in: self) { … }` wraps `XCTHitchMetric` (iOS 26 and later); its figures go
+to the result bundle. On the simulator these numbers are a proxy that depends on the Mac; gate on a device.
+
+## Cold starts
+
+```sh
+scripts/ouro-feel-cold.sh --project App.xcodeproj --scheme App --test AppUITests/FeelTests/testTheWayBack --runs 5
+# AppUITests/FeelTests/testTheWayBack on iPhone 17 Pro (com.apple.CoreSimulator.SimRuntime.iOS-27-2), simulator: cold 5 of 5 passed
+```
+
+It builds once, then runs the test on a fresh simulator each time and deletes each one. `--warm` uses one simulator:
+run 1 is cold and the rest are reported apart as warm. `--udid` erases and reuses a simulator you own. Every report
+from those runs says `cold start (fresh simulator)` or `warm start`; a run the script did not start says the start is
+not labelled and should be treated as warm. Never pass `-retry-tests-on-failure`: a retry hides the failure Feel
+exists to find.
+
+## Reading a report
+
+```
+FAIL the way back: 3 of 4 reachable screens have a way back and a gesture back
+  - launch › nav.chef: no gesture back (neither an edge swipe nor a swipe down returned)
+  measured: good=3, screens=4
+  on simulator (iPhone 17 Pro, iOS 27.2), cold start (fresh simulator); timed by the test runner's wall clock, sampling accessibility snapshots
+```
+
+Every report names where it ran (simulator or device), how it started, and which clock timed it; a finding marked
+`(inference)` goes beyond what was measured. Say the same when you quote it.
+
+## Proof
+
+`Examples/OuroFeelFixture` has one page per genre with a known bug behind `-bug 1`. Its UI tests
+(`FeelCatchesTests`) prove each check fails on the bug and passes without it; CI runs them on every pull request.

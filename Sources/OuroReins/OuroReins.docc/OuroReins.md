@@ -13,7 +13,8 @@ lends `goBack`, ``ReinsNode/tabs(_:selected:tabs:select:child:)`` lends `selectT
 - ``ReinsInput`` derives an action's input schema from `Decodable`; ``ReinsEnumerable`` makes a string enum `oneOf`.
 - ``ReinsAction/narrowed(_:)`` limits an input to the values valid on screen now.
 - ``ReinsWire`` speaks one JSON line per request (`ls`, `do <action> <json>`, `help`, or the JSON form with an `id`);
-  ``ReinsCommandLine`` runs it from arguments or stdin with exit codes 0, 2 (refused) and 1 (action failed).
+  ``ReinsCommandLine`` runs it from arguments or stdin with exit codes 0, 2 (refused), 1 (action failed) and 3 (the
+  network was attempted).
 - ``ReinsJourney`` drives a flow in a test, polling each step's condition and failing with the last screen and the
   lines to replay it.
 - ``ReinsNetworkGuard`` fails and records every URL load while it runs; `check()` throws `network-attempted` (exit 3).

@@ -75,4 +75,4 @@ let pantry = Pantry(items: [
     .init(id: "flour", name: "Flour", stocked: true),
     .init(id: "yeast", name: "Yeast", stocked: false),
 ])
-await ReinsCommandLine.run(ReinsSession(pantry))
+await ReinsCommandLine.run { ReinsSession(pantry) }

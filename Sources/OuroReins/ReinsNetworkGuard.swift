@@ -9,7 +9,7 @@ import Synchronization
 /// test fails on an attempt even when the app caught the error and carried on.
 ///
 /// ```swift
-/// let guardrail = ReinsNetworkGuard.begin()
+/// let guardrail = await ReinsNetworkGuard.begin()
 /// defer { guardrail.end() }
 /// // … drive the session …
 /// try guardrail.check()   // throws `network-attempted`, listing each request
@@ -22,12 +22,17 @@ import Synchronization
 ///   approach OHHTTPStubs takes, swapping the two getters once per process);
 /// - every session made from a configuration ``ReinsNetworkGuard/blocking(_:)`` returned, guard or no guard.
 ///
+/// Only network schemes (`http`, `https`, `ws`, `wss`) are blocked; `file:` and `data:` loads of bundled fixtures go
+/// through.
+///
 /// What it doesn't: a session made before the guard began from a plain configuration, background sessions,
 /// Network.framework, raw sockets and WebKit (its loads run in another process). An app adopting Reins injects its
-/// transports (the fixtures-through-constructors rule), so a behavior session never builds one of those.
+/// transports (the fixtures-through-constructors rule), so a behavior session never builds one of those. A session made
+/// while a guard was active keeps failing its network requests after ``end()``, unrecorded: build sessions inside the
+/// guard you check them with.
 ///
-/// One guard is active at a time in a process; ``begin()`` waits for the previous one to end, so tests that use it can
-/// run in parallel without seeing each other's attempts.
+/// One guard is active at a time in a process. ``begin()`` suspends (it never blocks a thread) until the previous guard
+/// ends, so parallel tests, `@MainActor` ones included, take turns without seeing each other's attempts.
 public final class ReinsNetworkGuard: Sendable {
     /// A blocked request.
     public struct Attempt: Sendable, Hashable, Codable, CustomStringConvertible {
@@ -39,21 +44,32 @@ public final class ReinsNetworkGuard: Sendable {
     private struct State {
         var active: ObjectIdentifier?
         var attempts: [Attempt] = []
+        /// Callers of `begin()` waiting for the active guard to end, first come first served.
+        var waiting: [CheckedContinuation<Void, Never>] = []
     }
 
     private static let state = Mutex(State())
-    private static let gate = Mutex<[CheckedContinuation<Void, Never>]>([])
 
-    /// Starts blocking. Pair it with ``end()``.
-    public static func begin() -> ReinsNetworkGuard {
+    /// Starts blocking, once any other active guard has ended. Pair it with ``end()``.
+    public static func begin() async -> ReinsNetworkGuard {
         let guardrail = ReinsNetworkGuard()
-        while !state.withLock({ state in
-            guard state.active == nil else { return false }
-            state.active = ObjectIdentifier(guardrail)
-            state.attempts = []
-            return true
-        }) {
-            Thread.sleep(forTimeInterval: 0.001)
+        let id = ObjectIdentifier(guardrail)
+        while true {
+            // Take the guard, or queue for it, under one lock, so an `end()` in between can't be missed.
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let took = state.withLock { state -> Bool in
+                    guard state.active == nil else {
+                        state.waiting.append(continuation)
+                        return false
+                    }
+                    state.active = id
+                    state.attempts = []
+                    return true
+                }
+                if took { continuation.resume() }
+            }
+            // Resumed either holding the guard, or woken by an `end()` to try again.
+            if state.withLock({ $0.active == id }) { break }
         }
         URLProtocol.registerClass(ReinsBlockingURLProtocol.self)
         _ = configurationGettersSwapped
@@ -66,7 +82,7 @@ public final class ReinsNetworkGuard: Sendable {
         isolation: isolated (any Actor)? = #isolation,
         _ body: () async throws -> T
     ) async throws -> T {
-        let guardrail = begin()
+        let guardrail = await begin()
         let result: T
         do {
             result = try await body()
@@ -93,16 +109,18 @@ public final class ReinsNetworkGuard: Sendable {
     /// Stops blocking and returns every attempt it saw.
     @discardableResult
     public func end() -> [Attempt] {
-        let attempts: [Attempt]? = Self.state.withLock { state in
+        let ended: (attempts: [Attempt], next: CheckedContinuation<Void, Never>?)? = Self.state.withLock { state in
             guard state.active == ObjectIdentifier(self) else { return nil }
             let seen = state.attempts
             state.active = nil
             state.attempts = []
-            return seen
+            return (seen, state.waiting.isEmpty ? nil : state.waiting.removeFirst())
         }
-        guard let attempts else { return [] }
+        guard let ended else { return [] }
         URLProtocol.unregisterClass(ReinsBlockingURLProtocol.self)
-        return attempts
+        // Wake the next waiter; it takes the guard if no one else did first, and queues again otherwise.
+        ended.next?.resume()
+        return ended.attempts
     }
 
     /// `base` with the blocking protocol first, for the sessions an app builds and injects in a behavior session.
@@ -177,7 +195,9 @@ extension ReinsNetworkGuard {
 /// Fails every request while a guard is active, after recording it. A session built from ``ReinsNetworkGuard/blocking(_:)``
 /// fails its requests even with no guard active, so a fixture session can never reach the network.
 final class ReinsBlockingURLProtocol: URLProtocol, @unchecked Sendable {
-    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canInit(with request: URLRequest) -> Bool {
+        ["http", "https", "ws", "wss"].contains(request.url?.scheme?.lowercased() ?? "")
+    }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {

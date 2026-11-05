@@ -22,13 +22,13 @@ public struct ReinsJourney {
 
     /// Waits until the focus is `focus` and `until` holds.
     @discardableResult
-    public func expect(_ focus: String, until condition: (ReinsScreen) -> Bool = { _ in true }, _ what: String = "") async throws -> ReinsScreen {
+    public func expect(_ focus: String, describing what: String = "", until condition: (ReinsScreen) -> Bool = { _ in true }) async throws -> ReinsScreen {
         try await poll("focus \(focus)\(what.isEmpty ? "" : ", \(what)")") { $0.focus == focus && condition($0) }
     }
 
     /// Runs `action` and waits until `until` holds. A refusal or failure throws at once, with the problem.
     @discardableResult
-    public func `do`(_ action: String, _ input: ReinsValue? = nil, until condition: (ReinsScreen) -> Bool = { _ in true }, _ what: String = "") async throws -> ReinsScreen {
+    public func `do`(_ action: String, _ input: ReinsValue? = nil, describing what: String = "", until condition: (ReinsScreen) -> Bool = { _ in true }) async throws -> ReinsScreen {
         let reply = await session.perform(action, input: input)
         guard reply.ok else {
             throw ReinsJourneyFailure(waitedFor: "do \(action) to run", problem: reply.error?.message, lastScreen: reply.screen, transcript: session.transcript)

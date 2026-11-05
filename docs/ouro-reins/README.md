@@ -22,7 +22,7 @@ input JSON Schema) and at most one `child`. The deepest node is the **focus**: t
   you may run now.
 - `do <action> [json]` runs one. An action that isn't offered is **refused** before anything runs, with the actions
   that are: `goBack isn't available on kitchen. Fix: use one of: openRecipe, startCooking, selectTab.` Input that
-  doesn't match the schema is refused with the path that's wrong (`$.id: expected one of ...`).
+  doesn't match the schema is refused with the path that's wrong (`$.id: "recipe_nope" isn't one of "recipe_pasta", ...`).
 - Containers **lend** actions to whatever is focused inside them: a navigation stack lends `goBack` once it is deeper
   than its root, a tab bar lends `selectTab`. The nearest lender wins when two lend the same name.
 - An action's schema can be **narrowed** to the values valid right now (`selectTab` to the tabs that exist,
@@ -58,6 +58,9 @@ final class Shell: ReinsDrivable {
 
 - **State** is any `Encodable` (`ReinsNode(_:encoding:)`) or a `ReinsValue` literal. Encode what a person reads on
   the screen, not your whole model.
+- **Availability comes from the model, not the node.** When an action exists only sometimes (a next step, a recipe
+  list that isn't empty), read the same view-model property the view uses to show or enable the control. A condition
+  written only in the node can disagree with the screen.
 - **Inputs** are `Decodable` structs that conform to `ReinsInput`; the schema is derived by decoding a placeholder.
   String enums conform to `ReinsEnumerable` to become `oneOf`. When derivation can't work (custom `init(from:)` that
   validates), declare `static var reinsSchema` yourself; until you do, the action refuses every input and says why.
@@ -80,20 +83,39 @@ try await ReinsNetworkGuard.withNetworkBlocked {
 A journey step polls until its condition holds (2 s by default) and otherwise fails with what it waited for, the last
 screen as JSON and the `do` lines to replay it.
 
-From a shell, an executable calls `ReinsCommandLine.run(session)`. Arguments are lines; with none it reads stdin. One
-JSON reply per line:
+From a shell, an executable calls `ReinsCommandLine.run { ... }`, building the session inside the closure so the network
+guard is already up when the app's stores and URL sessions are made:
+
+```swift
+await ReinsCommandLine.run(settle: .seconds(1)) { ReinsSession(Shell(store: try .fixtureKitchen())) }
+```
+
+Arguments are lines; with none it reads stdin, split at `\n` only. One JSON reply per line:
 
 ```sh
 swift run my-app-reins ls 'do openRecipe {"id":"recipe_pasta"}' 'do goBack'
 printf '{"id":1,"op":"ls"}\n{"id":2,"op":"do","action":"goBack"}\n' | swift run my-app-reins
 ```
 
-Exit codes: 0 every line succeeded, 2 something was refused, 1 an action failed, 3 the network was attempted (when the
-executable checks the guard). `help` prints the protocol.
+Exit codes: 0 every line succeeded, 2 something was refused, 1 an action failed, 3 something tried to reach the network
+(listed on stderr). `settle` waits after the last line so a debounced save or sync is caught too. `help` prints the
+protocol.
 
-In a running debug build, `ReinsSocketServer(session:).start()` serves the same lines on a Unix socket in the app's
-temporary folder (`nc -U <path>`). It is compiled out of release builds (`#if DEBUG`); CI proves it with
-`scripts/check-reins-release.sh`.
+In a running debug build, `ReinsSocketServer` serves the same lines on a Unix socket. Its path is `OURO_REINS_SOCKET`
+when the launch environment sets it, else `ouro-reins.sock` in the app's temporary folder, or
+`/tmp/ouro-reins-<bundle id>.sock` when that's too long for a socket address (a simulator app's usually is); `start()`
+prints it on stderr. Requests from all connections run one at a time. Wrap your own calls in `#if DEBUG`: the type
+doesn't exist in release builds, which `scripts/check-reins-release.sh` proves in CI for `swift build -c release`.
+
+```swift
+#if DEBUG
+try? ReinsSocketServer(session: ReinsSession(shell)).start()
+#endif
+```
+
+```sh
+printf 'ls\n' | nc -U /tmp/ouro-reins-app.spoonjoy.sock
+```
 
 ## The network guard
 
@@ -103,8 +125,20 @@ session made from `.default` or `.ephemeral` configurations created while it run
 recovered from the error. `ReinsNetworkGuard.blocking()` gives a configuration that always fails, for sessions you
 build yourself.
 
+Only `http`, `https`, `ws` and `wss` are blocked, so bundled fixtures load through `file:` URLs. One guard is active at
+a time; `begin()` suspends until the previous one ends, so parallel tests take turns.
+
 It does **not** see sessions created before `begin()` from a configuration captured earlier, background sessions,
-Network.framework, raw sockets or WebKit. Inject those dependencies; don't rely on the guard to find them.
+Network.framework, raw sockets or WebKit. Inject those dependencies; don't rely on the guard to find them. A session
+created while a guard was active keeps failing network requests after `end()`, unrecorded, so build sessions inside
+the guard that checks them.
+
+## Known gaps
+
+- One child per node, so a split view whose sidebar and detail are both live shows only the focused column (Reflex
+  has the same limit). Model the sidebar's choices as actions on the detail's parent until this matters.
+- Nested navigators with the same name appear as `stack`, `stack.2` and so on in `path`, `context` and `from`; give
+  them distinct names when an agent needs to tell them apart.
 
 ## Agent skill
 

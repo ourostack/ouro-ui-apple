@@ -20,7 +20,7 @@ struct NetworkGuardTests {
 
     @Test("URLSession.shared fails at once, and the attempt is recorded even though the app caught the error")
     func sharedSessionIsBlocked() async throws {
-        let guardrail = ReinsNetworkGuard.begin()
+        let guardrail = await ReinsNetworkGuard.begin()
         defer { guardrail.end() }
         let error = await Self.load(.shared)
         #expect((error as? URLError)?.code == .notConnectedToInternet)
@@ -36,7 +36,7 @@ struct NetworkGuardTests {
 
     @Test("sessions made from .default and .ephemeral while the guard is active are blocked and recorded too")
     func freshDefaultSessionsAreBlocked() async {
-        let guardrail = ReinsNetworkGuard.begin()
+        let guardrail = await ReinsNetworkGuard.begin()
         defer { guardrail.end() }
         for configuration in [URLSessionConfiguration.default, .ephemeral] {
             let error = await Self.load(URLSession(configuration: configuration))
@@ -67,7 +67,7 @@ struct NetworkGuardTests {
 
     @Test("ending the guard returns its attempts and clears them")
     func endClears() async {
-        let guardrail = ReinsNetworkGuard.begin()
+        let guardrail = await ReinsNetworkGuard.begin()
         _ = await Self.load(URLSession(configuration: ReinsNetworkGuard.blocking()))
         #expect(guardrail.end().count == 1)
         #expect(guardrail.attempts.isEmpty)

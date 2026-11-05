@@ -90,7 +90,7 @@ struct SchemaTests {
         #expect(properties["flag"] == .boolean)
         #expect(properties["note"] == .string)
         #expect(properties["size"] == .oneOf(["small", "large"]))
-        #expect(properties["when"] == .string)
+        #expect(properties["when"] == .formatted("date-time"))
         #expect(properties["items"] == .array(.object(properties: ["name": .string, "tags": .array(.string)], required: ["name", "tags"])))
     }
 
@@ -233,7 +233,7 @@ struct JourneyTests {
     func pollsForLaterState() async throws {
         let journey = ReinsJourney(ReinsSession(Counter()))
         try await journey.expect("home")
-        let screen = try await journey.do("setLater", until: { $0.state["later"] == 7 }, "later is 7")
+        let screen = try await journey.do("setLater", describing: "later is 7") { $0.state["later"] == 7 }
         #expect(screen.state["later"] == 7)
     }
 

@@ -38,8 +38,8 @@ public enum ReinsWire {
         let request: Request
         switch parse(text) {
         case .success(let parsed): request = parsed
-        case .failure(let problem):
-            return Response(id: nil, ok: false, error: problem, screen: session.ls())
+        case .failure(let failure):
+            return Response(id: failure.id, ok: false, error: failure.problem, screen: session.ls())
         }
         switch request.op {
         case .ls:
@@ -78,10 +78,15 @@ public enum ReinsWire {
         var help: [String]? = nil
     }
 
-    static func parse(_ text: String) -> Result<Request, OuroAX.Problem> {
+    struct ParseFailure: Error {
+        var id: ReinsValue?
+        var problem: OuroAX.Problem
+    }
+
+    static func parse(_ text: String) -> Result<Request, ParseFailure> {
         if text.hasPrefix("{") {
             guard let value = try? ReinsValue(json: text) else {
-                return .failure(ReinsProblem.badRequest("the line starts with { but isn't JSON"))
+                return .failure(ParseFailure(problem: ReinsProblem.badRequest("the line starts with { but isn't JSON")))
             }
             switch value["op"]?.stringValue {
             case "ls":
@@ -90,11 +95,11 @@ public enum ReinsWire {
                 return .success(Request(id: value["id"], op: .help))
             case "do":
                 guard let action = value["action"]?.stringValue, !action.isEmpty else {
-                    return .failure(ReinsProblem.badRequest("a do request needs an \"action\" string"))
+                    return .failure(ParseFailure(id: value["id"], problem: ReinsProblem.badRequest("a do request needs an \"action\" string")))
                 }
                 return .success(Request(id: value["id"], op: .do(action, value["input"])))
             default:
-                return .failure(ReinsProblem.badRequest("\"op\" must be \"ls\", \"do\" or \"help\""))
+                return .failure(ParseFailure(id: value["id"], problem: ReinsProblem.badRequest("\"op\" must be \"ls\", \"do\" or \"help\"")))
             }
         }
         let parts = text.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true).map(String.init)
@@ -106,16 +111,51 @@ public enum ReinsWire {
         case "do" where parts.count >= 2:
             guard parts.count == 3 else { return .success(Request(id: nil, op: .do(parts[1], nil))) }
             guard let input = try? ReinsValue(json: parts[2]) else {
-                return .failure(ReinsProblem.badRequest("the input after `do \(parts[1])` isn't JSON: \(parts[2])"))
+                return .failure(ParseFailure(problem: ReinsProblem.badRequest("the input after `do \(parts[1])` isn't JSON: \(parts[2])")))
             }
             return .success(Request(id: nil, op: .do(parts[1], input)))
         default:
-            return .failure(ReinsProblem.badRequest("unknown request `\(text)`"))
+            return .failure(ParseFailure(problem: ReinsProblem.badRequest("unknown request `\(text)`")))
         }
     }
 
     static func encode(_ response: Response) -> String {
-        String(decoding: (try? ReinsValue.encoder.encode(response)) ?? Data(), as: UTF8.self)
+        if let data = try? ReinsValue.encoder.encode(response) { return String(decoding: data, as: UTF8.self) }
+        // Never an empty line: a reply that can't be encoded says so, keeping the request's id.
+        let fallback = Response(id: response.id, ok: false, error: ReinsProblem.badRequest("the reply couldn't be encoded as JSON"),
+                                screen: ReinsScreen(focus: response.screen.focus, path: response.screen.path, state: .null, context: [:], actions: []))
+        return String(decoding: (try? ReinsValue.encoder.encode(fallback)) ?? Data(#"{"ok":false}"#.utf8), as: UTF8.self)
+    }
+
+    /// Splits bytes into request lines at `\n` only (a trailing `\r` is dropped), the same on stdin and the socket. JSON
+    /// strings may hold U+2028 and U+2029, so splitting on every Unicode line break would cut a valid request in two.
+    static func lines<Bytes: AsyncSequence>(_ bytes: Bytes) -> AsyncThrowingStream<String, any Error> where Bytes.Element == UInt8, Bytes: Sendable {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                var pending: [UInt8] = []
+                do {
+                    for try await byte in bytes {
+                        if byte == UInt8(ascii: "\n") {
+                            continuation.yield(line(pending))
+                            pending.removeAll(keepingCapacity: true)
+                        } else {
+                            pending.append(byte)
+                        }
+                    }
+                    if !pending.isEmpty { continuation.yield(line(pending)) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    static func line(_ bytes: some Collection<UInt8>) -> String {
+        var text = String(decoding: bytes, as: UTF8.self)
+        if text.hasSuffix("\r") { text.removeLast() }
+        return text
     }
 }
 
@@ -129,11 +169,44 @@ public enum ReinsWire {
 ///
 /// With arguments, each one is a request line (`spoonjoy-reins ls 'do openRecipe {"id":"r1"}' ls`). Without, it reads
 /// requests from stdin until it ends. It exits 0 when every request succeeded, 2 when one was refused, and 1 when an
-/// action failed, so a script can tell the two apart. A blocked network attempt is the session's to report (see
-/// ``ReinsNetworkGuard``), not a reply's.
+/// action failed, so a script can tell the two apart. With `blockNetwork` (the default) it runs under
+/// ``ReinsNetworkGuard`` and exits 3, listing the requests on stderr, when anything tried to reach the network. Build
+/// the session inside `makeSession`, so the guard is already up when the app's stores and sessions are made.
 public enum ReinsCommandLine {
     @MainActor
+    public static func run(
+        arguments: [String] = Array(CommandLine.arguments.dropFirst()),
+        blockNetwork: Bool = true,
+        settle: Duration = .zero,
+        _ makeSession: @MainActor () async throws -> ReinsSession
+    ) async -> Never {
+        let guardrail = blockNetwork ? await ReinsNetworkGuard.begin() : nil
+        let session: ReinsSession
+        do {
+            session = try await makeSession()
+        } catch {
+            guardrail?.end()
+            FileHandle.standardError.write(Data("reins: couldn't build the session: \(error)\n".utf8))
+            exit(1)
+        }
+        let worst = await serve(session, arguments: arguments)
+        // Let work the last action scheduled (a debounced save or sync) start, so a late request is caught too.
+        if settle > .zero { try? await Task.sleep(for: settle) }
+        if let attempts = guardrail?.end(), !attempts.isEmpty {
+            FileHandle.standardError.write(Data("reins: \(ReinsNetworkGuard.problem(attempts).message)\n".utf8))
+            exit(3)
+        }
+        exit(worst)
+    }
+
+    /// Serves `session` with no network guard; prefer ``run(arguments:blockNetwork:settle:_:)``.
+    @MainActor
     public static func run(_ session: ReinsSession, arguments: [String] = Array(CommandLine.arguments.dropFirst())) async -> Never {
+        exit(await serve(session, arguments: arguments))
+    }
+
+    @MainActor
+    static func serve(_ session: ReinsSession, arguments: [String]) async -> Int32 {
         var worst: Int32 = 0
         func run(_ line: String) async {
             guard let response = await ReinsWire.respond(line, session: session) else { return }
@@ -143,7 +216,7 @@ public enum ReinsCommandLine {
         }
         if arguments.isEmpty {
             do {
-                for try await line in FileHandle.standardInput.bytes.lines { await run(line) }
+                for try await line in ReinsWire.lines(FileHandle.standardInput.bytes) { await run(line) }
             } catch {
                 FileHandle.standardError.write(Data("reins: reading stdin failed: \(error)\n".utf8))
                 exit(1)
@@ -151,6 +224,6 @@ public enum ReinsCommandLine {
         } else {
             for line in arguments { await run(line) }
         }
-        exit(worst)
+        return worst
     }
 }

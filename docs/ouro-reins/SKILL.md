@@ -6,7 +6,7 @@ description: Drive an Ouro UI app headless with Ouro Reins (`ls` and `do`), to c
 # Driving an app with Ouro Reins
 
 1. **Find the driver.** Look for an executable target that calls `ReinsCommandLine.run` (`swift run <name> help`),
-   or a debug app logging a `ReinsSocketServer` path (`nc -U <path>`). No driver means the app hasn't adopted Reins;
+   or a debug app that printed `ouro-reins: serving on <path>` (`nc -U <path>`). No driver means the app hasn't adopted Reins;
    use XCUITest instead.
 2. **Look before acting.** `ls` returns `focus`, `path`, `state`, `context` and `actions`. Only the listed actions
    exist right now; each lists its input schema, often narrowed to the exact values allowed.

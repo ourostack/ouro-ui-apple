@@ -99,7 +99,9 @@ public enum ReinsValue: Sendable, Hashable, Codable, CustomStringConvertible {
         case .null: try container.encodeNil()
         case .bool(let b): try container.encode(b)
         case .number(let n):
-            if n.rounded() == n, let whole = Int(exactly: n) { try container.encode(whole) } else { try container.encode(n) }
+            // JSON has no NaN or infinity: they encode as null, so one bad number never empties a whole reply.
+            if !n.isFinite { try container.encodeNil() }
+            else if n.rounded() == n, let whole = Int(exactly: n) { try container.encode(whole) } else { try container.encode(n) }
         case .string(let s): try container.encode(s)
         case .array(let a): try container.encode(a)
         case .object(let o): try container.encode(o)

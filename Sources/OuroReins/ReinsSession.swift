@@ -104,23 +104,36 @@ public final class ReinsSession {
     static func available(in tree: ReinsNode) -> [(action: ReinsAction, from: String)] {
         let path = tree.path
         guard let focus = path.last else { return [] }
+        let labels = labels(for: path)
         var seen = Set<String>()
         var result: [(ReinsAction, String)] = []
-        for action in focus.actions where seen.insert(action.name).inserted { result.append((action, focus.name)) }
-        for ancestor in path.dropLast().reversed() {
-            for action in ancestor.lends where seen.insert(action.name).inserted { result.append((action, ancestor.name)) }
+        for action in focus.actions where seen.insert(action.name).inserted { result.append((action, labels.last!)) }
+        for (ancestor, label) in zip(path.dropLast(), labels.dropLast()).reversed() {
+            for action in ancestor.lends where seen.insert(action.name).inserted { result.append((action, label)) }
         }
         return result
+    }
+
+    /// Each node's name along the path, made unique: the second `stack` from the root is `stack.2`, so nested
+    /// navigators don't overwrite each other in `context` and `from` says which one lends an action.
+    static func labels(for path: [ReinsNode]) -> [String] {
+        var counts: [String: Int] = [:]
+        return path.map { node in
+            counts[node.name, default: 0] += 1
+            let count = counts[node.name]!
+            return count == 1 ? node.name : "\(node.name).\(count)"
+        }
     }
 
     static func screen(of tree: ReinsNode) -> ReinsScreen {
         let path = tree.path
         let focus = path.last!
+        let labels = labels(for: path)
         var context: [String: ReinsValue] = [:]
-        for node in path.dropLast() { context[node.name] = node.state }
+        for (node, label) in zip(path.dropLast(), labels.dropLast()) { context[label] = node.state }
         return ReinsScreen(
             focus: focus.name,
-            path: path.map(\.name),
+            path: labels,
             state: focus.state,
             context: context,
             actions: available(in: tree).map { ReinsActionInfo(name: $0.action.name, title: $0.action.title, input: $0.action.input?.json, from: $0.from) }

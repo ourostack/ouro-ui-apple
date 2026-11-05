@@ -40,6 +40,14 @@ XCUITest, zero network attempts, and a live-first control that the guard caught
 (`GET https://spoonjoy.app/api/v1/me/sync?limit=20`). It also found that `withNetworkBlocked` couldn't take a
 `@MainActor` closure under Swift 6; it now inherits the caller's isolation.
 
+An independent review before merge found four blockers, all fixed with regression tests
+(`Tests/OuroReinsTests/ReinsReviewRegressionTests.swift`): the default socket path was too long for a simulator app
+(now `OURO_REINS_SOCKET` or a short `/tmp` path), a client hanging up early killed the app with SIGPIPE, the guard
+spun on the main thread and deadlocked parallel `@MainActor` tests (it now suspends), and a recursive input type
+recursed forever (now underived with a reason). Its should-fix findings were fixed too: non-finite numbers, ids on
+parse failures, nested navigator names, exit 3 on the command line, `file:` URLs under the guard, dictionary and
+`Decimal`/`Data` schemas with formats, serial socket requests and `\n`-only line splitting.
+
 ## Not decided here
 
 - A claims-standard field so the X-ray checks an intent's claim against node state: a core change first.

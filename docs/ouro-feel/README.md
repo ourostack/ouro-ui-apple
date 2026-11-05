@@ -50,7 +50,7 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | the way back | Every screen you reach has a visible way back and a gesture back, and both return you where you were. | `feel.wayBack(from:follow:depth:)` |
 | overlay dismissal | Every sidebar, popover and menu goes away with a tap outside it, and once you pick something in it. | `feel.overlays(_:)` |
 | inside the window | Every control sits wholly inside the window, in every orientation and after turning the device and back. | `feel.insideWindow(poses:)`; also on every screen `wayBack` reaches |
-| tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:)`, `feel.osBaseline()` |
+| tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
 | double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
 | jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)` |
 | late or lingering chrome | Bars and controls hand over in one beat: never two states at once, never a blank between them. | `film.chrome(from:to:grace:)` |
@@ -69,14 +69,33 @@ the window (`alsoInsideWindow: false` turns that off).
 Flags: `from:` entry points (`.launch`, `.tab("Kitchen")`, or `FeelEntry("name") { app in … }`); `follow:` what it
 may tap (cells and links by default; `FeelFollow(types: [.cell, .link, .button])` reaches sheets and covers too;
 `FeelFollow(types: [], prefixes: ["recipe."])` for only your own identifiers). It never taps a back control, a menu
-button, anything inside a tab bar, segmented control, picker or menu (they switch what a screen shows), or one whose
+button (a SwiftUI `Menu` shows up as a plain button, so the walk taps it and checks the menu as an overlay), anything inside a tab bar, segmented control, picker or menu (they switch what a screen shows), or one whose
 identifier or label says delete, remove, sign out, clear, pay, checkout, send, share or the like
-(`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). A tap that leaves the navigation bars as they were and most of the screen still there
-(a menu opening, edit mode, a row expanding) changed the screen in place, so the walk resets and moves on rather than
-asking it for a way back; the report lists each such tap as a note, so you can see what was not walked. When buttons are followed, Save or Add can still be tapped, so launch into a fixture state
+(`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). A tap that leaves the navigation bars as they were and most of the screen's controls still there did
+not reach a new screen, and neither did one that hid the screen but brought no navigation bar or way back of its own
+and covers under 60% of the window (a system menu hides what is behind it). What such a tap added is an overlay when
+it hid the screen or floats over controls that stayed where they were; otherwise it changed the screen in place
+(edit mode, a row expanding, "Show more"), which the report notes. If new elements appeared (a menu, a popover), the walk checks that overlay as the overlay
+genre does: a tap outside it, on nothing the screen behind would act on, must close it, and so must picking its
+topmost safe item; one that stays open fails the way back. If a pick leaves the screen, the walk relaunches back rather
+than carrying on from there, and a control that is gone by the time the walk comes to it is reported as not checked.
+Two limits: a pushed screen with its bar hidden, or a cover with no Close button, that covers under 60% of the window
+is judged as an overlay, so it fails as "a tap outside did not dismiss it" rather than "no visible way back"; and a
+half-height sheet with no navigation bar is expected to close on a pick, as a menu does; and a label or badge
+that appears over a control for good (a like count) reads as an overlay that did not close. The keyboard is never
+part of the screen or an overlay. After a pick, the walk re-reads the screen's controls, so a row the pick renamed is
+followed under its new name; a screen whose controls keep renaming stops the walk there after three times as many
+tries as it first found, reported as not checked. The walk relaunches the app only to recover (an
+overlay that stayed open, a screen it could not leave), lists every relaunch in the report, and says how many in the
+summary line, so a PASS is never read as recovery-free. When buttons are followed, Save or Add can still be tapped, so launch into a fixture state
 that is safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
 relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe starts at the navigation bar's height,
 above any list row, so a missing pop gesture never fires a row's swipe action.
+
+Before each gesture the walk waits for the screen to land (navigation bars and buttons holding still), since a push
+still sliding in ignores a back swipe. Run the walk on an iPhone simulator: on the iOS 27.2 iPad simulator it finds the
+visible way back, but its edge swipe and swipe down did not return even from a plain push, so on iPad it reports
+missing gestures that a person would not miss. Making the gestures work on iPad is planned for v0.2.
 
 ```swift
 feel.expect(feel.wayBack(from: [.launch], follow: FeelFollow(prefixes: ["recipe.", "chef."]), depth: 2))
@@ -118,13 +137,33 @@ control that acts on touch-down. With a
 `title:` it also taps the row's title and the gap beside it: `rowToggles: true` when the row acts as one button,
 `false` (default) when it should not. A tap lands when `read` (default: the control's value) changes within `within` seconds (default 3, since a busy
 simulator is slow to report a change).
+Paced taps wait 0.6 s after each one for the control to settle.
 `baseline:` takes `feel.osBaseline()`, the same loop on a Settings switch on this simulator; when that misses too, the
 report marks "the simulator may be dropping taps" as inference.
 
+People also tap while a control is still animating. For a control with two states (a switch, a checkbox, passed
+as the element itself), `rapid:` adds that many double taps at its centre (off by default, since a counter, a stepper
+or a row that opens a screen never ends where it started), each from a settled control. A pair that ends where it
+started had both taps land, or neither; one that ends changed lost a tap. It is read from where the control ends, so
+the report marks it as inference, and it is scored only when the paced single taps at the centre all landed (otherwise could not check). XCUITest's
+single taps wait for the app to go idle, about 0.6 s apart, so only its double tap sends taps faster than an animation.
+Because "neither landed" also ends where it started, one triple tap follows the pairs (an element tap, since a coordinate has no triple; the same touch path): if every pair
+ended where it started, the triple must end changed to show quick taps reach the control, or the result is could not
+check. That catches a control that swallows every burst, not one that eats exactly the second tap of each.
+
+The bar is absolute: every pair must end where it started. Our bar is higher than UIKit's: on the iOS 27.2 simulator
+the Settings switch (a UIKit switch) kept only the first tap of a double tap, 0 pairs in 5, while a SwiftUI `Toggle`
+kept both in 5 of 5. So `rapidBaseline:` (`feel.osBaseline(rapid: true)`, the same double taps on a Settings switch's
+knob, since XCUITest gives that switch the whole row's frame, where a tap does nothing) is opt-in context only: the
+report gives both rates (`rapid rate`, `rapid baseline`) and says "the OS control also drops these", but a baseline
+never turns a fail into a pass.
+
 ```swift
 let baseline = feel.osBaseline()
+let rapidBaseline = feel.osBaseline(rapid: true)
 feel.expect(feel.tapLanding(on: app.switches["appearance.pageNumbers"], trials: 5,
-                            title: app.staticTexts["Page Numbers"], rowToggles: true, baseline: baseline))
+                            title: app.staticTexts["Page Numbers"], rowToggles: true,
+                            baseline: baseline, rapid: 5, rapidBaseline: rapidBaseline))
 ```
 
 ### Motion: double-draw, jump after landing, chrome, snap, settle

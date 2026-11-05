@@ -88,6 +88,7 @@ extension OuroFeel {
         guard let root = try? app.snapshot() else { return "" }
         var parts: [String] = []
         func walk(_ node: any XCUIElementSnapshot) {
+            guard node.elementType != .keyboard else { return }  // The keyboard is not the screen.
             let key = Self.key(node)
             if node.elementType == .navigationBar || (node.elementType == .button && Self.isBack(node))
                 || follow.allows(type: node.elementType, key: key, label: node.label) {
@@ -101,6 +102,33 @@ extension OuroFeel {
 
     static func holdsSwitcher(_ node: any XCUIElementSnapshot) -> Bool {
         node.children.contains { switcherTypes.contains($0.elementType) || holdsSwitcher($0) }
+    }
+
+    /// Waits (up to `limit` seconds) until the navigation bars and buttons on screen hold still between two looks
+    /// 0.3 s apart: a push that is still sliding in ignores a back swipe, and the first push after launch can take
+    /// longer than any fixed pause on a busy machine. This waits for the screen to land; it never repeats a gesture.
+    func landed(limit: TimeInterval = 4) {
+        func layout() -> String {
+            guard let root = try? app.snapshot() else { return "" }
+            var parts: [String] = []
+            func walk(_ node: any XCUIElementSnapshot) {
+                if node.elementType == .navigationBar || node.elementType == .button {
+                    let f = node.frame
+                    parts.append("\(Self.key(node))@\(Int(f.minX)),\(Int(f.minY)),\(Int(f.width)),\(Int(f.height))")
+                }
+                node.children.forEach(walk)
+            }
+            walk(root)
+            return parts.joined(separator: "|")
+        }
+        let start = Date()
+        var last = layout()
+        while Date().timeIntervalSince(start) < limit {
+            pause(0.3)
+            let now = layout()
+            if now == last { return }
+            last = now
+        }
     }
 
     /// The titles of the navigation bars on screen.
@@ -123,9 +151,10 @@ extension OuroFeel {
     /// followed, so following buttons (`FeelFollow(types: [.button])`) does not walk back out of the screen.
     func followable(_ follow: FeelFollow) -> [String] {
         guard let root = try? app.snapshot() else { return [] }
-        let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
+        let window = Self.mainWindow(root)
         var keys: [String] = []
         func walk(_ node: any XCUIElementSnapshot, switcher: Bool) {
+            guard node.elementType != .keyboard else { return }
             let key = Self.key(node)
             // Never the screen's own way back (following it would walk backwards), and never a control that switches
             // what this screen shows (a tab, a segment, a menu), which is not a new screen to find a way back from.
@@ -149,7 +178,7 @@ extension OuroFeel {
     /// The visible back control: a navigation bar's leading button, or any button whose label or identifier says
     /// back, close, done, cancel or dismiss as a whole word (``FeelWayBack/saysBack(_:)``), inside the window.
     func backAffordance() -> XCUIElement? {
-        let window = app.windows.firstMatch.frame
+        let window = windowFrame
         let bar = app.navigationBars.firstMatch
         if bar.exists {
             let leading = bar.buttons.allElementsBoundByIndex.filter { $0.frame.minX < window.minX + 120 && window.contains($0.frame) }
@@ -174,14 +203,14 @@ extension OuroFeel {
     /// From the leading edge at the navigation bar's height (or near the top), where no list row sits, so a missing
     /// pop gesture never turns into a full swipe across a row and fires its swipe action.
     func edgeSwipe() {
-        let w = app.windows.firstMatch.frame
+        let w = windowFrame
         let bar = app.navigationBars.firstMatch
         let y = bar.exists && w.contains(bar.frame) ? bar.frame.midY : w.minY + min(100, w.height * 0.12)
         point(w.minX + 1, y).press(forDuration: 0.05, thenDragTo: point(w.minX + w.width * 0.7, y), withVelocity: .default, thenHoldForDuration: 0)
     }
 
     func swipeDown() {
-        let w = app.windows.firstMatch.frame
+        let w = windowFrame
         let from = point(w.midX, w.minY + w.height * 0.12)
         from.press(forDuration: 0.05, thenDragTo: point(w.midX, w.maxY - 10), withVelocity: .fast, thenHoldForDuration: 0)
     }
@@ -197,6 +226,7 @@ extension OuroFeel {
             guard e.waitForExistence(timeout: timeout) else { return false }
             e.tap()
             pause(0.8)
+            landed()
         }
         return true
     }
@@ -210,18 +240,23 @@ extension OuroFeel {
     /// leave, so give it a launch state that is safe to repeat.
     public func wayBack(from entries: [FeelEntry] = [.launch], follow: FeelFollow = .default, depth: Int = 2,
                         limit: Int = 40, alsoInsideWindow: Bool = true) -> FeelResult {
-        var screens: [FeelDestination] = []
-        var layouts: [FeelResult] = []
-        var visited = Set<String>()
-        var skipped: [String] = []
+        var walk = Walk()
         for entry in entries {
             _ = replay(entry, [])
-            visit(entry, path: [], depth: depth, limit: limit, follow: follow, screens: &screens, layouts: &layouts,
-                  visited: &visited, skipped: &skipped, check: alsoInsideWindow)
+            visit(entry, path: [], depth: depth, limit: limit, follow: follow, walk: &walk, check: alsoInsideWindow)
         }
-        var result = FeelWayBack.evaluate(screens)
+        var result = FeelWayBack.evaluate(walk.screens, overlays: walk.overlays, relaunches: walk.relaunches)
         // Taps that changed a screen in place were not walked; say which, so the report shows what was left out.
-        result.findings += skipped.map { .note("\($0): changed the screen in place (a menu, edit mode, a row expanding), so no way back was asked") }
+        result.findings += walk.skipped.map { .note("\($0): changed the screen in place (edit mode, a row expanding), so no way back was asked") }
+        if !walk.capped.isEmpty {
+            result.findings += walk.capped.map { .couldNotCheck("\($0): its controls kept renaming, so the walk stopped after trying three times as many as it first found") }
+            result.passed = false
+        }
+        if !walk.missing.isEmpty {
+            result.findings += walk.missing.map { .couldNotCheck("\($0): was not on screen to tap when the walk came to it, so its screen was not walked") }
+            result.passed = false
+        }
+        let layouts = walk.layouts
         let outside = layouts.filter { !$0.detections.isEmpty }
         let unchecked = layouts.filter { $0.detections.isEmpty && !$0.passed }
         if !outside.isEmpty {
@@ -237,69 +272,208 @@ extension OuroFeel {
         return result
     }
 
-    private func visit(_ entry: FeelEntry, path: [String], depth: Int, limit: Int, follow: FeelFollow,
-                       screens: inout [FeelDestination], layouts: inout [FeelResult], visited: inout Set<String>,
-                       skipped: inout [String], check: Bool) {
-        let here = signature(follow)
-        let bars = barTitles()
-        visited.insert(here)
-        let keys = followable(follow)
-        for key in keys {
-            guard screens.count < limit else { return }
-            if signature(follow) != here, !replay(entry, path) { return }
-            let target = element(key)
-            guard target.exists else { continue }
-            target.tap()
+    /// What the walk carries from screen to screen.
+    struct Walk {
+        var screens: [FeelDestination] = []
+        var layouts: [FeelResult] = []
+        var visited = Set<String>()
+        var skipped: [String] = []
+        var overlays: [FeelOverlayTrial] = []
+        var relaunches: [String] = []
+        var missing: [String] = []
+        var capped: [String] = []
+    }
+
+    /// Every element on screen that has an identifier or label, of any type, with its frame and type. Unlike the
+    /// signature, it includes menu items, so an open menu shows here.
+    func elements() -> [String: (frame: CGRect, type: XCUIElement.ElementType)] {
+        guard let root = try? app.snapshot() else { return [:] }
+        let window = Self.mainWindow(root)
+        var all: [String: (frame: CGRect, type: XCUIElement.ElementType)] = [:]
+        func walk(_ node: any XCUIElementSnapshot) {
+            // A keyboard that a text field brought up floats over rows, but it is no overlay to dismiss.
+            guard node.elementType != .keyboard else { return }
+            let key = Self.key(node)
+            if !key.isEmpty, node.frame.width > 0, node.frame.intersects(window), all[key] == nil {
+                all[key] = (node.frame, node.elementType)
+            }
+            node.children.forEach(walk)
+        }
+        walk(root)
+        return all
+    }
+
+    /// Relaunches back to `path` to recover, and says so in the report.
+    func recover(_ entry: FeelEntry, _ path: [String], because why: String, _ walk: inout Walk) -> Bool {
+        walk.relaunches.append(why)
+        return replay(entry, path)
+    }
+
+    /// An overlay a tap opened (`appeared` holds its elements): a tap outside it should close it, and so should
+    /// picking an item in it, after `reopen` brings it back.
+    func checkOverlay(_ name: String, appeared: [String: (frame: CGRect, type: XCUIElement.ElementType)],
+                      around before: [String: (frame: CGRect, type: XCUIElement.ElementType)], reopen: () -> Void) -> FeelOverlayTrial {
+        func showing() -> Bool { let now = elements(); return appeared.keys.contains { now[$0] != nil } }
+        let area = appeared.values.map(\.frame).reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -8, dy: -8)
+        let w = windowFrame
+        // Outside it, and on nothing the screen behind would act on, so the tap can only dismiss.
+        let controls = before.values.filter { [.button, .cell, .link, .switch, .textField, .segmentedControl].contains($0.type) }.map(\.frame)
+        let outside = [CGPoint(x: w.midX, y: w.maxY - 40), CGPoint(x: w.minX + 20, y: w.midY), CGPoint(x: w.maxX - 20, y: w.midY),
+                       CGPoint(x: w.midX, y: w.midY), CGPoint(x: w.midX, y: w.minY + 70)]
+            .first { p in !area.contains(p) && !controls.contains { $0.insetBy(dx: -4, dy: -4).contains(p) } }
+        var outsideDismisses: Bool?
+        if let p = outside {
+            point(p.x, p.y).tap()
+            outsideDismisses = wait(3) { !showing() }
+        }
+        if !showing() {
+            reopen()
             pause(0.8)
-            let there = signature(follow)
-            guard there != here, !visited.contains(there) else {
-                if there != here { _ = replay(entry, path) }
+            if !wait(timeout, until: showing) {
+                return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: nil)
+            }
+        }
+        // The topmost item that is safe to pick.
+        let items = appeared.filter { [.button, .menuItem, .cell].contains($0.value.type) && !FeelSafety.isDangerous($0.key) && !FeelWayBack.saysBack($0.key) }
+            .sorted { $0.value.frame.minY < $1.value.frame.minY }
+        var pickDismisses: Bool?
+        if let item = items.first {
+            let f = item.value.frame
+            point(f.midX, f.midY).tap()
+            pickDismisses = wait(3) { !showing() }
+        }
+        return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: pickDismisses)
+    }
+
+    private func visit(_ entry: FeelEntry, path: [String], depth: Int, limit: Int, follow: FeelFollow, walk: inout Walk, check: Bool) {
+        var here = signature(follow)
+        let bars = barTitles()
+        walk.visited.insert(here)
+        // Re-read after a pick, which can rename this screen's controls; each key is tried once.
+        var keys = followable(follow)
+        var tried = Set<String>()
+        let place = ([entry.name] + path).joined(separator: " › ")
+        // A row renamed by every tap (a saved counter, "Last opened: <time>") would yield new keys without end.
+        let cap = max(3 * keys.count, 3)
+        while let key = keys.first(where: { !tried.contains($0) }) {
+            guard tried.count < cap else {
+                walk.capped.append(place)
+                return
+            }
+            tried.insert(key)
+            guard walk.screens.count < limit else { return }
+            if signature(follow) != here {
+                guard recover(entry, path, because: "to get back to \(place) before trying \(key)", &walk) else { return }
+                here = signature(follow)
+            }
+            let target = element(key)
+            guard target.exists else {
+                // Something earlier on this screen removed it (a pick renamed it, say): say so, never skip in silence.
+                walk.missing.append(([entry.name] + path + [key]).joined(separator: " › "))
                 continue
             }
-            // A menu that opened, edit mode, a row that expanded: this screen changed in place, so there is no new
-            // screen to leave. Up to eight of its other controls are enough to tell.
+            let before = elements()
+            target.tap()
+            pause(0.8)
+            landed()
+            let there = signature(follow)
+            let after = elements()
+            // What the tap added; scroll bars and other plain containers are noise.
+            let appeared = after.filter { before[$0.key] == nil && $0.value.type != .other }
+            let label = ([entry.name] + path + [key]).joined(separator: " › ")
+            // Still this screen (same navigation bars, most of its controls still in the tree): nothing happened, an
+            // overlay opened, or the screen changed in place. A system menu hides the screen behind it from the tree,
+            // so it is told from a new screen by what it brought (``FeelWayBack/opensOverlay``). Up to eight of the
+            // screen's other controls are enough to tell.
             let others = keys.filter { $0 != key }.prefix(8)
-            let stillThere = others.filter { let e = element($0); return e.exists && e.isHittable }.count
-            if !FeelWayBack.isNewScreen(barsBefore: bars, barsAfter: barTitles(), stillThere: stillThere, of: others.count) {
-                let name = ([entry.name] + path + [key]).joined(separator: " › ")
-                if !skipped.contains(name) { skipped.append(name) }
-                _ = replay(entry, path)
+            let stillThere = others.filter { after[$0] != nil }.count
+            let barsAfter = barTitles()
+            let gone = FeelWayBack.isNewScreen(barsBefore: bars, barsAfter: barsAfter, stillThere: stillThere, of: others.count)
+            // Only a tap that hid the screen can have opened a hiding overlay (a system menu).
+            let hides = gone && FeelWayBack.opensOverlay(barsBefore: bars, barsAfter: barsAfter, appeared: appeared.values.map(\.frame),
+                                                 appearedSaysBack: appeared.contains { FeelWayBack.saysBack($0.key) }, window: windowFrame)
+            // Controls that stayed exactly where they were: an overlay floats over them; a change in place (edit
+            // mode, a row expanding, "Show more") moves what it pushes aside. Cells are left out, since edit mode puts
+            // its controls inside them.
+            let stayed = before.filter { k, v in
+                [.button, .link, .switch, .textField, .staticText].contains(v.type) && appeared[k] == nil
+                    && after[k].map { abs($0.frame.minX - v.frame.minX) < 1 && abs($0.frame.minY - v.frame.minY) < 1
+                        && abs($0.frame.width - v.frame.width) < 1 } == true
+            }.map(\.value.frame)
+            // Only what can be read or acted on floats: a glyph that changed inside a control that stayed (a disclosure
+            // chevron turning) is that control's own state.
+            let floating = appeared.values.filter { [.button, .cell, .link, .menuItem, .staticText, .switch, .textField].contains($0.type) }
+            let overlay = hides || FeelWayBack.floatsOver(appeared: floating.map(\.frame), stayed: stayed)
+            if overlay || !gone {
+                if overlay {
+                    // A menu or popover: it must go away with a tap outside and once an item is picked.
+                    let trial = checkOverlay(label, appeared: appeared, around: before) { target.tap() }
+                    walk.overlays.append(trial)
+                    if elements().keys.contains(where: { appeared[$0] != nil }) {
+                        guard recover(entry, path, because: "after \(label), whose overlay stayed open", &walk) else { return }
+                    }
+                    if barTitles() != bars {
+                        // Picking took the walk somewhere else: go back rather than adopt that screen as this one.
+                        guard recover(entry, path, because: "after \(label), whose pick left the screen", &walk) else { return }
+                    }
+                } else if !appeared.isEmpty || there != here {
+                    if !walk.skipped.contains(label) { walk.skipped.append(label) }
+                    if there != here {
+                        guard recover(entry, path, because: "after \(label), which changed the screen in place", &walk) else { return }
+                    }
+                }
+                // Picking may have changed this screen (a sort order, say): carry on from it as it is now.
+                here = signature(follow)
+                keys = followable(follow)
+                walk.visited.insert(here)
+                continue
+            }
+            if walk.visited.contains(there) {
+                // A screen already checked: leave it by its own way back, or recover.
+                if let back = backAffordance() { back.tap() }
+                if !wait(3, until: { signature(follow) == here }) {
+                    guard recover(entry, path, because: "after \(label), a screen already checked that its way back did not leave", &walk) else { return }
+                }
                 continue
             }
             let name = [entry.name] + path + [key]
             if check {
                 let (window, found) = controls()
-                layouts.append(FeelLayout.check(found, window: window, pose: name.joined(separator: " › ")))
+                walk.layouts.append(FeelLayout.check(found, window: window, pose: label))
             }
             if depth > 1 {
-                visit(entry, path: path + [key], depth: depth - 1, limit: limit, follow: follow, screens: &screens,
-                      layouts: &layouts, visited: &visited, skipped: &skipped, check: check)
-                if signature(follow) != there { _ = replay(entry, path + [key]) }
+                visit(entry, path: path + [key], depth: depth - 1, limit: limit, follow: follow, walk: &walk, check: check)
+                if signature(follow) != there {
+                    _ = recover(entry, path + [key], because: "to get back to \(label) after walking past it", &walk)
+                }
             }
             // The gesture first, then (back on this screen) the visible control.
             var gesture: String?
+            landed()
             edgeSwipe()
-            if wait(2, until: { signature(follow) == here }) {
+            if wait(3, until: { signature(follow) == here }) {
                 gesture = "edge swipe"
             } else {
                 swipeDown()
-                if wait(2, until: { signature(follow) == here }) { gesture = "swipe down" }
+                if wait(3, until: { signature(follow) == here }) { gesture = "swipe down" }
             }
             if gesture != nil {
                 target.tap()
                 pause(0.8)
-                if signature(follow) != there { _ = replay(entry, path + [key]) }
+                landed()
+                if signature(follow) != there {
+                    _ = recover(entry, path + [key], because: "to reopen \(label) after its gesture back", &walk)
+                }
             }
             let back = backAffordance()
-            var label: String?
+            var shown: String?
             var returns = false
             if let back {
-                label = back.label.isEmpty ? back.identifier : back.label
+                shown = back.label.isEmpty ? back.identifier : back.label
                 back.tap()
-                returns = wait(2) { signature(follow) == here }
+                returns = wait(3) { signature(follow) == here }
             }
-            screens.append(FeelDestination(path: name, affordance: label, affordanceReturns: returns, gesture: gesture))
-            if signature(follow) != here { _ = replay(entry, path) }
+            walk.screens.append(FeelDestination(path: name, affordance: shown, affordanceReturns: returns, gesture: gesture))
         }
     }
 
@@ -311,21 +485,21 @@ extension OuroFeel {
         for overlay in overlays {
             func shown() -> Bool {
                 let c = element(overlay.overlay)
-                return c.exists && c.frame.intersects(app.windows.firstMatch.frame) && c.frame.width > 0
+                return c.exists && c.frame.intersects(windowFrame) && c.frame.width > 0
             }
             overlay.open(app)
             guard wait(timeout, until: shown) else {
                 trials.append(FeelOverlayTrial(name: overlay.name, appeared: false))
                 continue
             }
-            let frame = element(overlay.overlay).frame, w = app.windows.firstMatch.frame
+            let frame = element(overlay.overlay).frame, w = windowFrame
             let outside = [CGPoint(x: w.maxX - 20, y: w.midY), CGPoint(x: w.minX + 20, y: w.midY),
                            CGPoint(x: w.midX, y: w.maxY - 60), CGPoint(x: w.midX, y: w.minY + 80)]
                 .first { !frame.insetBy(dx: -8, dy: -8).contains($0) }
             var outsideDismisses: Bool?
             if let p = outside {
                 point(p.x, p.y).tap()
-                outsideDismisses = wait(2) { !shown() }
+                outsideDismisses = wait(3) { !shown() }
             }
             var pickDismisses: Bool?
             if let pick = overlay.pick {
@@ -335,7 +509,7 @@ extension OuroFeel {
                     let item = element(pick)
                     if item.waitForExistence(timeout: timeout) {
                         item.tap()
-                        pickDismisses = wait(2) { !shown() }
+                        pickDismisses = wait(3) { !shown() }
                     } else {
                         pickDismisses = false
                     }

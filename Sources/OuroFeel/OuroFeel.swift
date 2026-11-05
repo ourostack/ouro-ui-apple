@@ -85,7 +85,7 @@ public struct OuroFeel {
     /// The app's window and every control in it, from one accessibility snapshot.
     public func controls() -> (window: CGRect, controls: [FeelElement]) {
         guard let root = try? app.snapshot() else { return (.zero, []) }
-        let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
+        let window = Self.mainWindow(root)
         var found: [FeelElement] = []
         // Accessibility does not say which way a scroll view scrolls; a short, wide one whose content runs off its sides
         // is marked sideways; FeelLayout counts it as a carousel only while it is under 60% of the window's height.
@@ -115,7 +115,7 @@ public struct OuroFeel {
     /// What is on screen now, keyed by identifier (or label), for the given keys; every element when `keys` is empty.
     public func seen(_ keys: Set<String> = []) -> (window: CGRect, seen: [FeelSeen]) {
         guard let root = try? app.snapshot() else { return (.zero, []) }
-        let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
+        let window = Self.mainWindow(root)
         var found: [FeelSeen] = []
         func walk(_ node: any XCUIElementSnapshot) {
             if node.elementType != .application && node.elementType != .window,
@@ -158,11 +158,24 @@ public struct OuroFeel {
         return condition()
     }
 
+    /// The app's main window: the largest. On iPadOS the first window can be a smaller one (seen on the iOS 27.2 iPad
+    /// simulator), and measuring against it put the edge swipe mid-screen and the Done button "outside the window".
+    static func mainWindow(_ root: any XCUIElementSnapshot) -> CGRect {
+        root.children.filter { $0.elementType == .window }.map(\.frame).max { $0.width * $0.height < $1.width * $1.height } ?? root.frame
+    }
+
+    /// The main window's frame now.
+    var windowFrame: CGRect {
+        guard let root = try? app.snapshot() else { return app.windows.firstMatch.frame }
+        return Self.mainWindow(root)
+    }
+
     func pause(_ seconds: TimeInterval) { RunLoop.current.run(until: Date().addingTimeInterval(seconds)) }
 
     /// A point in app coordinates.
-    func point(_ x: CGFloat, _ y: CGFloat) -> XCUICoordinate {
-        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: y))
+    /// A point in `target`'s coordinates (the app under test unless given; the OS baseline taps Settings).
+    func point(_ x: CGFloat, _ y: CGFloat, in target: XCUIApplication? = nil) -> XCUICoordinate {
+        (target ?? app).coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: y))
     }
 
     // MARK: Inside the window
@@ -197,7 +210,12 @@ public struct OuroFeel {
     /// control's value) changes within `within` seconds (3 by default, since a busy simulator can be slow to report a
     /// change; landing is about whether the tap counted, not how fast). With `title`, it also taps the row's title and the gap between title
     /// and control; `rowToggles` says whether those should change the control (a row that acts as one button) or
-    /// should not (iOS Settings rows). `baseline` is ``osBaseline(trials:)``.
+    /// should not (iOS Settings rows). `baseline` is ``osBaseline(trials:rapid:)``.
+    ///
+    /// With `rapid` (off by default), that many double taps follow at the control's centre, as a person taps while it
+    /// is still animating, each from a settled control (``FeelRapidTaps``). They fit only a control with two states (a
+    /// switch, a checkbox), passed as the element itself. `rapidBaseline` is ``osBaseline(trials:rapid:)`` with
+    /// `rapid: true`: context in the report only, since every pair must end where it started either way.
     public func tapLanding(
         on control: XCUIElement,
         trials: Int = 5,
@@ -206,6 +224,8 @@ public struct OuroFeel {
         rowToggles: Bool = false,
         baseline: Double? = nil,
         within: Double = 3,
+        rapid: Int = 0,
+        rapidBaseline: Double? = nil,
         read: (() -> String)? = nil
     ) -> FeelResult {
         guard control.waitForExistence(timeout: timeout), control.frame.width > 0 else {
@@ -219,6 +239,9 @@ public struct OuroFeel {
             act()
             let landed = wait(within) { read() != before }
             results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected))
+            // Let the control finish its own animation (a switch's knob slides on after its value flips) before the
+            // next tap, as a person would; a tap during it can be swallowed, which is not the target's fault.
+            pause(0.6)
         }
         for spot in spots {
             for _ in 0..<trials {
@@ -245,13 +268,53 @@ public struct OuroFeel {
                 }
             }
         }
-        return FeelTaps.evaluate(results, baseline: baseline)
+        #if os(iOS)
+        let centre = control.frame
+        let burst: FeelRapidTaps? = rapid > 0
+            ? rapidPairs(rapid, at: { point(centre.midX, centre.midY) }, triple: { control.tap(withNumberOfTaps: 3, numberOfTouches: 1) }, read: read)
+            : nil
+        #else
+        let burst: FeelRapidTaps? = nil  // XCUITest's double tap with a touch count is iOS only.
+        #endif
+        return FeelTaps.evaluate(results, baseline: baseline, rapid: burst, rapidBaseline: rapidBaseline)
     }
 
     #if os(iOS)
+    /// `pairs` double taps at `at`, each from a settled control (``FeelRapidTaps``); one that ends changed is put back
+    /// with a single tap. A point, not the element, so the OS baseline can hit a Settings switch's knob (XCUITest gives
+    /// that switch the whole row's frame, where a tap does nothing). The same loop serves the app and the baseline.
+    /// `triple` (the element's own triple tap; a coordinate has none) runs once after the pairs: ending changed shows
+    /// quick taps reach the control. The baseline sends none, since its rate is context only.
+    func rapidPairs(_ pairs: Int, at: () -> XCUICoordinate, triple: (() -> Void)? = nil, read: () -> String) -> FeelRapidTaps {
+        var same = 0
+        for _ in 0..<pairs {
+            let start = read()
+            at().doubleTap()
+            pause(0.8)
+            if read() == start {
+                same += 1
+            } else {
+                at().tap()
+                pause(0.8)
+            }
+        }
+        var tripleChanged: Bool?
+        if let triple {
+            let start = read()
+            triple()
+            pause(0.8)
+            tripleChanged = read() != start
+            if tripleChanged == true { at().tap(); pause(0.8) }
+        }
+        return FeelRapidTaps(pairs: pairs, endedWhereStarted: same, tripleChanged: tripleChanged)
+    }
+    #endif
+
+    #if os(iOS)
     /// The same single-tap loop on a switch in the Settings app, on this simulator: how often the simulator itself
-    /// delivers a tap. Nil when Settings has no reachable switch. It leaves the switch as it found it.
-    public func osBaseline(trials: Int = 10) -> Double? {
+    /// delivers a tap. With `rapid`, the double taps ``tapLanding(on:trials:spots:title:rowToggles:baseline:within:rapid:rapidBaseline:read:)``
+    /// sends (`trials` pairs), at the switch's knob. Nil when Settings has no reachable switch. It leaves the switch as it found it.
+    public func osBaseline(trials: Int = 10, rapid: Bool = false) -> Double? {
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch()
         defer { settings.terminate(); app.activate() }
@@ -265,16 +328,23 @@ public struct OuroFeel {
             let toggle = settings.switches.firstMatch
             guard ok, toggle.waitForExistence(timeout: 5) else { settings.terminate(); settings.launch(); continue }
             let start = (toggle.value as? String) ?? ""
+            if rapid {
+                let f = toggle.frame
+                let knob = { self.point(f.maxX - min(f.width, 51) / 2, f.midY, in: settings) }
+                let burst = rapidPairs(trials, at: knob, read: { (toggle.value as? String) ?? "" })
+                if ((toggle.value as? String) ?? "") != start { knob().tap() }
+                return burst.rate
+            }
             var landed = 0
             for _ in 0..<trials {
                 let before = (toggle.value as? String) ?? ""
                 let f = toggle.frame
-                point(f.maxX - min(f.width, 51) / 2, f.midY).tap()
+                point(f.maxX - min(f.width, 51) / 2, f.midY, in: settings).tap()
                 if wait(1, until: { ((toggle.value as? String) ?? "") != before }) { landed += 1 }
             }
             if ((toggle.value as? String) ?? "") != start {
                 let f = toggle.frame
-                point(f.maxX - min(f.width, 51) / 2, f.midY).tap()
+                point(f.maxX - min(f.width, 51) / 2, f.midY, in: settings).tap()
             }
             return Double(landed) / Double(trials)
         }
@@ -379,9 +449,9 @@ public struct FeelPose: Sendable {
     func apply(_ feel: OuroFeel) {
         #if os(iOS)
         guard let orientation, XCUIDevice.shared.orientation != orientation || name.contains("after") else { return }
-        let before = feel.app.windows.firstMatch.frame
+        let before = feel.windowFrame
         XCUIDevice.shared.orientation = orientation
-        feel.wait(3) { feel.app.windows.firstMatch.frame != before }
+        feel.wait(3) { feel.windowFrame != before }
         feel.pause(1)
         #endif
     }

@@ -33,17 +33,45 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    private func isBugBuild(_ app: XCUIApplication) -> Bool {
+        guard let i = app.launchArguments.firstIndex(of: "-bug"), i + 1 < app.launchArguments.count else { return false }
+        return app.launchArguments[i + 1] == "1"
+    }
+
     func testInsideTheWindow() {
         both("window") { _, feel in (feel.insideWindow(), nil) }
     }
 
     func testTapLanding() {
-        both("taps") { app, feel in (feel.tapLanding(on: app.switches["taps.toggle"], trials: 3), nil) }
+        both("taps") { app, feel in
+            // The OS rate is context only: the bar is absolute, and on the iOS 27.2 simulator UIKit's switch drops it.
+            let os = feel.osBaseline(trials: 5, rapid: true)
+            let result = feel.tapLanding(on: app.switches["taps.toggle"], trials: 3, rapid: 5, rapidBaseline: os)
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("rapid taps") }, "taps lost while animating are named:\n\(result.text)")
+            }
+            return (result, nil)
+        }
     }
 
+    /// Following every button. The segmented picker and the menus are not screens; the walk checks that the menus it
+    /// opens close. The Filter menu never closes in the bug build; the Tags menu always closes, so it must pass in
+    /// both builds. (Whether a tap opens the system Sort menu varies by iOS version, so the counts allow it either way.)
     func testTheWayBack() {
-        // Following every button: the page's segmented picker and menu must not be taken for screens.
-        both("nav") { _, feel in (feel.wayBack(follow: FeelFollow(types: [.button]), depth: 1), nil) }
+        both("nav") { app, feel in
+            let result = feel.wayBack(follow: FeelFollow(types: [.button]), depth: 1)
+            let bug = isBugBuild(app)
+            if bug {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("nav.filter") }, "the stuck Filter menu is named:\n\(result.text)")
+                XCTAssertFalse(result.detections.contains { $0.what.contains("nav.tags") }, "the Tags menu closes:\n\(result.text)")
+                XCTAssertFalse(result.detections.contains { $0.what.contains("nav.more") }, "expanding in place is no overlay:\n\(result.text)")
+            } else {
+                XCTAssertGreaterThanOrEqual(result.measures["overlays"] ?? 0, 2, "both custom menus were checked as overlays:\n\(result.text)")
+                XCTAssertTrue(result.passed, "a well-behaved app passes:\n\(result.text)")
+                XCTAssertEqual(result.measures["relaunches"], 0, "a well-behaved app needs no recovery:\n\(result.text)")
+            }
+            return (result, nil)
+        }
     }
 
     func testOverlayDismissal() {

@@ -37,7 +37,14 @@ extension XCUIApplication {
                 return true
             }
             if excuse?(issue) == true { return true }
-            return OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: scaledSheets, toasts: toasts, screen: screen)
+            let excused = OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: scaledSheets, toasts: toasts, screen: screen)
+            if !excused {
+                // XCTest reports only "Contrast failed" for the issue; this names what it failed on, so a run on a
+                // runtime you cannot run locally says which element (and where) the audit objected to.
+                let element = issue.element
+                print("audit issue failed: \(issue.compactDescription); element label=\"\(element?.label ?? "none")\" id=\"\(element?.identifier ?? "none")\" frame=\(element.map { "\($0.frame)" } ?? "none"); toasts=\(toasts); screen=\(screen)")
+            }
+            return excused
         }
         do {
             try performAccessibilityAudit(for: types, handler)

@@ -73,7 +73,7 @@ button, anything inside a tab bar, segmented control, picker or menu (they switc
 identifier or label says delete, remove, sign out, clear, pay, checkout, send, share or the like
 (`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). A tap that leaves the navigation bars as they were and most of the screen still there
 (a menu opening, edit mode, a row expanding) changed the screen in place, so the walk resets and moves on rather than
-asking it for a way back. When buttons are followed, Save or Add can still be tapped, so launch into a fixture state
+asking it for a way back; the report lists each such tap as a note, so you can see what was not walked. When buttons are followed, Save or Add can still be tapped, so launch into a fixture state
 that is safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
 relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe starts at the navigation bar's height,
 above any list row, so a missing pop gesture never fires a row's swipe action.

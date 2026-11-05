@@ -259,7 +259,8 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         }
         if let sparse = tooSparse(maxGap) { findings.insert(sparse, at: 0) }
         let seen = places.compactMap { $0 }
-        let arrived = appearing && places.contains { $0 == nil } && !seen.isEmpty
+        // Arriving: missing at first, then on screen. Leaving the screen is not arriving.
+        let arrived = appearing && (places.firstIndex { $0 != nil } ?? 0) > 0
         if let first = seen.first, !arrived, !seen.contains(where: { Self.distance(first, $0) > distance }) {
             findings.insert(.couldNotCheck("\"\(key)\" never moved more than \(FeelResult.number(distance)) pt in the film, so no snap could be "
                 + "seen; start the film before the motion"), at: 0)

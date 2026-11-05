@@ -166,7 +166,9 @@ extension OuroFeel {
             node.children.forEach(walk)
         }
         walk(root)
-        return found.map(element)
+        guard let key = found else { return nil }
+        let byID = app.buttons.matching(identifier: key).firstMatch
+        return byID.exists ? byID : app.buttons.matching(NSPredicate(format: "label == %@", key)).firstMatch
     }
 
     /// From the leading edge at the navigation bar's height (or near the top), where no list row sits, so a missing
@@ -211,12 +213,15 @@ extension OuroFeel {
         var screens: [FeelDestination] = []
         var layouts: [FeelResult] = []
         var visited = Set<String>()
+        var skipped: [String] = []
         for entry in entries {
             _ = replay(entry, [])
             visit(entry, path: [], depth: depth, limit: limit, follow: follow, screens: &screens, layouts: &layouts,
-                  visited: &visited, check: alsoInsideWindow)
+                  visited: &visited, skipped: &skipped, check: alsoInsideWindow)
         }
         var result = FeelWayBack.evaluate(screens)
+        // Taps that changed a screen in place were not walked; say which, so the report shows what was left out.
+        result.findings += skipped.map { .note("\($0): changed the screen in place (a menu, edit mode, a row expanding), so no way back was asked") }
         let outside = layouts.filter { !$0.detections.isEmpty }
         let unchecked = layouts.filter { $0.detections.isEmpty && !$0.passed }
         if !outside.isEmpty {
@@ -233,7 +238,8 @@ extension OuroFeel {
     }
 
     private func visit(_ entry: FeelEntry, path: [String], depth: Int, limit: Int, follow: FeelFollow,
-                       screens: inout [FeelDestination], layouts: inout [FeelResult], visited: inout Set<String>, check: Bool) {
+                       screens: inout [FeelDestination], layouts: inout [FeelResult], visited: inout Set<String>,
+                       skipped: inout [String], check: Bool) {
         let here = signature(follow)
         let bars = barTitles()
         visited.insert(here)
@@ -255,6 +261,8 @@ extension OuroFeel {
             let others = keys.filter { $0 != key }.prefix(8)
             let stillThere = others.filter { let e = element($0); return e.exists && e.isHittable }.count
             if !FeelWayBack.isNewScreen(barsBefore: bars, barsAfter: barTitles(), stillThere: stillThere, of: others.count) {
+                let name = ([entry.name] + path + [key]).joined(separator: " › ")
+                if !skipped.contains(name) { skipped.append(name) }
                 _ = replay(entry, path)
                 continue
             }
@@ -265,7 +273,7 @@ extension OuroFeel {
             }
             if depth > 1 {
                 visit(entry, path: path + [key], depth: depth - 1, limit: limit, follow: follow, screens: &screens,
-                      layouts: &layouts, visited: &visited, check: check)
+                      layouts: &layouts, visited: &visited, skipped: &skipped, check: check)
                 if signature(follow) != there { _ = replay(entry, path + [key]) }
             }
             // The gesture first, then (back on this screen) the visible control.

@@ -584,3 +584,13 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(r.measures["snaps"] == 0)
     }
 }
+
+@Suite struct LeavingIsNotArrivingTests {
+    @Test func anElementThatLeavesHasNotArrived() {
+        let f = FeelFilm(window: phone, frames: (0..<10).map { i in
+            FeelFrame(t: Double(i) * 0.05, seen: i < 5 ? [FeelSeen(key: "panel", label: "Panel", frame: CGRect(x: 0, y: 400, width: 200, height: 200))] : []) })
+        let r = f.snaps(of: "panel", appearing: true)
+        #expect(!r.passed)
+        #expect(r.summary.hasPrefix("could not check"))
+    }
+}

@@ -66,3 +66,27 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 - Run the behaviour stage only through `scripts/xray-probe.sh` or a simulator you created; refusal runs need
   `--disposable`. Build the app, the probe and the X-ray with one Xcode whose AppIntentsTesting matches the OS.
 - After changing `SiriScenarioSet`, regenerate the files in `Examples/SiriScenarios` with `ouro-ax-xray scenarios`.
+
+## Ouro Feel
+
+`OuroFeel` and `OuroFeelCore` check how an app feels, deterministically, from a UI test: one check per genre of jank
+(`FeelGenre`). Guide: [docs/ouro-feel/README.md](docs/ouro-feel/README.md). Decision:
+`docs/decisions/2026-11-05-ouro-feel.md`.
+
+- **Before a taste review, run the checks.** A reviewer never re-tests by hand a genre Feel covers; what is left for a
+  person is [docs/ouro-feel/taste-rubric.md](docs/ouro-feel/taste-rubric.md).
+- **Genres and their checks:** the way back (`feel.wayBack`), overlay dismissal (`feel.overlays`), inside the window
+  (`feel.insideWindow`), tap landing (`feel.tapLanding`, `feel.osBaseline`), double-draw, jump after landing, late
+  or lingering chrome, snap with no transition and settle time (`feel.film` then `doubleDraws`, `jumps`, `chrome`,
+  `snaps`, `settles`), place stability (`feel.place`), and hitches as a measure (`FeelHitches`, `measureHitches`).
+- **Copy-paste:** `let feel = OuroFeel(app); feel.expect(feel.wayBack(from: [.launch]))`. `expect` fails the test;
+  `record` reports without failing.
+- **Cold, not warm:** `scripts/ouro-feel-cold.sh --project P --scheme S --test Target/Class/method --runs 5`. A result
+  it did not start is labelled "not labelled, treat as warm". Never add `-retry-tests-on-failure`.
+- **Quote reports as written:** simulator or device, cold or warm, which clock, and inference marked. Never claim a
+  hitch figure from the simulator as a device result. A "could not check" failure (findings marked `(not checked)`) is
+  not jank found: fix the test or rerun it.
+- **A rule change is a core change with a unit test** (`Tests/OuroFeelTests`), and the fixture
+  (`Examples/OuroFeelFixture`, bug behind `-bug 1`) must still fail on each bug and pass without it.
+- Ouro Feel lives in its own targets and folders (`Sources/OuroFeel*`, `docs/ouro-feel`, `Examples/OuroFeelFixture`);
+  keep component work out of them.

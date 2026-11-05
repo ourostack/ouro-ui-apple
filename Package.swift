@@ -26,6 +26,9 @@ let package = Package(
         .executable(name: "ouro-ax-skills", targets: ["ouro-ax-skills"]),
         .executable(name: "ouro-devicehub", targets: ["ouro-devicehub"]),
         .plugin(name: "OuroAXSkillsLintPlugin", targets: ["OuroAXSkillsLintPlugin"]),
+        // Ouro Feel: deterministic checks of how an app feels, for UI tests. See docs/ouro-feel/README.md.
+        .library(name: "OuroFeel", targets: ["OuroFeel"]),
+        .library(name: "OuroFeelCore", targets: ["OuroFeelCore"]),
     ],
     targets: [
         // Ouro HX for Apple: tokens (vendored from ouro-ui-core), theme, colour, motion, haptics, fold posture.
@@ -65,6 +68,12 @@ let package = Package(
             capability: .buildTool(),
             dependencies: ["ouro-ax-skills"]
         ),
+
+        // Ouro Feel. The core is pure analysis (no XCTest), so `swift test` proves every rule on a Mac; `OuroFeel` drives
+        // XCUITest and links into an app's UI test bundle.
+        .target(name: "OuroFeelCore", swiftSettings: strict),
+        .target(name: "OuroFeel", dependencies: ["OuroFeelCore"], swiftSettings: strict),
+        .testTarget(name: "OuroFeelTests", dependencies: ["OuroFeelCore"], swiftSettings: strict),
 
         // `__Snapshots__/macOS-<major>` holds the component snapshot references, one folder per host macOS major.
         .testTarget(name: "OuroHXTests", dependencies: ["OuroHX", "OuroHXTesting"], exclude: ["__Snapshots__"], swiftSettings: strict),

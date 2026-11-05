@@ -81,6 +81,22 @@ struct Card: View {
 The linter exits 0 when all is well, 1 when it trips over itself, 2 for a usage mistake and 3 when it found something.
 `--json` gives agents the same facts; `--strict` counts warnings too.
 
+## Ouro Feel: how it feels, measured
+
+Jank comes in genres, and each one now has a check that never gets tired: the way back, overlay dismissal, inside the
+window, tap landing, double-draw, jump after landing, late or lingering chrome, snap with no transition, settle time
+and place stability. Link `OuroFeel` into your UI tests, walk every screen your entry points reach, and leave only real taste to the humans.
+
+```swift
+let feel = OuroFeel(app)
+feel.expect(feel.wayBack(from: [.launch]))   // every reachable screen has a way back and a gesture back
+feel.expect(feel.insideWindow())             // portrait, landscape, portrait again
+```
+
+The guide is [docs/ouro-feel/README.md](docs/ouro-feel/README.md); what still needs a human eye is
+[docs/ouro-feel/taste-rubric.md](docs/ouro-feel/taste-rubric.md). `Examples/OuroFeelFixture` proves each check catches
+its bug.
+
 ## The gallery
 
 `Examples/OuroHXGallery` shows every token of every theme in light, dark and increased contrast, and every component

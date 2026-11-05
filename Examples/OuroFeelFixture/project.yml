@@ -1,0 +1,47 @@
+# Ouro Feel's fixture: one page per genre of jank, each with a known bug behind `-bug 1`. Its UI tests prove every
+# check fails on the bug and passes without it. Generate with `xcodegen generate`.
+name: OuroFeelFixture
+options:
+  bundleIdPrefix: bot.ouro.feel
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  OuroUIApple:
+    path: ../..
+targets:
+  OuroFeelFixture:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.feel.fixture
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Feel Fixture
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        SWIFT_VERSION: "6.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+  OuroFeelFixtureUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: OuroFeelFixture
+      - package: OuroUIApple
+        product: OuroFeel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.feel.fixture.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: OuroFeelFixture
+schemes:
+  OuroFeelFixture:
+    build:
+      targets:
+        OuroFeelFixture: all
+    test:
+      targets: [OuroFeelFixtureUITests]

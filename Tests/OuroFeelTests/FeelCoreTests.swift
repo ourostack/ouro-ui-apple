@@ -594,3 +594,152 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(r.summary.hasPrefix("could not check"))
     }
 }
+
+/// The walk hands any overlay a tap opened (a menu, a popover) to the overlay-dismissal check, and lists every
+/// relaunch it needed, so neither passes silently.
+@Suite struct WalkOverlayTests {
+    let good = FeelDestination(path: ["launch", "nav.recipe"], affordance: "Back", affordanceReturns: true, gesture: "edge swipe")
+
+    @Test func anOverlayThatStaysOpenFailsTheWayBack() {
+        let r = FeelWayBack.evaluate([good], overlays: [FeelOverlayTrial(name: "launch › nav.filter", appeared: true, outsideDismisses: false, pickDismisses: false)])
+        #expect(!r.passed)
+        #expect(r.detections.contains { $0.what.contains("nav.filter: a tap outside it did not dismiss it") })
+        #expect(r.detections.contains { $0.what.contains("nav.filter: still on screen after picking an item") })
+        #expect(r.summary.contains("0 of 1 overlays the walk opened dismiss"))
+        #expect(r.measures["overlays"] == 1)
+    }
+
+    @Test func aWellBehavedOverlayPassesWithANote() {
+        let r = FeelWayBack.evaluate([good], overlays: [FeelOverlayTrial(name: "launch › Sort: Newest", appeared: true, outsideDismisses: true, pickDismisses: true)])
+        #expect(r.passed)
+        #expect(r.summary.contains("1 of 1 overlays the walk opened dismiss"))
+    }
+
+    @Test func everyRelaunchIsReported() {
+        let r = FeelWayBack.evaluate([good], relaunches: ["after launch › nav.filter, which stayed open"])
+        #expect(r.findings.contains { $0.what.contains("relaunched the app after launch › nav.filter") })
+        #expect(r.measures["relaunches"] == 1)
+    }
+}
+
+/// A system menu hides the screen behind it from the accessibility tree, so the walk sees the old controls gone, as
+/// after a push. What tells them apart: no new navigation bar, a small area, and no way back of its own.
+@Suite struct OpensOverlayTests {
+    let window = CGRect(x: 0, y: 0, width: 402, height: 874)
+
+    @Test func aSystemMenuIsAnOverlay() {
+        #expect(FeelWayBack.opensOverlay(barsBefore: ["Recipes"], barsAfter: [],
+                                        appeared: [CGRect(x: 36, y: 255, width: 250, height: 42), CGRect(x: 36, y: 297, width: 250, height: 42)],
+                                        appearedSaysBack: false, window: window))
+    }
+
+    @Test func aPushIsNot() {
+        #expect(!FeelWayBack.opensOverlay(barsBefore: ["Recipes"], barsAfter: ["Pancakes"],
+                                         appeared: [CGRect(x: 0, y: 300, width: 200, height: 40)], appearedSaysBack: false, window: window))
+    }
+
+    @Test func aCoverWithACloseButtonIsNot() {
+        #expect(!FeelWayBack.opensOverlay(barsBefore: ["Recipes"], barsAfter: [],
+                                         appeared: [CGRect(x: 16, y: 60, width: 60, height: 44)], appearedSaysBack: true, window: window))
+    }
+
+    @Test func somethingFillingTheWindowIsNot() {
+        #expect(!FeelWayBack.opensOverlay(barsBefore: ["Recipes"], barsAfter: [],
+                                         appeared: [CGRect(x: 0, y: 0, width: 402, height: 800)], appearedSaysBack: false, window: window))
+    }
+
+    @Test func nothingAppearingIsNot() {
+        #expect(!FeelWayBack.opensOverlay(barsBefore: ["Recipes"], barsAfter: [], appeared: [], appearedSaysBack: false, window: window))
+    }
+}
+
+/// People tap while a control is still animating. Every double tap must end where it started: our bar is higher than
+/// UIKit's, so the OS switch's rate is context in the report and never turns a fail into a pass.
+@Suite struct RapidTapTests {
+    let paced = (0..<5).map { _ in FeelTapTrial(spot: .centre, landed: true) }
+
+    @Test func lostRapidTapsFailAndTheReportGivesBothRates() {
+        let r = FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 0), rapidBaseline: 1)
+        #expect(!r.passed)
+        #expect(r.measures["rapid rate"] == 0)
+        #expect(r.measures["rapid baseline"] == 1)
+        #expect(r.detections.contains { $0.inferred && $0.what.contains("0 of 5") && $0.what.contains("5 of 5") })
+        #expect(r.summary.contains("rapid: 0 of 5 double taps ended where they started"))
+    }
+
+    @Test func anOSControlThatAlsoDropsThemNeverTurnsAFailIntoAPass() {
+        let r = FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 0), rapidBaseline: 0)
+        #expect(!r.passed)
+        #expect(r.detections.contains { $0.what.contains("the OS control also drops these") })
+    }
+
+    @Test func everyPairMustEndWhereItStartedWithOrWithoutABaseline() {
+        #expect(!FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 4)).passed)
+        #expect(!FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 4), rapidBaseline: 1).passed)
+        #expect(FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5, tripleChanged: true)).passed)
+        #expect(FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5, tripleChanged: true), rapidBaseline: 0).passed)
+    }
+
+    @Test func pairsThatAllEndedWhereTheyStartedNeedATripleThatChanged() {
+        // A control that swallows quick bursts ends where it started every time; the triple shows bursts arrive.
+        let swallowed = FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5, tripleChanged: false))
+        #expect(!swallowed.passed)
+        #expect(swallowed.findings.contains { $0.unchecked && $0.what.contains("triple tap left the control unchanged") })
+        let unprobed = FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5))
+        #expect(!unprobed.passed)
+        #expect(unprobed.findings.contains { $0.unchecked })
+    }
+
+    @Test func notScoredWhenCentreTapsMissed() {
+        // A pair that ended where it started may have had no tap land, so it says nothing when the centre misses.
+        let r = FeelTaps.evaluate([FeelTapTrial(spot: .centre, landed: false)], rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5, tripleChanged: true), rapidBaseline: 1)
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.unchecked && $0.what.contains("not scored") })
+    }
+
+    @Test func requestedButNotScoredIsNotAPass() {
+        // No centre singles were tried, so the pairs say nothing; a requested check that was not scored fails.
+        let edges = (0..<3).map { _ in FeelTapTrial(spot: .leadingEdge, landed: true) }
+        let r = FeelTaps.evaluate(edges, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5, tripleChanged: true))
+        #expect(!r.passed)
+        #expect(r.findings.contains { $0.unchecked && $0.what.contains("not scored") })
+    }
+
+    @Test func scoredWhenOnlyAnEdgeMissed() {
+        let r = FeelTaps.evaluate(paced + [FeelTapTrial(spot: .trailingEdge, landed: false)], rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 0), rapidBaseline: 1)
+        #expect(r.detections.contains { $0.what.contains("rapid taps") })
+    }
+}
+
+/// A tap that keeps the screen can open an overlay or change the screen in place (edit mode, a row expanding, "Show
+/// more", validation text). Only an overlay floats over controls that stayed where they were.
+@Suite struct FloatsOverTests {
+    let row = CGRect(x: 16, y: 385, width: 370, height: 52)
+
+    @Test func aMenuOverRowsThatStayedFloats() {
+        #expect(FeelWayBack.floatsOver(appeared: [CGRect(x: 91, y: 400, width: 220, height: 44)], stayed: [row]))
+    }
+
+    @Test func rowsInsertedBelowDoNotFloat() {
+        // A disclosure group's children appear below; the rows under them moved, so they did not stay.
+        #expect(!FeelWayBack.floatsOver(appeared: [CGRect(x: 16, y: 437, width: 370, height: 44)], stayed: [row]))
+    }
+
+    @Test func aSliverOfOverlapDoesNotCount() {
+        #expect(!FeelWayBack.floatsOver(appeared: [CGRect(x: 16, y: 435, width: 370, height: 44)], stayed: [row]))
+    }
+
+    @Test func nothingStayedNothingFloats() {
+        #expect(!FeelWayBack.floatsOver(appeared: [row], stayed: []))
+    }
+}
+
+/// Every relaunch shows in the summary, so a quoted PASS line is never read as recovery-free.
+@Suite struct RelaunchSummaryTests {
+    @Test func aPassingWalkThatRelaunchedSaysSo() {
+        let good = FeelDestination(path: ["launch", "a"], affordance: "Back", affordanceReturns: true, gesture: "edge swipe")
+        let r = FeelWayBack.evaluate([good], relaunches: ["after x"])
+        #expect(r.passed)
+        #expect(r.summary.contains("1 relaunch"))
+    }
+}

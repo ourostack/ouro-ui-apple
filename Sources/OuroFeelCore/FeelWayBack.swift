@@ -1,3 +1,4 @@
+import CoreGraphics
 /// One screen a walk reached, and how it could be left.
 public struct FeelDestination: Codable, Equatable, Sendable {
     /// What was tapped to get here, from the entry point.
@@ -19,6 +20,26 @@ public struct FeelDestination: Codable, Equatable, Sendable {
 
 /// The way back: every screen you can reach has a visible way back and a gesture back, and both return.
 public enum FeelWayBack {
+    /// `overlays` are menus and popovers a tap opened on a screen, checked for dismissal (a tap outside, then picking
+    /// an item); one that stays open fails the way back. `relaunches` names each time the walk had to relaunch the
+    /// app to recover, listed as a note so it never passes silently.
+    public static func evaluate(_ screens: [FeelDestination], overlays: [FeelOverlayTrial] = [], relaunches: [String] = []) -> FeelResult {
+        var result = evaluate(screens)
+        if !overlays.isEmpty {
+            let checked = FeelOverlays.evaluate(overlays)
+            result.findings += checked.findings
+            let tried = overlays.filter(\.appeared).count
+            let fine = overlays.filter { $0.appeared && $0.outsideDismisses == true && $0.pickDismisses != false }.count
+            result.summary += "; \(fine) of \(tried) overlays the walk opened dismiss"
+            result.measures["overlays"] = Double(overlays.count)
+            result.passed = result.passed && checked.passed
+        }
+        result.findings += relaunches.map { .note("relaunched the app \($0)") }
+        if !relaunches.isEmpty { result.summary += " (after \(relaunches.count) relaunch\(relaunches.count == 1 ? "" : "es") to recover)" }
+        result.measures["relaunches"] = Double(relaunches.count)
+        return result
+    }
+
     public static func evaluate(_ screens: [FeelDestination]) -> FeelResult {
         var findings: [FeelFinding] = []
         for screen in screens {
@@ -40,12 +61,38 @@ public enum FeelWayBack {
     }
 
     /// Whether a tap reached a new screen. A tap that left the navigation bars as they were (`barsBefore`, their
-    /// titles) and most of the screen's followable controls still there and hittable (`stillThere` of `of`) changed
+    /// titles) and most of the screen's followable controls still in the tree (`stillThere` of `of`; covered counts) changed
     /// the screen in place (a menu opened, edit mode, a row expanded), so the walk does not ask it for a way back.
     public static func isNewScreen(barsBefore: [String], barsAfter: [String], stillThere: Int, of total: Int) -> Bool {
         if barsBefore.sorted() != barsAfter.sorted() { return true }
         guard total > 0 else { return true }
         return Double(stillThere) / Double(total) < 0.5
+    }
+
+    /// Whether a tap that hid the screen's controls opened an overlay rather than a new screen. A system menu hides the
+    /// screen behind it from the accessibility tree, as a push does; unlike a screen, it brings no navigation bar of
+    /// its own (`barsAfter` holds none that `barsBefore` lacked), no way back of its own, and covers under 60% of the
+    /// window (`appeared`, the frames of what the tap added).
+    public static func opensOverlay(barsBefore: [String], barsAfter: [String], appeared: [CGRect],
+                                    appearedSaysBack: Bool, window: CGRect) -> Bool {
+        guard !appeared.isEmpty, !appearedSaysBack, Set(barsAfter).isSubset(of: Set(barsBefore)) else { return false }
+        let area = appeared.reduce(CGRect.null) { $0.union($1) }.intersection(window)
+        guard !area.isNull, window.width > 0, window.height > 0 else { return false }
+        return area.width * area.height < 0.6 * window.width * window.height
+    }
+
+    /// Whether what a tap added (`appeared`) floats over controls that stayed exactly where they were (`stayed`): an
+    /// overlay on the screen. A change in place (edit mode, a row expanding, "Show more", validation text) moves the
+    /// controls it pushes aside, so they do not stay. An overlap counts when it is at least a quarter of the smaller
+    /// frame.
+    public static func floatsOver(appeared: [CGRect], stayed: [CGRect]) -> Bool {
+        appeared.contains { a in
+            stayed.contains { b in
+                let i = a.intersection(b)
+                guard !i.isNull, !i.isEmpty else { return false }
+                return i.width * i.height >= 0.25 * min(a.width * a.height, b.width * b.height)
+            }
+        }
     }
 
     /// Words that mark a control as a way back. They match whole words only, so "Feedback" and "Playback" are not.

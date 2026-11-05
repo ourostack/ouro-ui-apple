@@ -39,14 +39,20 @@ struct WindowPage: View {
     }
 }
 
-/// Tap landing. The bug: an invisible strip over the switch's trailing end swallows taps.
+/// Tap landing. The bugs: an invisible strip over the switch's trailing end swallows taps, and the switch ignores
+/// taps for half a second after each change (taps while it animates are lost).
 struct TapsPage: View {
     @State private var on = false
+    @State private var lockedUntil = Date.distantPast
     var body: some View {
         HStack {
             Text("Page Numbers").accessibilityIdentifier("taps.title")
             Spacer()
-            Toggle("Page Numbers", isOn: $on)
+            Toggle("Page Numbers", isOn: Binding(get: { on }, set: { value in
+                if bug && Date() < lockedUntil { return }
+                on = value
+                lockedUntil = Date().addingTimeInterval(0.5)
+            }))
                 .labelsHidden()
                 .accessibilityIdentifier("taps.toggle")
                 .overlay(alignment: .trailing) {
@@ -139,13 +145,20 @@ struct PlacePage: View {
 
 /// The way back. The bug: the chef screen hides the system back button for its own, which also turns off the edge
 /// swipe; the cook screen (a full-screen cover) has a Close button and no swipe down.
-/// The segmented picker and the menu switch what the page shows; a walk that follows buttons must not take them for
-/// screens without a way back.
+/// The segmented picker and the Sort menu switch what the page shows; a walk that follows buttons must not take them
+/// for screens without a way back, and must check that the menus it opens close. The Filter menu is the walk's
+/// overlay bug: with `-bug 1` it never closes, neither on a pick nor on a tap outside. The Tags menu always closes,
+/// so the bug build holds a stuck menu and a well-behaved one side by side. "More" expands in place, which is neither
+/// a screen nor an overlay.
 struct NavPage: View {
     @State private var settings = false
     @State private var cook = false
     @State private var shown = "All"
     @State private var order = "Newest"
+    @State private var filtering = false
+    @State private var filter = "Any time"
+    @State private var tagging = false
+    @State private var tag = "Any"
     var body: some View {
         NavigationStack {
             List {
@@ -154,19 +167,61 @@ struct NavPage: View {
                     Text("Mine").tag("Mine")
                 }
                 .pickerStyle(.segmented)
-                Menu("Sort: \(order)") {
+                // The whole row opens the menu, as a person expects (otherwise only the label text does).
+                Menu {
                     Button("Newest") { order = "Newest" }
                     Button("Oldest") { order = "Oldest" }
+                } label: {
+                    Text("Sort: \(order)").frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }
                 NavigationLink("Pancakes") { Text("Pancakes recipe").navigationTitle("Pancakes") }
                     .accessibilityIdentifier("nav.recipe")
                 NavigationLink("Chef Ada") { ChefPage() }.accessibilityIdentifier("nav.chef")
+                Button("Filter: \(filter)") { filtering = true }.accessibilityIdentifier("nav.filter")
+                Button("Tags: \(tag)") { tagging = true }.accessibilityIdentifier("nav.tags")
                 Button("Settings") { settings = true }.accessibilityIdentifier("nav.settings")
                 Button("Cook") { cook = true }.accessibilityIdentifier("nav.cook")
+                // A change in place, not an overlay: its rows push the list down and stay until it is collapsed.
+                DisclosureGroup("More") {
+                    Text("Serves 4")
+                    Text("Takes 20 minutes")
+                }
+                .accessibilityIdentifier("nav.more")
             }
             .navigationTitle("Recipes")
+            .overlay {
+                if filtering {
+                    PopMenu(choices: ["Today", "This week", "Any time"], id: "filter", sticks: bug, open: $filtering) { filter = $0 }
+                }
+                if tagging {
+                    PopMenu(choices: ["Quick", "Vegan"], id: "tags", sticks: false, open: $tagging) { tag = $0 }
+                }
+            }
             .sheet(isPresented: $settings) { SettingsSheet() }
             .fullScreenCover(isPresented: $cook) { CookCover() }
+        }
+    }
+}
+
+/// A small custom menu over the page. `sticks` is the bug: it never closes, neither on a pick nor on a tap outside.
+struct PopMenu: View {
+    let choices: [String]
+    let id: String
+    let sticks: Bool
+    @Binding var open: Bool
+    let pick: (String) -> Void
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.001).ignoresSafeArea().onTapGesture { if !sticks { open = false } }
+            VStack(spacing: 0) {
+                ForEach(choices, id: \.self) { choice in
+                    Button(choice) { pick(choice); if !sticks { open = false } }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .accessibilityIdentifier("\(id).\(choice)")
+                }
+            }
+            .frame(width: 220)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         }
     }
 }

@@ -348,6 +348,10 @@ jobs:
           done
           echo "Using $device on $runtime: $udid"
           echo "UDID=$udid" >> "$GITHUB_ENV"
+          # Boot it and wait until it has finished booting: left to xcodebuild, the first test's setUp can reach a
+          # simulator whose accessibility is not up yet ("Failed to get list of active applications", kAXError -25218).
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b >/dev/null
       - name: Fixture UI tests (a fresh simulator; only the first test starts cold, so reports say "not labelled")
         run: |
           set -o pipefail

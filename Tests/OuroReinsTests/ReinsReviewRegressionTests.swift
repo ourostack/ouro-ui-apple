@@ -19,8 +19,17 @@ private struct Kinds: ReinsInput {
     let blob: Data
 }
 
+private struct TaggedID: RawRepresentable, Codable, Sendable { let rawValue: String }
+private enum Level: Int, Codable { case low, high }
+private struct Wrappers: ReinsInput { let id: TaggedID; let level: Level }
+
 @Suite("Review regressions: schemas")
 struct ReviewSchemaTests {
+    @Test("raw-value wrappers and Int enums still derive; only a failing String enum gets the ReinsEnumerable hint")
+    func rawValueTypes() {
+        #expect(Wrappers.reinsSchema == .object(properties: ["id": .string, "level": .integer], required: ["id", "level"]))
+    }
+
     @Test("a recursive input is underived with a reason, not a crash")
     func recursiveTypes() {
         guard case .underived(let reason) = Tree.reinsSchema else { Issue.record("expected underived"); return }
@@ -224,6 +233,10 @@ struct ReviewSocketTests {
         try server.start()
         defer { server.stop() }
         #expect(throws: POSIXError(.EALREADY)) { try server.start() }
+        #expect(throws: POSIXError(.EADDRINUSE), "a second app must not take over a live server's socket") {
+            try ReinsSocketServer(session: ReinsSession(Slow()), path: path).start()
+        }
+        #expect(FileManager.default.fileExists(atPath: path))
     }
 
     @Test("the default path fits a socket address")

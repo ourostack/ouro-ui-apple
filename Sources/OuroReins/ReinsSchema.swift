@@ -209,19 +209,27 @@ private struct SchemaProbe: Decoder {
         if let dictionary = T.self as? any StringKeyedDictionary.Type {
             return try dictionary.probe(into: slot, codingPath: codingPath, context: context) as! T
         }
-        if T.self is any RawRepresentable.Type {
-            throw ReinsSchemaDerivationError.unsupported(
-                "\(T.self), a raw-value enum: conform it to ReinsEnumerable (free for a CaseIterable String enum)"
-            )
-        }
         let id = ObjectIdentifier(T.self)
         guard !context.active.contains(id) else {
             throw ReinsSchemaDerivationError.unsupported("\(T.self), which contains itself; declare `static var reinsSchema` on the input")
         }
         context.active.append(id)
         defer { context.active.removeLast() }
-        return try T(from: SchemaProbe(slot: slot, codingPath: codingPath, context: context))
+        do {
+            return try T(from: SchemaProbe(slot: slot, codingPath: codingPath, context: context))
+        } catch let error as DecodingError {
+            // A String enum rejects the placeholder "" as a raw value; wrappers like a tagged ID decode fine and never
+            // get here.
+            if let raw = T.self as? any RawRepresentable.Type, isStringBacked(raw) {
+                throw ReinsSchemaDerivationError.unsupported(
+                    "\(T.self), a String enum: conform it to ReinsEnumerable (free for a CaseIterable String enum)"
+                )
+            }
+            throw error
+        }
     }
+
+    private static func isStringBacked<R: RawRepresentable>(_ type: R.Type) -> Bool { R.RawValue.self == String.self }
 
     private static func placeholder<E: ReinsEnumerable>(of type: E.Type) -> E { E.reinsPlaceholder }
 

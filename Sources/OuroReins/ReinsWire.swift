@@ -122,7 +122,7 @@ public enum ReinsWire {
     static func encode(_ response: Response) -> String {
         if let data = try? ReinsValue.encoder.encode(response) { return String(decoding: data, as: UTF8.self) }
         // Never an empty line: a reply that can't be encoded says so, keeping the request's id.
-        let fallback = Response(id: response.id, ok: false, error: ReinsProblem.badRequest("the reply couldn't be encoded as JSON"),
+        let fallback = Response(id: response.id, ok: false, error: OuroAX.Problem(code: "reply-unencodable", exit: 1, thing: "reply", problem: "the reply couldn't be encoded as JSON", fix: "keep node state to plain JSON values"),
                                 screen: ReinsScreen(focus: response.screen.focus, path: response.screen.path, state: .null, context: [:], actions: []))
         return String(decoding: (try? ReinsValue.encoder.encode(fallback)) ?? Data(#"{"ok":false}"#.utf8), as: UTF8.self)
     }

@@ -9,11 +9,11 @@ import Darwin
 ///
 /// A Unix socket rather than a TCP port: it opens no port (no firewall prompt, nothing on the network). The path is
 /// `OURO_REINS_SOCKET` when the launch environment sets it, otherwise `ouro-reins.sock` in the process's temporary
-/// folder, or `/tmp/ouro-reins-<bundle id>.sock` when that is longer than a socket path may be (a simulator app's
-/// temporary folder usually is). `start()` prints the path on stderr. From the Mac:
+/// folder, or `/tmp/ouro-reins-<bundle id>-<simulator UDID>.sock` when that is longer than a socket path may be (a
+/// simulator app's temporary folder usually is). `start()` prints the path on stderr. From the Mac:
 ///
 /// ```sh
-/// printf 'ls\n' | nc -U /tmp/ouro-reins-app.spoonjoy.sock
+/// printf 'ls\n' | nc -U "/tmp/ouro-reins-app.spoonjoy-$UDID.sock"
 /// ```
 ///
 /// Call it only from debug code, so the app compiles in release too:
@@ -45,8 +45,11 @@ public final class ReinsSocketServer: @unchecked Sendable {
         if let chosen = ProcessInfo.processInfo.environment["OURO_REINS_SOCKET"], !chosen.isEmpty { return chosen }
         let temporary = (NSTemporaryDirectory() as NSString).appendingPathComponent("ouro-reins.sock")
         if temporary.utf8.count <= maximumPathBytes { return temporary }
+        // Every simulator shares the Mac's /tmp, so the simulator's UDID keeps two devices running the same app apart.
+        let device = ProcessInfo.processInfo.environment["SIMULATOR_UDID"].map { "-\($0)" } ?? ""
         let name = Bundle.main.bundleIdentifier ?? "pid-\(getpid())"
-        return "/tmp/ouro-reins-\(name).sock"
+        let short = "/tmp/ouro-reins-\(name)\(device).sock"
+        return short.utf8.count <= maximumPathBytes ? short : "/tmp/ouro-reins-\(getpid()).sock"
     }
 
     @MainActor
@@ -56,27 +59,28 @@ public final class ReinsSocketServer: @unchecked Sendable {
     }
 
     /// Binds and starts accepting connections. Throws `POSIXError` when the socket can't be made: `ENAMETOOLONG` for a
-    /// path over 103 bytes, `EADDRINUSE` when something other than a socket is at the path, `EALREADY` when started.
+    /// path over 103 bytes, `EADDRINUSE` when another server is live at the path or it holds something other than a
+    /// socket, `EALREADY` when started.
     public func start() throws {
         lock.lock()
         defer { lock.unlock() }
         guard listener < 0 else { throw POSIXError(.EALREADY) }
         let bytes = Array(path.utf8)
         guard bytes.count <= Self.maximumPathBytes else { throw POSIXError(.ENAMETOOLONG) }
-        // Replace a stale socket from an earlier run, never another kind of file.
-        var existing = stat()
-        if lstat(path, &existing) == 0 {
-            guard existing.st_mode & S_IFMT == S_IFSOCK else { throw POSIXError(.EADDRINUSE) }
-            unlink(path)
-        }
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
         withUnsafeMutableBytes(of: &address.sun_path) { buffer in
             buffer.copyBytes(from: bytes)
             buffer[bytes.count] = 0
         }
+        // Replace a stale socket from an earlier run, never another kind of file and never a live server's socket.
+        var existing = stat()
+        if lstat(path, &existing) == 0 {
+            guard existing.st_mode & S_IFMT == S_IFSOCK, !Self.answers(&address) else { throw POSIXError(.EADDRINUSE) }
+            unlink(path)
+        }
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { throw POSIXError(.init(rawValue: errno) ?? .EIO) }
         let bound = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
         }
@@ -88,6 +92,16 @@ public final class ReinsSocketServer: @unchecked Sendable {
         listener = fd
         FileHandle.standardError.write(Data("ouro-reins: serving on \(path)\n".utf8))
         Thread.detachNewThread { [self] in acceptLoop(fd) }
+    }
+
+    /// Whether a server is accepting at `address` now.
+    private static func answers(_ address: inout sockaddr_un) -> Bool {
+        let probe = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard probe >= 0 else { return false }
+        defer { close(probe) }
+        return withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(probe, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        } == 0
     }
 
     /// Stops accepting, closes open connections and removes the socket file.

@@ -103,8 +103,9 @@ protocol.
 
 In a running debug build, `ReinsSocketServer` serves the same lines on a Unix socket. Its path is `OURO_REINS_SOCKET`
 when the launch environment sets it, else `ouro-reins.sock` in the app's temporary folder, or
-`/tmp/ouro-reins-<bundle id>.sock` when that's too long for a socket address (a simulator app's usually is); `start()`
-prints it on stderr. Requests from all connections run one at a time. Wrap your own calls in `#if DEBUG`: the type
+`/tmp/ouro-reins-<bundle id>-<simulator UDID>.sock` when that's too long for a socket address (a simulator app's
+usually is), so two simulators running the same app don't collide; `start()` prints it on stderr and refuses to take
+over a socket another server is still answering on. Requests from all connections run one at a time. Wrap your own calls in `#if DEBUG`: the type
 doesn't exist in release builds, which `scripts/check-reins-release.sh` proves in CI for `swift build -c release`.
 
 ```swift
@@ -114,7 +115,7 @@ try? ReinsSocketServer(session: ReinsSession(shell)).start()
 ```
 
 ```sh
-printf 'ls\n' | nc -U /tmp/ouro-reins-app.spoonjoy.sock
+printf 'ls\n' | nc -U "/tmp/ouro-reins-app.spoonjoy-$UDID.sock"
 ```
 
 ## The network guard

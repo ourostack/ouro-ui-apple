@@ -132,7 +132,7 @@ public final class ReinsSession {
         var context: [String: ReinsValue] = [:]
         for (node, label) in zip(path.dropLast(), labels.dropLast()) { context[label] = node.state }
         return ReinsScreen(
-            focus: focus.name,
+            focus: labels.last ?? focus.name,
             path: labels,
             state: focus.state,
             context: context,

@@ -88,7 +88,7 @@ public struct OuroFeel {
         let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
         var found: [FeelElement] = []
         // Accessibility does not say which way a scroll view scrolls; a short, wide one whose content runs off its sides
-        // is taken to be a carousel (sideways), any other one a list (up and down).
+        // is marked sideways; FeelLayout counts it as a carousel only while it is under a third of the window's height.
         func sideways(_ node: any XCUIElementSnapshot) -> Bool {
             let f = node.frame
             guard f.width > f.height * 1.5 else { return false }
@@ -178,7 +178,8 @@ public struct OuroFeel {
             #if os(iOS)
             // An app that stays portrait (an iPhone app without landscape) is fine, but say so: its "landscape" was not one.
             if let o = pose.orientation, o.isLandscape, window.height > window.width {
-                result.findings.append(FeelFinding(what: "the app stayed portrait when the device turned to \(pose.name); its layout there was not checked"))
+                result.findings.append(FeelFinding(what: "the app stayed portrait when the device turned to \(pose.name), so it likely supports portrait only; "
+                    + "its controls were checked in portrait there", inferred: true))
             }
             #endif
             results.append(result)
@@ -194,7 +195,8 @@ public struct OuroFeel {
     /// Single taps on `control`, never retried: `trials` at each spot. `.zeroPress` is not a default: on the iOS 27.2
     /// simulator a system `Toggle` ignored XCUITest's zero-length press 3 times in 3, so it measures XCUITest's event,
     /// not the app; add it only for a control that acts on touch-down. A tap lands when `read` (by default the
-    /// control's value) changes within a second. With `title`, it also taps the row's title and the gap between title
+    /// control's value) changes within `within` seconds (3 by default, since a busy simulator can be slow to report a
+    /// change; landing is about whether the tap counted, not how fast). With `title`, it also taps the row's title and the gap between title
     /// and control; `rowToggles` says whether those should change the control (a row that acts as one button) or
     /// should not (iOS Settings rows). `baseline` is ``osBaseline(trials:)``.
     public func tapLanding(
@@ -204,18 +206,19 @@ public struct OuroFeel {
         title: XCUIElement? = nil,
         rowToggles: Bool = false,
         baseline: Double? = nil,
+        within: Double = 3,
         read: (() -> String)? = nil
     ) -> FeelResult {
         guard control.waitForExistence(timeout: timeout), control.frame.width > 0 else {
-            return FeelResult(check: FeelGenre.tapLanding.rawValue, passed: false, summary: "the control to tap was not on screen",
-                              findings: [FeelFinding(what: "\(control) did not exist or had no size, so no taps were tried")], environment: environment)
+            return FeelResult(check: FeelGenre.tapLanding.rawValue, passed: false, summary: "could not check: the control to tap was not on screen",
+                              findings: [.couldNotCheck("\(control) did not exist or had no size, so no taps were tried")], environment: environment)
         }
         let read = read ?? { (control.value as? String) ?? control.label }
         var results: [FeelTapTrial] = []
         func trial(_ spot: FeelTapSpot, expected: Bool, _ act: () -> Void) {
             let before = read()
             act()
-            let landed = wait(1) { read() != before }
+            let landed = wait(within) { read() != before }
             results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected))
         }
         for spot in spots {

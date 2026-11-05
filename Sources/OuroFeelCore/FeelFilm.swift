@@ -76,12 +76,16 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         return gaps.isEmpty ? .infinity : gaps[gaps.count / 2]
     }
 
+    static func times(_ n: Int) -> String { n == 1 ? "1 time" : "\(n) times" }
+
     func unseen(_ key: String) -> FeelFinding? {
-        track(key).isEmpty ? FeelFinding(what: "\"\(key)\" was never on screen in \(frames.count) samples, so nothing was checked") : nil
+        track(key).isEmpty ? .couldNotCheck("\"\(key)\" was never on screen in \(frames.count) samples") : nil
     }
 
     func tooSparse(_ maxGap: Double) -> FeelFinding? {
-        typicalGap <= maxGap ? nil : FeelFinding(what: "samples were usually \(FeelResult.number(round3(typicalGap))) s apart, too far apart to judge "
+        if typicalGap <= maxGap { return nil }
+        if !typicalGap.isFinite { return .couldNotCheck("the film had fewer than two samples; film for longer") }
+        return .couldNotCheck("samples were usually \(FeelResult.number(round3(typicalGap))) s apart, too far apart to judge "
             + "(at most \(FeelResult.number(maxGap)) s); watch fewer elements, or rerun on a less busy machine")
     }
 
@@ -120,22 +124,22 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     public func settles(_ key: String, within limit: Double, hold: Double = 0.3, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
         let check = FeelGenre.settleTime.rawValue
         guard let end = settleTime(of: key, tolerance: tolerance), let last = track(key).last else {
-            return FeelResult(check: check, passed: false, summary: "\"\(key)\" never appeared",
-                              findings: [FeelFinding(what: "\"\(key)\" was not on screen in any of \(frames.count) samples")])
+            return FeelResult(check: check, passed: false, summary: "could not check: \"\(key)\" was never on screen",
+                              findings: [.couldNotCheck("\"\(key)\" was not on screen in any of \(frames.count) samples")])
         }
         guard let start = motionStart(of: key, tolerance: tolerance) else {
-            return FeelResult(check: check, passed: false, summary: "\"\(key)\" was never seen moving",
-                              findings: [FeelFinding(what: "\"\(key)\" was never seen moving, so its settling was not timed; "
+            return FeelResult(check: check, passed: false, summary: "could not check: \"\(key)\" was never seen moving",
+                              findings: [.couldNotCheck("\"\(key)\" was never seen moving, so its settling was not timed; "
                                 + "let the app start the motion after the film begins (a tap's motion is over before the first sample)")])
         }
         let t = round3(max(0, end - start))
         if last.t - end < hold {
-            return FeelResult(check: check, passed: false, summary: "\"\(key)\" had not settled when the film ended",
+            return FeelResult(check: check, passed: false, summary: "could not check: \"\(key)\" had not settled when the film ended",
                               measures: ["moving": t, "cadence": round3(cadence)],
-                              findings: [FeelFinding(what: "\"\(key)\" was still moving when the film ended (still for under \(FeelResult.number(hold)) s); film for longer")])
+                              findings: [.couldNotCheck("\"\(key)\" was still moving when the film ended (still for under \(FeelResult.number(hold)) s); film for longer")])
         }
         if let sparse = tooSparse(maxGap) {
-            return FeelResult(check: FeelGenre.settleTime.rawValue, passed: false, summary: "could not time \"\(key)\" settling",
+            return FeelResult(check: FeelGenre.settleTime.rawValue, passed: false, summary: "could not check: " + sparse.what,
                               measures: ["settle": t, "cadence": round3(cadence), "typicalGap": round3(typicalGap)], findings: [sparse])
         }
         let ok = t <= limit
@@ -164,9 +168,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             }
             stillSince = sample.t
         }
-        return FeelResult(check: FeelGenre.jumpAfterLanding.rawValue, passed: findings.isEmpty,
-                          summary: findings.isEmpty ? "\"\(key)\" never moved once at rest" : "\"\(key)\" jumped \(findings.count) times after coming to rest",
-                          measures: ["jumps": Double(findings.count), "samples": Double(track.count), "cadence": round3(cadence)], findings: findings)
+        return FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "\"\(key)\" never moved once at rest",
+                                 failing: { "\"\(key)\" jumped \(Self.times($0)) after coming to rest" },
+                                 measures: ["jumps": Double(findings.filter { !$0.unchecked }.count), "samples": Double(track.count), "cadence": round3(cadence)],
+                                 findings: findings)
     }
 
     // MARK: Double draws
@@ -176,7 +181,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     public func doubleDraws(of contents: [String]) -> FeelResult {
         var findings: [FeelFinding] = []
         var total = 0
-        if contents.isEmpty { findings.append(FeelFinding(what: "no contents were named, so nothing was checked")) }
+        if contents.isEmpty { findings.append(.couldNotCheck("no contents were named")) }
         for content in contents {
             if let unseen = unseen(content) { findings.append(unseen); continue }
             var hits: [Double] = []
@@ -189,8 +194,8 @@ public struct FeelFilm: Codable, Equatable, Sendable {
                 findings.append(FeelFinding(what: "\"\(content)\" was on screen twice at once in \(hits.count) samples, first at \(FeelResult.number(round3(first))) s"))
             }
         }
-        return FeelResult(check: FeelGenre.doubleDraw.rawValue, passed: findings.isEmpty,
-                          summary: findings.isEmpty ? "no content drawn twice in \(frames.count) samples" : "\(findings.count) contents drawn twice",
+        return FeelResult.judged(check: FeelGenre.doubleDraw.rawValue, passing: "no content drawn twice in \(frames.count) samples",
+                          failing: { "\($0) of \(contents.count) contents drawn twice" },
                           measures: ["samples": Double(frames.count), "doubled": Double(total)], findings: findings)
     }
 
@@ -245,17 +250,17 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             } else if typicalGap <= maxGap && gap >= typicalGap * 3 {
                 // Sampling was quick except around this move: the app was busy, which a transition and a snap with heavy
                 // layout both cause, so the move cannot be judged.
-                findings.append(FeelFinding(what: "the app was busy for \(FeelResult.number(round3(gap))) s while \"\(key)\" moved "
+                findings.append(.couldNotCheck("the app was busy for \(FeelResult.number(round3(gap))) s while \"\(key)\" moved "
                     + "\(FeelResult.number(round3(moved(i) ?? 0))) pt, so whether it travelled or snapped was not seen; rerun, or slow the motion"))
             } else {
-                findings.append(FeelFinding(what: "samples \(FeelResult.number(round3(gap))) s apart are too far apart to tell a snap from a transition (\(what)); watch fewer elements"))
+                findings.append(.couldNotCheck("samples \(FeelResult.number(round3(gap))) s apart are too far apart to tell a snap from a transition (\(what)); watch fewer elements"))
             }
         }
         if let sparse = tooSparse(maxGap) { findings.insert(sparse, at: 0) }
         if let unseen = unseen(key) { findings.insert(unseen, at: 0) }
-        return FeelResult(check: FeelGenre.snap.rawValue, passed: findings.isEmpty,
-                          summary: findings.isEmpty ? "\"\(key)\" travelled wherever it moved" : "\"\(key)\" snapped \(findings.count) times",
-                          measures: ["snaps": Double(findings.count), "cadence": round3(cadence)], findings: findings)
+        return FeelResult.judged(check: FeelGenre.snap.rawValue, passing: "\"\(key)\" travelled wherever it moved",
+                                 failing: { "\"\(key)\" snapped \(Self.times($0))" },
+                                 measures: ["snaps": Double(findings.filter { !$0.unchecked }.count), "cadence": round3(cadence)], findings: findings)
     }
 
     // MARK: Chrome
@@ -278,7 +283,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         }
         var findings: [FeelFinding] = []
         if !started {
-            findings.append(FeelFinding(what: "neither \"\(a)\" nor \"\(b)\" was ever on screen in \(frames.count) samples, so nothing was checked"))
+            findings.append(.couldNotCheck("neither \"\(a)\" nor \"\(b)\" was ever on screen in \(frames.count) samples"))
         }
         if longestBoth > grace {
             findings.append(FeelFinding(what: "both \"\(a)\" and \"\(b)\" were on screen for \(FeelResult.number(round3(longestBoth))) s (lingering chrome)"))
@@ -286,8 +291,8 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         if longestNeither > grace {
             findings.append(FeelFinding(what: "neither \"\(a)\" nor \"\(b)\" was on screen for \(FeelResult.number(round3(longestNeither))) s (late chrome)"))
         }
-        return FeelResult(check: FeelGenre.chrome.rawValue, passed: findings.isEmpty,
-                          summary: findings.isEmpty ? "\"\(a)\" handed over to \"\(b)\" cleanly" : "\"\(a)\" to \"\(b)\" overlapped or left a gap",
+        return FeelResult.judged(check: FeelGenre.chrome.rawValue, passing: "\"\(a)\" handed over to \"\(b)\" cleanly",
+                          failing: { _ in "\"\(a)\" to \"\(b)\" overlapped or left a gap" },
                           measures: ["both": round3(both), "neither": round3(neither), "cadence": round3(cadence)], findings: findings)
     }
 }

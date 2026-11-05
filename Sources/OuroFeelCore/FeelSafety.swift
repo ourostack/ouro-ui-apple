@@ -3,7 +3,7 @@
 public enum FeelSafety {
     public static let dangerous = [
         "delete", "remove", "sign out", "log out", "logout", "signout", "erase", "reset", "clear", "trash", "discard",
-        "buy", "purchase", "pay", "checkout", "order", "subscribe", "send", "share", "publish", "post", "report", "block",
+        "buy", "purchase", "pay", "checkout", "order", "subscribe", "unsubscribe", "send", "share", "publish", "post", "report", "block",
     ]
 
     /// `text` split into lowercase words, at case changes and at anything not a letter or digit.
@@ -11,7 +11,13 @@ public enum FeelSafety {
         var out = ""
         var previous: Character?
         for c in text {
-            if let p = previous, c.isUppercase, p.isLowercase { out.append(" ") }
+            if let p = previous, c.isUppercase, p.isLowercase || p.isNumber { out.append(" ") }
+            // The end of an acronym: "URLDelete" splits before the "D", the capital that starts a lowercase word.
+            if let p = previous, p.isUppercase, c.isLowercase, out.count > 1, out.last != " " {
+                let last = out.removeLast()
+                if out.last != " " { out.append(" ") }
+                out.append(last)
+            }
             out.append(c.isLetter || c.isNumber ? Character(c.lowercased()) : " ")
             previous = c
         }

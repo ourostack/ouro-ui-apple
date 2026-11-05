@@ -32,11 +32,20 @@ public enum FeelWayBack {
                 findings.append(FeelFinding(what: "\(name): no gesture back (neither an edge swipe nor a swipe down returned)"))
             }
         }
-        if screens.isEmpty { findings.append(FeelFinding(what: "the walk reached no screens; check the entry points and what it may follow")) }
+        if screens.isEmpty { findings.append(.couldNotCheck("the walk reached no screens; check the entry points and what it may follow")) }
         let good = screens.filter { $0.affordance != nil && $0.affordanceReturns && $0.gesture != nil }.count
-        return FeelResult(check: FeelGenre.wayBack.rawValue, passed: findings.isEmpty,
-                          summary: "\(good) of \(screens.count) reachable screens have a way back and a gesture back",
-                          measures: ["screens": Double(screens.count), "good": Double(good)], findings: findings)
+        let summary = "\(good) of \(screens.count) reachable screens have a way back and a gesture back"
+        return FeelResult.judged(check: FeelGenre.wayBack.rawValue, passing: summary, failing: { _ in summary },
+                                 measures: ["screens": Double(screens.count), "good": Double(good)], findings: findings)
+    }
+
+    /// Words that mark a control as a way back. They match whole words only, so "Feedback" and "Playback" are not.
+    public static let backWords = ["back", "close", "done", "cancel", "dismiss"]
+
+    /// Whether any of `texts` (identifiers or labels, split as ``FeelSafety/words(_:)`` splits them) says back.
+    public static func saysBack(_ texts: String...) -> Bool {
+        let all = texts.map(FeelSafety.words).joined()
+        return backWords.contains { all.contains(" \($0) ") }
     }
 }
 
@@ -62,14 +71,14 @@ public enum FeelOverlays {
     public static func evaluate(_ trials: [FeelOverlayTrial]) -> FeelResult {
         var findings: [FeelFinding] = []
         for t in trials {
-            if !t.appeared { findings.append(FeelFinding(what: "\(t.name): never appeared, so it could not be checked")); continue }
+            if !t.appeared { findings.append(.couldNotCheck("\(t.name): never appeared")); continue }
             if t.outsideDismisses == false { findings.append(FeelFinding(what: "\(t.name): a tap outside it did not dismiss it")) }
-            if t.outsideDismisses == nil { findings.append(FeelFinding(what: "\(t.name): there was no place outside it to tap, so a tap outside was not tried")) }
+            if t.outsideDismisses == nil { findings.append(.couldNotCheck("\(t.name): there was no place outside it to tap, so a tap outside was not tried")) }
             if t.pickDismisses == false { findings.append(FeelFinding(what: "\(t.name): still on screen after picking an item")) }
         }
-        if trials.isEmpty { findings.append(FeelFinding(what: "no overlays were named")) }
-        return FeelResult(check: FeelGenre.overlayDismissal.rawValue, passed: findings.isEmpty,
-                          summary: "\(trials.count - Set(findings.map { $0.what.components(separatedBy: ":")[0] }).count) of \(trials.count) overlays dismiss as they should",
-                          measures: ["overlays": Double(trials.count)], findings: findings)
+        if trials.isEmpty { findings.append(.couldNotCheck("no overlays were named")) }
+        let summary = "\(trials.count - Set(findings.map { $0.what.components(separatedBy: ":")[0] }).count) of \(trials.count) overlays dismiss as they should"
+        return FeelResult.judged(check: FeelGenre.overlayDismissal.rawValue, passing: summary, failing: { _ in summary },
+                                 measures: ["overlays": Double(trials.count)], findings: findings)
     }
 }

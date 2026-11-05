@@ -1,14 +1,28 @@
 public import Foundation
 
 /// One thing a check saw. `inferred` marks a reading that goes beyond what was measured (for example, "the simulator
-/// may be dropping taps"), so a report never states an inference as a measurement.
+/// may be dropping taps"), so a report never states an inference as a measurement. `unchecked` marks something the
+/// check could not judge (the element was never on screen, the samples were too far apart): the check fails, but the
+/// report says "could not check" and never counts it as a bug found.
 public struct FeelFinding: Codable, Equatable, Sendable {
     public var what: String
     public var inferred: Bool
+    public var unchecked: Bool
 
-    public init(what: String, inferred: Bool = false) {
+    public init(what: String, inferred: Bool = false, unchecked: Bool = false) {
         self.what = what
         self.inferred = inferred
+        self.unchecked = unchecked
+    }
+
+    /// Something the check could not judge.
+    public static func couldNotCheck(_ what: String) -> FeelFinding { FeelFinding(what: what, unchecked: true) }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        what = try c.decode(String.self, forKey: .what)
+        inferred = try c.decodeIfPresent(Bool.self, forKey: .inferred) ?? false
+        unchecked = try c.decodeIfPresent(Bool.self, forKey: .unchecked) ?? false
     }
 }
 
@@ -101,9 +115,30 @@ public struct FeelResult: Codable, Equatable, Sendable {
         self.environment = environment
     }
 
+    /// A result whose summary follows its findings: `passing` when there are none, `failing(n)` for n bugs found,
+    /// and "could not check: …" when every finding is something the check could not judge.
+    public static func judged(check: String, passing: String, failing: (Int) -> String, measures: [String: Double] = [:],
+                              findings: [FeelFinding], environment: FeelEnvironment? = nil) -> FeelResult {
+        let found = findings.filter { !$0.unchecked }.count
+        let unchecked = findings.filter(\.unchecked)
+        let summary: String
+        if findings.isEmpty {
+            summary = passing
+        } else if found > 0 {
+            summary = failing(found) + (unchecked.isEmpty ? "" : "; \(unchecked.count) more could not be checked")
+        } else {
+            summary = "could not check: " + unchecked[0].what + (unchecked.count > 1 ? " (and \(unchecked.count - 1) more)" : "")
+        }
+        return FeelResult(check: check, passed: findings.isEmpty, summary: summary, measures: measures, findings: findings,
+                          environment: environment)
+    }
+
+    /// The findings that are bugs found, not things the check could not judge.
+    public var detections: [FeelFinding] { findings.filter { !$0.unchecked } }
+
     public var text: String {
         var lines = ["\(passed ? "PASS" : "FAIL") \(check): \(summary)"]
-        lines += findings.map { "  - \($0.what)\($0.inferred ? " (inference)" : "")" }
+        lines += findings.map { "  - \($0.what)\($0.inferred ? " (inference)" : "")\($0.unchecked ? " (not checked)" : "")" }
         if !measures.isEmpty {
             lines.append("  measured: " + measures.keys.sorted().map { "\($0)=\(Self.number(measures[$0]!))" }.joined(separator: ", "))
         }

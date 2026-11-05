@@ -18,12 +18,13 @@ public enum FeelPlace {
     /// Passes when every step's fingerprint equals the starting one.
     public static func compare(start: String, after steps: [String: String]) -> FeelResult {
         var findings: [FeelFinding] = []
-        if start == empty { findings.append(FeelFinding(what: "nothing was on screen to start with")) }
-        for name in steps.keys.sorted() where steps[name] != start || steps[name] == empty {
+        if start == empty { findings.append(.couldNotCheck("nothing was on screen to start with")) }
+        for name in steps.keys.sorted() where start != empty && (steps[name] != start || steps[name] == empty) {
             findings.append(FeelFinding(what: "after \(name) the screen showed different content (\(steps[name]!) instead of \(start))"))
         }
-        let kept = steps.count - findings.filter { !$0.what.hasPrefix("nothing") }.count
-        return FeelResult(check: FeelGenre.placeStability.rawValue, passed: findings.isEmpty, summary: "\(kept) of \(steps.count) steps kept the place",
+        let kept = steps.count - findings.filter { !$0.unchecked }.count
+        let summary = "\(kept) of \(steps.count) steps kept the place"
+        return FeelResult.judged(check: FeelGenre.placeStability.rawValue, passing: summary, failing: { _ in summary },
                           measures: ["steps": Double(steps.count), "kept": Double(kept)], findings: findings)
     }
 }

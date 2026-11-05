@@ -133,12 +133,25 @@ struct PlacePage: View {
 
 /// The way back. The bug: the chef screen hides the system back button for its own, which also turns off the edge
 /// swipe; the cook screen (a full-screen cover) has a Close button and no swipe down.
+/// The segmented picker and the menu switch what the page shows; a walk that follows buttons must not take them for
+/// screens without a way back.
 struct NavPage: View {
     @State private var settings = false
     @State private var cook = false
+    @State private var shown = "All"
+    @State private var order = "Newest"
     var body: some View {
         NavigationStack {
             List {
+                Picker("Show", selection: $shown) {
+                    Text("All").tag("All")
+                    Text("Mine").tag("Mine")
+                }
+                .pickerStyle(.segmented)
+                Menu("Sort: \(order)") {
+                    Button("Newest") { order = "Newest" }
+                    Button("Oldest") { order = "Oldest" }
+                }
                 NavigationLink("Pancakes") { Text("Pancakes recipe").navigationTitle("Pancakes") }
                     .accessibilityIdentifier("nav.recipe")
                 NavigationLink("Chef Ada") { ChefPage() }.accessibilityIdentifier("nav.chef")

@@ -25,18 +25,19 @@ public struct FeelEntry {
     }
 }
 
-/// Which controls a walk may tap to find new screens: cells, links and buttons by default, so it reaches pushed
-/// screens, sheets and covers. It never taps one whose label or identifier holds a word in `avoid` (identifiers split
-/// at case changes and punctuation, see ``FeelSafety``), so a walk does not delete, sign out or pay, and it never taps a
-/// back control. Buttons that change data without such a word (Save, Add) can still be tapped: launch the walk into a
-/// fixture state that is safe to change, or narrow `types` and `prefixes`.
+/// Which controls a walk may tap to find new screens: cells and links by default, which reach pushed screens. Add
+/// `.button` to reach sheets and covers too. It never taps one whose label or identifier holds a word in `avoid`
+/// (identifiers split at case changes and punctuation, see ``FeelSafety``), so a walk does not delete, sign out or pay;
+/// it never taps a back control, a menu button, or anything inside a tab bar, segmented control, picker or menu, which
+/// switch what a screen shows rather than open a new one. Buttons that change data without such a word (Save, Add) can
+/// still be tapped when `.button` is followed: launch the walk into a fixture state that is safe to change, or use `prefixes`.
 public struct FeelFollow: Sendable {
     public var types: Set<XCUIElement.ElementType>
     /// Identifier prefixes to follow as well, whatever their type (for example `"recipe."`).
     public var prefixes: [String]
     public var avoid: [String]
 
-    public init(types: Set<XCUIElement.ElementType> = [.cell, .link, .button], prefixes: [String] = [],
+    public init(types: Set<XCUIElement.ElementType> = [.cell, .link], prefixes: [String] = [],
                 avoid: [String] = FeelFollow.dangerous) {
         self.types = types
         self.prefixes = prefixes
@@ -79,8 +80,9 @@ public struct FeelOverlay {
 }
 
 extension OuroFeel {
-    static let backWords = ["back", "close", "done", "cancel", "dismiss"]
-
+    /// Controls that switch what a screen shows; a walk follows neither them nor anything inside them.
+    static let switcherTypes: Set<XCUIElement.ElementType> = [.tabBar, .segmentedControl, .picker, .menu, .menuBar,
+                                                             .menuButton, .popUpButton]
     /// A screen's identity for the walk: the navigation bars and the followable and back controls on it.
     func signature(_ follow: FeelFollow) -> String {
         guard let root = try? app.snapshot() else { return "" }
@@ -98,8 +100,7 @@ extension OuroFeel {
     }
 
     static func isBack(_ node: any XCUIElementSnapshot) -> Bool {
-        let words = (node.identifier + " " + node.label).lowercased()
-        return backWords.contains { words.contains($0) }
+        FeelWayBack.saysBack(node.identifier, node.label)
     }
 
     /// The followable controls on screen, in order, by key. Back, close, done, cancel and dismiss controls are never
@@ -108,16 +109,19 @@ extension OuroFeel {
         guard let root = try? app.snapshot() else { return [] }
         let window = root.children.first { $0.elementType == .window }?.frame ?? root.frame
         var keys: [String] = []
-        func walk(_ node: any XCUIElementSnapshot) {
+        func walk(_ node: any XCUIElementSnapshot, switcher: Bool) {
             let key = Self.key(node)
-            // Never the screen's own way back: following it would walk backwards.
-            if !key.isEmpty, node.isEnabled, node.frame.intersects(window), !Self.isBack(node),
+            // Never the screen's own way back (following it would walk backwards), and never a control that switches
+            // what this screen shows (a tab, a segment, a menu), which is not a new screen to find a way back from.
+            if !switcher, !key.isEmpty, node.isEnabled, node.frame.intersects(window), !Self.isBack(node),
+               !Self.switcherTypes.contains(node.elementType),
                follow.allows(type: node.elementType, key: key, label: node.label), !keys.contains(key) {
                 keys.append(key)
             }
-            node.children.forEach(walk)
+            let inside = switcher || Self.switcherTypes.contains(node.elementType)
+            for child in node.children { walk(child, switcher: inside) }
         }
-        walk(root)
+        walk(root, switcher: false)
         return keys
     }
 

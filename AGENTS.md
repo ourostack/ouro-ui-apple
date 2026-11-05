@@ -84,7 +84,8 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 - **Cold, not warm:** `scripts/ouro-feel-cold.sh --project P --scheme S --test Target/Class/method --runs 5`. A result
   it did not start is labelled "not labelled, treat as warm". Never add `-retry-tests-on-failure`.
 - **Quote reports as written:** simulator or device, cold or warm, which clock, and inference marked. Never claim a
-  hitch figure from the simulator as a device result.
+  hitch figure from the simulator as a device result. A "could not check" failure (findings marked `(not checked)`) is
+  not jank found: fix the test or rerun it.
 - **A rule change is a core change with a unit test** (`Tests/OuroFeelTests`), and the fixture
   (`Examples/OuroFeelFixture`, bug behind `-bug 1`) must still fail on each bug and pass without it.
 - Ouro Feel lives in its own targets and folders (`Sources/OuroFeel*`, `docs/ouro-feel`, `Examples/OuroFeelFixture`);

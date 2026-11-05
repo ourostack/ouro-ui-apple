@@ -33,13 +33,14 @@ public struct FeelHitches: Codable, Equatable, Sendable {
     /// Passes at or under `limit` ms/s and `worstFrames` refreshes late.
     public func result(limit: Double = 5, worstFramesLimit: Double = 2) -> FeelResult {
         var findings: [FeelFinding] = []
-        if frames < 2 { findings.append(FeelFinding(what: "fewer than two frame timestamps, so there was no hitch reading")) }
+        if frames < 2 { findings.append(.couldNotCheck("fewer than two frame timestamps, so there was no hitch reading")) }
         let ok = findings.isEmpty && ratio <= limit && worstFrames <= worstFramesLimit
         if ratio > limit { findings.append(FeelFinding(what: "hitch ratio \(FeelResult.number(ratio)) ms/s is over \(FeelResult.number(limit))")) }
         if worstFrames > worstFramesLimit {
             findings.append(FeelFinding(what: "one frame came \(FeelResult.number(worstFrames)) refreshes late (limit \(FeelResult.number(worstFramesLimit)))"))
         }
-        return FeelResult(check: FeelGenre.hitches.rawValue, passed: ok, summary: "\(count) hitches in \(frames) frames over \(FeelResult.number(seconds)) s",
+        let summary = frames < 2 ? "could not check: no hitch reading" : "\(count) hitches in \(frames) frames over \(FeelResult.number(seconds)) s"
+        return FeelResult(check: FeelGenre.hitches.rawValue, passed: ok, summary: summary,
                           measures: ["ratio": ratio, "hitches": Double(count), "worstFrames": worstFrames, "frames": Double(frames)], findings: findings)
     }
 }

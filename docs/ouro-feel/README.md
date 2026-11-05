@@ -67,11 +67,12 @@ a gesture (an edge swipe, else a swipe down) that returns. It also checks each r
 the window (`alsoInsideWindow: false` turns that off).
 
 Flags: `from:` entry points (`.launch`, `.tab("Kitchen")`, or `FeelEntry("name") { app in … }`); `follow:` what it
-may tap (cells, links and buttons by default, so it reaches sheets and covers too; `FeelFollow(types: [], prefixes:
-["recipe."])` for only your own identifiers). It never taps a back control, or one whose identifier or label says
-delete, remove, sign out, clear, pay, checkout, send, share or the like (`FeelSafety.dangerous`, matched across
-camelCase and punctuation). A button such as Save or Add can still be tapped, so launch into a fixture state that is
-safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
+may tap (cells and links by default; `FeelFollow(types: [.cell, .link, .button])` reaches sheets and covers too;
+`FeelFollow(types: [], prefixes: ["recipe."])` for only your own identifiers). It never taps a back control, a menu
+button, anything inside a tab bar, segmented control, picker or menu (they switch what a screen shows), or one whose
+identifier or label says delete, remove, sign out, clear, pay, checkout, send, share or the like
+(`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). When buttons are followed, Save or Add
+can still be tapped, so launch into a fixture state that is safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
 relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe starts at the navigation bar's height,
 above any list row, so a missing pop gesture never fires a row's swipe action.
 
@@ -96,7 +97,11 @@ feel.expect(feel.overlays([
 Proves: every enabled control's frame lies inside the window frame in portrait, landscape, and portrait again after
 the round trip (`FeelPose.roundTrip`). It compares frames and never asks `isHittable`, because the simulator accepts
 XCUITest taps past the window's edge where no finger can reach. A control scrolled out of view passes when its scroll
-view is inside the window.
+view is inside the window and the control is off only along the way it scrolls. Accessibility does not say which way
+that is, so a scroll view counts as a sideways carousel only when it is wide, its content runs off its sides, and it is
+under a third of the window's height; any other is a list, which never excuses a control off the side. A full-screen
+sideways pager therefore fails with its next page off the side: check it with `poses:` on a screen without one, or
+read the finding. When the app stays portrait as the device turns, the report says so, marked as inference.
 
 ```swift
 feel.expect(feel.insideWindow())                     // portrait, landscape, portrait again
@@ -109,7 +114,8 @@ Proves: single taps, never retried, land at the centre and the four edges (4 pt 
 (`.zeroPress`) is opt-in: a system Toggle ignored it 3 times in 3 on the iOS 27.2 simulator, so it is only fair for a
 control that acts on touch-down. With a
 `title:` it also taps the row's title and the gap beside it: `rowToggles: true` when the row acts as one button,
-`false` (default) when it should not. A tap lands when `read` (default: the control's value) changes within a second.
+`false` (default) when it should not. A tap lands when `read` (default: the control's value) changes within `within` seconds (default 3, since a busy
+simulator is slow to report a change).
 `baseline:` takes `feel.osBaseline()`, the same loop on a Settings switch on this simulator; when that misses too, the
 report marks "the simulator may be dropping taps" as inference.
 
@@ -195,7 +201,10 @@ FAIL the way back: 3 of 4 reachable screens have a way back and a gesture back
 ```
 
 Every report names where it ran (simulator or device), how it started, and which clock timed it; a finding marked
-`(inference)` goes beyond what was measured. Say the same when you quote it.
+`(inference)` goes beyond what was measured. A finding marked `(not checked)` is something the check could not judge
+(the element was never on screen, samples were too far apart, the app was busy through a move): the check fails, its
+summary starts "could not check:", and it is never counted as a bug (`result.detections` holds only the bugs). Fix the
+test or rerun; do not report it as jank found. Say the same when you quote it.
 
 ## Proof
 

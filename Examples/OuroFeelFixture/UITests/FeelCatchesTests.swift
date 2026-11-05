@@ -42,7 +42,8 @@ final class FeelCatchesTests: XCTestCase {
     }
 
     func testTheWayBack() {
-        both("nav") { _, feel in (feel.wayBack(follow: FeelFollow(types: [], prefixes: ["nav."]), depth: 1), nil) }
+        // Following every button: the page's segmented picker and menu must not be taken for screens.
+        both("nav") { _, feel in (feel.wayBack(follow: FeelFollow(types: [.button]), depth: 1), nil) }
     }
 
     func testOverlayDismissal() {

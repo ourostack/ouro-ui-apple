@@ -25,7 +25,9 @@ public struct FeelElement: Codable, Equatable, Sendable {
 /// XCUITest's `isHittable` and `tap()` accept points past the window's edge on the simulator, where no finger can
 /// reach (Gatefold build 19's portrait Fine-Tune panel passed taps this way), so this compares frames and never asks
 /// `isHittable`. A control scrolled out of view is fine when the scroll view around it is itself inside the window and
-/// the control is off only along the axis it scrolls: a vertical list does not excuse a control off the side.
+/// the control is off only along the axis it scrolls: a vertical list does not excuse a control off the side. A
+/// scroll view marked as scrolling sideways counts as a carousel only while it is under a third of the window's height,
+/// so a full-height list in landscape (wide and short, like a carousel) never excuses a control off the side.
 public enum FeelLayout {
     /// Half a point of slack for rounding at the window's edge.
     public static let tolerance: CGFloat = 0.5
@@ -38,7 +40,8 @@ public enum FeelLayout {
             counted += 1
             if slack.contains(control.frame) { continue }
             if let scroll = control.scroll, slack.contains(scroll) {
-                let across = control.scrollsHorizontally
+                let carousel = control.scrollsHorizontally && scroll.height < window.height / 3
+                let across = carousel
                     ? control.frame.minY >= slack.minY && control.frame.maxY <= slack.maxY
                     : control.frame.minX >= slack.minX && control.frame.maxX <= slack.maxX
                 if across { continue }
@@ -46,26 +49,21 @@ public enum FeelLayout {
             findings.append(FeelFinding(what: "\(control.type) \"\(control.key)\" at \(describe(control.frame)) is outside the "
                 + "\(describe(window)) window in \(pose)"))
         }
-        if counted == 0 {
-            findings.append(FeelFinding(what: "no controls were seen in \(pose), so nothing was checked"))
-        }
-        let summary = counted == 0 ? "no controls seen in \(pose)" : findings.isEmpty
-            ? "all \(counted) controls inside the window in \(pose)"
-            : "\(findings.count) of \(counted) controls outside the window in \(pose)"
-        return FeelResult(check: FeelGenre.insideWindow.rawValue, passed: findings.isEmpty, summary: summary,
-                          measures: ["controls": Double(counted), "outside": Double(findings.count)], findings: findings)
+        let outside = findings.count
+        if counted == 0 { findings.append(.couldNotCheck("no controls were seen in \(pose)")) }
+        return FeelResult.judged(check: FeelGenre.insideWindow.rawValue, passing: "all \(counted) controls inside the window in \(pose)",
+                                 failing: { "\($0) of \(counted) controls outside the window in \(pose)" },
+                                 measures: ["controls": Double(counted), "outside": Double(outside)], findings: findings)
     }
 
     /// Several poses as one result: it passes only if every pose does.
     public static func combine(_ results: [FeelResult]) -> FeelResult {
-        let failed = results.filter { !$0.passed }
         let outside = results.reduce(0) { $0 + ($1.measures["outside"] ?? 0) }
-        let summary = failed.isEmpty
-            ? "every control inside the window in \(results.count) poses"
-            : "controls outside the window in \(failed.count) of \(results.count) poses"
-        return FeelResult(check: FeelGenre.insideWindow.rawValue, passed: failed.isEmpty, summary: summary,
-                          measures: ["poses": Double(results.count), "outside": outside],
-                          findings: results.flatMap(\.findings), environment: results.first?.environment)
+        let failed = results.filter { !$0.detections.isEmpty }.count
+        return FeelResult.judged(check: FeelGenre.insideWindow.rawValue, passing: "every control inside the window in \(results.count) poses",
+                                 failing: { _ in "controls outside the window in \(failed) of \(results.count) poses" },
+                                 measures: ["poses": Double(results.count), "outside": outside],
+                                 findings: results.flatMap(\.findings), environment: results.first?.environment)
     }
 
     static func describe(_ r: CGRect) -> String {

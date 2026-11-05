@@ -443,3 +443,75 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         for key in ["recipe.pancakes", "Chefs", "nav.settings"] { #expect(!FeelSafety.isDangerous(key), "\(key)") }
     }
 }
+
+/// "Could not check" is not a detection: it fails, but says so in the summary and stays out of the counts.
+@Suite struct CouldNotCheckTests {
+    @Test func anUnseenElementIsNotCountedAsASnapOrJump() {
+        let f = film((0..<20).map { (Double($0) * 0.05, [card(200, key: "other", label: "Other")]) })
+        for (r, measure) in [(f.snaps(of: "card"), "snaps"), (f.jumps(of: "card"), "jumps"), (f.doubleDraws(of: ["Card"]), "doubled")] {
+            #expect(!r.passed, "\(r.check)")
+            #expect(r.measures[measure] == 0, "\(r.check)")
+            #expect(r.summary.hasPrefix("could not check"), "\(r.summary)")
+            #expect(r.findings.allSatisfy { $0.unchecked }, "\(r.check)")
+            #expect(r.text.contains("(not checked)"))
+        }
+        let chrome = f.chrome(from: "bar.a", to: "bar.b")
+        #expect(!chrome.passed)
+        #expect(chrome.summary.hasPrefix("could not check"))
+    }
+
+    @Test func aSnapAndAnUnjudgedMoveAreCountedApart() {
+        // A clean snap at 0.5 s, then a move hidden in a 1 s stall: one snap, one move not checked.
+        var samples: [(Double, [FeelSeen])] = (0..<10).map { (Double($0) * 0.05, [card($0 < 5 ? 100 : 300)]) }
+        samples += (10..<20).map { (Double($0) * 0.05, [card(300)]) }
+        samples.append((1.95, [card(500)]))
+        samples += (1..<10).map { (1.95 + Double($0) * 0.05, [card(500)]) }
+        let r = film(samples).snaps(of: "card")
+        #expect(!r.passed)
+        #expect(r.measures["snaps"] == 1)
+        #expect(r.summary.contains("snapped 1 time"))
+        #expect(r.findings.filter { $0.unchecked }.count == 1)
+    }
+
+    @Test func noControlsIsCouldNotCheckInEveryPose() {
+        let one = FeelLayout.check([], window: phone, pose: "portrait")
+        #expect(one.summary.hasPrefix("could not check"))
+        #expect(one.measures["outside"] == 0)
+        let all = FeelLayout.combine([one, FeelLayout.check([], window: phone, pose: "landscape")])
+        #expect(!all.passed)
+        #expect(all.summary.hasPrefix("could not check"))
+        #expect(all.measures["outside"] == 0)
+    }
+
+    @Test func aFilmWithOneSampleNeverPrintsInfinity() {
+        let r = film([(0, [card(200)])]).snaps(of: "card")
+        #expect(!r.passed)
+        #expect(!r.text.contains("inf"))
+    }
+
+    @Test func oldReportsWithoutTheFlagStillDecode() throws {
+        let finding = try JSONDecoder().decode(FeelFinding.self, from: Data(#"{"what":"x","inferred":false}"#.utf8))
+        #expect(!finding.unchecked)
+    }
+}
+
+@Suite struct CarouselTests {
+    /// A full-height list in landscape is wide and short, so it can look like a carousel; it must not excuse a control off the side.
+    @Test func aFullHeightScrollViewIsNeverACarousel() {
+        let landscape = CGRect(x: 0, y: 0, width: 874, height: 402)
+        let off = FeelElement(key: "t", type: "switch", frame: CGRect(x: 900, y: 200, width: 51, height: 31),
+                              scroll: landscape, scrollsHorizontally: true)
+        #expect(!FeelLayout.check([off], window: landscape, pose: "landscape").passed)
+    }
+}
+
+@Suite struct WordTests {
+    @Test func acronymsAndUnsubscribeAreCaught() {
+        for key in ["URLDelete", "deleteURL", "Unsubscribe", "newsletter.unsubscribe"] { #expect(FeelSafety.isDangerous(key), "\(key)") }
+    }
+
+    @Test func backWordsMatchWholeWords() {
+        for key in ["Back", "nav.close", "doneButton", "Close Sidebar", "Cancel"] { #expect(FeelWayBack.saysBack(key), "\(key)") }
+        for key in ["Feedback", "Playback", "backgroundPicker", "Closet", "Undone"] { #expect(!FeelWayBack.saysBack(key), "\(key)") }
+    }
+}

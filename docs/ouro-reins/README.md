@@ -140,6 +140,9 @@ the guard that checks them.
   has the same limit). Model the sidebar's choices as actions on the detail's parent until this matters.
 - Nested navigators with the same name appear as `stack`, `stack.2` and so on in `path`, `context` and `from`; give
   them distinct names when an agent needs to tell them apart.
+- The same suffix applies to `focus`: a focused node named like one of its ancestors reads `page.2`, so
+  `journey.expect("page")` won't match it and Ouro Feel's screen identity depends on the ancestors. Give the focused
+  screen a name no ancestor uses.
 
 ## Agent skill
 

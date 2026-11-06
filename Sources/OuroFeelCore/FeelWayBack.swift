@@ -9,12 +9,16 @@ public struct FeelDestination: Codable, Equatable, Sendable {
     public var affordanceReturns: Bool
     /// The gesture that returned (`edge swipe`, `swipe down`), if any did.
     public var gesture: String?
+    /// When each step of leaving this screen happened and what the screen looked like at each, kept so a run that
+    /// finds no gesture back shows the race (and a run that passes can be compared with it).
+    public var diagnostic: String?
 
-    public init(path: [String], affordance: String?, affordanceReturns: Bool, gesture: String?) {
+    public init(path: [String], affordance: String?, affordanceReturns: Bool, gesture: String?, diagnostic: String? = nil) {
         self.path = path
         self.affordance = affordance
         self.affordanceReturns = affordanceReturns
         self.gesture = gesture
+        self.diagnostic = diagnostic
     }
 }
 
@@ -50,7 +54,8 @@ public enum FeelWayBack {
                 findings.append(FeelFinding(what: "\(name): \"\(screen.affordance!)\" did not return to the screen before"))
             }
             if screen.gesture == nil {
-                findings.append(FeelFinding(what: "\(name): no gesture back (neither an edge swipe nor a swipe down returned)"))
+                let evidence = screen.diagnostic.map { " [steps: \($0)]" } ?? ""
+                findings.append(FeelFinding(what: "\(name): no gesture back (neither an edge swipe nor a swipe down returned)\(evidence)"))
             }
         }
         if screens.isEmpty { findings.append(.couldNotCheck("the walk reached no screens; check the entry points and what it may follow")) }

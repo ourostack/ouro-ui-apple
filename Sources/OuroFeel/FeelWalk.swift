@@ -352,6 +352,7 @@ extension OuroFeel {
         // Re-read after a pick, which can rename this screen's controls; each key is tried once.
         var keys = followable(follow)
         var tried = Set<String>()
+        var lastTap = Date()
         let place = ([entry.name] + path).joined(separator: " › ")
         // A row renamed by every tap (a saved counter, "Last opened: <time>") would yield new keys without end.
         let cap = max(3 * keys.count, 3)
@@ -374,6 +375,7 @@ extension OuroFeel {
             }
             let before = elements()
             target.tap()
+            lastTap = Date()
             pause(0.8)
             landed()
             let there = signature(follow)
@@ -447,16 +449,40 @@ extension OuroFeel {
                     _ = recover(entry, path + [key], because: "to get back to \(label) after walking past it", &walk)
                 }
             }
-            // The gesture first, then (back on this screen) the visible control.
+            // The gesture first, then (back on this screen) the visible control. Each step is timed and the screen read at
+            // it, so a run where no gesture returns shows where the time went and what the screen was doing.
             var gesture: String?
+            let clock = Date()
+            var steps: [String] = []
+            func at() -> String { String(format: "%.2fs", Date().timeIntervalSince(clock)) }
+            func state(_ label: String) {
+                let bar = app.navigationBars.firstMatch
+                let backNow = backAffordance()
+                let backText = backNow.map { "\($0.label.isEmpty ? $0.identifier : $0.label) hittable=\($0.isHittable)" } ?? "none"
+                steps.append("\(label) \(at()) onTarget=\(signature(follow) == there) onHere=\(signature(follow) == here) bar=\(bar.exists ? "\(bar.frame)" : "none") back=\(backText)")
+            }
+            let sinceTap = Date().timeIntervalSince(lastTap)
+            steps.append(String(format: "tapped %.2fs before landed()", sinceTap))
             landed()
+            state("landed")
             edgeSwipe()
+            steps.append("edge swipe sent \(at()) from x=\(windowFrame.minX + 1) to x=\(windowFrame.minX + windowFrame.width * 0.7)")
             if wait(3, until: { signature(follow) == here }) {
                 gesture = "edge swipe"
+                steps.append("edge swipe returned \(at())")
             } else {
+                state("edge swipe did not return")
                 swipeDown()
-                if wait(3, until: { signature(follow) == here }) { gesture = "swipe down" }
+                steps.append("swipe down sent \(at())")
+                if wait(3, until: { signature(follow) == here }) {
+                    gesture = "swipe down"
+                    steps.append("swipe down returned \(at())")
+                } else {
+                    state("swipe down did not return")
+                }
             }
+            let diagnostic = steps.joined(separator: "; ")
+            print("[ouro-feel] gesture back from \(name.joined(separator: " › ")): \(gesture ?? "none"); \(diagnostic)")
             if gesture != nil {
                 target.tap()
                 pause(0.8)
@@ -473,7 +499,7 @@ extension OuroFeel {
                 back.tap()
                 returns = wait(3) { signature(follow) == here }
             }
-            walk.screens.append(FeelDestination(path: name, affordance: shown, affordanceReturns: returns, gesture: gesture))
+            walk.screens.append(FeelDestination(path: name, affordance: shown, affordanceReturns: returns, gesture: gesture, diagnostic: diagnostic))
         }
     }
 

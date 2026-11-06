@@ -11,8 +11,9 @@ on:
 
 # Where each check runs. Free hosted runners (ubuntu-latest, macos-26) run everything their Xcode 26 can: on every pull
 # request and push. The billed xcode-27 runner (capped at $15 a month for this repository; usage stops at the cap) runs
-# only what needs Xcode 27 or an iOS 27 OS, and only on pushes to main and on published releases, never on pull
-# requests. Drop it once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the
+# only what needs Xcode 27 or an iOS 27 OS, on pushes to main and on published releases. The X-ray lanes also run on a
+# pull request that touches the X-ray, Ouro Feel, their fixtures or this workflow (the `paths` job), so a break is
+# caught before merge rather than on main. Drop it once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the
 # `if:` gates below. No self-hosted runners.
 
 permissions:
@@ -23,6 +24,32 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  paths:
+    name: What this change touches
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      xray: ${{ steps.diff.outputs.xray }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        name: Does it touch the X-ray, Ouro Feel, their fixtures or the workflow?
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          if [ "$EVENT" != pull_request ]; then echo "xray=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          git diff --name-only "$BASE...$HEAD" > changed.txt
+          if grep -E '^(Sources/(OuroAX|OuroAXTesting|OuroAXTestingProbe|OuroAXSkillsLint|ouro-ax-xray|OuroFeel|OuroFeelCore)/|Templates/XrayProbe/|Examples/(OuroAXXrayFixture|OuroFeelFixture)/|scripts/(xray-probe|ouro-feel-cold|select-xcode)\.sh$|\.github/workflows/|Package\.(swift|resolved)$)' changed.txt; then
+            echo "xray=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "xray=false" >> "$GITHUB_OUTPUT"
+          fi
+
   provenance:
     name: Core provenance
     runs-on: ubuntu-latest
@@ -222,7 +249,8 @@ jobs:
     # The behaviour stage needs an Xcode whose AppIntentsTesting matches the OS it runs on: Xcode 27.2's needs a 27.2
     # OS, and this image has macOS 27.0.1 with iOS 27.0 and 27.1 simulators. So each lane pins an older Xcode to a
     # matching OS. See docs/decisions/2026-11-03-ax-xray.md.
-    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: paths
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || needs.paths.outputs.xray == 'true'
     runs-on: xcode-27
     timeout-minutes: 45
     strategy:
@@ -333,6 +361,10 @@ jobs:
           done
           echo "Using $device on $runtime: $udid"
           echo "UDID=$udid" >> "$GITHUB_ENV"
+          # Boot it and wait until it has finished booting: left to xcodebuild, the first test's setUp can reach a
+          # simulator whose accessibility is not up yet ("Failed to get list of active applications", kAXError -25218).
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b >/dev/null
       - name: Fixture UI tests (a fresh simulator; only the first test starts cold, so reports say "not labelled")
         run: |
           set -o pipefail

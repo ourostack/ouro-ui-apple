@@ -16,6 +16,8 @@ public enum XrayProbe {
     public static let planVariable = "OURO_AX_PLAN"
     /// Set to 1 to allow refusal runs; only on a device made for the run.
     public static let disposableVariable = "OURO_AX_DISPOSABLE"
+    /// How long the Spotlight read waits for the index to catch up before it reports none, in seconds.
+    static let spotlightPatience = 60
 
     /// The plan from the environment, or nil when there is none.
     public static func planFromEnvironment(_ environment: [String: String] = ProcessInfo.processInfo.environment) throws -> AXXray.ProbePlan? {
@@ -60,8 +62,18 @@ public enum XrayProbe {
                 } catch { steps.append(.init(subject: e.typeName, probe: "identifiers", asked: ids.count, error: describe(error))) }
             }
             if e.indexed {
-                do { steps.append(.init(subject: e.typeName, probe: "spotlight", count: try await def.spotlightQuery(nil).count)) }
-                catch { steps.append(.init(subject: e.typeName, probe: "spotlight", error: describe(error))) }
+                // Spotlight indexes in the background, so on a fresh device it can hold nothing for a while after the
+                // app donated its entities. Read again for up to `spotlightPatience` seconds before calling it empty.
+                do {
+                    var count = try await def.spotlightQuery(nil).count
+                    var waited = 0
+                    while count == 0 && waited < spotlightPatience {
+                        try await Task.sleep(for: .seconds(5))
+                        waited += 5
+                        count = try await def.spotlightQuery(nil).count
+                    }
+                    steps.append(.init(subject: e.typeName, probe: "spotlight", count: count))
+                } catch { steps.append(.init(subject: e.typeName, probe: "spotlight", error: describe(error))) }
             }
             do { steps.append(.init(subject: e.typeName, probe: "view-annotations", count: try await def.viewAnnotations().count)) }
             catch { steps.append(.init(subject: e.typeName, probe: "view-annotations", error: describe(error))) }

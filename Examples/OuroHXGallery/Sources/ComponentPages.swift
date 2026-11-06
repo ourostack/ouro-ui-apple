@@ -123,7 +123,11 @@ struct SheetsPage: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Quick, vegetarian, one pot.")
                 // A toast sent with the sheet open shows above it.
-                OuroButton("Remember these", variant: .soft) { toast("Filters remembered", tone: .success) }
+                OuroButton("Remember these", variant: .soft) {
+                    // `-toastSeconds 0` keeps it until dismissed, for a UI test on a runner slower than five seconds.
+                    let seconds = UserDefaults.standard.object(forKey: "toastSeconds").map { _ in UserDefaults.standard.double(forKey: "toastSeconds") }
+                    toast("Filters remembered", tone: .success, duration: seconds.map { OuroToastDuration.seconds($0) } ?? .automatic)
+                }
             }
         }
     }

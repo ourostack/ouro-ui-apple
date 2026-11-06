@@ -35,6 +35,8 @@ targets:
       - target: OuroHXGallery
       - package: OuroUIApple
         product: OuroHXTesting
+      - package: OuroUIApple
+        product: OuroHX
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.hx.gallery.uitests

@@ -40,7 +40,8 @@ struct WindowPage: View {
 }
 
 /// Tap landing. The bugs: an invisible strip over the switch's trailing end swallows taps, and the switch ignores
-/// taps for half a second after each change (taps while it animates are lost).
+/// taps for a quarter second after each change (taps while it animates are lost). Paced taps come 0.6 s apart, so
+/// only rapid taps meet the lock; a longer lock could swallow a paced tap on a slow runner and hide the rapid result.
 struct TapsPage: View {
     @State private var on = false
     @State private var lockedUntil = Date.distantPast
@@ -51,7 +52,7 @@ struct TapsPage: View {
             Toggle("Page Numbers", isOn: Binding(get: { on }, set: { value in
                 if bug && Date() < lockedUntil { return }
                 on = value
-                lockedUntil = Date().addingTimeInterval(0.5)
+                lockedUntil = Date().addingTimeInterval(0.25)
             }))
                 .labelsHidden()
                 .accessibilityIdentifier("taps.toggle")

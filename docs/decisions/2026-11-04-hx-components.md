@@ -169,9 +169,10 @@ Status: accepted (W8 of the HX and AX native program).
       one tone (`.monochrome`), and its one bounce on arrival was shown in a dense strip. Then both lenses said yes
       to all six. At the accessibility sizes, where one toast shows and nothing tucks, the words keep the plain fade:
       with the quick one, the stack of three becoming one left words the audit read as clipped, though none showed.
-      On CI's hosted VM, which has no GPU, a failing transition is measured up to three times. The press alone is
-      reported there against the same 5 ms/s limit, but not gated: it stalled 49 ms on release in every try, and is
-      clean in the simulator and in the host-video captures (#25). On the buttons page, contrast on a glass button is excused and
+      On CI's hosted VM, which has no GPU, MotionTests are reported against the same 5 ms/s limit but not gated:
+      for the same components, sheet, toast and stack passed in one run and failed all three tries in the next, and
+      the press stalled 49 ms on release in every try (#25). They gate on a Mac's simulator and on device, and the
+      host-video captures time them at 60 fps. A Feel film sampled too sparsely to judge is filmed once more. On the buttons page, contrast on a glass button is excused and
       measured instead from the screen's pixels (`glassMisreadings`, `inkContrast`). The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and

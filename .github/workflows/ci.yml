@@ -275,15 +275,19 @@ jobs:
       - name: Every transition is smooth (hitch probe, Release build)
         # Runs whether or not the claims passed, so one run reports both; not without a simulator.
         if: (success() || failure()) && steps.simulator.outcome == 'success'
+        # Reported, not gated, on this hosted VM: it has no GPU, and its frame timing swings run to run. On one
+        # commit (a41b0ae vs 8c02d4e's identical components), sheet, toast and stack passed in one run and failed all
+        # three tries in the next (#25). The 5 ms/s limit is unchanged and gates on a Mac's simulator and on device;
+        # a failure here leaves a warning and the result bundle.
+        continue-on-error: true
         # Release, as people run it: a Debug SwiftUI build hitches where the shipped one does not.
         run: |
           set -o pipefail
-          # The hosted VM has no GPU: see MotionTests.testAButtonPressesAndReleasesSmoothly for the one transition
-          # that is reported there, not gated.
-          TEST_RUNNER_OURO_HOSTED_VM=1 xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
+          xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
             -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath .build/gallery-motion.xcresult \
             -only-testing:OuroHXGalleryUITests/MotionTests \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error|failed|passed|skipped|Executed|TEST" | tail -60
+            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error|failed|passed|skipped|Executed|TEST" | tail -60 \
+            || { echo "::warning title=Motion over the limit on the hosted VM::See the MotionTests results above and gallery-motion.xcresult (#25)."; exit 1; }
       - if: always()
         name: Pack the result bundle
         run: |

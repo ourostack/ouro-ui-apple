@@ -10,8 +10,9 @@ import XCTest
 /// and presentation) counts too. On a device, `testTransitionsOnDevice` also reports the same windows through
 /// `XCTOSSignpostMetric`; the simulator does not report hitch metrics, so it skips there.
 ///
-/// Frame timing on a simulator depends on the Mac running it. CI runs these on a fresh hosted macos-26 VM, in Release;
-/// a local run on a busy Mac can fail without the components being at fault.
+/// Frame timing on a simulator depends on the Mac running it. CI runs these on a fresh hosted macos-26 VM, in Release,
+/// and reports them there without gating: that VM has no GPU and its timing swings run to run (#25). A local run on a
+/// busy Mac can fail without the components being at fault too.
 @MainActor
 final class MotionTests: XCTestCase {
     nonisolated static let limitRatio = 5.0
@@ -110,13 +111,6 @@ final class MotionTests: XCTestCase {
     }
 
     func testAButtonPressesAndReleasesSmoothly() {
-        // On CI's hosted VM, which has no GPU, a warmed press stalled 49 ms as it released in all three runs (#14,
-        // 2026-11-06, run 42236959719), while a Mac's simulator in Release and the 60 fps host-video captures show it
-        // clean. There it is measured and reported against the same limit, but not gated, until that stall is
-        // understood (ourostack/ouro-ui-apple#25). Everywhere else it gates.
-        if ProcessInfo.processInfo.environment["OURO_HOSTED_VM"] == "1" {
-            XCTExpectFailure("a press stalls on release on the GPU-less hosted VM only (#25)", strict: false)
-        }
         check("press") {
             // The window opens 5 s after the page appears, once finding the button (which takes the app's main
             // thread) is done, and lasts 8 s; the press lands about 1 to 3 s in, and the result is read after it ends.

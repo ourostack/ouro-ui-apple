@@ -26,7 +26,7 @@ public struct OuroEmptyStatePalette: Sendable {
         // Standing alone the symbol is the state's one note of colour, the theme's primary; with an action it is quiet,
         // the secondary colour, and the action carries the colour. Hierarchical either way, reading at the words'
         // contrast where it is solid.
-        icon = OuroInk.readable(OuroInk.r(hasAction ? c.mutedForeground : c.primary), on: surface, style)
+        icon = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         border = OuroColor.push(OuroInk.r(c.border), against: surface, to: OuroColor.increasedLineContrast)
     }
 }
@@ -88,7 +88,7 @@ public struct OuroEmptyState<Action: View>: View {
                 // A large symbol on the page, no well or tile around it, as in Apple's own empty states. It gives
                 // one small bounce as it arrives (not under Reduce Motion).
                 Image(systemName: systemImage)
-                    .font(.system(size: symbolSize, weight: .medium))
+                    .font(.system(size: symbolSize, weight: OuroEmptyStateMetrics.symbolWeight))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(Color(p.icon))
                     .symbolEffect(.bounce.down, options: .nonRepeating, value: arrived)
@@ -169,6 +169,8 @@ extension OuroEmptyState where Action == EmptyView {
 
 /// Metrics every ``OuroEmptyState`` shares, as data.
 public enum OuroEmptyStateMetrics {
+    /// The symbol's weight: heavy enough to hold its own under the bold title.
+    public static let symbolWeight: Font.Weight = .semibold
     /// The widest its words run, below the accessibility text sizes: 340 points.
     public static let maximumTextWidth: CGFloat = 340
     /// The symbol's size at the default text size: a 60-point hero centred, 44 points inline beside leading text. It

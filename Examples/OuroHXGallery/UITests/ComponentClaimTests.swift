@@ -40,7 +40,19 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        do { try app.ouroAccessibilityAudit(knownIssues: run.known) } catch { XCTFail("\(name): \(error)") }
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : nil
+                        do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
+                    }
+                    if run.page == "buttons" {
+                        // What that excuse could hide: each glass button's words, measured from the screen's own
+                        // pixels, read at 5:1 against the glass under them.
+                        let shot = app.windows.firstMatch.screenshot().image
+                        let glass = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'button.glass.'")).allElementsBoundByIndex
+                        XCTAssertFalse(glass.isEmpty, "\(name): no glass buttons")
+                        for button in glass where app.windows.firstMatch.frame.contains(button.frame) {
+                            let ratio = Self.inkContrast(shot, in: button.frame.insetBy(dx: 12, dy: 10))
+                            XCTAssertGreaterThanOrEqual(ratio, 5, "\(name): glass \(button.label) reads at \(ratio):1")
+                        }
                     }
                     if run.page == "toasts", size == nil {
                         // Expanded, as VoiceOver users always see the stack: every toast's own words are measured.
@@ -52,21 +64,6 @@ final class ComponentClaimTests: XCTestCase {
                         for button in app.buttons.matching(NSPredicate(format: "label IN %@", ["Dismiss", "Undo"])).allElementsBoundByIndex {
                             XCTAssertTrue(button.isHittable, "\(name) expanded: \(button.label) is not reachable")
                             XCTAssertGreaterThanOrEqual(min(button.frame.width, button.frame.height), 44, "\(name) expanded: \(button.label) is \(button.frame.size)")
-                        }
-                        // Evidence for the element-less contrast issue the expanded audit leaves on iOS 26.5 (it names no
-                        // element, so it cannot say which toast it is about): audit the contrast alone as each toast is
-                        // dismissed in turn, newest first, and print how many issues remain. The count drops when the toast
-                        // it belongs to goes. It records and fails nothing.
-                        for left in stride(from: shownDismissButtons(app), through: 1, by: -1) {
-                            var found: [String] = []
-                            try? app.performAccessibilityAudit(for: .all) { issue in
-                                found.append("\(issue.compactDescription) type=\(issue.auditType.rawValue) element=\(issue.element?.label ?? "none")")
-                                return true
-                            }
-                            let first = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).min { $0.frame.minY < $1.frame.minY }
-                            print("toast bisect failed? \(name) expanded, \(left) toast(s) up: \(found.count) issue(s) \(found); dismissing the one at y=\(first.map { "\($0.frame.minY)" } ?? "none")")
-                            first?.tap()
-                            Thread.sleep(forTimeInterval: 1.5)
                         }
                     }
                     if run.page == "sheet", run.extra.isEmpty {
@@ -162,6 +159,36 @@ final class ComponentClaimTests: XCTestCase {
     /// element): it fails Undo's contrast even with Undo drawn black on the white surface (21:1), and reads the oldest
     /// toast's plain words, a static text with no action, as an undersized target, with a second such issue that has
     /// no element at all. Contrast is proven by the palette tests; the targets by the assertions after the audit.
+    /// The audit misreads words on Liquid Glass: on the gallery's glass row it reported white "Primary" on near-black
+    /// glass (well over 15:1 in `gallery-r10/buttons-dark.png`) as failing contrast, and raising every glass label to
+    /// 6:1 made it report more failures, not fewer (W8 evidence, taste round 5). The same misreading as Undo on the glass
+    /// toast. So contrast on a glass button is measured from the screen's pixels instead (`inkContrast`).
+    static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
+    }
+
+    /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.
+    /// The 2nd and 98th percentiles, so antialiasing and a stray highlight don't decide it.
+    static func inkContrast(_ image: UIImage, in rect: CGRect) -> Double {
+        guard let cg = image.cgImage else { return 0 }
+        let scale = image.scale
+        let r = CGRect(x: rect.minX * scale, y: rect.minY * scale, width: rect.width * scale, height: rect.height * scale).integral
+        guard let crop = cg.cropping(to: r) else { return 0 }
+        let w = crop.width, h = crop.height
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        ctx?.draw(crop, in: CGRect(x: 0, y: 0, width: w, height: h))
+        func lin(_ v: UInt8) -> Double { let c = Double(v) / 255; return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        var lum: [Double] = []
+        lum.reserveCapacity(w * h)
+        for i in stride(from: 0, to: px.count, by: 4) { lum.append(0.2126 * lin(px[i]) + 0.7152 * lin(px[i + 1]) + 0.0722 * lin(px[i + 2])) }
+        lum.sort()
+        guard !lum.isEmpty else { return 0 }
+        let lo = lum[lum.count * 2 / 100], hi = lum[lum.count * 98 / 100]
+        return (hi + 0.05) / (lo + 0.05)
+    }
+
     static let expandedStackMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         switch issue.auditType {
         case .contrast: issue.element?.label == "Undo"

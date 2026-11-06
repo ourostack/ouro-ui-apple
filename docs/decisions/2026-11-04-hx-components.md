@@ -138,13 +138,41 @@ Status: accepted (W8 of the HX and AX native program).
       symbol's pixels above its title, and adopts: a toast landing that visibly overshoots (0.5 s, bounce 0.32), an
       exit to 96%, a deeper shadow, an icon that grows with the words, peeks of 12 and 22 points, secondary's outline
       at 25% of the foreground, plain buttons on the margin, a 12% dark secondary step, 16-point banner corners and a
-      dark sheet rim. The gallery shows the components over real content (a recipe list)
+      dark sheet rim. Round 5 said yes to the sheet and the toast (both lenses). For the rest, round 6 fixes a stack
+      bug the strips showed (a tucking toast took the new toast's size before it was measured, so it vanished for
+      an arrival's first frames), tucks plates with a hairline and no border, clears a folding banner by 60%, grows
+      banner icons as toast icons grow, makes the empty state's symbol secondary and semibold, shows the glass
+      buttons first over a faint field, and lays plain buttons 24 points apart. The audit misreads words on glass
+      buttons as it does Undo on the glass toast: it failed white "Primary" on near-black glass, and raising every
+      glass label to 6:1 made it fail more, not fewer, so that change was undone.
+      Round 6's stack first dropped one or two frames on every arrival, where round 5 dropped none: the older toast
+      turned solid on the same frame the new toast's glass first drew. Measured by host video at 60 fps over 2 to 4
+      runs each: keeping tucked toasts on glass (their opaque plate already hides the page) left one drop; tucking on
+      the frame after the newest is measured (`OuroToastMetrics.stackDepth`) cleared the arrivals but left one as the
+      stack emptied; fading tucked toasts out, not lifting three glass toasts at once, and one `GlassEffectContainer`
+      for the stack brought light to no drops and dark to one. Removing the words' fade on tuck, or the fade out,
+      made it worse. On the buttons page, contrast on a glass button is excused and
+      measured instead from the screen's pixels (`glassMisreadings`, `inkContrast`). The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and
       marks each window with an os_signpost interval; `MotionTests` fails a transition above 5 ms of hitch per second
       or any frame two refreshes late. `XCTOSSignpostMetric` reports hitches on a device only, so that test skips
       on the simulator. Frame timing on a simulator follows the Mac's load, so the gate runs on CI's fresh hosted VM in
-      Release, and a failing transition is measured once more before it fails.
+      Release, and a failing transition is measured once more before it fails. Each demo plays once unmeasured
+      first (`-warm 1`): on CI's GPU-less VM the first glass a process draws stalled 180 to 415 ms on every launch,
+      which a Mac's simulator never showed, so CI gates what every play costs and the host-video captures time the
+      first play. Ouro Feel's motion genres (double-draw, jump after landing, settle) check the stack too
+      (`FeelTests`), dogfooding the tool that judges apps built on the kit.
+
+## From Spoonjoy's adoption (W10)
+
+- **Named springs.** `OuroMotion.Kind` gains `snappy`, `smooth`, `bouncy` and `interactive`, at Apple's own preset
+  values, for an app's own motion; they crossfade under Reduce Motion like every kind but press.
+- **`turned` at full strength.** It took Gatefold's 0.7 (Gatefold doesn't import OuroHX); Spoonjoy found it too faint
+  for a step turned mid-cook. It is a light impact at full strength.
+- **The cookbook's dark page (#15).** Both values are meant: `background` is the web kit's `--background`
+  (`--sj-paper`, #1f1d1a), copied byte for byte by core's parity, and Spoonjoy's page is `--sj-page` (#1e1c19),
+  which OuroHX carries as `sidebar`. A single page colour would start in the web; nothing changes in core or here.
 
 ## Prior art
 

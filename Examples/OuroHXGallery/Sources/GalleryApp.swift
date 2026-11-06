@@ -56,6 +56,8 @@ struct GalleryScreen: View {
                 // in. Either way nothing queries the app while it measures: an XCUITest query takes the main thread.
                 let defaults = UserDefaults.standard
                 guard FrameProbe.isOn, defaults.string(forKey: "demo") != nil || defaults.double(forKey: "probeSeconds") > 0 else { return }
+                // With `-warm 1`, after the demo's unmeasured first play.
+                while !DemoWarmup.done { try? await Task.sleep(for: .milliseconds(50)) }
                 try? await Task.sleep(for: .seconds(defaults.object(forKey: "probeDelay") == nil ? 1 : defaults.double(forKey: "probeDelay")))
                 probe.start()
                 try? await Task.sleep(for: .seconds(max(6, UserDefaults.standard.double(forKey: "probeSeconds"))))

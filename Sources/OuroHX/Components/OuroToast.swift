@@ -195,6 +195,34 @@ public enum OuroToastMetrics {
     /// page doesn't lean on its shadow alone.
     public static let edgeWidth: CGFloat = 0.5
     public static func edgeOpacity(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0.08 }
+    /// The largest text size a toast's icon grows to: a step short of the largest, so it never outweighs the words.
+    public static let largestIconSize = DynamicTypeSize.accessibility3
+
+    /// How deep the toast at `index` of `count` sits: 0 for the newest. Until the newest is measured, the older ones
+    /// keep their places one step shallower, so an arrival's first frame only adds the new toast and the tuck follows
+    /// on the next; doing both on one frame dropped it (W8 round 6).
+    public static func stackDepth(index: Int, count: Int, frontMeasured: Bool) -> Int {
+        let depth = count - 1 - index
+        return frontMeasured || depth == 0 ? depth : depth - 1
+    }
+
+    /// The size a toast tucked behind a newer one takes: the newer one's, or its own until the newer one is measured,
+    /// so it never collapses to nothing for an arrival's first frames.
+    public static func tuckedSize(front: CGSize?, own: CGSize?) -> CGSize? { front ?? own }
+
+    /// How strongly a toast's hairline edge and the theme's border show.
+    public struct Outline: Equatable, Sendable {
+        public var edge: Double
+        public var border: Double
+    }
+
+    /// A tucked toast has only the hairline, so a stack reads as one toast with depth rather than outlined cards; the
+    /// front one has the theme's border when solid, the hairline on glass.
+    public static func outline(solid: Bool, tucked: Bool, edge: Double) -> Outline {
+        if tucked { return Outline(edge: edge, border: 0) }
+        return solid ? Outline(edge: 0, border: 1) : Outline(edge: edge, border: 0)
+    }
+
     /// Whether a toast casts ``shadow``: only the front one, so tucked toasts never add theirs into a grey band.
     public static func castsShadow(tucked: Bool) -> Bool { !tucked }
     /// How far a toast's shadow reaches past its edge: its blur plus its drop.
@@ -385,11 +413,12 @@ struct OuroToastHost: ViewModifier {
                         let expanded = expandedByHand || voiceOver || switchControl
                         ZStack(alignment: .top) {
                             ForEach(Array(visible.enumerated()), id: \.element.id) { index, toast in
-                                let depth = visible.count - 1 - index
+                                let frontMeasured = visible.last.map { sizes[$0.id] != nil } ?? true
+                                let depth = OuroToastMetrics.stackDepth(index: index, count: visible.count, frontMeasured: frontMeasured)
                                 let above = visible[(index + 1)...].reduce(CGFloat(0)) { $0 + (sizes[$1.id]?.height ?? OuroToastMetrics.height) }
                                 let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above, reduceMotion: reduceMotion)
                                 let front = visible.last.flatMap { sizes[$0.id] }
-                                OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : front, shade: place.shade) { toaster.dismiss(toast.id) }
+                                OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : OuroToastMetrics.tuckedSize(front: front, own: sizes[toast.id]), shade: place.shade) { toaster.dismiss(toast.id) }
                                     .onGeometryChange(for: CGSize.self) { $0.size } action: { if place.showsWords { sizes[toast.id] = $0 } }
                                     // A tucked toast can't be dragged or tapped unseen; a tap on the front one opens
                                     // the stack.
@@ -398,9 +427,14 @@ struct OuroToastHost: ViewModifier {
                                     .offset(y: place.offset)
                                     .zIndex(Double(index))
                                     .transaction { if reduceMotion { $0.animation = nil } }
-                                    .transition(OuroToastMetrics.appearance(reduceMotion: reduceMotion).transition)
+                                    // A tucked toast, behind the one in front, just fades as the stack empties: three
+                                    // glass toasts rising out together dropped a frame (W8 round 6).
+                                    .transition(place.showsWords ? OuroToastMetrics.appearance(reduceMotion: reduceMotion).transition : .opacity)
                             }
                         }
+                        // One glass container for the stack, so its toasts' glass renders as one pass: without it
+                        // an arrival dropped a frame as a new glass layer joined (W8 round 6).
+                        .modifier(StackGlass())
                         // Tapping a collapsed stack's words lays it out; its buttons take their own taps first. It tucks
                         // back once it empties.
                         // Off once open, so the words aren't offered as tap targets (the audit read them as too small).
@@ -516,9 +550,10 @@ struct OuroToastView: View {
         let p = OuroToastPalette(tone: toast.tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         let shape = RoundedRectangle(cornerRadius: OuroToastMetrics.cornerRadius, style: .continuous)
         let large = typeSize.isAccessibilitySize
-        // A tucked toast is solid too, so the page never smears through the edge that peeks out.
-        // So is one whose theme's surface the system's vibrant words would not read on.
-        let solid = contrast == .increased || reduceTransparency || !rendersGlass || tucked != nil || !p.vibrant
+        // So is one whose theme's surface the system's vibrant words would not read on. A tucked toast stays on its
+        // glass: the opaque plate under it already keeps the page from showing through, and switching to solid as it
+        // tucked dropped a frame on arrivals, even on a frame of its own (W8 round 6).
+        let solid = contrast == .increased || reduceTransparency || !rendersGlass || !p.vibrant
         // On glass the words take the system's vibrant label styles, which read on the opaque surface under it (the
         // gallery's accessibility audit measures them in light and dark); solid, the theme's colours, made readable on
         // that surface. Theme colours inside the glass cost a dropped frame on every departure (W8 frame captures).
@@ -538,7 +573,7 @@ struct OuroToastView: View {
                         .symbolRenderingMode(.monochrome)
                         .foregroundStyle(Color(p.icon))
                         // It grows with the words, a step short of the largest sizes so it never outweighs them.
-                        .dynamicTypeSize(...DynamicTypeSize.accessibility3)
+                        .dynamicTypeSize(...OuroToastMetrics.largestIconSize)
                         // It bounces once as the toast lands, on the frame its haptic plays.
                         .symbolEffect(.bounce, value: landed)
                         .accessibilityHidden(true)
@@ -598,7 +633,7 @@ struct OuroToastView: View {
         .clipped()
         // It hugs its words, up to the stack's width; at the accessibility sizes it spans it.
         .frame(maxWidth: large ? .infinity : nil)
-        .modifier(ToastSurface(shape: shape, palette: p, solid: solid, casts: OuroToastMetrics.castsShadow(tucked: tucked != nil), shade: shade, edge: OuroToastMetrics.edgeOpacity(scheme: scheme), rendersGlass: rendersGlass))
+        .modifier(ToastSurface(shape: shape, palette: p, solid: solid, casts: OuroToastMetrics.castsShadow(tucked: tucked != nil), tucked: tucked != nil, shade: shade, edge: OuroToastMetrics.edgeOpacity(scheme: scheme), rendersGlass: rendersGlass))
         .offset(y: drag)
         .opacity(reduceMotion ? 1 - min(0.7, abs(drag) / 90) : 1)
         .gesture(
@@ -657,6 +692,17 @@ struct OuroToastView: View {
     }
 }
 
+/// The stack's toasts' glass, rendered together from iOS 26.
+private struct StackGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, macOS 26, visionOS 26, *) {
+            GlassEffectContainer(spacing: 0) { content }
+        } else {
+            content
+        }
+    }
+}
+
 /// A toast's surface: Liquid Glass from iOS 26, a thick material with a hairline before it, and the theme's opaque
 /// popover colour with an outline under increased contrast or Reduce Transparency, where the words must not depend
 /// on what is behind them.
@@ -666,6 +712,8 @@ private struct ToastSurface: ViewModifier {
     let solid: Bool
     /// Whether it casts the stack's shadow: the front toast only.
     let casts: Bool
+    /// Whether it is tucked behind a newer toast.
+    let tucked: Bool
     /// How far it is shaded toward its words' colour (tucked), and how strongly its hairline edge shows.
     let shade: Double
     let edge: Double
@@ -703,9 +751,10 @@ private struct ToastSurface: ViewModifier {
 
     /// The theme's border when solid (raised under increased contrast); on glass, a hairline in the words' colour.
     private func outline(solid: Bool) -> some View {
-        ZStack {
-            shape.strokeBorder(Color(palette.message).opacity(solid ? 0 : edge), lineWidth: OuroToastMetrics.edgeWidth)
-            shape.strokeBorder(Color(palette.border).opacity(solid ? 1 : 0), lineWidth: 1)
+        let o = OuroToastMetrics.outline(solid: solid, tucked: tucked, edge: edge)
+        return ZStack {
+            shape.strokeBorder(Color(palette.message).opacity(o.edge), lineWidth: OuroToastMetrics.edgeWidth)
+            shape.strokeBorder(Color(palette.border).opacity(o.border), lineWidth: 1)
         }
     }
 }

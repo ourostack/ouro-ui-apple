@@ -211,7 +211,7 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     /// Secondary's solid fill is a step stronger than its soft one, so the two variants never look the same; under
     /// increased contrast an outline is two points wide, in its full tone.
     @Test func aSecondarySolidIsStrongerThanItsSoft() {
-        #expect(OuroButtonMetrics.secondarySolidStep(scheme: .light) == 0.07)
+        #expect(OuroButtonMetrics.secondarySolidStep(scheme: .light) == 0.1)
         #expect(OuroButtonMetrics.secondarySolidStep(scheme: .dark) == 0.12)
         // Secondary's outline is the page's foreground at 25%, so it reads with the tones' outlines.
         for (name, style) in styles where style.contrast != .increased {
@@ -300,17 +300,18 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         }
     }
 
-    /// An empty state's symbol is quiet, the secondary colour, when an action is the thing to look at; standing
-    /// alone it is the theme's primary.
-    @Test func anEmptyStatesSymbolGivesWayToItsAction() {
+    /// An empty state's symbol is quiet, the secondary colour, with or without an action, as the system's own are; the
+    /// title carries the state and an action the colour.
+    @Test func anEmptyStatesSymbolIsQuiet() {
         for (name, style) in styles {
             let c = style.colors
             let surface = OuroInk.r(c.background)
-            let alone = OuroEmptyStatePalette(style: style)
-            let withAction = OuroEmptyStatePalette(style: style, hasAction: true)
-            #expect(distance(alone.icon, OuroInk.readable(OuroInk.r(c.primary), on: surface, style)) < 0.01, "\(name) alone")
-            #expect(distance(withAction.icon, OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)) < 0.01, "\(name) with action")
+            for hasAction in [false, true] {
+                let p = OuroEmptyStatePalette(style: style, hasAction: hasAction)
+                #expect(distance(p.icon, OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)) < 0.01, "\(name) \(hasAction)")
+            }
         }
+        #expect(OuroEmptyStateMetrics.symbolWeight == .semibold)
     }
 
     /// On glass a toast's words take the system's vibrant styles, which follow the colour scheme, not the theme. They
@@ -393,6 +394,39 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     /// Collapsed, older toasts tuck behind the newest, peeking 12 then 22 points, at 95% and 90%, words hidden. They stay
     /// opaque, shaded 4% then 8% toward the words' colour, so the page never shows through a peek; expanded, every toast
     /// shows its words, listed below the newer ones.
+    /// A toast tucking behind a newer one keeps its own size until the newer one is measured, so it never collapses to
+    /// nothing for the first frames of an arrival; then it takes the newer one's.
+    /// Until a newly arrived toast is measured, the older ones hold their places, and tuck on the next frame: the
+    /// arrival's first frame only adds the new toast, and the tuck follows, so the two never cost the same frame.
+    @Test func olderToastsTuckOnceTheNewOneIsMeasured() {
+        #expect(OuroToastMetrics.stackDepth(index: 0, count: 2, frontMeasured: false) == 0)
+        #expect(OuroToastMetrics.stackDepth(index: 0, count: 2, frontMeasured: true) == 1)
+        #expect(OuroToastMetrics.stackDepth(index: 0, count: 3, frontMeasured: false) == 1)
+        #expect(OuroToastMetrics.stackDepth(index: 2, count: 3, frontMeasured: false) == 0)
+        #expect(OuroToastMetrics.stackDepth(index: 1, count: 3, frontMeasured: true) == 1)
+    }
+
+    @Test func aTuckingToastKeepsItsSizeUntilTheNewOneIsMeasured() {
+        let own = CGSize(width: 220, height: 56), front = CGSize(width: 260, height: 56)
+        #expect(OuroToastMetrics.tuckedSize(front: nil, own: own) == own)
+        #expect(OuroToastMetrics.tuckedSize(front: front, own: own) == front)
+        #expect(OuroToastMetrics.tuckedSize(front: front, own: nil) == front)
+    }
+
+    /// A tucked toast draws no border of its own, only the hairline, so the stack reads as one toast with depth, not a
+    /// drawer of outlined cards; the front one has its border when solid.
+    @Test func aTuckedToastHasNoBorder() {
+        #expect(OuroToastMetrics.outline(solid: true, tucked: true, edge: 0.08) == .init(edge: 0.08, border: 0))
+        #expect(OuroToastMetrics.outline(solid: true, tucked: false, edge: 0.08) == .init(edge: 0, border: 1))
+        #expect(OuroToastMetrics.outline(solid: false, tucked: false, edge: 0.08) == .init(edge: 0.08, border: 0))
+    }
+
+    /// A banner's and a toast's icons grow with their words, up to the same size.
+    @Test func bannerAndToastIconsGrowAlike() {
+        #expect(OuroBannerMetrics.largestIconSize == .accessibility3)
+        #expect(OuroToastMetrics.largestIconSize == .accessibility3)
+    }
+
     @Test func olderToastsTuckBehindTheNewest() {
         let front = OuroToastMetrics.placement(depth: 0, expanded: false, above: 0)
         #expect(front.offset == 0 && front.scale == 1 && front.shade == 0 && front.showsWords)
@@ -433,7 +467,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     @Test func aFoldingBannerIsGoneByHalfway() {
         #expect(OuroBannerMetrics.foldOpacity(progress: 0) == 0)
         #expect(OuroBannerMetrics.foldOpacity(progress: 0.5) == 0)
-        #expect(OuroBannerMetrics.foldOpacity(progress: 0.75) == 0.5)
+        #expect(OuroBannerMetrics.foldOpacity(progress: 0.6) == 0)
+        #expect(abs(OuroBannerMetrics.foldOpacity(progress: 0.8) - 0.5) < 1e-9)
         #expect(OuroBannerMetrics.foldOpacity(progress: 1) == 1)
     }
 

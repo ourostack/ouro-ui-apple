@@ -67,7 +67,9 @@ public enum OuroBannerMetrics {
 
     /// How opaque a banner is `progress` of the way unfolded: clear until halfway, then fading in. Folding away, its
     /// words are gone by halfway, so the page closing up never slides over words still showing.
-    public static func foldOpacity(progress: Double) -> Double { min(1, max(0, progress * 2 - 1)) }
+    public static func foldOpacity(progress: Double) -> Double { min(1, max(0, (progress - 0.6) / 0.4)) }
+    /// The largest text size a banner's icon and close mark grow to: a step short of the largest, like a toast's.
+    public static let largestIconSize = DynamicTypeSize.accessibility3
 
     /// What VoiceOver says when a banner appears: its title, then its description.
     public static func announcement(title: String, description: String?) -> String {
@@ -181,8 +183,8 @@ extension OuroBanner {
             Image(systemName: name)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(Color(p.icon))
-                // A mark beside the words: it stops growing at the largest standard size.
-                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                // It grows with the words, a step short of the largest sizes so it never outweighs them.
+                .dynamicTypeSize(...OuroBannerMetrics.largestIconSize)
                 .accessibilityHidden(true)
         }
     }
@@ -212,7 +214,7 @@ extension OuroBanner {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.footnote.weight(.semibold))
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .dynamicTypeSize(...OuroBannerMetrics.largestIconSize)
                     .foregroundStyle(Color(p.description))
                     .frame(width: max(OuroBannerMetrics.dismissTarget, touchTarget), height: max(OuroBannerMetrics.dismissTarget, touchTarget))
                     .contentShape(Rectangle())

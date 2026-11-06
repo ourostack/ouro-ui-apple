@@ -66,16 +66,19 @@ final class MotionTests: XCTestCase {
         XCTAssertLessThanOrEqual(result.worstFrames, Self.limitWorstFrames, "\(name) stalls a frame: \(result.summary)", file: file, line: line)
     }
 
-    /// Plays a gallery `-demo` (it comes, holds and goes, `repeats` times) and reads the probe's result.
+    /// Plays a gallery `-demo` (it comes, holds and goes, `repeats` times) and reads the probe's result. The demo plays
+    /// once unmeasured first (`-warm 1`), so the probe times what every play costs: on CI's GPU-less VM the first glass
+    /// a process draws stalled 180 to 415 ms on every launch, which a Mac's simulator never showed. The first play is
+    /// timed by the host-video captures instead (W8 round 6).
     private func demo(_ name: String, page: String, repeats: Int = 1) -> Result? {
         let app = XCUIApplication()
         let seconds = 1.0 + 4.0 * Double(repeats) + 1.0
-        app.launchArguments = ["-theme", "pearl", "-page", page, "-open", "0", "-demo", name, "-probe", "1",
+        app.launchArguments = ["-theme", "pearl", "-page", page, "-open", "0", "-demo", name, "-probe", "1", "-warm", "1",
                                "-repeat", String(repeats), "-probeSeconds", String(seconds)]
         app.launch()
         defer { app.terminate() }
-        // The window starts a second after the page appears; launch takes a few more.
-        return read(app, after: seconds + 4)
+        // The window starts a second after the warm-up play ends (up to 7 s); launch takes a few more.
+        return read(app, after: seconds + 4 + 7)
     }
 
     func testAToastArrivesAndLeavesSmoothly() { check("toast") { demo("toast", page: "toasts") } }

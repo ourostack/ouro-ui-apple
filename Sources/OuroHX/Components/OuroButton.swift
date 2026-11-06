@@ -164,7 +164,7 @@ public enum OuroButtonMetrics {
     public static func outlineWidth(contrast: ColorSchemeContrast) -> CGFloat { contrast == .increased ? 2 : 1 }
     /// How much of the page's foreground secondary's solid fill takes over its pale colour: more in dark, where the
     /// step reads smaller.
-    public static func secondarySolidStep(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0.07 }
+    public static func secondarySolidStep(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0.1 }
     /// How much of the page's foreground secondary's outline is drawn with.
     public static let neutralOutlineTint = 0.25
 

@@ -32,6 +32,14 @@ public enum OuroMotion {
         case settle
         /// A size or position change in a layout, such as a banner pushing the page down: smooth, no bounce.
         case layout
+        /// Named springs for an app's own motion, Apple's presets. Quick, with a touch of bounce (`.snappy`).
+        case snappy
+        /// Unhurried, no bounce (`.smooth`).
+        case smooth
+        /// Playful, a clear overshoot (`.bouncy`).
+        case bouncy
+        /// Following a finger: very quick and well damped (`.interactiveSpring()`).
+        case interactive
 
         /// The two press kinds, which do nothing under Reduce Motion.
         public var isPress: Bool { self == .press || self == .pressIn || self == .pressOut }
@@ -78,6 +86,10 @@ public enum OuroMotion {
         case .exit: return .spring(visualDuration: 0.35, bounce: 0)
         case .settle: return .spring(visualDuration: 0.35, bounce: 0.2)
         case .layout: return .spring(visualDuration: 0.35, bounce: 0)
+        case .snappy: return .spring(visualDuration: 0.5, bounce: 0.15)
+        case .smooth: return .spring(visualDuration: 0.5, bounce: 0)
+        case .bouncy: return .spring(visualDuration: 0.5, bounce: 0.3)
+        case .interactive: return .spring(visualDuration: 0.15, bounce: 0.14)
         }
     }
 

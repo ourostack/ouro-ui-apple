@@ -7,8 +7,23 @@ private var opensAtLaunch: Bool { UserDefaults.standard.integer(forKey: "open") 
 /// `hold`, then does `back`.
 private var demo: String? { UserDefaults.standard.string(forKey: "demo") }
 
+/// `-warm 1` plays a demo once before the probe starts, so the probe times what every play costs, not what only the
+/// first one in a process does. On CI's GPU-less VM the first glass a process draws stalled 180 to 415 ms, every
+/// launch; on a Mac's simulator it did not, and the host-video captures time that first play (W8 round 6).
+@MainActor enum DemoWarmup {
+    static var done = !UserDefaults.standard.bool(forKey: "warm")
+}
+
 @MainActor private func play(_ name: String, lead: Double = 1.5, hold: Double = 2.5, forth: @escaping @MainActor () -> Void, back: @escaping @MainActor () -> Void) async {
     guard demo == name else { return }
+    if !DemoWarmup.done {
+        try? await Task.sleep(for: .seconds(lead))
+        forth()
+        try? await Task.sleep(for: .seconds(hold))
+        back()
+        try? await Task.sleep(for: .seconds(1.5))
+        DemoWarmup.done = true
+    }
     // `-repeat n` plays it n times, to tell a first-time cost from one paid every time.
     for _ in 0..<max(1, UserDefaults.standard.integer(forKey: "repeat")) {
         try? await Task.sleep(for: .seconds(lead))
@@ -27,13 +42,20 @@ struct ButtonsPage: View {
         VStack(alignment: .leading, spacing: 16) {
             OuroButton("Save recipe", systemImage: "checkmark", fullWidth: true, haptic: .finished) { presses += 1 }
                 .accessibilityIdentifier("button.primary")
-            ForEach(OuroButtonVariant.allCases, id: \.self) { variant in
+            // Glass first, over a field of colour as it would float over a photo; glass over a white page shows nothing.
+            ForEach([OuroButtonVariant.glass] + OuroButtonVariant.allCases.filter { $0 != .glass }, id: \.self) { variant in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(variant.rawValue.capitalized).font(.headline).accessibilityAddTraits(.isHeader)
-                    FlowRow {
+                    // Plain buttons are words on the margin, so they sit further apart and their rows closer.
+                    FlowRow(spacing: variant == .plain ? 24 : 8, rowSpacing: variant == .plain ? 0 : 8) {
                         ForEach(OuroTone.allCases, id: \.self) { tone in
                             OuroButton(tone.rawValue.capitalized, tone: tone, variant: variant) {}
+                                .accessibilityIdentifier("button.\(variant.rawValue).\(tone.rawValue)")
                         }
+                    }
+                    .padding(variant == .glass ? 16 : 0)
+                    .background {
+                        if variant == .glass { GlassField() }
                     }
                 }
             }
@@ -60,16 +82,33 @@ struct ButtonsPage: View {
 
 /// Wraps buttons onto as many lines as the width and text size need, 8 points apart, as a row of chips does.
 struct FlowRow<Content: View>: View {
+    var spacing: CGFloat = 8
+    var rowSpacing: CGFloat = 8
     @ViewBuilder var content: Content
-    var body: some View { Flow(spacing: 8) { content } }
+    var body: some View { Flow(spacing: spacing, rowSpacing: rowSpacing) { content } }
+}
+
+/// A faint field of colour, a few percent off the page, for glass buttons to float over so their edge light shows.
+/// A glass button's words are made readable against the page (its contract), so the field stays near the page.
+private struct GlassField: View {
+    @Environment(\.colorScheme) private var scheme
+    var body: some View {
+        LinearGradient(colors: scheme == .dark
+                       ? [Color(red: 0.08, green: 0.07, blue: 0.06), Color(red: 0.06, green: 0.06, blue: 0.09)]
+                       : [Color(red: 0.98, green: 0.95, blue: 0.92), Color(red: 0.94, green: 0.95, blue: 0.99)],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .accessibilityHidden(true)
+    }
 }
 
 private struct Flow: Layout {
     let spacing: CGFloat
+    var rowSpacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let rows = rows(width: proposal.width ?? .infinity, subviews)
-        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        let height = rows.map(\.height).reduce(0, +) + rowSpacing * CGFloat(max(0, rows.count - 1))
         let width = rows.map(\.width).max() ?? 0
         return CGSize(width: proposal.width ?? width, height: height)
     }
@@ -83,7 +122,7 @@ private struct Flow: Layout {
                 subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2), proposal: ProposedViewSize(width: min(size.width, bounds.width), height: size.height))
                 x += size.width + spacing
             }
-            y += row.height + spacing
+            y += row.height + rowSpacing
         }
     }
 
@@ -119,7 +158,7 @@ struct EmptyStatesPage: View {
                     firstEmpty.transition(.opacity.combined(with: .scale(scale: reduceMotion ? 1 : 0.97)))
                 }
             }
-            OuroEmptyState("Nothing matches \u{201C}saffron\u{201D}", systemImage: "text.magnifyingglass", description: "Try fewer words, or check the spelling.", alignment: .leading, variant: .plain)
+            OuroEmptyState("Nothing matches \u{201C}saffron\u{201D}", systemImage: "text.magnifyingglass", description: "Try fewer words, or check the spelling.")
         }
         .frame(minHeight: 300, alignment: .top)
         .task {

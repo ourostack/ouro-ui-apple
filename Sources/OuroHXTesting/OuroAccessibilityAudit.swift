@@ -46,11 +46,23 @@ extension XCUIApplication {
             }
             return excused
         }
-        do {
-            try performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == Self.auditTimedOut {
-            // A long page on a slow CI runner can outrun the audit's own time limit; one more try, then the error.
-            try performAccessibilityAudit(for: types, handler)
+        func audit(_ types: XCUIAccessibilityAuditType) throws {
+            do {
+                try performAccessibilityAudit(for: types, handler)
+            } catch let error as NSError where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == Self.auditTimedOut {
+                // A long page on a slow CI runner can outrun the audit's own time limit; one more try, then the error.
+                try performAccessibilityAudit(for: types, handler)
+            }
+        }
+        // iOS 26's combined audit can report a contrast issue without its element (CI, iOS 26.5: the expanded toast stack's
+        // Undo), so no excuse can tell what it is about; the same issue in a contrast-only pass names it. Contrast is
+        // audited on its own, and everything else together, so every type is still checked and every excuse still applies.
+        let others = types.subtracting(.contrast)
+        if types.contains(.contrast), !others.isEmpty {
+            try audit(others)
+            try audit(.contrast)
+        } else {
+            try audit(types)
         }
     }
 

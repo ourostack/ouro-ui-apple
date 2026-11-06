@@ -1,3 +1,9 @@
+<!-- ourostack:brand:start -->
+<p align="center">
+  <a href="https://github.com/ourostack"><img src="https://raw.githubusercontent.com/ourostack/.github/main/brand/headers/ouro-ui-apple.webp" alt="Ouro beside a phone, a tablet and a laptop all showing the green Ouro HX card, with a small robot pressing a button" width="100%"></a>
+</p>
+<!-- ourostack:brand:end -->
+
 # Ouro UI for Apple
 
 **Ouro HX for people and Ouro AX for agents, in Swift.** The same colours, motion and manners as

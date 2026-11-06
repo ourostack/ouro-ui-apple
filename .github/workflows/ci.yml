@@ -238,7 +238,7 @@ jobs:
           echo "UDID=$udid" >> "$GITHUB_ENV"
           # Booted and settled before xcodebuild starts, as the X-ray probe does: a cold boot under the first test was
           # where the runner lost testmanagerd (main, run 42166414006).
-          xcrun simctl boot "$udid"
+          xcrun simctl boot "$udid" || true
           xcrun simctl bootstatus "$udid" -b >/dev/null
       - name: Gallery UI tests
         run: |
@@ -259,7 +259,9 @@ jobs:
           grep -E "error|failed|passed|Executed|TEST" .build/gallery-ui.log | tail -80
           if [ "$status" -ne 0 ] && cause="$(infra gallery-ui)"; then
             echo "::warning title=Infrastructure retry::Gallery UI tests: \"$cause\". Rebooting the simulator and running them once more; the first attempt's result bundle is kept as gallery-ui-attempt-1."
-            mv .build/gallery-ui.xcresult .build/gallery-ui-attempt-1.xcresult
+            # A runner that never bootstrapped may have left no bundle; one that did must move it, or xcodebuild
+            # refuses to write the next.
+            if [ -e .build/gallery-ui.xcresult ]; then mv .build/gallery-ui.xcresult .build/gallery-ui-attempt-1.xcresult; fi
             mv .build/gallery-ui.log .build/gallery-ui-attempt-1.log
             xcrun simctl shutdown "$UDID" || true
             xcrun simctl boot "$UDID"

@@ -129,8 +129,8 @@ is instead of jumping. The defaults are the designed version; options are for th
 - **Toasts** are 56-point glass capsules over the theme's surface, edged with a hairline and casting one soft shadow, at the top centre, at most 420 points wide, that drop in on a
   bouncy spring that visibly overshoots and lift away without one, shrinking to 96%. The icon grows with the words. Swipe one up to dismiss it; dragged down, it gives a little and comes back. Up to three stack,
   the older ones shaded a step deeper and tucked 12 and 22 points behind the newest with only a hairline edge and no shadow of their own, their words
-  fading as they tuck. They tuck on the frame after the newest is measured, so an arrival's first frame only adds it, and they fade out as the stack empties.
-  The stack's glass renders in one `GlassEffectContainer`. A tap fans them out, and VoiceOver and Switch Control see them
+  fading in 0.1 s as they tuck, so two sets of words never share a place. A tucking toast keeps its own size until the newest is measured,
+  then takes that size on the arrival's spring, and older toasts fade out as the stack empties. Each keeps its own glass edge. A tap fans them out, and VoiceOver and Switch Control see them
   fanned out from the start; the region's "Show all" action fans them out for Voice Control and Full Keyboard
   Access. The glass sits over the theme's opaque surface, so the page never reads through, and the words take the
   system's vibrant label styles; under Increase Contrast or Reduce Transparency, and before iOS 26, the toast is solid

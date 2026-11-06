@@ -198,13 +198,10 @@ public enum OuroToastMetrics {
     /// The largest text size a toast's icon grows to: a step short of the largest, so it never outweighs the words.
     public static let largestIconSize = DynamicTypeSize.accessibility3
 
-    /// How deep the toast at `index` of `count` sits: 0 for the newest. Until the newest is measured, the older ones
-    /// keep their places one step shallower, so an arrival's first frame only adds the new toast and the tuck follows
-    /// on the next; doing both on one frame dropped it (W8 round 6).
-    public static func stackDepth(index: Int, count: Int, frontMeasured: Bool) -> Int {
-        let depth = count - 1 - index
-        return frontMeasured || depth == 0 ? depth : depth - 1
-    }
+    /// How long a tucking toast's words take to fade: quick, so they are gone before its plate slides under the
+    /// toast arriving and two sets of words never share a place.
+    public static let wordsFadeSeconds = 0.1
+    public static func wordsFade(reduceMotion: Bool) -> Animation { .easeOut(duration: wordsFadeSeconds) }
 
     /// The size a toast tucked behind a newer one takes: the newer one's, or its own until the newer one is measured,
     /// so it never collapses to nothing for an arrival's first frames.
@@ -419,8 +416,7 @@ struct OuroToastHost: ViewModifier {
                         let expanded = expandedByHand || voiceOver || switchControl
                         ZStack(alignment: .top) {
                             ForEach(Array(visible.enumerated()), id: \.element.id) { index, toast in
-                                let frontMeasured = visible.last.map { sizes[$0.id] != nil } ?? true
-                                let depth = OuroToastMetrics.stackDepth(index: index, count: visible.count, frontMeasured: frontMeasured)
+                                let depth = visible.count - 1 - index
                                 let above = visible[(index + 1)...].reduce(CGFloat(0)) { $0 + (sizes[$1.id]?.height ?? OuroToastMetrics.height) }
                                 let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above, reduceMotion: reduceMotion)
                                 let front = visible.last.flatMap { sizes[$0.id] }
@@ -448,9 +444,6 @@ struct OuroToastHost: ViewModifier {
                                     .transition(place.showsWords ? OuroToastMetrics.appearance(reduceMotion: reduceMotion).transition : .opacity)
                             }
                         }
-                        // One glass container for the stack, so its toasts' glass renders as one pass: without it
-                        // an arrival dropped a frame as a new glass layer joined (W8 round 6).
-                        .modifier(StackGlass())
                         // Tapping a collapsed stack's words lays it out; its buttons take their own taps first. It tucks
                         // back once it empties.
                         // Off once open, so the words aren't offered as tap targets (the audit read them as too small).
@@ -625,7 +618,7 @@ struct OuroToastView: View {
             Button(action: dismiss) {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .dynamicTypeSize(...OuroToastMetrics.largestIconSize)
                     .foregroundStyle(secondary)
                     .frame(width: OuroToastMetrics.dismissTarget, height: OuroToastMetrics.dismissTarget)
                     .contentShape(Rectangle())
@@ -639,7 +632,9 @@ struct OuroToastView: View {
         .padding(.trailing, 10)
         .padding(.vertical, 6)
         .frame(minHeight: OuroToastMetrics.height)
-        .transition(.opacity)
+        // The words leave in 0.1 s on their own clock, before the plate has moved far, so a tucking toast never
+        // shows its words under the one arriving (taste round 6: two sets of words in one place).
+        .transition(.opacity.animation(OuroToastMetrics.wordsFade(reduceMotion: reduceMotion)))
         } else {
             Color.clear.frame(minHeight: OuroToastMetrics.height).accessibilityHidden(true)
         }
@@ -705,17 +700,6 @@ struct OuroToastView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.ouroPress)
-    }
-}
-
-/// The stack's toasts' glass, rendered together from iOS 26.
-private struct StackGlass: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26, macOS 26, visionOS 26, *) {
-            GlassEffectContainer(spacing: 0) { content }
-        } else {
-            content
-        }
     }
 }
 

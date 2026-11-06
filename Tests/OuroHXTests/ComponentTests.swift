@@ -398,12 +398,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     /// nothing for the first frames of an arrival; then it takes the newer one's.
     /// Until a newly arrived toast is measured, the older ones hold their places, and tuck on the next frame: the
     /// arrival's first frame only adds the new toast, and the tuck follows, so the two never cost the same frame.
-    @Test func olderToastsTuckOnceTheNewOneIsMeasured() {
-        #expect(OuroToastMetrics.stackDepth(index: 0, count: 2, frontMeasured: false) == 0)
-        #expect(OuroToastMetrics.stackDepth(index: 0, count: 2, frontMeasured: true) == 1)
-        #expect(OuroToastMetrics.stackDepth(index: 0, count: 3, frontMeasured: false) == 1)
-        #expect(OuroToastMetrics.stackDepth(index: 2, count: 3, frontMeasured: false) == 0)
-        #expect(OuroToastMetrics.stackDepth(index: 1, count: 3, frontMeasured: true) == 1)
+    @Test func aTuckingToastsWordsAreGoneBeforeItsPlateMovesFar() {
+        #expect(OuroToastMetrics.wordsFadeSeconds <= 0.1)
     }
 
     @Test func onlyTheFrontToastsFirstSizeTucksTheStackSoOnlyItIsAnimated() {

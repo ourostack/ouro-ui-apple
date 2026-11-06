@@ -148,10 +148,21 @@ Status: accepted (W8 of the HX and AX native program).
       Round 6's stack first dropped one or two frames on every arrival, where round 5 dropped none: the older toast
       turned solid on the same frame the new toast's glass first drew. Measured by host video at 60 fps over 2 to 4
       runs each: keeping tucked toasts on glass (their opaque plate already hides the page) left one drop; tucking on
-      the frame after the newest is measured (`OuroToastMetrics.stackDepth`) cleared the arrivals but left one as the
+      the frame after the newest is measured (`stackDepth`, since removed) cleared the arrivals but left one as the
       stack emptied; fading tucked toasts out, not lifting three glass toasts at once, and one `GlassEffectContainer`
       for the stack brought light to no drops and dark to one. Removing the words' fade on tuck, or the fade out,
-      made it worse. On the buttons page, contrast on a glass button is excused and
+      made it worse. The remaining drop was the tuck itself: the front toast's first size, which tucks the stack, was
+      set outside any animation, so the tuck snapped in one frame (words gone, plate resized and moved), dropped it
+      in light and dark, and left a blank plate for about 130 ms before the new toast showed. That size now lands on
+      the arrival's spring (`OuroToastMetrics.tucksOnMeasure`). Keeping the words mounted while hidden did not clear it.
+      Round 6's panel said yes to five of six; both lenses said no to the stack. The older toast's words faded on the
+      arrival's 0.5 s spring, so for a moment two sets of words shared a place. And one `GlassEffectContainer` merged
+      the tucked plate and the front toast into one lumpy shape at rest. Round 7 fades a tucking toast's words in
+      0.1 s on their own clock (`wordsFadeSeconds`), tucks on the arrival itself rather than the frame after the
+      measurement (the tucked toast keeps its own size until then, so it never vanishes), and drops the container,
+      so each plate keeps its own glass edge. Measured over three light and three dark runs, every arrival had no
+      drops. It also grows the toast's close mark to Accessibility 3, as the banner's does, and gives the
+      gallery's glass field real colour in dark, where dark glass read as flat grey over near-black. On the buttons page, contrast on a glass button is excused and
       measured instead from the screen's pixels (`glassMisreadings`, `inkContrast`). The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and

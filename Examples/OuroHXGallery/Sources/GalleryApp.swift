@@ -110,6 +110,8 @@ private struct ThemedPage: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
+        // `-anchor bottom` opens a page scrolled to its end, so captures can show what sits below the fold.
+        .defaultScrollAnchor(UserDefaults.standard.string(forKey: "anchor") == "bottom" ? .bottom : .top)
         .background(colors.background.ignoresSafeArea())
         .foregroundStyle(colors.foreground)
     }

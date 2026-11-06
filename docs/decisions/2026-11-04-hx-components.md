@@ -209,7 +209,8 @@ It compiled and used every component as documented. What it found, and what chan
   own text-size probe rebuilt the sheet mid-check. The gallery's Sheets page gains a "New cookbook" sheet with a
   focused field (`-sheetKeyboard 1`), and `testASheetWithTheKeyboardUpKeepsItsFieldAndActionInSight` checks it at the
   default size (fitted and at the `.large` detent) and the largest, light and dark;
-  `testATallSheetOpensAtItsTopAtTheLargestSize` checks that a sheet taller than the screen still opens at its title.
+  `testATallSheetOpensAtItsTopAtTheLargestSize` checks that a sheet shorter than its content (Save to cookbook at the
+  `.medium` detent) still opens at its title.
   Known (#26): at the largest size with the keyboard up, iOS 26 still draws a few points of the scrolled-away title
   above the sheet's top edge; and at the accessibility sizes, dragging a sheet between `.medium` and `.large` may
   bring its end into view, which is unverified.

@@ -209,6 +209,13 @@ struct BannersPage: View {
 struct SheetsPage: View {
     @State private var open = opensAtLaunch
     @State private var filters = false
+    private static var saveDetents: Set<PresentationDetent>? {
+        switch UserDefaults.standard.string(forKey: "sheetDetent") {
+        case "large": [.large]
+        case "medium": [.medium]
+        default: nil
+        }
+    }
     // `-sheetKeyboard 1` opens the naming sheet at launch, its field focused, so the keyboard is up.
     @State private var naming = UserDefaults.standard.bool(forKey: "sheetKeyboard")
     @State private var name = ""
@@ -223,9 +230,10 @@ struct SheetsPage: View {
             OuroButton("New cookbook", variant: .soft) { naming = true }
             RecipeFeed()
         }
-        // `-sheetDetent large` shows it at full height, where iOS draws it unscaled, for the audit's clipped-text check.
+        // `-sheetDetent large` shows it at full height, where iOS draws it unscaled, for the audit's clipped-text check;
+        // `-sheetDetent medium` at half height, shorter than its content at the largest sizes.
         .ouroSheet(isPresented: $open, title: "Save to cookbook", description: "Pick where this recipe lives.",
-                   detents: UserDefaults.standard.string(forKey: "sheetDetent") == "large" ? [.large] : nil) {
+                   detents: Self.saveDetents) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(["Weeknights", "Sunday bakes", "Party food"], id: \.self) { name in
                     CookbookRow(name: name, picked: $picked)

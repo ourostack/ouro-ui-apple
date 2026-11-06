@@ -286,15 +286,20 @@ final class ComponentClaimTests: XCTestCase {
         }
     }
 
-    /// Claim text.reflows: at the largest size, with no keyboard, a sheet taller than the screen opens at its top, its
+    /// Claim text.reflows: at the largest size, with no keyboard, a sheet shorter than its content opens at its top, its
     /// title in sight, and stays there as its height settles.
     func testATallSheetOpensAtItsTopAtTheLargestSize() {
-        let app = launch("sheet", size: Self.largest)
-        let title = app.staticTexts["Save to cookbook"].firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 5), "no sheet title")
-        sleep(1)
+        let app = launch("sheet", size: Self.largest, extra: ["-sheetDetent", "medium"])
         let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "no sheet")
+        sleep(1)
+        // The sheet's own title, not the page's button of the same name behind it.
+        let title = sheet.staticTexts["Save to cookbook"].firstMatch
+        XCTAssertTrue(title.exists, "no title in the sheet")
         XCTAssertGreaterThanOrEqual(title.frame.minY, sheet.frame.minY - 1, "the title is scrolled away, at \(title.frame) in a sheet at \(sheet.frame)")
+        // Shorter than its content: its Save action starts below the sheet's visible bottom, so the anchor is what's tested.
+        let save = sheet.buttons["Save"].firstMatch
+        XCTAssertGreaterThan(save.frame.maxY, sheet.frame.maxY, "the sheet fits, at \(sheet.frame) with Save at \(save.frame), so this checks nothing")
         app.terminate()
     }
 

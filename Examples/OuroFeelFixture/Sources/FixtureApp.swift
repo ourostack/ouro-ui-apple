@@ -144,8 +144,10 @@ struct PlacePage: View {
     }
 }
 
-/// The way back. The bug: the chef screen hides the system back button for its own, which also turns off the edge
-/// swipe; the cook screen (a full-screen cover) has a Close button and no swipe down.
+/// The way back. The bugs: the chef screen hides the system back button for its own, which also turns off the edge
+/// swipe, so a swipe moves nothing (the walk cannot tell that from a touch that never arrived, and says so); the
+/// Settings sheet refuses a pull down, so it follows the finger a little and settles back (no gesture back, a fail);
+/// the cook screen (a full-screen cover) has a Close button and no swipe down.
 /// The segmented picker and the Sort menu switch what the page shows; a walk that follows buttons must not take them
 /// for screens without a way back, and must check that the menus it opens close. The Filter menu is the walk's
 /// overlay bug: with `-bug 1` it never closes, neither on a pick nor on a tap outside. The Tags menu always closes,
@@ -178,6 +180,11 @@ struct NavPage: View {
                 NavigationLink("Pancakes") { Text("Pancakes recipe").navigationTitle("Pancakes") }
                     .accessibilityIdentifier("nav.recipe")
                 NavigationLink("Chef Ada") { ChefPage() }.accessibilityIdentifier("nav.chef")
+                // A row whose only key is its long label, as a recipe card that reads out its whole description: the
+                // walk must find it by a label over XCUITest's 128-character query limit.
+                NavigationLink("Focaccia, from the last of the cold-fermented pizza dough, baked at 450°F for twenty-five minutes in a nine-inch pan, dimpled with olive oil and flaky salt") {
+                    Text("Focaccia recipe").navigationTitle("Focaccia")
+                }
                 Button("Filter: \(filter)") { filtering = true }.accessibilityIdentifier("nav.filter")
                 Button("Tags: \(tag)") { tagging = true }.accessibilityIdentifier("nav.tags")
                 Button("Settings") { settings = true }.accessibilityIdentifier("nav.settings")
@@ -247,6 +254,7 @@ struct SettingsSheet: View {
         NavigationStack {
             Text("Settings").toolbar { Button("Done") { dismiss() } }
         }
+        .interactiveDismissDisabled(bug)
     }
 }
 

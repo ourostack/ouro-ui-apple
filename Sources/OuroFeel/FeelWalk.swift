@@ -19,7 +19,7 @@ public struct FeelEntry {
     /// Taps the tab (or any button) labelled or identified `key` first.
     public static func tab(_ key: String) -> FeelEntry {
         FeelEntry(key) { app in
-            let button = app.buttons[key].firstMatch
+            let button = app.buttons.keyed(key)
             if button.waitForExistence(timeout: 5) { button.tap() }
         }
     }
@@ -73,7 +73,7 @@ public struct FeelOverlay {
     /// Opens with a tap on the button labelled or identified `button`.
     public static func button(_ button: String, overlay: String, pick: String? = nil) -> FeelOverlay {
         FeelOverlay(button, overlay: overlay, pick: pick) { app in
-            let b = app.buttons[button].firstMatch
+            let b = app.buttons.keyed(button)
             if b.waitForExistence(timeout: 5) { b.tap() }
         }
     }
@@ -171,8 +171,7 @@ extension OuroFeel {
     }
 
     func element(_ key: String) -> XCUIElement {
-        let byID = app.descendants(matching: .any).matching(identifier: key).firstMatch
-        return byID.exists ? byID : app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", key)).firstMatch
+        app.descendants(matching: .any).keyed(key)
     }
 
     /// The visible back control: a navigation bar's leading button, or any button whose label or identifier says
@@ -196,23 +195,104 @@ extension OuroFeel {
         }
         walk(root)
         guard let key = found else { return nil }
-        let byID = app.buttons.matching(identifier: key).firstMatch
-        return byID.exists ? byID : app.buttons.matching(NSPredicate(format: "label == %@", key)).firstMatch
+        return app.buttons.keyed(key)
     }
 
     /// From the leading edge at the navigation bar's height (or near the top), where no list row sits, so a missing
     /// pop gesture never turns into a full swipe across a row and fires its swipe action.
-    func edgeSwipe() {
+    /// A swipe in from the leading edge. `slower` is the retry for a swipe that moved nothing: a longer press, a slow
+    /// drag nearly across, and a hold before letting go, so a loaded machine has time to start the transition.
+    func edgeSwipe(slower: Bool = false) {
         let w = windowFrame
         let bar = app.navigationBars.firstMatch
         let y = bar.exists && w.contains(bar.frame) ? bar.frame.midY : w.minY + min(100, w.height * 0.12)
-        point(w.minX + 1, y).press(forDuration: 0.05, thenDragTo: point(w.minX + w.width * 0.7, y), withVelocity: .default, thenHoldForDuration: 0)
+        if slower {
+            point(w.minX + 1, y).press(forDuration: 0.3, thenDragTo: point(w.minX + w.width * 0.9, y), withVelocity: .slow, thenHoldForDuration: 0.3)
+        } else {
+            point(w.minX + 1, y).press(forDuration: 0.05, thenDragTo: point(w.minX + w.width * 0.7, y), withVelocity: .default, thenHoldForDuration: 0)
+        }
     }
 
-    func swipeDown() {
+    func swipeDown(slower: Bool = false) {
         let w = windowFrame
         let from = point(w.midX, w.minY + w.height * 0.12)
-        from.press(forDuration: 0.05, thenDragTo: point(w.midX, w.maxY - 10), withVelocity: .fast, thenHoldForDuration: 0)
+        if slower {
+            from.press(forDuration: 0.3, thenDragTo: point(w.midX, w.maxY - 10), withVelocity: .slow, thenHoldForDuration: 0.3)
+        } else {
+            from.press(forDuration: 0.05, thenDragTo: point(w.midX, w.maxY - 10), withVelocity: .fast, thenHoldForDuration: 0)
+        }
+    }
+
+    /// What a gesture should move, by key: for a swipe across, a few of the screen's texts (a pushed screen slides
+    /// with the finger); for a swipe down, the buttons in its navigation bar if it has any (a sheet carries its Done
+    /// button down, while a list pulled past its top leaves the bar's buttons where they are), else the texts.
+    func anchors(_ axis: FeelGestureProgress.Axis) -> [String: CGRect] {
+        let w = windowFrame
+        var found: [String: CGRect] = [:]
+        if axis == .vertical {
+            let buttons = app.navigationBars.buttons
+            for i in 0..<min(buttons.count, 4) where found.count < 2 {
+                guard let b = try? buttons.element(boundBy: i).snapshot() else { continue }
+                let label = b.label, frame = b.frame, key = Self.buttonAnchor + label
+                if !label.isEmpty, w.intersects(frame), found[key] == nil { found[key] = frame }
+            }
+            if !found.isEmpty { return found }
+        }
+        let barFrame = (try? app.navigationBars.firstMatch.snapshot())?.frame ?? .null
+        // Only labels no other text on the screen has: a read by label finds the first match, so a repeated one
+        // ("1 cup" twice) could compare two different texts and look like movement.
+        let texts = app.staticTexts
+        var seen: [String: Int] = [:], frames: [String: CGRect] = [:], order: [String] = []
+        for i in 0..<min(texts.count, 12) {
+            guard let t = try? texts.element(boundBy: i).snapshot() else { continue }
+            let label = t.label, frame = t.frame
+            guard !label.isEmpty else { continue }
+            seen[label, default: 0] += 1
+            guard w.intersects(frame), barFrame.isNull || !barFrame.contains(frame), frames[label] == nil else { continue }
+            frames[label] = frame
+            order.append(label)
+        }
+        for label in order where seen[label] == 1 && found.count < 3 { found[label] = frames[label] }
+        return found
+    }
+
+    /// Marks an anchor that is a navigation bar button, not a text.
+    static let buttonAnchor = "\u{0}bar button "
+
+    func anchorFrame(_ key: String) -> CGRect? {
+        let e = key.hasPrefix(Self.buttonAnchor)
+            ? app.navigationBars.buttons.matching(NSPredicate(format: "label == %@", String(key.dropFirst(Self.buttonAnchor.count)))).firstMatch
+            : app.staticTexts.matching(NSPredicate(format: "label == %@", key)).firstMatch
+        // A snapshot, not `exists` then `frame`: the screen may go between the two (the gesture worked), and reading a
+        // gone element's frame fails the test.
+        return (try? e.snapshot())?.frame
+    }
+
+    /// Sends `gesture` while reading the anchors every tenth of a second, and says whether any of them moved: the
+    /// partial progress of a transition, seen while the finger is still down. XCUITest's drag call keeps the main run
+    /// loop turning while the touch plays, so a timer on it can read the screen mid-gesture.
+    func moves(_ axis: FeelGestureProgress.Axis, during gesture: () -> Void) -> Bool {
+        let before = anchors(axis)
+        guard !before.isEmpty else {
+            gesture()
+            return false
+        }
+        let seen = FeelSamples()
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [self] _ in
+            MainActor.assumeIsolated {
+                // A read can turn the run loop too; never start a second one inside the first.
+                guard !seen.busy else { return }
+                seen.busy = true
+                var sample: [String: CGRect] = [:]
+                for key in before.keys { sample[key] = anchorFrame(key) }
+                seen.during.append(sample)
+                seen.busy = false
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        gesture()
+        timer.invalidate()
+        return FeelGestureProgress.moved(before: before, during: seen.during, axis: axis, window: windowFrame)
     }
 
     /// Relaunches, opens the entry and taps along `path`; true if every step was there.
@@ -465,21 +545,27 @@ extension OuroFeel {
             steps.append(String(format: "tapped %.2fs before landed()", sinceTap))
             landed()
             state("landed")
-            edgeSwipe()
-            steps.append("edge swipe sent \(at()) from x=\(windowFrame.minX + 1) to x=\(windowFrame.minX + windowFrame.width * 0.7)")
-            if wait(3, until: { signature(follow) == here }) {
-                gesture = "edge swipe"
-                steps.append("edge swipe returned \(at())")
-            } else {
-                state("edge swipe did not return")
-                swipeDown()
-                steps.append("swipe down sent \(at())")
+            // Each gesture is watched while the finger is down. One that does not return is sent once more, slower: a
+            // loaded machine can drop a synthesized drag (it moves nothing) or rush it (the screen starts to follow,
+            // then settles back). If the slow one does not return either, a screen that moved has no gesture back,
+            // and one that never moved was never reached, so it could not be checked.
+            var arrived = false
+            func attempt(_ name: String, _ axis: FeelGestureProgress.Axis, _ send: () -> Void) -> (returned: Bool, moved: Bool) {
+                let moved = moves(axis, during: send)
+                arrived = arrived || moved
+                steps.append("\(name) sent \(at()) moved=\(moved)")
                 if wait(3, until: { signature(follow) == here }) {
-                    gesture = "swipe down"
-                    steps.append("swipe down returned \(at())")
-                } else {
-                    state("swipe down did not return")
+                    gesture = name
+                    steps.append("\(name) returned \(at())")
+                    return (true, moved)
                 }
+                state("\(name) did not return")
+                return (false, moved)
+            }
+            if !attempt("edge swipe", .horizontal, { edgeSwipe() }).returned,
+               !attempt("slower edge swipe", .horizontal, { edgeSwipe(slower: true) }).returned,
+               !attempt("swipe down", .vertical, { swipeDown() }).returned {
+                _ = attempt("slower swipe down", .vertical) { swipeDown(slower: true) }
             }
             let diagnostic = steps.joined(separator: "; ")
             print("[ouro-feel] gesture back from \(name.joined(separator: " › ")): \(gesture ?? "none"); \(diagnostic)")
@@ -499,7 +585,8 @@ extension OuroFeel {
                 back.tap()
                 returns = wait(3) { signature(follow) == here }
             }
-            walk.screens.append(FeelDestination(path: name, affordance: shown, affordanceReturns: returns, gesture: gesture, diagnostic: diagnostic))
+            walk.screens.append(FeelDestination(path: name, affordance: shown, affordanceReturns: returns, gesture: gesture, diagnostic: diagnostic,
+                                                gestureArrived: gesture == nil ? arrived : nil))
         }
     }
 
@@ -548,3 +635,20 @@ extension OuroFeel {
     }
 }
 #endif
+
+/// What a gesture's watcher saw, shared with the timer that reads the screen.
+@MainActor
+final class FeelSamples {
+    var during: [[String: CGRect]] = []
+    var busy = false
+}
+
+extension XCUIElementQuery {
+    /// The first element whose identifier is `key`, or else whose label is. A predicate rather than
+    /// `matching(identifier:)` or a string subscript, which throw for a string over 128 characters, and a walk's key
+    /// can be a long label (a recipe card's whole description).
+    func keyed(_ key: String) -> XCUIElement {
+        let byID = matching(NSPredicate(format: "identifier == %@", key)).firstMatch
+        return byID.exists ? byID : matching(NSPredicate(format: "label == %@", key)).firstMatch
+    }
+}

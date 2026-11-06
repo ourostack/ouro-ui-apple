@@ -126,7 +126,7 @@ struct SheetsPage: View {
                 OuroButton("Remember these", variant: .soft) {
                     // `-toastSeconds 0` keeps it until dismissed, for a UI test on a runner slower than five seconds.
                     let seconds = UserDefaults.standard.object(forKey: "toastSeconds").map { _ in UserDefaults.standard.double(forKey: "toastSeconds") }
-                    toast("Filters remembered", tone: .success, duration: seconds.map { .seconds($0) } ?? .automatic)
+                    toast("Filters remembered", tone: .success, duration: seconds.map { OuroToastDuration.seconds($0) } ?? .automatic)
                 }
             }
         }

@@ -85,7 +85,7 @@ public enum FeelWayBack {
                 let evidence = screen.diagnostic.map { " [steps: \($0)]" } ?? ""
                 switch screen.gestureArrived {
                 case false?:
-                    findings.append(.couldNotCheck("\(name): the gesture back moved nothing, neither an edge swipe (also tried slower) nor a swipe down, so either the gesture is off on this screen or the touch never reached the app\(evidence)"))
+                    findings.append(.couldNotCheck("\(name): the gesture back moved nothing, neither an edge swipe nor a swipe down, each also sent slower, so either the gesture is off on this screen or the touch never reached the app\(evidence)"))
                 case true?:
                     findings.append(FeelFinding(what: "\(name): no gesture back (a swipe moved the screen, then it settled back where it was)\(evidence)"))
                 case nil:

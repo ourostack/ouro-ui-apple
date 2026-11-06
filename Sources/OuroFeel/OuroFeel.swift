@@ -204,7 +204,7 @@ public struct OuroFeel {
 
     // MARK: Tap landing
 
-    /// Single taps on `control`, `trials` at each spot; one that should land and missed is sent once more. `.zeroPress` is not a default: on the iOS 27.2
+    /// Single taps on `control`, never retried: `trials` at each spot. `.zeroPress` is not a default: on the iOS 27.2
     /// simulator a system `Toggle` ignored XCUITest's zero-length press 3 times in 3, so it measures XCUITest's event,
     /// not the app; add it only for a control that acts on touch-down. A tap lands when `read` (by default the
     /// control's value) changes within `within` seconds (3 by default, since a busy simulator can be slow to report a
@@ -238,19 +238,17 @@ public struct OuroFeel {
             let before = read()
             act()
             var landed = wait(within) { read() != before }
+            // One tap, never resent. A loaded machine can report a change late, so a tap that should land is given
+            // twice as long again before it counts as a miss; one that lands then is noted as late.
+            var late = false
+            if expected && !landed {
+                landed = wait(within * 2) { read() != before }
+                late = landed
+            }
+            results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected, late: late))
             // Let the control finish its own animation (a switch's knob slides on after its value flips) before the
             // next tap, as a person would; a tap during it can be swallowed, which is not the target's fault.
             pause(0.6)
-            // A tap that should land and missed is sent once more: a loaded machine can drop a synthesized tap, and a
-            // control that misses taps misses both. The report counts the taps that needed it.
-            let again = expected && !landed
-            if again {
-                let before = read()
-                act()
-                landed = wait(within) { read() != before }
-                pause(0.6)
-            }
-            results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected, secondTry: again))
         }
         for spot in spots {
             for _ in 0..<trials {
@@ -289,42 +287,45 @@ public struct OuroFeel {
     }
 
     #if os(iOS)
+    /// The control's value once it has held still for a second (at least 0.8 s after the taps, at most 6 s): a loaded
+    /// machine can apply the second tap of a pair late, and a pair read too early looks as if it lost a tap.
+    func settled(_ read: () -> String) -> String {
+        pause(0.8)
+        var last = read(), still = Date()
+        let end = Date().addingTimeInterval(5.2)
+        while Date() < end {
+            pause(0.2)
+            let now = read()
+            if now != last { last = now; still = Date() } else if Date().timeIntervalSince(still) >= 1 { break }
+        }
+        return last
+    }
+
     /// `pairs` double taps at `at`, each from a settled control (``FeelRapidTaps``); one that ends changed is put back
-    /// with a single tap and sent once more, and only that second try is scored. A point, not the element, so the OS baseline can hit a Settings switch's knob (XCUITest gives
+    /// with a single tap. A point, not the element, so the OS baseline can hit a Settings switch's knob (XCUITest gives
     /// that switch the whole row's frame, where a tap does nothing). The same loop serves the app and the baseline.
     /// `triple` (the element's own triple tap; a coordinate has none) runs once after the pairs: ending changed shows
     /// quick taps reach the control. The baseline sends none, since its rate is context only.
     func rapidPairs(_ pairs: Int, at: () -> XCUICoordinate, triple: (() -> Void)? = nil, read: () -> String) -> FeelRapidTaps {
-        var same = 0, retried = 0
-        // One pair, from a settled control; a pair that ends changed is put back with a single tap. True if it ended
-        // where it started.
-        func pair() -> Bool {
+        var same = 0
+        for _ in 0..<pairs {
             let start = read()
             at().doubleTap()
-            pause(0.8)
-            if read() == start { return true }
-            at().tap()
-            pause(0.8)
-            return false
-        }
-        for _ in 0..<pairs {
-            if pair() {
+            if settled(read) == start {
                 same += 1
             } else {
-                // A loaded machine can drop one tap of a pair, so it is sent once more and only that try is scored.
-                retried += 1
-                if pair() { same += 1 }
+                at().tap()
+                _ = settled(read)
             }
         }
         var tripleChanged: Bool?
         if let triple {
             let start = read()
             triple()
-            pause(0.8)
-            tripleChanged = read() != start
-            if tripleChanged == true { at().tap(); pause(0.8) }
+            tripleChanged = settled(read) != start
+            if tripleChanged == true { at().tap(); _ = settled(read) }
         }
-        return FeelRapidTaps(pairs: pairs, endedWhereStarted: same, tripleChanged: tripleChanged, retried: retried)
+        return FeelRapidTaps(pairs: pairs, endedWhereStarted: same, tripleChanged: tripleChanged)
     }
     #endif
 

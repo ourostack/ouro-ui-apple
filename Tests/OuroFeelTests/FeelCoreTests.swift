@@ -730,30 +730,23 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
 
 /// People tap while a control is still animating. Every double tap must end where it started: our bar is higher than
 /// UIKit's, so the OS switch's rate is context in the report and never turns a fail into a pass.
-@Suite struct SecondTryTests {
-    @Test func aTapThatLandedOnlyOnItsSecondTryCountsAndIsNoted() {
-        // A loaded machine can drop a synthesized tap; a control that misses taps misses both tries.
-        let trials = [FeelTapTrial(spot: .centre, landed: true), FeelTapTrial(spot: .centre, landed: true, secondTry: true)]
-        let r = FeelTaps.evaluate(trials)
+@Suite struct LateTapTests {
+    @Test func aTapThatLandedLateLandedAndIsNoted() {
+        // A loaded machine reports a change late; the tap was sent once, and it landed.
+        let r = FeelTaps.evaluate([FeelTapTrial(spot: .centre, landed: true), FeelTapTrial(spot: .centre, landed: true, late: true)])
         #expect(r.passed)
-        #expect(r.summary.contains("2 of 2 single taps landed, 1 only on a second try"))
-        #expect(r.findings.contains { $0.note && $0.what.contains("centre: 1 of 2 single taps landed only on a second try") })
-        #expect(r.measures["second tries"] == 1)
+        #expect(r.summary.contains("2 of 2 single taps landed, no retries"))
+        #expect(r.findings.contains { $0.note && $0.what.contains("centre: 1 of 2 single taps landed late") })
+        #expect(r.measures["late"] == 1)
     }
 
-    @Test func aTapThatMissedBothTriesFailsAndSaysSo() {
-        let r = FeelTaps.evaluate([FeelTapTrial(spot: .trailingEdge, landed: false, secondTry: true)])
-        #expect(!r.passed)
-        #expect(r.detections.contains { $0.what.contains("trailing edge: 0 of 1 single taps landed, each tried twice") })
-    }
-
-    @Test func aRunWithNoSecondTriesSaysSo() {
-        #expect(FeelTaps.evaluate([FeelTapTrial(spot: .centre, landed: true)]).summary.contains("1 of 1 single taps landed, none needed a second try"))
+    @Test func aTapThatNeverLandedStillFails() {
+        #expect(!FeelTaps.evaluate([FeelTapTrial(spot: .trailingEdge, landed: false)]).passed)
     }
 
     @Test func anOlderTrialDecodes() throws {
         let t = try JSONDecoder().decode(FeelTapTrial.self, from: Data(#"{"spot":"centre","landed":true,"expected":true}"#.utf8))
-        #expect(!t.secondTry)
+        #expect(!t.late)
     }
 }
 
@@ -805,25 +798,6 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         let r = FeelTaps.evaluate(edges, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5, tripleChanged: true))
         #expect(!r.passed)
         #expect(r.findings.contains { $0.unchecked && $0.what.contains("not scored") })
-    }
-
-    @Test func aPairThatLandedOnlyOnItsSecondTryPassesWithANote() {
-        // A loaded machine can drop one tap of a pair; the pair is sent again and only the second try is scored.
-        let r = FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 5, tripleChanged: true, retried: 1))
-        #expect(r.passed)
-        #expect(r.findings.contains { $0.note && $0.what.contains("1 of 5 double taps ended where they started only on a second try") })
-        #expect(r.measures["rapid retried"] == 1)
-    }
-
-    @Test func aPairThatLostATapOnBothTriesFailsAndSaysItWasRetried() {
-        let r = FeelTaps.evaluate(paced, rapid: FeelRapidTaps(pairs: 5, endedWhereStarted: 0, tripleChanged: true, retried: 5))
-        #expect(!r.passed)
-        #expect(r.detections.contains { $0.what.contains("0 of 5") && $0.what.contains("sent twice") })
-    }
-
-    @Test func anOlderRecordWithoutRetriesDecodes() throws {
-        let t = try JSONDecoder().decode(FeelRapidTaps.self, from: Data(#"{"pairs":5,"endedWhereStarted":5}"#.utf8))
-        #expect(t.retried == 0)
     }
 
     @Test func scoredWhenOnlyAnEdgeMissed() {

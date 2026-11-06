@@ -233,19 +233,26 @@ extension OuroFeel {
             let buttons = app.navigationBars.buttons
             for i in 0..<min(buttons.count, 4) where found.count < 2 {
                 guard let b = try? buttons.element(boundBy: i).snapshot() else { continue }
-                let label = b.label, frame = b.frame
-                if !label.isEmpty, w.intersects(frame) { found[Self.buttonAnchor + label] = frame }
+                let label = b.label, frame = b.frame, key = Self.buttonAnchor + label
+                if !label.isEmpty, w.intersects(frame), found[key] == nil { found[key] = frame }
             }
             if !found.isEmpty { return found }
         }
         let barFrame = (try? app.navigationBars.firstMatch.snapshot())?.frame ?? .null
+        // Only labels no other text on the screen has: a read by label finds the first match, so a repeated one
+        // ("1 cup" twice) could compare two different texts and look like movement.
         let texts = app.staticTexts
-        for i in 0..<min(texts.count, 8) where found.count < 3 {
+        var seen: [String: Int] = [:], frames: [String: CGRect] = [:], order: [String] = []
+        for i in 0..<min(texts.count, 12) {
             guard let t = try? texts.element(boundBy: i).snapshot() else { continue }
             let label = t.label, frame = t.frame
-            guard !label.isEmpty, w.intersects(frame), barFrame.isNull || !barFrame.contains(frame) else { continue }
-            found[label] = frame
+            guard !label.isEmpty else { continue }
+            seen[label, default: 0] += 1
+            guard w.intersects(frame), barFrame.isNull || !barFrame.contains(frame), frames[label] == nil else { continue }
+            frames[label] = frame
+            order.append(label)
         }
+        for label in order where seen[label] == 1 && found.count < 3 { found[label] = frames[label] }
         return found
     }
 

@@ -243,6 +243,7 @@ jobs:
       - name: Gallery UI tests
         run: |
           set -u
+          mkdir -p .build
           gallery() {
             xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
               -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath ".build/$1.xcresult" \

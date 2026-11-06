@@ -263,7 +263,7 @@ final class ComponentClaimTests: XCTestCase {
                 XCTAssertTrue(field.exists && inSight.contains(field.frame), "\(name): the field being typed in is out of sight at \(field.frame)")
                 XCTAssertTrue(inSight.contains(action.frame), "\(name): the action is out of sight at \(action.frame), keyboard at \(keyboard.frame.minY)")
                 guard size != nil else {
-                    do { try app.ouroAccessibilityAudit() } catch { XCTFail("\(name) audit: \(error)") }
+                    do { try app.ouroAccessibilityAudit(excuse: Self.keyboardsOwn) } catch { XCTFail("\(name) audit: \(error)") }
                     app.terminate()
                     continue
                 }
@@ -278,7 +278,8 @@ final class ComponentClaimTests: XCTestCase {
                 let checked = [description.frame, action.frame]
                 do {
                     try app.ouroAccessibilityAudit(excuse: { issue in
-                        issue.compactDescription == "Text clipped" && checked.contains(issue.element?.frame ?? .null)
+                        Self.keyboardsOwn(issue)
+                            || (issue.compactDescription == "Text clipped" && checked.contains(issue.element?.frame ?? .null))
                     })
                 } catch { XCTFail("\(name) audit: \(error)") }
                 app.terminate()
@@ -288,6 +289,12 @@ final class ComponentClaimTests: XCTestCase {
 
     /// Claim text.reflows: at the largest size, with no keyboard, a sheet shorter than its content opens at its top, its
     /// title in sight, and stays there as its height settles.
+    /// The system keyboard's own parts, which the audit also reads while it is up: CI's simulator leaves the prediction
+    /// bar's cells empty, and the audit flags each as having no description. They are iOS's, not the sheet's.
+    private static func keyboardsOwn(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        issue.detailedDescription.contains("TUIPredictionViewCell")
+    }
+
     func testATallSheetOpensAtItsTopAtTheLargestSize() {
         let app = launch("sheet", size: Self.largest, extra: ["-sheetDetent", "medium"])
         let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch

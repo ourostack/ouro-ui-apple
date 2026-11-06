@@ -208,7 +208,8 @@ public struct OuroFeel {
     /// simulator a system `Toggle` ignored XCUITest's zero-length press 3 times in 3, so it measures XCUITest's event,
     /// not the app; add it only for a control that acts on touch-down. A tap lands when `read` (by default the
     /// control's value) changes within `within` seconds (3 by default, since a busy simulator can be slow to report a
-    /// change; landing is about whether the tap counted, not how fast). With `title`, it also taps the row's title and the gap between title
+    /// change; landing is about whether the tap counted, not how fast); one that has not landed by then gets twice as long
+    /// again (three times `within` in all) before it counts as a miss, and a landing in that time is noted as late. With `title`, it also taps the row's title and the gap between title
     /// and control; `rowToggles` says whether those should change the control (a row that acts as one button) or
     /// should not (iOS Settings rows). `baseline` is ``osBaseline(trials:rapid:)``.
     ///

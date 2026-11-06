@@ -406,6 +406,13 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroToastMetrics.stackDepth(index: 1, count: 3, frontMeasured: true) == 1)
     }
 
+    @Test func onlyTheFrontToastsFirstSizeTucksTheStackSoOnlyItIsAnimated() {
+        #expect(OuroToastMetrics.tucksOnMeasure(depth: 0, count: 2, measured: false))
+        #expect(!OuroToastMetrics.tucksOnMeasure(depth: 0, count: 2, measured: true))
+        #expect(!OuroToastMetrics.tucksOnMeasure(depth: 0, count: 1, measured: false))
+        #expect(!OuroToastMetrics.tucksOnMeasure(depth: 1, count: 3, measured: false))
+    }
+
     @Test func aTuckingToastKeepsItsSizeUntilTheNewOneIsMeasured() {
         let own = CGSize(width: 220, height: 56), front = CGSize(width: 260, height: 56)
         #expect(OuroToastMetrics.tuckedSize(front: nil, own: own) == own)

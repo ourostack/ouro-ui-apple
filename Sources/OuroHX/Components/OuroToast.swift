@@ -210,6 +210,12 @@ public enum OuroToastMetrics {
     /// so it never collapses to nothing for an arrival's first frames.
     public static func tuckedSize(front: CGSize?, own: CGSize?) -> CGSize? { front ?? own }
 
+    /// Whether a toast's first measurement tucks the stack behind it: the front toast's, with others behind it. That
+    /// change is animated with the arrival, never applied bare.
+    public static func tucksOnMeasure(depth: Int, count: Int, measured: Bool) -> Bool {
+        depth == 0 && count > 1 && !measured
+    }
+
     /// How strongly a toast's hairline edge and the theme's border show.
     public struct Outline: Equatable, Sendable {
         public var edge: Double
@@ -419,7 +425,17 @@ struct OuroToastHost: ViewModifier {
                                 let place = OuroToastMetrics.placement(depth: depth, expanded: expanded, above: above, reduceMotion: reduceMotion)
                                 let front = visible.last.flatMap { sizes[$0.id] }
                                 OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : OuroToastMetrics.tuckedSize(front: front, own: sizes[toast.id]), shade: place.shade) { toaster.dismiss(toast.id) }
-                                    .onGeometryChange(for: CGSize.self) { $0.size } action: { if place.showsWords { sizes[toast.id] = $0 } }
+                                    .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                                        guard place.showsWords else { return }
+                                        // The front toast's first size is what tucks the others behind it, so it lands
+                                        // on the arrival's spring: set bare, the tuck snapped in one frame, dropped it,
+                                        // and left a blank plate before the new toast showed (W8 round 7).
+                                        if OuroToastMetrics.tucksOnMeasure(depth: depth, count: visible.count, measured: sizes[toast.id] != nil) {
+                                            withAnimation(OuroToastMetrics.arrival(reduceMotion: reduceMotion).animation) { sizes[toast.id] = size }
+                                        } else {
+                                            sizes[toast.id] = size
+                                        }
+                                    }
                                     // A tucked toast can't be dragged or tapped unseen; a tap on the front one opens
                                     // the stack.
                                     .allowsHitTesting(place.showsWords)

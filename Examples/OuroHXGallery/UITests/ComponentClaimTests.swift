@@ -242,11 +242,12 @@ final class ComponentClaimTests: XCTestCase {
     /// Claim text.reflows in a sheet with the keyboard up, at the default and the largest size: the field being typed in
     /// and the action under it stay in sight above the keyboard and nothing runs up under the status bar. At the
     /// largest size the whole sheet scrolls to keep them there, and the action's capsule grows to hold its two lines.
+    /// A sheet with a detent, which the keyboard covers rather than iOS lifting it, is checked too, at the default size.
     func testASheetWithTheKeyboardUpKeepsItsFieldAndActionInSight() throws {
-        for size in [nil, Self.largest] {
+        for (size, detent) in [(nil, false), (nil, true), (Self.largest, false)] as [(String?, Bool)] {
             for scheme in ["light", "dark"] {
-                let name = "\(size ?? "default") \(scheme)"
-                let app = launch("sheet", open: false, size: size, scheme: scheme, extra: ["-sheetKeyboard", "1"])
+                let name = "\(size ?? "default")\(detent ? " large detent" : "") \(scheme)"
+                let app = launch("sheet", open: false, size: size, scheme: scheme, extra: ["-sheetKeyboard", "1"] + (detent ? ["-sheetDetent", "large"] : []))
                 let keyboard = app.keyboards.firstMatch
                 XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "\(name): the keyboard is not up")
                 let action = app.buttons["Create cookbook"].firstMatch
@@ -283,6 +284,18 @@ final class ComponentClaimTests: XCTestCase {
                 app.terminate()
             }
         }
+    }
+
+    /// Claim text.reflows: at the largest size, with no keyboard, a sheet taller than the screen opens at its top, its
+    /// title in sight, and stays there as its height settles.
+    func testATallSheetOpensAtItsTopAtTheLargestSize() {
+        let app = launch("sheet", size: Self.largest)
+        let title = app.staticTexts["Save to cookbook"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "no sheet title")
+        sleep(1)
+        let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
+        XCTAssertGreaterThanOrEqual(title.frame.minY, sheet.frame.minY - 1, "the title is scrolled away, at \(title.frame) in a sheet at \(sheet.frame)")
+        app.terminate()
     }
 
     /// Claim dismiss.reachable: a toast sent while a sheet is open shows above the sheet, where it can be read and

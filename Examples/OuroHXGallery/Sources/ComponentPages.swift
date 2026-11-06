@@ -242,7 +242,9 @@ struct SheetsPage: View {
         .task { await play("sheet", hold: 3, forth: { open = true }, back: { open = false }) }
         // A sheet with a field that takes focus, the keyboard up: with it, at the largest sizes, the words above scroll
         // and the action keeps its height.
-        .ouroSheet(isPresented: $naming, title: "New cookbook", description: "Name it after what goes inside.", onDismiss: { name = "" }) {
+        // `-sheetDetent large` gives it a detent, so the keyboard covers its bottom rather than iOS lifting it.
+        .ouroSheet(isPresented: $naming, title: "New cookbook", description: "Name it after what goes inside.",
+                   detents: UserDefaults.standard.string(forKey: "sheetDetent") == "large" ? [.large] : nil, onDismiss: { name = "" }) {
             NameField(text: $name)
         } footer: {
             OuroButton("Create cookbook", fullWidth: true) { naming = false }

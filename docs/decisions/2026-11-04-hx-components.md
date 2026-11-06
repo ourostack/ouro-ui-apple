@@ -208,8 +208,11 @@ It compiled and used every component as documented. What it found, and what chan
   what scrolls changes: a first version that swapped layouts failed the audit at the default size, because the audit's
   own text-size probe rebuilt the sheet mid-check. The gallery's Sheets page gains a "New cookbook" sheet with a
   focused field (`-sheetKeyboard 1`), and `testASheetWithTheKeyboardUpKeepsItsFieldAndActionInSight` checks it at the
-  default and largest sizes, light and dark. Known (#26): there, iOS 26 still draws a few points of the scrolled-away
-  title above the sheet's top edge.
+  default size (fitted and at the `.large` detent) and the largest, light and dark;
+  `testATallSheetOpensAtItsTopAtTheLargestSize` checks that a sheet taller than the screen still opens at its title.
+  Known (#26): at the largest size with the keyboard up, iOS 26 still draws a few points of the scrolled-away title
+  above the sheet's top edge; and at the accessibility sizes, dragging a sheet between `.medium` and `.large` may
+  bring its end into view, which is unverified.
 - **The toaster on the screen itself.** The fault for a dropped toast now says the toaster must be above the sending
   view, and the Components article says a toast sent from the same view's body is dropped.
 - **Themes, toggles.** The article now says what each theme looks like, and that a toggle titled with an icon `Label`

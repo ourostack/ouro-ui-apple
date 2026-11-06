@@ -103,8 +103,8 @@ What the components don't do for you, and how to match them:
   another one takes over for the views inside it.
 - **A sheet with a field.** At the accessibility sizes the whole sheet scrolls, title and actions too; while the
   keyboard is up, its end (the field being typed in and the actions) stays in view. Below those sizes the title and
-  actions stay put above the keyboard and the body scrolls between them. The gallery checks a fitted sheet with a
-  field; for a sheet with `detents`, check yours. Use `TextField(_:text:prompt:axis: .vertical)` so long
+  actions stay put above the keyboard and the body scrolls between them. The gallery checks this for a fitted
+  sheet and for one at the `.large` detent. Use `TextField(_:text:prompt:axis: .vertical)` so long
   words wrap instead of running out of the field.
 - **Disabled buttons** all look the same: a muted chip with an outline and a label that still reads at the target,
   not web's half opacity, which Xcode's audit fails. SwiftUI tells VoiceOver they are dimmed. A `loading` button is

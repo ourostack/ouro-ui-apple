@@ -145,14 +145,16 @@ final class ComponentClaimTests: XCTestCase {
     /// Claim dismiss.reachable: a toast sent while a sheet is open shows above the sheet, where it can be read and
     /// closed from its Dismiss button.
     func testAToastShowsAboveASheet() {
-        let app = launch("sheet", open: false)
+        // Kept until dismissed: a busy CI runner took longer than its five seconds to reach the Dismiss tap (#14,
+        // 2026-11-06), so the toast had gone by itself.
+        let app = launch("sheet", open: false, extra: ["-toastSeconds", "0"])
         app.buttons["Filters"].tap()
         XCTAssertTrue(app.buttons["Remember these"].waitForExistence(timeout: 3))
         app.buttons["Remember these"].tap()
         XCTAssertTrue(app.staticTexts["Filters remembered"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Filters remembered"].isHittable, "the toast is behind the sheet")
         app.buttons.matching(identifier: "Dismiss").firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["Filters remembered"].waitForNonExistence(timeout: 3), "its Dismiss closes it")
+        XCTAssertTrue(app.staticTexts["Filters remembered"].waitForNonExistence(timeout: Self.closeBudget), "its Dismiss closes it")
         app.terminate()
     }
 

@@ -634,8 +634,10 @@ struct OuroToastView: View {
         .padding(.vertical, 6)
         .frame(minHeight: OuroToastMetrics.height)
         // The words fade in 0.1 s on their own clock, out as a toast tucks and in as it comes to the front, before its
-        // plate has moved far, so two sets of words never share a place (taste round 6).
-        .transition(.opacity.animation(OuroToastMetrics.wordsFade))
+        // plate has moved far, so two sets of words never share a place (taste round 6). At the accessibility sizes
+        // one toast shows and nothing tucks, so they keep the plain fade: the quick one, as the stack of three
+        // there became one, left words the accessibility audit read as clipped, though none were on screen.
+        .transition(large ? .opacity : .opacity.animation(OuroToastMetrics.wordsFade))
         } else {
             Color.clear.frame(minHeight: OuroToastMetrics.height).accessibilityHidden(true)
         }

@@ -167,7 +167,8 @@ Status: accepted (W8 of the HX and AX native program).
       with its mark, so the mark isn't clipped. Round 7's first pass had one no, lens B's on the empty state: its
       layered magnifier drew two-tone under hierarchical rendering and sank into a dark page, so every symbol is now
       one tone (`.monochrome`), and its one bounce on arrival was shown in a dense strip. Then both lenses said yes
-      to all six. On the buttons page, contrast on a glass button is excused and
+      to all six. At the accessibility sizes, where one toast shows and nothing tucks, the words keep the plain fade:
+      with the quick one, the stack of three becoming one left words the audit read as clipped, though none showed. On the buttons page, contrast on a glass button is excused and
       measured instead from the screen's pixels (`glassMisreadings`, `inkContrast`). The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and

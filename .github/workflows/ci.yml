@@ -278,14 +278,16 @@ jobs:
         # Release, as people run it: a Debug SwiftUI build hitches where the shipped one does not.
         run: |
           set -o pipefail
-          xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
+          # The hosted VM has no GPU: see MotionTests.testAButtonPressesAndReleasesSmoothly for the one transition
+          # that is reported there, not gated.
+          TEST_RUNNER_OURO_HOSTED_VM=1 xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
             -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath .build/gallery-motion.xcresult \
             -only-testing:OuroHXGalleryUITests/MotionTests \
             CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error|failed|passed|skipped|Executed|TEST" | tail -60
       - if: always()
         name: Pack the result bundle
         run: |
-          bundles="$(cd .build && ls -d gallery-ui*.xcresult gallery-ui*.log 2>/dev/null || true)"
+          bundles="$(cd .build && ls -d gallery-ui*.xcresult gallery-ui*.log gallery-motion.xcresult 2>/dev/null || true)"
           test -n "$bundles" && tar -czf .build/gallery-ui.tgz -C .build $bundles || true
           test -d .build/gallery-motion.xcresult && tar -czf .build/gallery-motion.tgz -C .build gallery-motion.xcresult || true
       - if: always()

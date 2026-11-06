@@ -241,6 +241,45 @@ final class ComponentClaimTests: XCTestCase {
 
     /// Claim dismiss.reachable: a toast sent while a sheet is open shows above the sheet, where it can be read and
     /// closed from its Dismiss button.
+    /// Claim text.reflows in a sheet with the keyboard up: at the largest size the whole sheet scrolls, so the field
+    /// being typed in and the action under it stay in sight, nothing runs past the top of the screen, and the action's
+    /// capsule keeps its words inside.
+    /// The audit's clipped-text check holds there, with no excuse, as this sheet sits at full height.
+    func testASheetWithTheKeyboardUpKeepsItsWordsInsideAtTheLargestSize() throws {
+        for scheme in ["light", "dark"] {
+            let app = launch("sheet", open: false, size: Self.largest, scheme: scheme, extra: ["-sheetKeyboard", "1"])
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "\(scheme): the keyboard is not up")
+            sleep(1)
+            let screen = app.windows.firstMatch.frame
+            let action = app.buttons["Create cookbook"].firstMatch
+            XCTAssertTrue(action.exists, "\(scheme): no Create cookbook")
+            let words = action.staticTexts.firstMatch
+            if words.exists {
+                XCTAssertTrue(action.frame.insetBy(dx: -1, dy: -1).contains(words.frame), "\(scheme): the action's words \(words.frame) spill out of its capsule \(action.frame)")
+            }
+            XCTAssertLessThanOrEqual(action.frame.maxY, app.keyboards.firstMatch.frame.minY + 1, "\(scheme): the action is under the keyboard")
+            let field = app.textFields["sheet.name"].firstMatch
+            XCTAssertTrue(field.isHittable && field.frame.maxY <= app.keyboards.firstMatch.frame.minY + 1, "\(scheme): the field being typed in is out of sight at \(field.frame)")
+            let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
+            XCTAssertGreaterThanOrEqual(sheet.frame.minY, screen.minY + 40, "\(scheme): the sheet runs up under the status bar at \(sheet.frame)")
+            // The audit reads the description and the action, scrolled to with the keyboard up, as "Text clipped",
+            // though both wrap in full (each grows to fit its words, at every size). What that excuse could hide is
+            // checked here: each is wholly in sight, between the sheet's top and the keyboard.
+            let inSight = CGRect(x: screen.minX, y: sheet.frame.minY, width: screen.width, height: app.keyboards.firstMatch.frame.minY - sheet.frame.minY + 1)
+            for label in ["Name it after what goes inside.", "Create cookbook"] {
+                let element = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
+                XCTAssertTrue(inSight.contains(element.frame), "\(scheme): \(label) at \(element.frame) is not wholly in sight")
+            }
+            let scrolledTo: Set<String> = ["Name it after what goes inside.", "Create cookbook"]
+            do {
+                try app.ouroAccessibilityAudit(excuse: { issue in
+                    issue.compactDescription == "Text clipped" && scrolledTo.contains(issue.element?.label ?? "")
+                })
+            } catch { XCTFail("\(scheme) audit: \(error)") }
+            app.terminate()
+        }
+    }
+
     func testAToastShowsAboveASheet() {
         // Kept until dismissed: a busy CI runner took longer than its five seconds to reach the Dismiss tap (#14,
         // 2026-11-06), so the toast had gone by itself.

@@ -292,7 +292,7 @@ public struct OuroToaster: Sendable {
     static let missing = OuroToaster(
         isInstalled: false,
         send: { toast in
-            Logger(subsystem: "bot.ouro.hx", category: "OuroToast").fault("OuroToast \"\(toast.message, privacy: .public)\" was not shown. Fix: add .ouroToaster() to your app's root view.")
+            Logger(subsystem: "bot.ouro.hx", category: "OuroToast").fault("OuroToast \"\(toast.message, privacy: .public)\" was not shown: no .ouroToaster() above the view that sent it. Fix: add .ouroToaster() to your app's root view; if it is on the sending view itself, send from a child view instead.")
         },
         remove: { _ in }
     )

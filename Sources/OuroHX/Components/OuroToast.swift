@@ -550,12 +550,9 @@ struct OuroToastView: View {
                             .foregroundStyle(message)
                             .fixedSize(horizontal: false, vertical: true)
                         if let description = toast.description {
-                            // Smaller and lighter in weight, not in colour: on glass the system's secondary label is a 60%
-                            // grey that falls under 4.5:1 once the glass has tinted what it sits on (the accessibility audit
-                            // measured 'Check your connection.' below that in light and dark), so it keeps the message's colour.
                             Text(description)
                                 .font(.footnote)
-                                .foregroundStyle(solid ? secondary : message)
+                                .foregroundStyle(secondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }

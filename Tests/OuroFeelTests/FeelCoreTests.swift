@@ -128,6 +128,22 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(f.doubleDraws(of: ["Pancakes"]).passed)
     }
 
+    @Test func aFilmWithAGapLongerThanMaxGapCannotPassForDoubleDraw() {
+        // A copy drawn for less than the gap could fall inside it, so no copy seen is no evidence.
+        let f = film([(0, [card(100, label: "Pancakes")]), (0.05, [card(100, label: "Pancakes")]), (1.5, [card(500, label: "Pancakes")])])
+        let r = f.doubleDraws(of: ["Pancakes"])
+        #expect(!r.passed)
+        #expect(r.detections.isEmpty)
+        #expect(r.findings.contains { $0.unchecked && $0.what.contains("1.450 s apart") })
+        #expect(f.doubleDraws(of: ["Pancakes"], maxGap: 2).passed)
+    }
+
+    @Test func aCopySeenIsADoubleDrawHoweverSparseTheFilm() {
+        let f = film([(0, [card(100, key: "a", label: "Pancakes"), card(500, key: "b", label: "Pancakes")]), (2, [card(500, label: "Pancakes")])])
+        let r = f.doubleDraws(of: ["Pancakes"])
+        #expect(r.detections.count == 1)
+    }
+
     @Test func twoChromeStatesOnScreenTogetherLinger() {
         let a = card(10, key: "bar.full"), b = card(10, key: "bar.compact")
         let f = film([(0, [a]), (0.1, [a, b]), (0.3, [a, b]), (0.5, [b])])

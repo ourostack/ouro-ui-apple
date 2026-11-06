@@ -192,7 +192,7 @@ every motion check reads the same film.
 let film = feel.film(["cook.cover", "Pancakes", "bar.full", "bar.compact"], for: 4)
 feel.expect(film.snaps(of: "cook.cover"))
 feel.expect(film.jumps(of: "cook.cover"))                 // > 2 pt after 0.3 s at rest
-feel.expect(film.doubleDraws(of: ["Pancakes"]))
+feel.expect(film.doubleDraws(of: ["Pancakes"]))         // samples at most 0.5 s apart (maxGap:)
 feel.expect(film.chrome(from: "bar.full", to: "bar.compact"))
 feel.expect(film.settles("cook.cover", within: 1.0))
 ```
@@ -202,7 +202,8 @@ feel.expect(film.settles("cook.cover", within: 1.0))
 not the frames inside it. To film a transition itself, have the app start it a moment after the tap: a test-only
 launch argument that delays it, as the fixture's Play button does (`-autoplay 2`, two seconds after the tap). Timing it
 from launch is fragile: under load, launching took longer than the delay and the film began after the motion. A check
-that sees no motion says "could not check"; it never passes.
+that sees no motion says "could not check"; it never passes. Nor does a double-draw check whose samples were ever
+further apart than `maxGap` (0.5 s by default) and saw no copy: a copy shown for less than the gap could be missed.
 
 What the samples show mid-transition (seen on the iOS 27.2 simulator): SwiftUI stretches an animating element's
 accessibility frame from where it is drawn to where it is going, so a sample at another size than the element's resting

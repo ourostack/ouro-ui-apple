@@ -202,12 +202,14 @@ It compiled and used every component as documented. What it found, and what chan
 
 - **A sheet with a field at the largest sizes.** With the keyboard up, the pinned title and description took the room,
   the actions row was squeezed below its height so the button's words spilled out of its capsule, and the audit read
-  every text as clipped. At the accessibility sizes the whole sheet now scrolls, title and actions too, anchored to its
-  end when the keyboard takes the room, so the field and the actions stay in view. The gallery's Sheets page gains a
-  "New cookbook" sheet with a focused field (`-sheetKeyboard 1`), and
-  `testASheetWithTheKeyboardUpKeepsItsWordsInsideAtTheLargestSize` audits it in light and dark. Known: there, iOS 26
-  still draws a few points of the scrolled-away title above the sheet's top edge; clipping, a hard scroll edge and a
-  point of top padding did not stop it (#26).
+  every text as clipped. At the accessibility sizes the whole sheet now scrolls, title and actions too, and as the
+  keyboard arrives its end (the field and the actions) comes into view. Below those sizes the title and actions stay
+  put in the room above the keyboard and the body scrolls between them. It is one view tree at every size, and only
+  what scrolls changes: a first version that swapped layouts failed the audit at the default size, because the audit's
+  own text-size probe rebuilt the sheet mid-check. The gallery's Sheets page gains a "New cookbook" sheet with a
+  focused field (`-sheetKeyboard 1`), and `testASheetWithTheKeyboardUpKeepsItsFieldAndActionInSight` checks it at the
+  default and largest sizes, light and dark. Known (#26): there, iOS 26 still draws a few points of the scrolled-away
+  title above the sheet's top edge.
 - **The toaster on the screen itself.** The fault for a dropped toast now says the toaster must be above the sending
   view, and the Components article says a toast sent from the same view's body is dropped.
 - **Themes, toggles.** The article now says what each theme looks like, and that a toggle titled with an icon `Label`

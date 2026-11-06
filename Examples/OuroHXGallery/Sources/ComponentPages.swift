@@ -262,7 +262,6 @@ struct SheetsPage: View {
     }
 }
 
-/// A row sized by `ouroTouchTarget`, so it is 44 points as drawn inside the sheet.
 /// A sheet's text field, focused as it appears, as a naming sheet's usually is.
 private struct NameField: View {
     @Binding var text: String
@@ -284,6 +283,7 @@ private struct NameField: View {
     }
 }
 
+/// A row sized by `ouroTouchTarget`, so it is 44 points as drawn inside the sheet.
 private struct CookbookRow: View {
     let name: String
     @Binding var picked: String

@@ -48,11 +48,27 @@ if [ "$platform" = "ios" ]; then
   xcrun simctl launch "$udid" "$bundle_id" >/dev/null
   sleep 8
   plan="$("$xray" plan --app "$app" $disposable)"
+  ios_probe() {
+    TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE="$([ -n "$disposable" ] && echo 1 || echo 0)" TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
+      xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-iOS -destination "id=$udid" -retry-tests-on-failure -test-iterations 2 \
+      -derivedDataPath "$here/.build/xray-probe-ios" > "$1" 2>&1
+  }
   set +e
-  TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE="$([ -n "$disposable" ] && echo 1 || echo 0)" TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
-    xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-iOS -destination "id=$udid" -retry-tests-on-failure -test-iterations 2 \
-    -derivedDataPath "$here/.build/xray-probe-ios" > "$out/probe.log" 2>&1
+  ios_probe "$out/probe.log"
   status=$?
+  # A test runner that crashes before any test starts ("never finished bootstrapping") ran nothing, and xcodebuild's own
+  # retry does not restart it. Reboot the simulator and run once more; the first log is kept beside the report.
+  if ! grep -q OURO-AX-PROBE-BEGIN "$out/probe.log" && grep -q "never finished bootstrapping" "$out/probe.log"; then
+    echo "xray-probe: the test runner crashed before the probe started (see probe-first-try.log); rebooting the simulator and trying once more"
+    mv "$out/probe.log" "$out/probe-first-try.log"
+    xcrun simctl shutdown "$udid" >/dev/null 2>&1
+    xcrun simctl boot "$udid"
+    xcrun simctl bootstatus "$udid" -b >/dev/null
+    xcrun simctl launch "$udid" "$bundle_id" >/dev/null
+    sleep 8
+    ios_probe "$out/probe.log"
+    status=$?
+  fi
   set -e
 else
   plist="$app/Contents/Info.plist"

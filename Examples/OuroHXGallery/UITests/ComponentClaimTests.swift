@@ -53,6 +53,21 @@ final class ComponentClaimTests: XCTestCase {
                             XCTAssertTrue(button.isHittable, "\(name) expanded: \(button.label) is not reachable")
                             XCTAssertGreaterThanOrEqual(min(button.frame.width, button.frame.height), 44, "\(name) expanded: \(button.label) is \(button.frame.size)")
                         }
+                        // Evidence for the element-less contrast issue the expanded audit leaves on iOS 26.5 (it names no
+                        // element, so it cannot say which toast it is about): audit the contrast alone as each toast is
+                        // dismissed in turn, newest first, and print how many issues remain. The count drops when the toast
+                        // it belongs to goes. It records and fails nothing.
+                        for left in stride(from: shownDismissButtons(app), through: 1, by: -1) {
+                            var found: [String] = []
+                            try? app.performAccessibilityAudit(for: .contrast) { issue in
+                                found.append("\(issue.compactDescription) element=\(issue.element?.label ?? "none")")
+                                return true
+                            }
+                            let first = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).min { $0.frame.minY < $1.frame.minY }
+                            print("toast bisect failed? \(name) expanded, \(left) toast(s) up: \(found.count) contrast issue(s) \(found); dismissing the one at y=\(first.map { "\($0.frame.minY)" } ?? "none")")
+                            first?.tap()
+                            Thread.sleep(forTimeInterval: 1.5)
+                        }
                     }
                     if run.page == "sheet", run.extra.isEmpty {
                         // What the excused "Text clipped" could hide: the fitted sheet's last row and its action

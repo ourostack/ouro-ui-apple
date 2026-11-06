@@ -42,7 +42,7 @@ extension XCUIApplication {
                 // XCTest reports only "Contrast failed" for the issue; this names what it failed on, so a run on a
                 // runtime you cannot run locally says which element (and where) the audit objected to.
                 let element = issue.element
-                print("audit issue failed: \(issue.compactDescription); element label=\"\(element?.label ?? "none")\" id=\"\(element?.identifier ?? "none")\" frame=\(element.map { "\($0.frame)" } ?? "none"); toasts=\(toasts); screen=\(screen)")
+                print("audit issue failed: \(issue.compactDescription) | \(issue.detailedDescription) | type=\(issue.auditType.rawValue) | \(String(reflecting: issue)); element label=\"\(element?.label ?? "none")\" id=\"\(element?.identifier ?? "none")\" frame=\(element.map { "\($0.frame)" } ?? "none"); toasts=\(toasts); screen=\(screen)")
             }
             return excused
         }

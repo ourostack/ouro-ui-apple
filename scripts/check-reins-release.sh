@@ -14,8 +14,10 @@ symbols() {
     echo "check-reins-release: no OuroReins objects under .build/$config" >&2
     exit 1
   fi
+  # With several objects nm heads each one with "<path>.o:", and ReinsSocketServer.swift.o would count as a symbol;
+  # keep symbol lines only.
   # shellcheck disable=SC2086
-  nm $objects 2>/dev/null
+  nm $objects 2>/dev/null | grep -v ':$' || true
 }
 
 debug="$(symbols debug)"

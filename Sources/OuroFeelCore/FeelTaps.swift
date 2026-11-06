@@ -19,11 +19,22 @@ public struct FeelTapTrial: Codable, Equatable, Sendable {
     public var spot: FeelTapSpot
     public var landed: Bool
     public var expected: Bool
+    /// The change showed only after the usual wait: the one tap landed, and a loaded machine reported it late.
+    public var late: Bool
 
-    public init(spot: FeelTapSpot, landed: Bool, expected: Bool = true) {
+    public init(spot: FeelTapSpot, landed: Bool, expected: Bool = true, late: Bool = false) {
         self.spot = spot
         self.landed = landed
         self.expected = expected
+        self.late = late
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        spot = try c.decode(FeelTapSpot.self, forKey: .spot)
+        landed = try c.decode(Bool.self, forKey: .landed)
+        expected = try c.decodeIfPresent(Bool.self, forKey: .expected) ?? true
+        late = try c.decodeIfPresent(Bool.self, forKey: .late) ?? false
     }
 }
 
@@ -69,6 +80,8 @@ public enum FeelTaps {
             let here = should.filter { $0.spot == spot }
             let hits = here.filter(\.landed).count
             if hits < here.count { findings.append(FeelFinding(what: "\(spot.rawValue): \(hits) of \(here.count) single taps landed")) }
+            let late = here.filter { $0.landed && $0.late }.count
+            if late > 0 { findings.append(.note("\(spot.rawValue): \(late) of \(here.count) single taps landed late (the change showed after the usual wait)")) }
             let stray = trials.filter { !$0.expected && $0.spot == spot && $0.landed }.count
             if stray > 0 { findings.append(FeelFinding(what: "\(spot.rawValue): \(stray) taps changed the control, which they should not")) }
         }
@@ -81,6 +94,8 @@ public enum FeelTaps {
                     + "so some misses may be the simulator's; confirm on a device", inferred: true))
             }
         }
+        let late = should.filter { $0.landed && $0.late }.count
+        if late > 0 { measures["late"] = Double(late) }
         var summary = "\(landed) of \(should.count) single taps landed, no retries"
         var rapidPassed = true
         if let rapid {

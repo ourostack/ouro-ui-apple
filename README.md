@@ -1,3 +1,9 @@
+<!-- ourostack:brand:start -->
+<p align="center">
+  <a href="https://github.com/ourostack"><img src="https://raw.githubusercontent.com/ourostack/.github/main/brand/headers/ouro-ui-apple.webp" alt="Ouro beside a phone, a tablet and a laptop all showing the green Ouro HX card, with a small robot pressing a button" width="100%"></a>
+</p>
+<!-- ourostack:brand:end -->
+
 # Ouro UI for Apple
 
 **Ouro HX for people and Ouro AX for agents, in Swift.** The same colours, motion and manners as
@@ -28,6 +34,7 @@ OS has them.
 | `OuroAXTestingProbe` | the X-ray's test plan | runs the X-ray's behaviour stage with AppIntentsTesting ([Templates/XrayProbe](Templates/XrayProbe)) |
 | `ouro-ax-skills` | you and CI | lints `Skills.skillsbundle` for Siri: `swift run ouro-ax-skills lint path/to/Skills.skillsbundle` |
 | `OuroAXSkillsLintPlugin` | your build | the same lint at build time, with errors pinned to the line |
+| `OuroReins` | your app's UI-free core, its tests and agents | every screen as state and actions, driven with `ls` and `do` headless or over a debug-only socket; journeys; a network guard that fails any request ([docs/ouro-reins/README.md](docs/ouro-reins/README.md)) |
 | `ouro-devicehub` | a Mac CI job | presses Device Hub's buttons: `dump`, `press "Partially Open"`, `serve <dir>` |
 
 ```swift
@@ -96,6 +103,20 @@ feel.expect(feel.insideWindow())             // portrait, landscape, portrait ag
 The guide is [docs/ouro-feel/README.md](docs/ouro-feel/README.md); what still needs a human eye is
 [docs/ouro-feel/taste-rubric.md](docs/ouro-feel/taste-rubric.md). `Examples/OuroFeelFixture` proves each check catches
 its bug.
+
+## Ouro Reins: hand an agent the reins
+
+An agent sees each screen as state and actions and drives it with `ls` and `do`: headless, from fixtures, with the
+network blocked. Spoonjoy's Kitchen-to-cook-mode journey takes about 19 ms this way and about 17 s through XCUITest
+(Spoonjoy's spike, `spike/w13-reins`).
+
+```sh
+swift run ouro-reins-sample ls 'do openItem {"id":"flour"}' 'do toggleStocked' 'do goBack'
+```
+
+The guide is [docs/ouro-reins/README.md](docs/ouro-reins/README.md), the agent skill
+[docs/ouro-reins/SKILL.md](docs/ouro-reins/SKILL.md), and the decisions
+[docs/decisions/2026-11-05-ouro-reins.md](docs/decisions/2026-11-05-ouro-reins.md).
 
 ## The gallery
 

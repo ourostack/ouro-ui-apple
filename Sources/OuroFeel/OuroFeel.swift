@@ -208,7 +208,8 @@ public struct OuroFeel {
     /// simulator a system `Toggle` ignored XCUITest's zero-length press 3 times in 3, so it measures XCUITest's event,
     /// not the app; add it only for a control that acts on touch-down. A tap lands when `read` (by default the
     /// control's value) changes within `within` seconds (3 by default, since a busy simulator can be slow to report a
-    /// change; landing is about whether the tap counted, not how fast). With `title`, it also taps the row's title and the gap between title
+    /// change; landing is about whether the tap counted, not how fast); one that has not landed by then gets twice as long
+    /// again (three times `within` in all) before it counts as a miss, and a landing in that time is noted as late. With `title`, it also taps the row's title and the gap between title
     /// and control; `rowToggles` says whether those should change the control (a row that acts as one button) or
     /// should not (iOS Settings rows). `baseline` is ``osBaseline(trials:rapid:)``.
     ///
@@ -237,8 +238,15 @@ public struct OuroFeel {
         func trial(_ spot: FeelTapSpot, expected: Bool, _ act: () -> Void) {
             let before = read()
             act()
-            let landed = wait(within) { read() != before }
-            results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected))
+            var landed = wait(within) { read() != before }
+            // One tap, never resent. A loaded machine can report a change late, so a tap that should land is given
+            // twice as long again before it counts as a miss; one that lands then is noted as late.
+            var late = false
+            if expected && !landed {
+                landed = wait(within * 2) { read() != before }
+                late = landed
+            }
+            results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected, late: late))
             // Let the control finish its own animation (a switch's knob slides on after its value flips) before the
             // next tap, as a person would; a tap during it can be swallowed, which is not the target's fault.
             pause(0.6)
@@ -280,6 +288,20 @@ public struct OuroFeel {
     }
 
     #if os(iOS)
+    /// The control's value once it has held still for a second (at least 0.8 s after the taps, at most 6 s): a loaded
+    /// machine can apply the second tap of a pair late, and a pair read too early looks as if it lost a tap.
+    func settled(_ read: () -> String) -> String {
+        pause(0.8)
+        var last = read(), still = Date()
+        let end = Date().addingTimeInterval(5.2)
+        while Date() < end {
+            pause(0.2)
+            let now = read()
+            if now != last { last = now; still = Date() } else if Date().timeIntervalSince(still) >= 1 { break }
+        }
+        return last
+    }
+
     /// `pairs` double taps at `at`, each from a settled control (``FeelRapidTaps``); one that ends changed is put back
     /// with a single tap. A point, not the element, so the OS baseline can hit a Settings switch's knob (XCUITest gives
     /// that switch the whole row's frame, where a tap does nothing). The same loop serves the app and the baseline.
@@ -290,21 +312,19 @@ public struct OuroFeel {
         for _ in 0..<pairs {
             let start = read()
             at().doubleTap()
-            pause(0.8)
-            if read() == start {
+            if settled(read) == start {
                 same += 1
             } else {
                 at().tap()
-                pause(0.8)
+                _ = settled(read)
             }
         }
         var tripleChanged: Bool?
         if let triple {
             let start = read()
             triple()
-            pause(0.8)
-            tripleChanged = read() != start
-            if tripleChanged == true { at().tap(); pause(0.8) }
+            tripleChanged = settled(read) != start
+            if tripleChanged == true { at().tap(); _ = settled(read) }
         }
         return FeelRapidTaps(pairs: pairs, endedWhereStarted: same, tripleChanged: tripleChanged)
     }

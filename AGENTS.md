@@ -28,7 +28,7 @@ Meerkat mode: look around first. Before you design or build something new (a com
 ## Names match web
 
 - A component or helper that exists on web keeps web's name: `Button`, `Dialog`, `EmptyState`, `Banner`, `Sheet`, `Toast`. Colour names are HX's CSS variables in camel case (`--primary-foreground` is `primaryForeground`).
-- Every public type starts with `Ouro` or lives under `OuroAX`. A name never carries a platform: it is `OuroHX`, not `OuroHXApple`, and "Apple" appears only after "for" in prose.
+- Every public type starts with `Ouro`, lives under `OuroAX`, or, in a kit named `Ouro<Kit>`, starts with the kit's name: `Feel*` in `OuroFeel`, `Reins*` in `OuroReins`. A name never carries a platform: it is `OuroHX`, not `OuroHXApple`, and "Apple" appears only after "for" in prose.
 
 ## Components
 
@@ -90,3 +90,15 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
   (`Examples/OuroFeelFixture`, bug behind `-bug 1`) must still fail on each bug and pass without it.
 - Ouro Feel lives in its own targets and folders (`Sources/OuroFeel*`, `docs/ouro-feel`, `Examples/OuroFeelFixture`);
   keep component work out of them.
+
+## Ouro Reins
+
+`OuroReins` lets agents drive an app's screens as state and actions, headless (`ls`, `do`). Guide:
+[docs/ouro-reins/README.md](docs/ouro-reins/README.md); agent skill: [docs/ouro-reins/SKILL.md](docs/ouro-reins/SKILL.md);
+decision: `docs/decisions/2026-11-05-ouro-reins.md`.
+
+- `OuroReins` never imports SwiftUI or XCTest; it must link into an app's UI-free core.
+- `ReinsSocketServer` stays under `#if DEBUG`; `scripts/check-reins-release.sh` (CI) proves the release build has none
+  of it.
+- A behaviour journey runs under `ReinsNetworkGuard`. A failure there means a missing fixture: inject it through the
+  type's constructor; never loosen the guard.

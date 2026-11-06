@@ -128,6 +128,22 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(f.doubleDraws(of: ["Pancakes"]).passed)
     }
 
+    @Test func aFilmWithAGapLongerThanMaxGapCannotPassForDoubleDraw() {
+        // A copy drawn for less than the gap could fall inside it, so no copy seen is no evidence.
+        let f = film([(0, [card(100, label: "Pancakes")]), (0.05, [card(100, label: "Pancakes")]), (1.5, [card(500, label: "Pancakes")])])
+        let r = f.doubleDraws(of: ["Pancakes"])
+        #expect(!r.passed)
+        #expect(r.detections.isEmpty)
+        #expect(r.findings.contains { $0.unchecked && $0.what.contains("1.450 s apart") })
+        #expect(f.doubleDraws(of: ["Pancakes"], maxGap: 2).passed)
+    }
+
+    @Test func aCopySeenIsADoubleDrawHoweverSparseTheFilm() {
+        let f = film([(0, [card(100, key: "a", label: "Pancakes"), card(500, key: "b", label: "Pancakes")]), (2, [card(500, label: "Pancakes")])])
+        let r = f.doubleDraws(of: ["Pancakes"])
+        #expect(r.detections.count == 1)
+    }
+
     @Test func twoChromeStatesOnScreenTogetherLinger() {
         let a = card(10, key: "bar.full"), b = card(10, key: "bar.compact")
         let f = film([(0, [a]), (0.1, [a, b]), (0.3, [a, b]), (0.5, [b])])
@@ -331,6 +347,81 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
 
     @Test func findingNoScreensAtAllFails() {
         #expect(!FeelWayBack.evaluate([]).passed)
+    }
+
+    @Test func aGestureThatMovedTheScreenAndSettledBackIsNoWayBack() {
+        let d = FeelDestination(path: ["Recipes", "Settings"], affordance: "Done", affordanceReturns: true, gesture: nil, gestureArrived: true)
+        let r = FeelWayBack.evaluate([d])
+        #expect(!r.passed)
+        #expect(r.detections.count == 1)
+        #expect(r.detections[0].what.contains("Recipes › Settings"))
+        #expect(r.detections[0].what.contains("settled back"))
+    }
+
+    @Test func aGestureThatNeverMovedTheScreenCouldNotBeChecked() {
+        let d = FeelDestination(path: ["Recipes", "Chef"], affordance: "Back", affordanceReturns: true, gesture: nil, gestureArrived: false)
+        let r = FeelWayBack.evaluate([d])
+        #expect(!r.passed, "could not check is never a pass")
+        #expect(r.detections.isEmpty, "a gesture that never arrived is not a bug found")
+        #expect(r.findings.count == 1 && r.findings[0].unchecked)
+        #expect(r.findings[0].what.contains("Recipes › Chef"))
+        #expect(r.findings[0].what.contains("moved nothing"))
+        #expect(r.summary.hasPrefix("could not check"))
+    }
+
+    @Test func aScreenWithNoButtonBackFailsEvenWhenItsGestureNeverArrived() {
+        let d = FeelDestination(path: ["Cook"], affordance: nil, affordanceReturns: false, gesture: nil, gestureArrived: false)
+        let r = FeelWayBack.evaluate([d])
+        #expect(r.detections.map(\.what).contains { $0.contains("no visible way back") })
+        #expect(r.findings.contains { $0.unchecked })
+    }
+
+    @Test func anOldRecordWithoutArrivalStillFails() throws {
+        let json = #"{"path":["a"],"affordance":"Back","affordanceReturns":true}"#
+        let d = try JSONDecoder().decode(FeelDestination.self, from: Data(json.utf8))
+        #expect(d.gestureArrived == nil)
+        #expect(FeelWayBack.evaluate([d]).detections.count == 1)
+    }
+}
+
+@Suite struct GestureProgressTests {
+    let window = CGRect(x: 0, y: 0, width: 400, height: 800)
+
+    @Test func aScreenThatFollowedTheFingerAcrossMoved() {
+        // The pushed screen's text slid from x 139 to 272 while the finger was held, as an interactive pop does.
+        let before = ["Pancakes recipe": CGRect(x: 139, y: 300, width: 120, height: 20)]
+        let during = [["Pancakes recipe": CGRect(x: 139, y: 300, width: 120, height: 20)],
+                      ["Pancakes recipe": CGRect(x: 272, y: 300, width: 120, height: 20)]]
+        #expect(FeelGestureProgress.moved(before: before, during: during, axis: .horizontal, window: window))
+        #expect(!FeelGestureProgress.moved(before: before, during: during, axis: .vertical, window: window))
+    }
+
+    @Test func aScreenThatStayedPutDidNotMove() {
+        let before = ["Ada's recipes": CGRect(x: 150, y: 300, width: 100, height: 20)]
+        let during = Array(repeating: before, count: 8)
+        #expect(!FeelGestureProgress.moved(before: before, during: during, axis: .horizontal, window: window))
+    }
+
+    @Test func aFewPointsOfJitterIsNotMovement() {
+        let before = ["t": CGRect(x: 150, y: 300, width: 100, height: 20)]
+        let during = [["t": CGRect(x: 154, y: 302, width: 100, height: 20)]]
+        #expect(!FeelGestureProgress.moved(before: before, during: during, axis: .horizontal, window: window))
+    }
+
+    @Test func aSheetPulledDownMovedVertically() {
+        let before = ["Settings": CGRect(x: 150, y: 400, width: 100, height: 20)]
+        let during = [["Settings": CGRect(x: 150, y: 460, width: 100, height: 20)]]
+        #expect(FeelGestureProgress.moved(before: before, during: during, axis: .vertical, window: window))
+    }
+
+    @Test func noSamplesIsNoEvidenceOfMovement() {
+        #expect(!FeelGestureProgress.moved(before: ["t": .zero], during: [], axis: .horizontal, window: window))
+    }
+
+    @Test func anAnchorThatVanishedMidGestureIsNotMovement() {
+        // Gone from the tree is not a displacement we saw; whether the screen went back is read separately.
+        let before = ["t": CGRect(x: 150, y: 300, width: 100, height: 20)]
+        #expect(!FeelGestureProgress.moved(before: before, during: [[:]], axis: .horizontal, window: window))
     }
 }
 
@@ -655,6 +746,26 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
 
 /// People tap while a control is still animating. Every double tap must end where it started: our bar is higher than
 /// UIKit's, so the OS switch's rate is context in the report and never turns a fail into a pass.
+@Suite struct LateTapTests {
+    @Test func aTapThatLandedLateLandedAndIsNoted() {
+        // A loaded machine reports a change late; the tap was sent once, and it landed.
+        let r = FeelTaps.evaluate([FeelTapTrial(spot: .centre, landed: true), FeelTapTrial(spot: .centre, landed: true, late: true)])
+        #expect(r.passed)
+        #expect(r.summary.contains("2 of 2 single taps landed, no retries"))
+        #expect(r.findings.contains { $0.note && $0.what.contains("centre: 1 of 2 single taps landed late") })
+        #expect(r.measures["late"] == 1)
+    }
+
+    @Test func aTapThatNeverLandedStillFails() {
+        #expect(!FeelTaps.evaluate([FeelTapTrial(spot: .trailingEdge, landed: false)]).passed)
+    }
+
+    @Test func anOlderTrialDecodes() throws {
+        let t = try JSONDecoder().decode(FeelTapTrial.self, from: Data(#"{"spot":"centre","landed":true,"expected":true}"#.utf8))
+        #expect(!t.late)
+    }
+}
+
 @Suite struct RapidTapTests {
     let paced = (0..<5).map { _ in FeelTapTrial(spot: .centre, landed: true) }
 

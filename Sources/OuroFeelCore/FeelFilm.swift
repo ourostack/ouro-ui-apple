@@ -178,7 +178,9 @@ public struct FeelFilm: Codable, Equatable, Sendable {
 
     /// The same content on screen twice at once: two visible elements with the same label or key whose frames do not
     /// mostly overlap (a button and its own text overlap, so they never count).
-    public func doubleDraws(of contents: [String]) -> FeelResult {
+    /// `maxGap` is the longest a copy may be on screen and still be missed: when no copy is seen, a film whose samples
+    /// were ever further apart than that could have missed one, so it could not be checked.
+    public func doubleDraws(of contents: [String], maxGap: Double = 0.5) -> FeelResult {
         var findings: [FeelFinding] = []
         var total = 0
         if contents.isEmpty { findings.append(.couldNotCheck("no contents were named")) }
@@ -192,11 +194,18 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             total += hits.count
             if let first = hits.first {
                 findings.append(FeelFinding(what: "\"\(content)\" was on screen twice at once in \(hits.count) samples, first at \(FeelResult.number(round3(first))) s"))
+            } else if let (at, gap) = widestGap, gap > maxGap {
+                findings.append(.couldNotCheck("\"\(content)\" was never seen twice, but samples were once \(FeelResult.number(round3(gap))) s apart (from \(FeelResult.number(round3(at))) s), so a copy shown for less than that could be missed (a pass needs samples at most \(FeelResult.number(maxGap)) s apart); rerun on a less busy machine"))
             }
         }
         return FeelResult.judged(check: FeelGenre.doubleDraw.rawValue, passing: "no content drawn twice in \(frames.count) samples",
                           failing: { "\($0) of \(contents.count) contents drawn twice" },
                           measures: ["samples": Double(frames.count), "doubled": Double(total)], findings: findings)
+    }
+
+    /// The longest time between two samples, and when it began.
+    var widestGap: (at: Double, gap: Double)? {
+        zip(frames, frames.dropFirst()).map { ($0.t, $1.t - $0.t) }.max { $0.1 < $1.1 }
     }
 
     static func apart(_ copies: [FeelSeen]) -> Bool {

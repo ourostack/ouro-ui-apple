@@ -89,11 +89,23 @@ What the components don't do for you, and how to match them:
 - **Your own text.** The components raise their text to 5:1 on whatever is behind it; a theme pair such as
   `mutedForeground` on `card` is not promised to reach that. Pass your own secondary text through
   ``OuroColor/readable(_:on:contrast:)`` with the environment's `colorSchemeContrast`.
+- **Choosing a theme.** Six, each light and dark: `.pearl`, white with Apple's blue, the neutral default; `.cookbook`,
+  warm paper and toasted brown, for food and home; `.brass`, cream and deep leather brown; `.chart`, parchment and
+  navy, for maps, data and planning; `.coral`, warm sand and coral red, dark on deep green; `.abyss`, pale aqua and
+  deep teal. The gallery shows each.
 - **Rows and switches.** There is no row or toggle component yet. Use SwiftUI's `Toggle`, `Form` or `List` with the
-  colours from `\.ouroColors`, and give each row at least `\.ouroTouchTarget` points of height.
+  colours from `\.ouroColors`, and give each row at least `\.ouroTouchTarget` points of height. Give a toggle its
+  plain title, `Toggle("Metric units", isOn:)`: a `Label` with an icon as a toggle's title is read by Xcode's audit
+  as text that clips at large sizes, though it wraps.
 - **A screen that is the whole app.** `.ouroToaster()` and `.ouroTheme(_:)` can go on the screen itself instead of in
-  `@main`; `@Environment(\.ouroToast)` only reaches views inside the toaster, so send from a child view. A toaster
-  inside another one takes over for the views inside it.
+  `@main`, but `@Environment(\.ouroToast)` only reaches views inside the toaster: a toast sent from the same view's
+  body is dropped, with a fault in the log. Put the content in a child view and send from there. A toaster inside
+  another one takes over for the views inside it.
+- **A sheet with a field.** At the accessibility sizes the whole sheet scrolls, title and actions too; while the
+  keyboard is up, its end (the field being typed in and the actions) stays in view. Below those sizes the title and
+  actions stay put above the keyboard and the body scrolls between them. The gallery checks this for a fitted
+  sheet and for one at the `.large` detent. Use `TextField(_:text:prompt:axis: .vertical)` so long
+  words wrap instead of running out of the field.
 - **Disabled buttons** all look the same: a muted chip with an outline and a label that still reads at the target,
   not web's half opacity, which Xcode's audit fails. SwiftUI tells VoiceOver they are dimmed. A `loading` button is
   disabled too but keeps its tone: it is busy, not unavailable.

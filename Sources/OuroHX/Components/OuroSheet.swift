@@ -91,7 +91,9 @@ extension View {
     ///   at half height and drag up.
     /// - iOS draws a sheet below full height at 96%, so controls inside are sized to 46 points (`ouroTouchTarget`);
     ///   size your own rows with `@Environment(\\.ouroTouchTarget)` to match.
-    /// - The body scrolls when it is taller than the sheet; `footer` is the actions row, full width, primary last.
+    /// - The body scrolls when it is taller than the sheet; `footer` is the actions row, full width, primary last. At
+    ///   the accessibility sizes the whole sheet scrolls, title and actions too, and while the keyboard is up its end
+    ///   (the field being typed in and the actions) stays in view.
     /// - Under Reduce Motion it appears without sliding up, and its content crossfades in.
     public func ouroSheet<Content: View, Footer: View>(
         isPresented: Binding<Bool>,
@@ -164,73 +166,132 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var header: CGFloat = 60
     @State private var bodyHeight: CGFloat = 200
     @State private var footerHeight: CGFloat = 0
+    /// The room the sheet shows: its height less what the keyboard and safe areas inset.
+    @State private var shown: CGFloat = 0
 
     /// Header, body and actions row, measured as laid out.
     private var fittedHeight: CGFloat { max(160, header + bodyHeight + footerHeight + 16) }
+    /// At the accessibility sizes the whole sheet scrolls, title and actions too, not only its body.
+    private var wholeSheetScrolls: Bool { typeSize.isAccessibilitySize }
     @State private var visible = false
+
+    /// The title, description and close button.
+    private var headerRow: some View {
+        let p = OuroSheetPalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color(p.title))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .modifier(VisuallyHidden(hidden: hideTitle))
+                if let description {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundStyle(Color(p.description))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: close) {
+                // A round close button, a solid muted disc as on Apple's own opaque sheets (glass would not show on
+                // an opaque surface); drawn smaller than its target, which stays the full size.
+                // A fixed glyph: it stays inside its disc at every text size; the button's name is what VoiceOver
+                // and Voice Control use.
+                Image(systemName: "xmark")
+                    .font(.system(size: OuroSheetMetrics.closeGlyph, weight: .semibold))
+                    .foregroundStyle(Color(p.closeMark))
+                    .frame(width: OuroSheetMetrics.closeDisc, height: OuroSheetMetrics.closeDisc)
+                    .modifier(CloseDisc(fill: Color(p.closeFill)))
+                    .frame(width: OuroSheetMetrics.closeTarget, height: OuroSheetMetrics.closeTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.ouroPress)
+            .accessibilityLabel(closeLabel)
+            .accessibilityIdentifier(OuroSheetMetrics.closeIdentifier)
+            // The disc's edge 17 points in from the sheet's, where iOS 26 sets its own.
+            .padding(.trailing, -4)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 8)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { header = $0 }
+    }
+
+    /// The caller's content, on the layout margins.
+    private var bodyContent: some View {
+        content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+    }
+
+    /// The actions row, when there is a footer.
+    @ViewBuilder private var actionsRow: some View {
+        if Footer.self != EmptyView.self {
+            VStack(spacing: 10) { footer() }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
+        }
+    }
+
+    /// The header, body and actions.
+    @ViewBuilder private var layout: some View {
+        #if os(macOS)
+        // macOS has no accessibility text sizes or on-screen keyboard: the title and actions stay put, the body scrolls.
+        VStack(alignment: .leading, spacing: 0) {
+            headerRow
+            ScrollView { bodyContent }
+                .scrollBounceBehavior(.basedOnSize)
+                .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, h in bodyHeight = h }
+            actionsRow
+        }
+        #else
+        // At the accessibility sizes the whole sheet scrolls, title and actions too, so with the keyboard up nothing is
+        // squeezed or pushed past the top of the screen; as the keyboard arrives, the end comes into view: the field
+        // being typed in and the actions under it (VoiceOver still reads the words above first). Below those sizes the
+        // title and actions stay put and only the body scrolls. The same views either way, only what scrolls changes,
+        // so nothing is rebuilt when the text size changes.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                headerRow
+                ScrollView { bodyContent }
+                    .scrollBounceBehavior(.basedOnSize)
+                    // At its full height when the whole sheet scrolls.
+                    .scrollDisabled(wholeSheetScrolls)
+                    .fixedSize(horizontal: false, vertical: wholeSheetScrolls)
+                    // A sheet without detents fits its content: header, body and actions row, measured as laid out.
+                    .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, h in bodyHeight = h }
+                actionsRow
+            }
+            // Below the accessibility sizes, exactly the room the sheet shows, above the keyboard when it is up: the
+            // title and actions stay put and the body scrolls between them.
+            .frame(height: wholeSheetScrolls || shown == 0 ? nil : shown)
+        }
+        .scrollDisabled(!wholeSheetScrolls)
+        .scrollBounceBehavior(.basedOnSize)
+        // At the accessibility sizes, as the room changes (the keyboard arriving), the end stays in view: the field
+        // being typed in and the actions under it. Below them the outer view doesn't scroll, so this does nothing.
+        .defaultScrollAnchor(.top, for: .initialOffset)
+        .defaultScrollAnchor(wholeSheetScrolls ? .bottom : nil, for: .sizeChanges)
+        // A scroll view keeps its size as the keyboard arrives and insets its content instead; the room shown is its
+        // height less those insets.
+        .onScrollGeometryChange(for: CGFloat.self) { g in
+            max(0, g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom)
+        } action: { _, h in shown = h }
+        #endif
+    }
 
     var body: some View {
         let p = OuroSheetPalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Color(p.title))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
-                        .modifier(VisuallyHidden(hidden: hideTitle))
-                    if let description {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundStyle(Color(p.description))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                Button(action: close) {
-                    // A round close button, a solid muted disc as on Apple's own opaque sheets (glass would not show on
-                    // an opaque surface); drawn smaller than its target, which stays the full size.
-                    // A fixed glyph: it stays inside its disc at every text size; the button's name is what VoiceOver
-                    // and Voice Control use.
-                    Image(systemName: "xmark")
-                        .font(.system(size: OuroSheetMetrics.closeGlyph, weight: .semibold))
-                        .foregroundStyle(Color(p.closeMark))
-                        .frame(width: OuroSheetMetrics.closeDisc, height: OuroSheetMetrics.closeDisc)
-                        .modifier(CloseDisc(fill: Color(p.closeFill)))
-                        .frame(width: OuroSheetMetrics.closeTarget, height: OuroSheetMetrics.closeTarget)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.ouroPress)
-                .accessibilityLabel(closeLabel)
-                .accessibilityIdentifier(OuroSheetMetrics.closeIdentifier)
-                // The disc's edge 17 points in from the sheet's, where iOS 26 sets its own.
-                .padding(.trailing, -4)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 8)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { header = $0 }
-            ScrollView {
-                content()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            // A sheet without detents fits its content: header, body and actions row, measured as laid out.
-            .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, h in bodyHeight = h }
-            if Footer.self != EmptyView.self {
-                VStack(spacing: 10) { footer() }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
-            }
-        }
+        layout
         #if !os(macOS)
         // A container the audit helper can find; on macOS it would add a group VoiceOver has to enter, and nothing
         // there is scaled.

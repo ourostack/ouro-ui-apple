@@ -209,6 +209,16 @@ struct BannersPage: View {
 struct SheetsPage: View {
     @State private var open = opensAtLaunch
     @State private var filters = false
+    private static var saveDetents: Set<PresentationDetent>? {
+        switch UserDefaults.standard.string(forKey: "sheetDetent") {
+        case "large": [.large]
+        case "medium": [.medium]
+        default: nil
+        }
+    }
+    // `-sheetKeyboard 1` opens the naming sheet at launch, its field focused, so the keyboard is up.
+    @State private var naming = UserDefaults.standard.bool(forKey: "sheetKeyboard")
+    @State private var name = ""
     @State private var picked = "Weeknights"
     @Environment(\.ouroToast) private var toast
 
@@ -217,11 +227,13 @@ struct SheetsPage: View {
             OuroButton("Save to cookbook", systemImage: "book") { open = true }
                 .accessibilityIdentifier("sheet.open")
             OuroButton("Filters", variant: .soft) { filters = true }
+            OuroButton("New cookbook", variant: .soft) { naming = true }
             RecipeFeed()
         }
-        // `-sheetDetent large` shows it at full height, where iOS draws it unscaled, for the audit's clipped-text check.
+        // `-sheetDetent large` shows it at full height, where iOS draws it unscaled, for the audit's clipped-text check;
+        // `-sheetDetent medium` at half height, shorter than its content at the largest sizes.
         .ouroSheet(isPresented: $open, title: "Save to cookbook", description: "Pick where this recipe lives.",
-                   detents: UserDefaults.standard.string(forKey: "sheetDetent") == "large" ? [.large] : nil) {
+                   detents: Self.saveDetents) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(["Weeknights", "Sunday bakes", "Party food"], id: \.self) { name in
                     CookbookRow(name: name, picked: $picked)
@@ -236,6 +248,16 @@ struct SheetsPage: View {
             }
         }
         .task { await play("sheet", hold: 3, forth: { open = true }, back: { open = false }) }
+        // A sheet with a field that takes focus, the keyboard up: with it, at the largest sizes, the words above scroll
+        // and the action keeps its height.
+        // `-sheetDetent large` gives it a detent, so the keyboard covers its bottom rather than iOS lifting it.
+        .ouroSheet(isPresented: $naming, title: "New cookbook", description: "Name it after what goes inside.",
+                   detents: UserDefaults.standard.string(forKey: "sheetDetent") == "large" ? [.large] : nil, onDismiss: { name = "" }) {
+            NameField(text: $name)
+        } footer: {
+            OuroButton("Create cookbook", fullWidth: true) { naming = false }
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
         .ouroSheet(isPresented: $filters, title: "Filters", detents: [.medium, .large]) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Quick, vegetarian, one pot.")
@@ -247,6 +269,27 @@ struct SheetsPage: View {
                 }
             }
         }
+    }
+}
+
+/// A sheet's text field, focused as it appears, as a naming sheet's usually is.
+private struct NameField: View {
+    @Binding var text: String
+    @Environment(\.ouroTouchTarget) private var target
+    @Environment(\.ouroColors) private var colors
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        // Vertical, so at the largest sizes the words wrap rather than run out of the field.
+        TextField("Name", text: $text, prompt: Text("Suppers"), axis: .vertical)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: target)
+            .background(colors.card, in: .rect(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(colors.border))
+            .accessibilityIdentifier("sheet.name")
+            .focused($focused)
+            .onAppear { focused = true }
     }
 }
 

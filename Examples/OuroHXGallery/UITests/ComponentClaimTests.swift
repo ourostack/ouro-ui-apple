@@ -1,3 +1,4 @@
+import OuroHX
 import OuroHXTesting
 import XCTest
 
@@ -102,20 +103,29 @@ final class ComponentClaimTests: XCTestCase {
         app.terminate()
     }
 
+    /// How long a close may take to be reported, on the slowest runner: a toast's own time on screen plus margin. A
+    /// fixed 3 s was too short on a busy CI runner, which reported a dismissed toast gone late though its recording
+    /// shows it left (#21, 2026-11-05; the rerun passed). Nothing on these pages closes by itself, so only the close
+    /// can meet the wait.
+    static let closeBudget = OuroToastMetrics.defaultSeconds + 5
+
     /// Claim dismiss.reachable: the banner, the sheet and a toast each close from their labelled control.
     func testCloseControlsClose() {
         var app = launch("banners")
         app.buttons["Dismiss"].tap()
-        XCTAssertTrue(app.staticTexts["Couldn't save"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Couldn't save"].waitForNonExistence(timeout: Self.closeBudget))
         app.terminate()
         app = launch("sheet")
         app.buttons["Close"].tap()
-        XCTAssertTrue(app.staticTexts["Pick where this recipe lives."].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Pick where this recipe lives."].waitForNonExistence(timeout: Self.closeBudget))
         app.terminate()
         app = launch("toasts")
-        app.buttons.matching(identifier: "Dismiss").firstMatch.tap()
+        // Every toast on this page waits to be dismissed, so no timer can meet this wait: only the close can.
+        let close = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.first(where: \.isHittable)
+        XCTAssertNotNil(close, "a toast's close is reachable")
+        close?.tap()
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == 2"), object: app.buttons.matching(identifier: "Dismiss"))
-        XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 3), .completed)
+        XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: Self.closeBudget), .completed, "the toast's close dismissed it, and only it")
         app.terminate()
     }
 

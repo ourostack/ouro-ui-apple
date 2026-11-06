@@ -236,15 +236,42 @@ jobs:
           done
           echo "Using $device on $runtime: $udid"
           echo "UDID=$udid" >> "$GITHUB_ENV"
+          # Booted and settled before xcodebuild starts, as the X-ray probe does: a cold boot under the first test was
+          # where the runner lost testmanagerd (main, run 42166414006).
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b >/dev/null
       - name: Gallery UI tests
         run: |
-          set -o pipefail
-          xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
-            -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath .build/gallery-ui.xcresult \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error|failed|passed|Executed|TEST" | tail -80
+          set -u
+          gallery() {
+            xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
+              -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath ".build/$1.xcresult" \
+              CODE_SIGNING_ALLOWED=NO > ".build/$1.log" 2>&1
+          }
+          # A runner that loses testmanagerd or never bootstraps ran nothing wrong in the app: that is the machine, so it
+          # gets one more run on a rebooted simulator, reported as an infrastructure retry. Any other failure fails.
+          infra() {
+            { cat ".build/$1.log"; xcrun xcresulttool get test-results summary --path ".build/$1.xcresult" 2>/dev/null; } |
+              grep -m1 -oE "Lost connection to testmanagerd|never finished bootstrapping|Test runner exited before starting test execution|Failed to establish communication with the test runner"
+          }
+          status=0; gallery gallery-ui || status=$?
+          grep -E "error|failed|passed|Executed|TEST" .build/gallery-ui.log | tail -80
+          if [ "$status" -ne 0 ] && cause="$(infra gallery-ui)"; then
+            echo "::warning title=Infrastructure retry::Gallery UI tests: \"$cause\". Rebooting the simulator and running them once more; the first attempt's result bundle is kept as gallery-ui-attempt-1."
+            mv .build/gallery-ui.xcresult .build/gallery-ui-attempt-1.xcresult
+            mv .build/gallery-ui.log .build/gallery-ui-attempt-1.log
+            xcrun simctl shutdown "$UDID" || true
+            xcrun simctl boot "$UDID"
+            xcrun simctl bootstatus "$UDID" -b >/dev/null
+            status=0; gallery gallery-ui || status=$?
+            grep -E "error|failed|passed|Executed|TEST" .build/gallery-ui.log | tail -80
+          fi
+          exit "$status"
       - if: always()
         name: Pack the result bundle
-        run: test -d .build/gallery-ui.xcresult && tar -czf .build/gallery-ui.tgz -C .build gallery-ui.xcresult || true
+        run: |
+          bundles="$(cd .build && ls -d gallery-ui*.xcresult gallery-ui*.log 2>/dev/null || true)"
+          test -n "$bundles" && tar -czf .build/gallery-ui.tgz -C .build $bundles || true
       - if: always()
         uses: actions/upload-artifact@v4
         with:

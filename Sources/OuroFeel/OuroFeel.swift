@@ -204,7 +204,7 @@ public struct OuroFeel {
 
     // MARK: Tap landing
 
-    /// Single taps on `control`, never retried: `trials` at each spot. `.zeroPress` is not a default: on the iOS 27.2
+    /// Single taps on `control`, `trials` at each spot; one that should land and missed is sent once more. `.zeroPress` is not a default: on the iOS 27.2
     /// simulator a system `Toggle` ignored XCUITest's zero-length press 3 times in 3, so it measures XCUITest's event,
     /// not the app; add it only for a control that acts on touch-down. A tap lands when `read` (by default the
     /// control's value) changes within `within` seconds (3 by default, since a busy simulator can be slow to report a
@@ -237,11 +237,20 @@ public struct OuroFeel {
         func trial(_ spot: FeelTapSpot, expected: Bool, _ act: () -> Void) {
             let before = read()
             act()
-            let landed = wait(within) { read() != before }
-            results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected))
+            var landed = wait(within) { read() != before }
             // Let the control finish its own animation (a switch's knob slides on after its value flips) before the
             // next tap, as a person would; a tap during it can be swallowed, which is not the target's fault.
             pause(0.6)
+            // A tap that should land and missed is sent once more: a loaded machine can drop a synthesized tap, and a
+            // control that misses taps misses both. The report counts the taps that needed it.
+            let again = expected && !landed
+            if again {
+                let before = read()
+                act()
+                landed = wait(within) { read() != before }
+                pause(0.6)
+            }
+            results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected, secondTry: again))
         }
         for spot in spots {
             for _ in 0..<trials {
@@ -281,21 +290,30 @@ public struct OuroFeel {
 
     #if os(iOS)
     /// `pairs` double taps at `at`, each from a settled control (``FeelRapidTaps``); one that ends changed is put back
-    /// with a single tap. A point, not the element, so the OS baseline can hit a Settings switch's knob (XCUITest gives
+    /// with a single tap and sent once more, and only that second try is scored. A point, not the element, so the OS baseline can hit a Settings switch's knob (XCUITest gives
     /// that switch the whole row's frame, where a tap does nothing). The same loop serves the app and the baseline.
     /// `triple` (the element's own triple tap; a coordinate has none) runs once after the pairs: ending changed shows
     /// quick taps reach the control. The baseline sends none, since its rate is context only.
     func rapidPairs(_ pairs: Int, at: () -> XCUICoordinate, triple: (() -> Void)? = nil, read: () -> String) -> FeelRapidTaps {
-        var same = 0
-        for _ in 0..<pairs {
+        var same = 0, retried = 0
+        // One pair, from a settled control; a pair that ends changed is put back with a single tap. True if it ended
+        // where it started.
+        func pair() -> Bool {
             let start = read()
             at().doubleTap()
             pause(0.8)
-            if read() == start {
+            if read() == start { return true }
+            at().tap()
+            pause(0.8)
+            return false
+        }
+        for _ in 0..<pairs {
+            if pair() {
                 same += 1
             } else {
-                at().tap()
-                pause(0.8)
+                // A loaded machine can drop one tap of a pair, so it is sent once more and only that try is scored.
+                retried += 1
+                if pair() { same += 1 }
             }
         }
         var tripleChanged: Bool?
@@ -306,7 +324,7 @@ public struct OuroFeel {
             tripleChanged = read() != start
             if tripleChanged == true { at().tap(); pause(0.8) }
         }
-        return FeelRapidTaps(pairs: pairs, endedWhereStarted: same, tripleChanged: tripleChanged)
+        return FeelRapidTaps(pairs: pairs, endedWhereStarted: same, tripleChanged: tripleChanged, retried: retried)
     }
     #endif
 

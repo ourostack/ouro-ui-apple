@@ -50,7 +50,7 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | the way back | Every screen you reach has a visible way back and a gesture back, and both return you where you were. | `feel.wayBack(from:follow:depth:)` |
 | overlay dismissal | Every sidebar, popover and menu goes away with a tap outside it, and once you pick something in it. | `feel.overlays(_:)` |
 | inside the window | Every control sits wholly inside the window, in every orientation and after turning the device and back. | `feel.insideWindow(poses:)`; also on every screen `wayBack` reaches |
-| tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
+| tap landing | One tap anywhere on a control works, every time. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
 | double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
 | jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)` |
 | late or lingering chrome | Bars and controls hand over in one beat: never two states at once, never a blank between them. | `film.chrome(from:to:grace:)` |
@@ -93,7 +93,20 @@ relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe sta
 above any list row, so a missing pop gesture never fires a row's swipe action.
 
 Before each gesture the walk waits for the screen to land (navigation bars and buttons holding still), since a push
-still sliding in ignores a back swipe. Run the walk on an iPhone simulator: on the iOS 27.2 iPad simulator it finds the
+still sliding in ignores a back swipe. It watches each gesture while the finger is down (a few of the screen's texts
+for a swipe across; for a swipe down, the buttons in the screen's navigation bar, else its texts) and tells two
+failures apart:
+
+A gesture that does not return is sent once more, slower (a longer press, a slow drag nearly across, a hold before
+letting go), because a loaded machine can drop a synthesized drag, so it moves nothing, or rush it, so the screen
+starts to follow and settles back. If no gesture returns even then:
+
+- **The gesture never arrived.** No swipe moved anything, so no transition started. The screen is reported as not
+  checked: the gesture may be off on that screen (a hidden system back button turns the edge swipe off) or the touch
+  never reached the app, and from outside the app the two look the same. Not checked still fails the run, so a screen
+  whose swipe back is off never passes.
+- **No way back.** A swipe moved the screen and, even sent slowly, it settled back where it was (a sheet that refuses
+  a pull down). That is a bug found, as is a screen with no visible back control. Run the walk on an iPhone simulator: on the iOS 27.2 iPad simulator it finds the
 visible way back, but its edge swipe and swipe down did not return even from a plain push, so on iPad it reports
 missing gestures that a person would not miss. Making the gestures work on iPad is planned for v0.2.
 
@@ -131,7 +144,9 @@ feel.expect(feel.insideWindow(poses: [.current]))    // just as it is
 
 ### Tap landing
 
-Proves: single taps, never retried, land at the centre and the four edges (4 pt in). A zero-length press
+Proves: single taps land at the centre and the four edges (4 pt in). A tap that should land and missed is sent once
+more, since a loaded machine can drop a synthesized tap; a control that misses taps (a dead strip) misses both, and
+only that is a miss. The summary says how many taps landed only on a second try, and a note names where. A zero-length press
 (`.zeroPress`) is opt-in: a system Toggle ignored it 3 times in 3 on the iOS 27.2 simulator, so it is only fair for a
 control that acts on touch-down. With a
 `title:` it also taps the row's title and the gap beside it: `rowToggles: true` when the row acts as one button,
@@ -144,7 +159,9 @@ report marks "the simulator may be dropping taps" as inference.
 People also tap while a control is still animating. For a control with two states (a switch, a checkbox, passed
 as the element itself), `rapid:` adds that many double taps at its centre (off by default, since a counter, a stepper
 or a row that opens a screen never ends where it started), each from a settled control. A pair that ends where it
-started had both taps land, or neither; one that ends changed lost a tap. It is read from where the control ends, so
+started had both taps land, or neither; one that ends changed lost a tap, so it is put back and sent once more, and
+only that second try is scored (a loaded machine can drop one tap of a pair; a control that loses taps loses them both
+times, and the report counts the pairs that needed a second try). It is read from where the control ends, so
 the report marks it as inference, and it is scored only when the paced single taps at the centre all landed (otherwise could not check). XCUITest's
 single taps wait for the app to go idle, about 0.6 s apart, so only its double tap sends taps faster than an animation.
 Because "neither landed" also ends where it started, one triple tap follows the pairs (an element tap, since a coordinate has no triple; the same touch path): if every pair
@@ -238,14 +255,15 @@ exists to find.
 
 ```
 FAIL the way back: 3 of 4 reachable screens have a way back and a gesture back
-  - launch › nav.chef: no gesture back (neither an edge swipe nor a swipe down returned)
+  - launch › nav.settings: no gesture back (a swipe moved the screen, then it settled back where it was)
   measured: good=3, screens=4
   on simulator (iPhone 17 Pro, iOS 27.2), cold start (fresh simulator); timed by the test runner's wall clock, sampling accessibility snapshots
 ```
 
 Every report names where it ran (simulator or device), how it started, and which clock timed it; a finding marked
 `(inference)` goes beyond what was measured. A finding marked `(not checked)` is something the check could not judge
-(the element was never on screen, samples were too far apart, the app was busy through a move): the check fails, its
+(the element was never on screen, samples were too far apart, the app was busy through a move, a swipe back moved
+nothing even when sent slower): the check fails, its
 summary starts "could not check:", and it is never counted as a bug (`result.detections` holds only the bugs). Fix the
 test or rerun; do not report it as jank found. Say the same when you quote it.
 

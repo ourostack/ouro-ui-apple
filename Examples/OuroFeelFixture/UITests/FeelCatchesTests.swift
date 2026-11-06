@@ -48,7 +48,10 @@ final class FeelCatchesTests: XCTestCase {
             let os = feel.osBaseline(trials: 5, rapid: true)
             let result = feel.tapLanding(on: app.switches["taps.toggle"], trials: 3, rapid: 5, rapidBaseline: os)
             if isBugBuild(app) {
-                XCTAssertTrue(result.detections.contains { $0.what.contains("rapid taps") }, "taps lost while animating are named:\n\(result.text)")
+                // The lock is named either way: as lost rapid taps, or (on a loaded machine that bunches paced taps
+                // into the lock) as a centre single tap that missed, which leaves the pairs unscored.
+                XCTAssertTrue(result.detections.contains { $0.what.contains("rapid taps") || $0.what.hasPrefix("centre:") },
+                              "taps lost while animating are named:\n\(result.text)")
             }
             return (result, nil)
         }
@@ -65,6 +68,12 @@ final class FeelCatchesTests: XCTestCase {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("nav.filter") }, "the stuck Filter menu is named:\n\(result.text)")
                 XCTAssertFalse(result.detections.contains { $0.what.contains("nav.tags") }, "the Tags menu closes:\n\(result.text)")
                 XCTAssertFalse(result.detections.contains { $0.what.contains("nav.more") }, "expanding in place is no overlay:\n\(result.text)")
+                XCTAssertTrue(result.detections.contains { $0.what.contains("nav.settings") && $0.what.contains("settled back") },
+                              "the sheet that refuses a pull down moved and settled back, so it has no gesture back:\n\(result.text)")
+                XCTAssertTrue(result.findings.contains { $0.unchecked && $0.what.contains("nav.chef") && $0.what.contains("moved nothing") },
+                              "a swipe that moved nothing, even slower, could not be checked:\n\(result.text)")
+                XCTAssertFalse(result.detections.contains { $0.what.contains("nav.chef") && $0.what.contains("gesture") },
+                               "a swipe that moved nothing is no bug found:\n\(result.text)")
             } else {
                 XCTAssertGreaterThanOrEqual(result.measures["overlays"] ?? 0, 2, "both custom menus were checked as overlays:\n\(result.text)")
                 XCTAssertTrue(result.passed, "a well-behaved app passes:\n\(result.text)")

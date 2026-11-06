@@ -12,13 +12,41 @@ public struct FeelDestination: Codable, Equatable, Sendable {
     /// When each step of leaving this screen happened and what the screen looked like at each, kept so a run that
     /// finds no gesture back shows the race (and a run that passes can be compared with it).
     public var diagnostic: String?
+    /// When no gesture returned: whether any of them moved the screen while the finger was down. `true` means a
+    /// transition started and settled back (no way back, a bug); `false` means none moved anything, even when retried
+    /// slower, so the touch may never have reached the app (could not check). `nil` (an older record) counts as a bug.
+    public var gestureArrived: Bool?
 
-    public init(path: [String], affordance: String?, affordanceReturns: Bool, gesture: String?, diagnostic: String? = nil) {
+    public init(path: [String], affordance: String?, affordanceReturns: Bool, gesture: String?, diagnostic: String? = nil,
+                gestureArrived: Bool? = nil) {
         self.path = path
         self.affordance = affordance
         self.affordanceReturns = affordanceReturns
         self.gesture = gesture
         self.diagnostic = diagnostic
+        self.gestureArrived = gestureArrived
+    }
+}
+
+/// Whether a gesture moved the screen while the finger was down: the partial progress of an interactive transition
+/// (a pushed screen sliding right under an edge swipe, a sheet following a pull down). Read from a few of the screen's
+/// texts, keyed by label, sampled during the drag.
+public enum FeelGestureProgress {
+    public enum Axis: String, Codable, Sendable { case horizontal, vertical }
+
+    /// True if, in any sample, an anchor still on screen sat at least 5% of the window (and at least 12 points) from
+    /// where it was before the gesture, along `axis`. An anchor missing from a sample tells nothing either way.
+    public static func moved(before: [String: CGRect], during: [[String: CGRect]], axis: Axis, window: CGRect) -> Bool {
+        let extent = axis == .horizontal ? window.width : window.height
+        let enough = max(12, extent * 0.05)
+        for sample in during {
+            for (key, then) in before {
+                guard let now = sample[key] else { continue }
+                let shift = axis == .horizontal ? now.minX - then.minX : now.minY - then.minY
+                if abs(shift) >= enough { return true }
+            }
+        }
+        return false
     }
 }
 
@@ -55,7 +83,14 @@ public enum FeelWayBack {
             }
             if screen.gesture == nil {
                 let evidence = screen.diagnostic.map { " [steps: \($0)]" } ?? ""
-                findings.append(FeelFinding(what: "\(name): no gesture back (neither an edge swipe nor a swipe down returned)\(evidence)"))
+                switch screen.gestureArrived {
+                case false?:
+                    findings.append(.couldNotCheck("\(name): the gesture back moved nothing, neither an edge swipe (also tried slower) nor a swipe down, so either the gesture is off on this screen or the touch never reached the app\(evidence)"))
+                case true?:
+                    findings.append(FeelFinding(what: "\(name): no gesture back (a swipe moved the screen, then it settled back where it was)\(evidence)"))
+                case nil:
+                    findings.append(FeelFinding(what: "\(name): no gesture back (neither an edge swipe nor a swipe down returned)\(evidence)"))
+                }
             }
         }
         if screens.isEmpty { findings.append(.couldNotCheck("the walk reached no screens; check the entry points and what it may follow")) }

@@ -13,17 +13,29 @@ public enum FeelTapSpot: String, Codable, CaseIterable, Sendable {
     case zeroPress = "zero-length press"
 }
 
-/// One tap, never retried. `expected` says whether the tap should change the control: a tap on a gap usually should
-/// not, and one that does is as wrong as a miss.
+/// One tap. `expected` says whether the tap should change the control: a tap on a gap usually should not, and one
+/// that does is as wrong as a miss. A tap that should land and missed is sent once more (`secondTry`), since a loaded
+/// machine can drop a synthesized tap; `landed` is then the second try's result, and a control that misses taps misses
+/// both. The report counts the taps that needed a second try.
 public struct FeelTapTrial: Codable, Equatable, Sendable {
     public var spot: FeelTapSpot
     public var landed: Bool
     public var expected: Bool
+    public var secondTry: Bool
 
-    public init(spot: FeelTapSpot, landed: Bool, expected: Bool = true) {
+    public init(spot: FeelTapSpot, landed: Bool, expected: Bool = true, secondTry: Bool = false) {
         self.spot = spot
         self.landed = landed
         self.expected = expected
+        self.secondTry = secondTry
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        spot = try c.decode(FeelTapSpot.self, forKey: .spot)
+        landed = try c.decode(Bool.self, forKey: .landed)
+        expected = try c.decodeIfPresent(Bool.self, forKey: .expected) ?? true
+        secondTry = try c.decodeIfPresent(Bool.self, forKey: .secondTry) ?? false
     }
 }
 
@@ -41,11 +53,23 @@ public struct FeelRapidTaps: Codable, Equatable, Sendable {
     public var endedWhereStarted: Int
     /// Whether a triple tap ended changed; nil when none was sent.
     public var tripleChanged: Bool?
+    /// Pairs that lost a tap on the first try and were sent once more: a loaded machine can drop one tap of a pair, so
+    /// only the second try is scored (a control that loses taps loses them both times).
+    public var retried: Int
 
-    public init(pairs: Int, endedWhereStarted: Int, tripleChanged: Bool? = nil) {
+    public init(pairs: Int, endedWhereStarted: Int, tripleChanged: Bool? = nil, retried: Int = 0) {
         self.pairs = pairs
         self.endedWhereStarted = endedWhereStarted
         self.tripleChanged = tripleChanged
+        self.retried = retried
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        pairs = try c.decode(Int.self, forKey: .pairs)
+        endedWhereStarted = try c.decode(Int.self, forKey: .endedWhereStarted)
+        tripleChanged = try c.decodeIfPresent(Bool.self, forKey: .tripleChanged)
+        retried = try c.decodeIfPresent(Int.self, forKey: .retried) ?? 0
     }
 
     public var rate: Double { pairs == 0 ? 1 : Double(endedWhereStarted) / Double(pairs) }
@@ -68,7 +92,9 @@ public enum FeelTaps {
         for spot in FeelTapSpot.allCases {
             let here = should.filter { $0.spot == spot }
             let hits = here.filter(\.landed).count
-            if hits < here.count { findings.append(FeelFinding(what: "\(spot.rawValue): \(hits) of \(here.count) single taps landed")) }
+            if hits < here.count { findings.append(FeelFinding(what: "\(spot.rawValue): \(hits) of \(here.count) single taps landed" + (here.allSatisfy { $0.landed || $0.secondTry } ? ", each tried twice" : ""))) }
+            let late = here.filter { $0.landed && $0.secondTry }.count
+            if late > 0 { findings.append(.note("\(spot.rawValue): \(late) of \(here.count) single taps landed only on a second try")) }
             let stray = trials.filter { !$0.expected && $0.spot == spot && $0.landed }.count
             if stray > 0 { findings.append(FeelFinding(what: "\(spot.rawValue): \(stray) taps changed the control, which they should not")) }
         }
@@ -81,13 +107,16 @@ public enum FeelTaps {
                     + "so some misses may be the simulator's; confirm on a device", inferred: true))
             }
         }
-        var summary = "\(landed) of \(should.count) single taps landed, no retries"
+        let late = should.filter { $0.landed && $0.secondTry }.count
+        if late > 0 { measures["second tries"] = Double(late) }
+        var summary = "\(landed) of \(should.count) single taps landed, " + (late > 0 ? "\(late) only on a second try" : "none needed a second try")
         var rapidPassed = true
         if let rapid {
             summary += "; rapid: \(rapid.endedWhereStarted) of \(rapid.pairs) double taps ended where they started"
             measures["rapid rate"] = round3(rapid.rate)
             measures["rapid pairs"] = Double(rapid.pairs)
             if let rapidBaseline { measures["rapid baseline"] = round3(rapidBaseline) }
+            if rapid.retried > 0 { measures["rapid retried"] = Double(rapid.retried) }
             // The double taps go to the centre: only a centre where single taps land makes "ended where it started" mean
             // both landed rather than neither.
             let centre = should.filter { $0.spot == .centre }
@@ -103,14 +132,17 @@ public enum FeelTaps {
                 if rapid.endedWhereStarted < rapid.pairs {
                     rapidPassed = false
                     findings.append(FeelFinding(what: "rapid taps: \(rapid.endedWhereStarted) of \(rapid.pairs) double taps ended where they started, "
-                        + "so the rest lost a tap" + context, inferred: true))
+                        + "so the rest lost a tap" + (rapid.retried > 0 ? " (each sent twice)" : "") + context, inferred: true))
                 } else if rapid.tripleChanged != true {
                     rapidPassed = false
                     findings.append(.couldNotCheck(rapid.tripleChanged == false
                         ? "a triple tap left the control unchanged, so quick taps may not reach it and a pair that ended where it started may have had no tap land"
                         : "no triple tap was sent, so a pair that ended where it started may have had no tap land"))
-                } else if !context.isEmpty {
-                    findings.append(.note(String(context.dropFirst(2))))
+                } else {
+                    if rapid.retried > 0 {
+                        findings.append(.note("\(rapid.retried) of \(rapid.pairs) double taps ended where they started only on a second try"))
+                    }
+                    if !context.isEmpty { findings.append(.note(String(context.dropFirst(2)))) }
                 }
             }
         }

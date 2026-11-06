@@ -13,40 +13,59 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
     /// The smallest target a control may have on `input`: 44 points on a touch screen.
     public static func minimumTarget(on input: OuroInput) -> CGFloat { input == .touch ? 44 : 24 }
 
-    /// The button's minimum height: 44, 44 and 48 on a touch screen (web's `h-11` and `h-12` on phones), 28, 32 and
-    /// 40 with a pointer.
+    /// The button's minimum pressable height: 44, 50 and 56 on a touch screen, 28, 32 and 40 with a pointer.
     public func minimumHeight(on input: OuroInput) -> CGFloat {
         minimumHeight(on: input, target: Self.minimumTarget(on: .touch))
     }
 
-    /// The minimum height when the touch target is `target` points, as inside an `.ouroSheet`
-    /// (``OuroSheetMetrics/touchTarget``): never below it on a touch screen, and web's heights with a pointer.
+    /// The minimum pressable height when the touch target is `target` points, as inside an `.ouroSheet`
+    /// (``OuroSheetMetrics/touchTarget``): never below it on a touch screen, and desktop density with a pointer.
     public func minimumHeight(on input: OuroInput, target: CGFloat) -> CGFloat {
         switch (self, input) {
-        case (.sm, .touch), (.md, .touch): max(44, target)
-        case (.lg, .touch): max(48, target)
+        case (.sm, .touch): max(44, target)
+        case (.md, .touch): max(50, target)
+        case (.lg, .touch): max(56, target)
         case (.sm, .pointer): 28
         case (.md, .pointer): 32
         case (.lg, .pointer): 40
         }
     }
 
-    /// Padding at the label's sides: web's `px-3`, `px-4` and `px-5`.
-    public var horizontalPadding: CGFloat {
-        switch self { case .sm: 12; case .md: 16; case .lg: 20 }
+    /// The height the button is drawn at, which grows with the text: on a touch screen a small button is a 34-point
+    /// capsule centred in its 44-point target, Apple's small-control proportion; the others are drawn at their full
+    /// target, 50 and 56 points, the proportions of iOS 26's prominent buttons.
+    public func visualHeight(on input: OuroInput, target: CGFloat) -> CGFloat {
+        self == .sm && input == .touch ? 34 : minimumHeight(on: input, target: target)
     }
 
+    /// Padding at the label's sides: generous, so a capsule's ends have room to round.
+    public var horizontalPadding: CGFloat {
+        switch self { case .sm: 14; case .md: 20; case .lg: 24 }
+    }
+
+    /// The padding a `variant` takes: none for `plain`, whose words sit on the layout margin as the system's borderless
+    /// buttons' do (its target still reaches 44 points), the size's own otherwise.
+    public func horizontalPadding(for variant: OuroButtonVariant) -> CGFloat { variant == .plain ? 0 : horizontalPadding }
+
+    /// An icon beside the words, a step smaller than them so it never outweighs them.
+    var iconFont: Font {
+        switch self {
+        case .sm: .footnote.weight(.semibold)
+        case .md, .lg: .subheadline.weight(.semibold)
+        }
+    }
+
+    /// Semibold, as Apple's prominent buttons are; a regular weight reads as a link rather than a control.
     var font: Font {
         switch self {
-        case .sm: .subheadline.weight(.medium)
-        case .md: .body.weight(.medium)
-        case .lg: .body.weight(.semibold)
+        case .sm: .subheadline.weight(.semibold)
+        case .md, .lg: .body.weight(.semibold)
         }
     }
 }
 
-/// A button's outline: `rounded` (the theme's `lg` radius, web's look) or `pill`, a capsule, as Spoonjoy's and
-/// Gatefold's buttons are.
+/// A button's outline: `pill`, a capsule, the default, as Apple's own buttons are from iOS 26 and Spoonjoy's and
+/// Gatefold's are; or `rounded`, the theme's `lg` radius, web's look.
 public enum OuroButtonShape: String, CaseIterable, Sendable { case rounded, pill }
 
 /// The resolved colours of a button, for one tone, variant and theme as seen. `surface` is what the label sits on:
@@ -80,14 +99,17 @@ public struct OuroButtonPalette: Sendable {
         switch variant {
         case .solid:
             // The label first; where even white or black falls short, the fill moves away from it.
-            let text = OuroInk.readable(OuroInk.r(toneLabel), on: fill, style)
-            let shown = OuroColor.contrastRatio(text, fill) >= OuroInk.target(style) ? fill : OuroColor.push(fill, against: text, to: OuroInk.target(style))
+            // Secondary's pale fill takes a step of the page's foreground, so solid reads stronger than soft.
+            let base = tone == .secondary ? OuroInk.tint(OuroInk.r(c.foreground), over: fill, OuroButtonMetrics.secondarySolidStep(scheme: style.scheme)) : fill
+            let text = OuroInk.readable(OuroInk.r(toneLabel), on: base, style)
+            let shown = OuroColor.contrastRatio(text, base) >= OuroInk.target(style) ? base : OuroColor.push(base, against: text, to: OuroInk.target(style))
             self.fill = shown
             surface = shown
             label = text
             border = nil
         case .soft:
-            let tinted = tone == .secondary ? fill : OuroInk.tint(fill, over: background, 0.14)
+            // A little stronger in dark, where a faint tint over near-black reads as mud.
+            let tinted = tone == .secondary ? fill : OuroInk.tint(fill, over: background, OuroButtonMetrics.softTint(scheme: style.scheme))
             self.fill = tinted
             surface = tinted
             label = OuroInk.readable(toneText, on: tinted, style)
@@ -96,7 +118,13 @@ public struct OuroButtonPalette: Sendable {
             self.fill = nil
             surface = background
             label = OuroInk.readable(toneText, on: background, style)
-            border = OuroColor.push(OuroInk.r(c.border), against: background, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
+            // In its tone at 50% over the page, so an outline row reads as its tones; secondary keeps the border. Under
+            // increased contrast, the full tone, raised to 3:1, so the line stays its colour rather than going grey.
+            let increased = style.contrast == .increased
+            // Secondary's is the page's foreground at 25%, a neutral that still reads beside the tones.
+            let neutral = OuroInk.tint(OuroInk.r(c.foreground), over: background, OuroButtonMetrics.neutralOutlineTint)
+            let line = tone == .secondary ? (increased ? OuroInk.r(c.border) : neutral) : (increased ? fill : OuroInk.tint(fill, over: background, OuroButtonMetrics.outlineTint))
+            border = OuroColor.push(line, against: background, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
         case .plain:
             self.fill = nil
             surface = background
@@ -123,6 +151,23 @@ public enum OuroButtonMetrics {
         OuroMotion.pressScale(isPressed: isPressed, reduceMotion: reduceMotion)
     }
 
+    /// A pill's end radius for a button `height` points tall: half of it, a capsule, at every text size, up to 44
+    /// points, so a label wrapped onto several lines becomes a rounded rectangle rather than an oval.
+    public static func pillRadius(height: CGFloat) -> CGFloat { min(height / 2, 44) }
+
+    /// How much of its tone a soft fill washes over the page: 14% in light, 26% in dark, where less reads as mud.
+    public static func softTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.26 : 0.14 }
+
+    /// How much of its tone an outline is drawn with over the page.
+    public static let outlineTint = 0.5
+    /// An outline's width: a point, or two under increased contrast.
+    public static func outlineWidth(contrast: ColorSchemeContrast) -> CGFloat { contrast == .increased ? 2 : 1 }
+    /// How much of the page's foreground secondary's solid fill takes over its pale colour: more in dark, where the
+    /// step reads smaller.
+    public static func secondarySolidStep(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0.1 }
+    /// How much of the page's foreground secondary's outline is drawn with.
+    public static let neutralOutlineTint = 0.25
+
 }
 
 /// Ouro HX's button look for any SwiftUI `Button`: `.buttonStyle(.ouro(.soft, tone: .destructive))`.
@@ -136,7 +181,7 @@ public struct OuroButtonStyle: ButtonStyle {
     public var shape: OuroButtonShape
     public var fullWidth: Bool
 
-    public init(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .rounded, fullWidth: Bool = false) {
+    public init(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .pill, fullWidth: Bool = false) {
         self.variant = variant
         self.tone = tone
         self.size = size
@@ -167,37 +212,51 @@ public struct OuroButtonStyle: ButtonStyle {
         /// A loading button is disabled but keeps its tone: it is busy, not unavailable.
         private var isEnabled: Bool { environmentEnabled || loading }
         @Environment(\.ouroButtonFillsWidth) private var fillsWidth
+        @Environment(\.ouroButtonOwnsLabel) private var ownsLabel
 
         var body: some View {
             let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled)
-            let shape = style.shape == .pill ? AnyShape(Capsule()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             let pressed = configuration.isPressed
+            let visual = style.size.visualHeight(on: .current, target: touchTarget)
+            let pressable = style.size.minimumHeight(on: .current, target: touchTarget)
+            // A pill is a capsule at every height, its ends half the height it is drawn (taller at large text sizes),
+            // up to 44 points: a label wrapped onto several lines becomes a rounded rectangle, not an oval. Circular
+            // ends, a true capsule: a continuous corner at half the height reads slightly square.
+            let shape = style.shape == .pill ? AnyShape(PillShape()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
             configuration.label
+                // Ouro's icon-and-words spacing on an OuroButton's own label only, so a plain `Button` styled
+                // `.ouro()` keeps a label style set around it (`.iconOnly`, `.titleOnly`).
+                .modifier(OuroLabelIfOwned(owned: ownsLabel, iconFont: style.size.iconFont))
                 .font(style.size.font)
                 .multilineTextAlignment(.center)
                 // Wraps instead of truncating at every text size (core claim `text.reflows`).
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(Color(palette.label))
-                .padding(.horizontal, style.size.horizontalPadding)
-                .padding(.vertical, 8)
-                .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: style.size.minimumHeight(on: .current, target: touchTarget))
+                .padding(.horizontal, style.size.horizontalPadding(for: style.variant))
+                .padding(.vertical, 7)
+                .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: visual)
                 .frame(minWidth: OuroInput.current == .touch ? max(touchTarget, OuroButtonSize.minimumTarget(on: .touch)) : OuroButtonSize.minimumTarget(on: .pointer))
                 .background { background(palette, shape: shape, pressed: pressed) }
                 .modifier(GlassIfNeeded(enabled: style.variant == .glass, interactive: isEnabled, shape: shape))
-                .contentShape(shape)
                 .scaleEffect(OuroButtonMetrics.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
-                .animation(OuroMotion.animation(.press, reduceMotion: reduceMotion), value: pressed)
+                // Springs both ways: a quick one as the finger lands, a softer one as it lifts, which picks up from
+                // wherever the press had got to rather than restarting.
+                .animation(OuroMotion.animation(pressed ? .pressIn : .pressOut, reduceMotion: reduceMotion), value: pressed)
+                // The target reaches past a small capsule to the full 44 points, and the hit area is the whole of it.
+                .padding(.vertical, max(0, (pressable - visual) / 2))
+                .contentShape(Rectangle())
         }
 
         @ViewBuilder
         private func background(_ p: OuroButtonPalette, shape: AnyShape, pressed: Bool) -> some View {
             let layer = Color(p.label).opacity(pressed ? 0.12 : 0)
+            let w = OuroButtonMetrics.outlineWidth(contrast: contrast)
             if let fill = p.fill {
                 shape.fill(Color(fill)).overlay(shape.fill(layer)).overlay {
-                    if let border = p.border { shape.stroke(Color(border), lineWidth: 1).padding(0.5) }
+                    if let border = p.border { shape.stroke(Color(border), lineWidth: w).padding(w / 2) }
                 }
             } else if let border = p.border {
-                shape.stroke(Color(border), lineWidth: 1).padding(0.5).background(shape.fill(layer))
+                shape.stroke(Color(border), lineWidth: w).padding(w / 2).background(shape.fill(layer))
             } else {
                 shape.fill(layer)
             }
@@ -224,11 +283,21 @@ public struct OuroButtonStyle: ButtonStyle {
 extension EnvironmentValues {
     /// Set by ``OuroButton`` while `loading`, so its style keeps the tone rather than the disabled look.
     @Entry var ouroButtonLoading = false
+    /// Set by ``OuroButton``, whose label takes Ouro's icon spacing; a plain `Button` keeps the label style around it.
+    @Entry var ouroButtonOwnsLabel = false
+}
+
+private struct OuroLabelIfOwned: ViewModifier {
+    let owned: Bool
+    let iconFont: Font
+    func body(content: Content) -> some View {
+        if owned { content.labelStyle(ButtonLabel(iconFont: iconFont)) } else { content }
+    }
 }
 
 extension ButtonStyle where Self == OuroButtonStyle {
     /// Ouro HX's button look: `.buttonStyle(.ouro())`, `.buttonStyle(.ouro(.glass, shape: .pill))`.
-    public static func ouro(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .rounded, fullWidth: Bool = false) -> OuroButtonStyle {
+    public static func ouro(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .pill, fullWidth: Bool = false) -> OuroButtonStyle {
         OuroButtonStyle(variant, tone: tone, size: size, shape: shape, fullWidth: fullWidth)
     }
 }
@@ -259,7 +328,7 @@ public struct OuroButton<Label: View>: View {
         tone: OuroTone = .primary,
         variant: OuroButtonVariant = .solid,
         size: OuroButtonSize = .md,
-        shape: OuroButtonShape = .rounded,
+        shape: OuroButtonShape = .pill,
         fullWidth: Bool = false,
         role: ButtonRole? = nil,
         loading: Bool = false,
@@ -287,6 +356,7 @@ public struct OuroButton<Label: View>: View {
                 .overlay { if loading { ProgressView().accessibilityHidden(true) } }
         }
         .buttonStyle(style)
+        .environment(\.ouroButtonOwnsLabel, true)
         // Busy, not unavailable, unless something around the button disabled it anyway.
         .environment(\.ouroButtonLoading, loading && outerEnabled)
         .disabled(loading)
@@ -306,7 +376,7 @@ extension OuroButton where Label == SwiftUI.Label<Text, Image> {
         tone: OuroTone = .primary,
         variant: OuroButtonVariant = .solid,
         size: OuroButtonSize = .md,
-        shape: OuroButtonShape = .rounded,
+        shape: OuroButtonShape = .pill,
         fullWidth: Bool = false,
         role: ButtonRole? = nil,
         loading: Bool = false,
@@ -327,7 +397,7 @@ extension OuroButton where Label == Text {
         tone: OuroTone = .primary,
         variant: OuroButtonVariant = .solid,
         size: OuroButtonSize = .md,
-        shape: OuroButtonShape = .rounded,
+        shape: OuroButtonShape = .pill,
         fullWidth: Bool = false,
         role: ButtonRole? = nil,
         loading: Bool = false,
@@ -345,4 +415,23 @@ extension EnvironmentValues {
     /// Whether ``OuroButton``s here span the width they are offered, as if `fullWidth` were set. ``OuroEmptyState``
     /// sets it for its action at the accessibility text sizes.
     @Entry public var ouroButtonFillsWidth = false
+}
+
+/// A capsule at the height it is drawn: ends of ``OuroButtonMetrics/pillRadius(height:)``.
+struct PillShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        RoundedRectangle(cornerRadius: OuroButtonMetrics.pillRadius(height: rect.height), style: .circular).path(in: rect)
+    }
+}
+
+/// A button's icon and words: 6 points apart, the icon a step smaller and centred on the words.
+private struct ButtonLabel: LabelStyle {
+    let iconFont: Font
+    func makeBody(configuration: Configuration) -> some View {
+        // On the first line's baseline, so a label wrapped at the accessibility sizes keeps its icon by its first word.
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            configuration.icon.font(iconFont)
+            configuration.title
+        }
+    }
 }

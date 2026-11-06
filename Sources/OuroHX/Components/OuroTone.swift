@@ -32,7 +32,7 @@ public enum OuroTone: String, CaseIterable, Sendable {
     public func systemImage(for component: OuroToneComponent) -> String? {
         switch self {
         case .primary: "info.circle.fill"
-        case .secondary: component == .banner ? "info.circle" : nil
+        case .secondary: component == .banner ? "info.circle.fill" : nil
         case .destructive: "xmark.octagon.fill"
         case .success: "checkmark.circle.fill"
         case .warning: "exclamationmark.triangle.fill"
@@ -74,14 +74,24 @@ public enum OuroInput: Sendable {
 /// How a component comes and goes, as data, so a test can check it without rendering. Under Reduce Motion every
 /// component uses ``fade``: a crossfade over `ouro.duration.base`. Core claim `motion.reduced`.
 public enum OuroAppearance: Equatable, Sendable {
-    /// Slides in from an edge on core's spring.
+    /// Slides in from an edge on core's spring: for something that floats over the page, such as a toast.
     case move(edge: Edge)
+    /// Falls in from the top edge while growing from 92%, and lifts back out without the scale: for a toast.
+    case drop
+    /// Grows from 96% at its top edge while fading in, as the page makes room: for something in the page's flow,
+    /// such as a banner, which must not slide over what is above it.
+    case unfold
     /// Crossfades.
     case fade
 
     public var transition: AnyTransition {
         switch self {
         case let .move(edge): .move(edge: edge).combined(with: .opacity)
+        case .unfold: .scale(scale: 0.96, anchor: .top).combined(with: .opacity)
+        case .drop: .asymmetric(
+            insertion: .move(edge: .top).combined(with: .scale(scale: OuroToastMetrics.arrivalScale, anchor: .top)).combined(with: .opacity),
+            removal: .move(edge: .top).combined(with: .scale(scale: OuroToastMetrics.departureScale, anchor: .top)).combined(with: .opacity)
+        )
         case .fade: .opacity
         }
     }
@@ -89,6 +99,8 @@ public enum OuroAppearance: Equatable, Sendable {
     public func step(reduceMotion: Bool) -> OuroMotion.Step {
         switch self {
         case .move: OuroMotion.step(.spring, reduceMotion: reduceMotion)
+        case .unfold: OuroMotion.step(.layout, reduceMotion: reduceMotion)
+        case .drop: OuroMotion.step(.enter, reduceMotion: reduceMotion)
         case .fade: .crossfade(duration: OuroMotion.reducedMotionCrossfade)
         }
     }

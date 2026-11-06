@@ -39,11 +39,31 @@ enum GalleryPage: String, CaseIterable, Identifiable {
 struct GalleryScreen: View {
     @State var theme: OuroThemeName
     @State var page: GalleryPage
+    @StateObject private var probe = FrameProbe()
 
     var body: some View {
         ThemedPage(theme: theme, page: $page, pickTheme: { theme = $0 })
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if FrameProbe.isOn { FrameProbeControls(probe: probe) }
+            }
             .ouroToaster()
             .ouroTheme(theme)
+            .task {
+                // With `-demo` too, the probe times the demo on its own: it starts a second after the page appears,
+                // past launch's own first frames and half a second before the demo's first move, and shows its result
+                // in the "probe" element for MotionTests (and prints it for the capture scripts).
+                // Without a demo, `-probeSeconds` alone times a window for a test's own gesture, `-probeDelay` seconds
+                // in. Either way nothing queries the app while it measures: an XCUITest query takes the main thread.
+                let defaults = UserDefaults.standard
+                guard FrameProbe.isOn, defaults.string(forKey: "demo") != nil || defaults.double(forKey: "probeSeconds") > 0 else { return }
+                // With `-warm 1`, after the demo's unmeasured first play; with no demo there is nothing to wait for.
+                while !DemoWarmup.done, defaults.string(forKey: "demo") != nil { try? await Task.sleep(for: .milliseconds(50)) }
+                try? await Task.sleep(for: .seconds(defaults.object(forKey: "probeDelay") == nil ? 1 : defaults.double(forKey: "probeDelay")))
+                probe.start()
+                try? await Task.sleep(for: .seconds(max(6, UserDefaults.standard.double(forKey: "probeSeconds"))))
+                probe.stop()
+                print("PROBE \(probe.summary) \(probe.hitchLog)")
+            }
     }
 }
 
@@ -90,6 +110,8 @@ private struct ThemedPage: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
+        // `-anchor bottom` opens a page scrolled to its end, so captures can show what sits below the fold.
+        .defaultScrollAnchor(UserDefaults.standard.string(forKey: "anchor") == "bottom" ? .bottom : .top)
         .background(colors.background.ignoresSafeArea())
         .foregroundStyle(colors.foreground)
     }

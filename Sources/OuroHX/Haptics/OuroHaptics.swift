@@ -31,8 +31,8 @@ public struct OuroHapticMoment: Hashable, Sendable {
     public static let checked = OuroHapticMoment(name: "checked", feedback: .selection)
     /// A stepper moved one step.
     public static let stepped = OuroHapticMoment(name: "stepped", feedback: .selection)
-    /// A page or step turned.
-    public static let turned = OuroHapticMoment(name: "turned", feedback: .impact(weight: .light, intensity: 0.7))
+    /// A page or step turned: light, at full strength, so it is felt through a busy hand.
+    public static let turned = OuroHapticMoment(name: "turned", feedback: .impact(weight: .light, intensity: 1))
     /// Something began that runs on: a timer, a cook session, a download.
     public static let started = OuroHapticMoment(name: "started", feedback: .impact(weight: .medium, intensity: 1))
     /// Something finished well: a timer ran out, a book or recipe finished.

@@ -13,15 +13,37 @@ import Testing
         #expect(OuroMotion.step(.draw, reduceMotion: false) == .curve(OuroTokens.Ease.out, duration: 0.24))
     }
 
+    /// A small named set for an app's own motion, Apple's own presets: snappy, smooth, bouncy, and the interactive one
+    /// for following a finger.
+    @Test func theNamedSpringsAreApplesPresets() {
+        #expect(OuroMotion.step(.snappy, reduceMotion: false) == .spring(visualDuration: 0.5, bounce: 0.15))
+        #expect(OuroMotion.step(.smooth, reduceMotion: false) == .spring(visualDuration: 0.5, bounce: 0))
+        #expect(OuroMotion.step(.bouncy, reduceMotion: false) == .spring(visualDuration: 0.5, bounce: 0.3))
+        #expect(OuroMotion.step(.interactive, reduceMotion: false) == .spring(visualDuration: 0.15, bounce: 0.14))
+    }
+
     @Test(arguments: OuroMotion.Kind.allCases)
     func reduceMotionCrossfadesEverythingButPress(kind: OuroMotion.Kind) {
         let step = OuroMotion.step(kind, reduceMotion: true)
-        if kind == .press {
+        if kind.isPress {
             #expect(step == .none)
         } else {
             #expect(step == .crossfade(duration: OuroTokens.Duration.base))
         }
         #expect(OuroMotion.step(kind, reduceMotion: true).animation == nil || step != .none)
+    }
+
+    /// The components move on springs, which keep the finger's or the last animation's velocity when retargeted, so
+    /// a press released early or a toast dismissed while arriving turns around smoothly. Fixed-duration curves restart.
+    @Test func componentsMoveOnSprings() {
+        #expect(OuroMotion.step(.pressIn, reduceMotion: false) == .spring(visualDuration: 0.15, bounce: 0))
+        #expect(OuroMotion.step(.pressOut, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.15))
+        #expect(OuroMotion.step(.enter, reduceMotion: false) == .spring(visualDuration: 0.55, bounce: 0.25))
+        #expect(OuroMotion.step(.exit, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0))
+        #expect(OuroMotion.step(.settle, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.2))
+        #expect(OuroMotion.step(.layout, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0))
+        #expect(OuroMotion.step(.pressIn, reduceMotion: true) == .none)
+        #expect(OuroMotion.step(.pressOut, reduceMotion: true) == .none)
     }
 
     @Test func pressScalesOnlyWithMotion() {
@@ -40,7 +62,8 @@ import Testing
 
     @Test func momentsMapToFeedback() {
         #expect(OuroHapticMoment.checked.feedback == .selection)
-        #expect(OuroHapticMoment.turned.feedback == .impact(weight: .light, intensity: 0.7))
+        // A step turned is a moment the cook should feel through a floury hand: full strength.
+        #expect(OuroHapticMoment.turned.feedback == .impact(weight: .light, intensity: 1))
         #expect(OuroHapticMoment.started.feedback == .impact(weight: .medium, intensity: 1))
         #expect(OuroHapticMoment.finished.feedback == .success)
         #expect(OuroHapticMoment.warned.feedback == .warning)

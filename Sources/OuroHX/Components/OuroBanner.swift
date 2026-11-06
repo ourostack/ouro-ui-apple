@@ -28,11 +28,20 @@ public struct OuroBannerPalette: Sendable {
         let c = style.colors
         let background = OuroInk.r(c.background)
         let toneColour = OuroInk.r(tone.fill(c).fill)
-        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: background, 0.1)
+        // A soft wash of the tone. In dark mode it washes the raised card colour rather than the page, and stays quiet
+        // at 12%, so the hue lives in the edge and the icon rather than a muddy body.
+        let base = style.scheme == .dark ? OuroInk.r(c.card) : background
+        surface = tone == .secondary ? OuroInk.r(c.muted) : OuroInk.tint(toneColour, over: base, style.scheme == .dark ? 0.12 : 0.1)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
+        // The words are the page's own colours; the tone is in the wash and the icon only, as Apple's alerts are.
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
-        icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.foreground) : toneColour, on: surface, style)
-        border = OuroColor.push(tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(toneColour, over: background, 0.35), against: surface, to: style.contrast == .increased ? OuroColor.increasedLineContrast : 1)
+        icon = OuroInk.readable(tone == .secondary ? OuroInk.r(c.mutedForeground) : toneColour, on: surface, style)
+        // An edge in the tone; under increased contrast the full tone, raised to 3:1, so it stays its colour.
+        if style.contrast == .increased {
+            border = OuroColor.push(tone == .secondary ? OuroInk.r(c.border) : toneColour, against: surface, to: OuroColor.increasedLineContrast)
+        } else {
+            border = tone == .secondary ? OuroInk.r(c.border) : OuroInk.tint(toneColour, over: base, OuroBannerMetrics.edgeTint(scheme: style.scheme))
+        }
     }
 }
 
@@ -42,13 +51,25 @@ public enum OuroBannerMetrics {
     /// change, not each time it scrolls back into view or its screen is shown again.
     public static func announces(_ words: String, after last: String?) -> Bool { words != last }
 
+    /// The corner radius: 16 points, continuous, as iOS 26's inset grouped sections.
+    public static let cornerRadius: CGFloat = 16
+    /// How much of its tone a banner's edge is: 25% in light, 30% in dark.
+    public static func edgeTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.3 : 0.25 }
+
     /// The dismiss button's target, in points: 44 on every platform.
     public static let dismissTarget: CGFloat = 44
 
-    /// A banner slides down into place, or crossfades under Reduce Motion.
+    /// A banner unfolds in place as the page makes room, never sliding over what is above it; it crossfades under
+    /// Reduce Motion.
     public static func appearance(reduceMotion: Bool) -> OuroAppearance {
-        .choose(.move(edge: .top), reduceMotion: reduceMotion)
+        .choose(.unfold, reduceMotion: reduceMotion)
     }
+
+    /// How opaque a banner is `progress` of the way unfolded: clear until halfway, then fading in. Folding away, its
+    /// words are gone by halfway, so the page closing up never slides over words still showing.
+    public static func foldOpacity(progress: Double) -> Double { min(1, max(0, (progress - 0.6) / 0.4)) }
+    /// The largest text size a banner's icon and close mark grow to: a step short of the largest, like a toast's.
+    public static let largestIconSize = DynamicTypeSize.accessibility3
 
     /// What VoiceOver says when a banner appears: its title, then its description.
     public static func announcement(title: String, description: String?) -> String {
@@ -69,8 +90,12 @@ public enum OuroBannerMetrics {
 /// ```
 ///
 /// VoiceOver hears it once when it appears: destructive and warning banners at once, the others when it is free.
-/// With `onDismiss` it has a 44-point close button named `dismissLabel`. Inserted or removed inside an animation
-/// (`withOuroAnimation(.spring, reduceMotion: reduceMotion) { error = nil }`), it slides from the top, or crossfades
+/// With `onDismiss` it has a 44-point close button named `dismissLabel`. Prefer `isPresented` to an `if` around it:
+/// changed inside an animation (`withOuroAnimation(.layout, reduceMotion: reduceMotion) { saved = false }`) it folds
+/// away and back in place, and turns around smoothly if changed again mid-way. Folded away it takes no height, but a
+/// stack's `spacing` still puts a gap where it was: in a stack with spacing, give the banner its gap as padding in a
+/// `spacing: 0` stack instead. Inserted or removed inside an animation
+/// (`withOuroAnimation(.layout, reduceMotion: reduceMotion) { error = nil }`), it unfolds in place, or crossfades
 /// under Reduce Motion.
 public struct OuroBanner<Action: View>: View {
     private let title: String
@@ -79,12 +104,14 @@ public struct OuroBanner<Action: View>: View {
     private let icon: OuroIcon
     private let dismissLabel: String
     private let onDismiss: (() -> Void)?
+    private let isPresented: Bool
     private let action: Action
     @Environment(\.ouroTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.ouroTouchTarget) private var touchTarget
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// What VoiceOver last heard from this banner.
     @State private var announced: String?
 
@@ -95,8 +122,10 @@ public struct OuroBanner<Action: View>: View {
         icon: OuroIcon = .automatic,
         dismissLabel: String = "Dismiss",
         onDismiss: (() -> Void)? = nil,
+        isPresented: Bool = true,
         @ViewBuilder action: () -> Action
     ) {
+        self.isPresented = isPresented
         self.title = title
         self.description = description
         self.tone = tone
@@ -108,58 +137,97 @@ public struct OuroBanner<Action: View>: View {
 
     public var body: some View {
         let p = OuroBannerPalette(tone: tone, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
-        HStack(alignment: .top, spacing: 12) {
-            if let name = icon.name(tone, .banner) {
-                Image(systemName: name)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color(p.icon))
-                    .padding(.top, 2)
-                    .accessibilityHidden(true)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color(p.title))
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let description {
-                        Text(description)
-                            .font(.subheadline)
-                            .foregroundStyle(Color(p.description))
-                            .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if typeSize.isAccessibilitySize {
+                // At the accessibility sizes the words get the whole width: the icon and the close button share a row
+                // above them, so nothing squeezes the sentence to a word a line.
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top) {
+                        iconView(p)
+                        Spacer(minLength: 0)
+                        closeButton(p)
                     }
+                    words(p)
                 }
-                .accessibilityElement(children: .combine)
-                if Action.self != EmptyView.self { action }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let onDismiss {
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Color(p.title))
-                        .frame(width: max(OuroBannerMetrics.dismissTarget, touchTarget), height: max(OuroBannerMetrics.dismissTarget, touchTarget))
-                        .contentShape(Rectangle())
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    iconView(p).padding(.top, -1)
+                    words(p)
+                    closeButton(p)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(dismissLabel)
-                .padding(.trailing, -10)
-                .padding(.vertical, -10)
             }
         }
-        .padding(14)
-        .background(Color(p.surface), in: RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous).strokeBorder(Color(p.border), lineWidth: 1))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        // A wash of colour with a fine edge in its tone; under increased contrast the edge is two points.
+        .background(Color(p.surface), in: RoundedRectangle(cornerRadius: OuroBannerMetrics.cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: OuroBannerMetrics.cornerRadius, style: .continuous)
+                .strokeBorder(Color(p.border), lineWidth: contrast == .increased ? 2 : 1)
+        }
         .accessibilityElement(children: .contain)
+        // Shown and hidden in place: its height, scale and opacity are animated values, so a banner hidden and shown
+        // again mid-way turns around smoothly on the spring, which an `if` around it (a removal) cannot do.
+        .modifier(Unfolds(shown: isPresented, reduceMotion: reduceMotion))
         .transition(OuroBannerMetrics.appearance(reduceMotion: reduceMotion).transition)
         // Spoken once when it arrives and again when its words change, not each time it scrolls back into view.
-        .onAppear { announceIfNew() }
+        .onAppear { if isPresented { announceIfNew() } }
+        .onChange(of: isPresented) { _, now in if now { announced = nil; announceIfNew() } }
         .onChange(of: OuroBannerMetrics.announcement(title: title, description: description)) { announceIfNew() }
     }
 }
 
 extension OuroBanner {
+    @ViewBuilder private func iconView(_ p: OuroBannerPalette) -> some View {
+        if let name = icon.name(tone, .banner) {
+            Image(systemName: name)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(Color(p.icon))
+                // It grows with the words, a step short of the largest sizes so it never outweighs them.
+                .dynamicTypeSize(...OuroBannerMetrics.largestIconSize)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func words(_ p: OuroBannerPalette) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color(p.title))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let description {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundStyle(Color(p.description))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            if Action.self != EmptyView.self { action }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private func closeButton(_ p: OuroBannerPalette) -> some View {
+        if let onDismiss {
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .dynamicTypeSize(...OuroBannerMetrics.largestIconSize)
+                    .foregroundStyle(Color(p.description))
+                    .frame(width: max(OuroBannerMetrics.dismissTarget, touchTarget), height: max(OuroBannerMetrics.dismissTarget, touchTarget))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.ouroPress)
+            .accessibilityLabel(dismissLabel)
+            .padding(.trailing, -12)
+            .padding(.vertical, -12)
+        }
+    }
+
     private func announceIfNew() {
+        guard isPresented else { return }
         let words = OuroBannerMetrics.announcement(title: title, description: description)
         guard OuroBannerMetrics.announces(words, after: announced) else { return }
         announced = words
@@ -169,7 +237,58 @@ extension OuroBanner {
 
 extension OuroBanner where Action == EmptyView {
     /// A banner with no action.
-    public init(_ title: String, description: String? = nil, tone: OuroTone = .secondary, icon: OuroIcon = .automatic, dismissLabel: String = "Dismiss", onDismiss: (() -> Void)? = nil) {
-        self.init(title, description: description, tone: tone, icon: icon, dismissLabel: dismissLabel, onDismiss: onDismiss) { EmptyView() }
+    public init(_ title: String, description: String? = nil, tone: OuroTone = .secondary, icon: OuroIcon = .automatic, dismissLabel: String = "Dismiss", onDismiss: (() -> Void)? = nil, isPresented: Bool = true) {
+        self.init(title, description: description, tone: tone, icon: icon, dismissLabel: dismissLabel, onDismiss: onDismiss, isPresented: isPresented) { EmptyView() }
+    }
+}
+
+/// Folds a banner away to nothing at its top edge, and back. One animatable value drives its height, scale and
+/// opacity, so a change mid-way retargets that value on the spring; animating the frame's height instead stalled a
+/// frame at every turnaround in the gallery's frame captures.
+private struct Unfolds: ViewModifier {
+    let shown: Bool
+    let reduceMotion: Bool
+    func body(content: Content) -> some View {
+        let progress = shown ? 1.0 : 0
+        FoldLayout(progress: progress) {
+            content
+                .modifier(FoldLook(progress: progress, scales: !reduceMotion))
+        }
+        .clipped()
+        .accessibilityHidden(!shown)
+        .allowsHitTesting(shown)
+    }
+}
+
+/// Opacity, and a scale from 96% at the top edge, for a fold `progress` of the way open.
+private struct FoldLook: ViewModifier, @MainActor Animatable {
+    var progress: Double
+    let scales: Bool
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scales ? 0.96 + 0.04 * progress : 1, anchor: .top)
+            .opacity(OuroBannerMetrics.foldOpacity(progress: progress))
+    }
+}
+
+/// Takes `progress` of its child's height, the child pinned to the top.
+private struct FoldLayout: Layout {
+    var progress: Double
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let size = child.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+        return CGSize(width: size.width, height: size.height * max(0, progress))
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let child = subviews.first else { return }
+        child.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: bounds.width, height: nil))
     }
 }

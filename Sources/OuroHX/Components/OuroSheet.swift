@@ -1,15 +1,22 @@
 public import SwiftUI
 
-/// The resolved colours of a sheet as seen: the page's background, with its words at 5:1 (7:1 under increased
-/// contrast).
+/// The resolved colours of a sheet as seen: the page's background in light, the raised popover colour in dark (so a
+/// sheet has an edge over a dimmed black page), with its words at 5:1 (7:1 under increased contrast).
 public struct OuroSheetPalette: Sendable {
     public var title: Color.Resolved
     public var description: Color.Resolved
     public var surface: Color.Resolved
+    /// The close button's disc: the theme's muted fill, a step off the surface.
+    public var closeFill: Color.Resolved
+    /// The close button's xmark, readable on its disc.
+    public var closeMark: Color.Resolved
 
     public init(style: OuroHXStyle) {
         let c = style.colors
-        surface = OuroInk.r(c.background)
+        surface = OuroInk.r(style.scheme == .dark ? c.popover : c.background)
+        // Always a visible step off the surface, even where a theme's muted colour is the popover's.
+        closeFill = OuroColor.push(OuroInk.r(c.muted), against: surface, to: 1.2)
+        closeMark = OuroInk.readable(OuroInk.r(c.mutedForeground), on: closeFill, style)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
     }
@@ -17,6 +24,11 @@ public struct OuroSheetPalette: Sendable {
 
 /// Metrics and motion every Ouro sheet shares, as data.
 public enum OuroSheetMetrics {
+    /// How much of its words' colour a sheet's rim takes: a hairline in dark, so it doesn't melt into the dimmed
+    /// page; none in light, where the page dims to grey around a white sheet.
+    public static func rimOpacity(scheme: ColorScheme) -> Double { scheme == .dark ? 0.12 : 0 }
+    /// The rim's width, in points.
+    public static let rimWidth: CGFloat = 0.5
     /// How large iOS 26 and later draw a sheet below its full height: 96%, measured in the gallery's UI tests (a
     /// 44-point button reads 42.2 points on screen).
     public static let drawnScale: CGFloat = 0.96
@@ -25,6 +37,14 @@ public enum OuroSheetMetrics {
     public static let touchTarget: CGFloat = 46
     /// The close button's target, in layout points (44 as drawn).
     public static let closeTarget: CGFloat = touchTarget
+    /// The close button's drawn disc, inside its target: 44 points, the size of iOS 26's own sheet close button.
+    public static let closeDisc: CGFloat = 44
+    /// The close button's glyph: 17 points, semibold, fixed so it stays inside its disc at every text size.
+    public static let closeGlyph: CGFloat = 17
+
+    /// Whether a sheet shows its grabber: only with several heights to drag between. A sheet that fits its content,
+    /// or has one detent, has none, as on Apple's own.
+    public static func showsGrabber(detents: Set<PresentationDetent>?) -> Bool { (detents?.count ?? 0) > 1 }
 
     /// The accessibility identifier of every `.ouroSheet`'s content, which `OuroHXTesting`'s audit looks for.
     public static let accessibilityIdentifier = "ouro.sheet"
@@ -158,7 +178,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.headline)
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(Color(p.title))
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)
@@ -172,19 +192,26 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Button(action: close) {
+                    // A round close button, a solid muted disc as on Apple's own opaque sheets (glass would not show on
+                    // an opaque surface); drawn smaller than its target, which stays the full size.
+                    // A fixed glyph: it stays inside its disc at every text size; the button's name is what VoiceOver
+                    // and Voice Control use.
                     Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color(p.title))
+                        .font(.system(size: OuroSheetMetrics.closeGlyph, weight: .semibold))
+                        .foregroundStyle(Color(p.closeMark))
+                        .frame(width: OuroSheetMetrics.closeDisc, height: OuroSheetMetrics.closeDisc)
+                        .modifier(CloseDisc(fill: Color(p.closeFill)))
                         .frame(width: OuroSheetMetrics.closeTarget, height: OuroSheetMetrics.closeTarget)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.ouroPress)
                 .accessibilityLabel(closeLabel)
                 .accessibilityIdentifier(OuroSheetMetrics.closeIdentifier)
-                .padding(.trailing, -10)
+                // The disc's edge 17 points in from the sheet's, where iOS 26 sets its own.
+                .padding(.trailing, -4)
             }
             .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .padding(.top, 20)
             .padding(.bottom, 8)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { header = $0 }
             ScrollView {
@@ -215,10 +242,10 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
         .frame(minWidth: 360, minHeight: min(fittedHeight, 640))
         #endif
         .presentationDetents(detents ?? [.height(fittedHeight)])
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(OuroSheetMetrics.showsGrabber(detents: detents) ? .visible : .hidden)
         // Toasts sent while the sheet is open show above it, not behind it.
         .modifier(OuroToastHost())
-        .presentationBackground(Color(p.surface))
+        .modifier(SheetBackground(surface: Color(p.surface), rim: Color(p.title).opacity(OuroSheetMetrics.rimOpacity(scheme: scheme))))
         .opacity(visible || !reduceMotion ? 1 : 0)
         .onAppear { withAnimation(OuroMotion.animation(.base, reduceMotion: reduceMotion)) { visible = true } }
     }
@@ -231,6 +258,33 @@ private struct VisuallyHidden: ViewModifier {
             content.frame(width: 1, height: 1).clipped().opacity(0.011)
         } else {
             content
+        }
+    }
+}
+
+/// The close button's disc: the theme's muted fill.
+private struct CloseDisc: ViewModifier {
+    let fill: Color
+    func body(content: Content) -> some View {
+        content.background(fill, in: Circle())
+    }
+}
+
+/// The theme's surface behind the sheet, on iOS 26 too: the sheet's text and the components in it are made readable
+/// on that surface (`contrast.text`), and a theme's surface is not the system sheet's glass. iOS 26 still floats a
+/// partial sheet and rounds it.
+private struct SheetBackground: ViewModifier {
+    let surface: Color
+    let rim: Color
+    func body(content: Content) -> some View {
+        if #available(iOS 26, macOS 26, *) {
+            // The sheet's own corners, from its container, so the rim follows the shape iOS draws; stroked double and clipped,
+                // so the half inside shows.
+            content.presentationBackground {
+                surface.overlay { ConcentricRectangle().stroke(rim, lineWidth: OuroSheetMetrics.rimWidth * 2).clipShape(ConcentricRectangle()) }
+            }
+        } else {
+            content.presentationBackground(surface)
         }
     }
 }

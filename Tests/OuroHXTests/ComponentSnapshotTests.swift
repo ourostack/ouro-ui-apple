@@ -71,6 +71,7 @@ import Testing
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {
                 OuroButton("Create recipe", systemImage: "plus") {}
             }
+            .still()
         }
     }
 
@@ -97,11 +98,12 @@ import Testing
         }
     }
 
+    /// Toasts on their solid surface: ImageRenderer draws no glass, so the gallery's captures show the glass.
     @Test(arguments: Mode.allCases) func toast(_ mode: Mode) throws {
         try check("toast", mode) {
             VStack(spacing: 8) {
-                OuroToastView(toast: OuroToast("Recipe saved", tone: .success), closeLabel: "Dismiss", tracksFocus: false) {}
-                OuroToastView(toast: OuroToast("Recipe deleted", action: OuroToastAction("Undo") {}), closeLabel: "Dismiss", tracksFocus: false) {}
+                OuroToastView(toast: OuroToast("Recipe saved", tone: .success), closeLabel: "Dismiss", tracksFocus: false, rendersGlass: false) {}
+                OuroToastView(toast: OuroToast("Recipe deleted", action: OuroToastAction("Undo") {}), closeLabel: "Dismiss", tracksFocus: false, rendersGlass: false) {}
             }
         }
     }

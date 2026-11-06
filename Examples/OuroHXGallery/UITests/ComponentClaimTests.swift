@@ -33,13 +33,42 @@ final class ComponentClaimTests: XCTestCase {
     func testEveryComponentPagePassesTheAccessibilityAudit() throws {
         let runs: [(page: String, extra: [String], known: [String])] =
             Self.pages.map { ($0, [], []) } + [("sheet", ["-sheetDetent", "large"], [])]
-        for run in runs {
+        // `OURO_AUDIT_PAGES=toasts,sheet` (as `TEST_RUNNER_OURO_AUDIT_PAGES` to xcodebuild) audits only those pages.
+        let only = ProcessInfo.processInfo.environment["OURO_AUDIT_PAGES"].map { Set($0.split(separator: ",").map(String.init)) }
+        for run in runs where only?.contains(run.page) ?? true {
             for size in [nil, Self.largest] {
                 for scheme in ["light", "dark"] {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        do { try app.ouroAccessibilityAudit(knownIssues: run.known) } catch { XCTFail("\(name): \(error)") }
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : nil
+                        do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
+                    }
+                    if run.page == "buttons" {
+                        // What that excuse could hide: each glass button's words, measured from the screen's own
+                        // pixels, read at 5:1 against the glass under them.
+                        let shot = app.windows.firstMatch.screenshot().image
+                        let glass = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'button.glass.'")).allElementsBoundByIndex
+                        var measured = 0
+                        for button in glass where app.windows.firstMatch.frame.contains(button.frame) {
+                            let ratio = Self.inkContrast(shot, in: button.frame.insetBy(dx: 12, dy: 10))
+                            XCTAssertGreaterThanOrEqual(ratio, 5, "\(name): glass \(button.label) reads at \(ratio):1")
+                            measured += 1
+                        }
+                        // The glass row is shown first, so some of it is always on screen to measure.
+                        XCTAssertGreaterThan(measured, 0, "\(name): no glass button on screen to measure")
+                    }
+                    if run.page == "toasts", size == nil {
+                        // Expanded, as VoiceOver users always see the stack: every toast's own words are measured.
+                        expandToasts(app)
+                        XCTContext.runActivity(named: "\(name) expanded") { _ in
+                            do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: Self.expandedStackMisreadings) } catch { XCTFail("\(name) expanded: \(error)") }
+                        }
+                        // What those excuses could hide: every toast's buttons are full targets, reachable.
+                        for button in app.buttons.matching(NSPredicate(format: "label IN %@", ["Dismiss", "Undo"])).allElementsBoundByIndex {
+                            XCTAssertTrue(button.isHittable, "\(name) expanded: \(button.label) is not reachable")
+                            XCTAssertGreaterThanOrEqual(min(button.frame.width, button.frame.height), 44, "\(name) expanded: \(button.label) is \(button.frame.size)")
+                        }
                     }
                     if run.page == "sheet", run.extra.isEmpty {
                         // What the excused "Text clipped" could hide: the fitted sheet's last row and its action
@@ -97,8 +126,12 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.buttons["Close"].exists)
         app.terminate()
         app = launch("toasts")
+        // Stacked, only the newest toast is shown; the older ones tuck behind it, out of VoiceOver's way. With
+        // VoiceOver or Switch Control running the stack opens by itself; here a tap opens it.
+        XCTAssertEqual(shownDismissButtons(app), 1, "only the front toast is shown")
+        expandToasts(app)
         XCTAssertTrue(app.buttons["Undo"].exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "Dismiss").count, 3, "every toast has a dismiss button")
+        XCTAssertEqual(shownDismissButtons(app), 3, "every toast has a dismiss button")
         XCTAssertTrue(app.otherElements["Notifications"].exists || app.descendants(matching: .any)["Notifications"].exists, "the toasts' region is named")
         app.terminate()
     }
@@ -113,13 +146,14 @@ final class ComponentClaimTests: XCTestCase {
     func testCloseControlsClose() {
         var app = launch("banners")
         app.buttons["Dismiss"].tap()
-        XCTAssertTrue(app.staticTexts["Couldn't save"].waitForNonExistence(timeout: Self.closeBudget))
+        XCTAssertTrue(app.staticTexts["Couldn\u{2019}t save"].waitForNonExistence(timeout: Self.closeBudget))
         app.terminate()
         app = launch("sheet")
         app.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Pick where this recipe lives."].waitForNonExistence(timeout: Self.closeBudget))
         app.terminate()
         app = launch("toasts")
+        expandToasts(app)
         // Every toast on this page waits to be dismissed, so no timer can meet this wait: only the close can.
         let close = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.first(where: \.isHittable)
         XCTAssertNotNil(close, "a toast's close is reachable")
@@ -127,6 +161,69 @@ final class ComponentClaimTests: XCTestCase {
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == 2"), object: app.buttons.matching(identifier: "Dismiss"))
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: Self.closeBudget), .completed, "the toast's close dismissed it, and only it")
         app.terminate()
+    }
+
+    /// Toasts' close buttons a finger can reach: the shown toasts' (a tucked one draws no buttons).
+    private func shownDismissButtons(_ app: XCUIApplication) -> Int {
+        app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).count
+    }
+
+    /// Two readings the audit gets wrong on an expanded stack (W8, 2026-11-04, with diagnostics of each issue's
+    /// element): it fails Undo's contrast even with Undo drawn black on the white surface (21:1), and reads the oldest
+    /// toast's plain words, a static text with no action, as an undersized target, with a second such issue that has
+    /// no element at all. Contrast is proven by the palette tests; the targets by the assertions after the audit.
+    /// The audit misreads words on Liquid Glass: on the gallery's glass row it reported white "Primary" on near-black
+    /// glass (well over 15:1 in `gallery-r10/buttons-dark.png`) as failing contrast, and raising every glass label to
+    /// 6:1 made it report more failures, not fewer (W8 evidence, taste round 5). The same misreading as Undo on the glass
+    /// toast. So contrast on a glass button is measured from the screen's pixels instead (`inkContrast`).
+    static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
+    }
+
+    /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.
+    /// The 2nd and 98th percentiles, so antialiasing and a stray highlight don't decide it.
+    static func inkContrast(_ image: UIImage, in rect: CGRect) -> Double {
+        guard let cg = image.cgImage else { return 0 }
+        let scale = image.scale
+        let r = CGRect(x: rect.minX * scale, y: rect.minY * scale, width: rect.width * scale, height: rect.height * scale).integral
+        guard let crop = cg.cropping(to: r) else { return 0 }
+        let w = crop.width, h = crop.height
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        ctx?.draw(crop, in: CGRect(x: 0, y: 0, width: w, height: h))
+        func lin(_ v: UInt8) -> Double { let c = Double(v) / 255; return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        var lum: [Double] = []
+        lum.reserveCapacity(w * h)
+        for i in stride(from: 0, to: px.count, by: 4) { lum.append(0.2126 * lin(px[i]) + 0.7152 * lin(px[i + 1]) + 0.0722 * lin(px[i + 2])) }
+        lum.sort()
+        guard !lum.isEmpty else { return 0 }
+        let lo = lum[lum.count * 2 / 100], hi = lum[lum.count * 98 / 100]
+        return (hi + 0.05) / (lo + 0.05)
+    }
+
+    static let expandedStackMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        switch issue.auditType {
+        case .contrast: issue.element?.label == "Undo"
+        case .hitRegion: issue.element == nil || issue.element?.elementType == .staticText
+        default: false
+        }
+    }
+
+    /// Opens the toast stack by tapping its front toast, the newest, "Couldn’t save".
+    private func expandToasts(_ app: XCUIApplication) {
+        app.staticTexts["Couldn\u{2019}t save"].tap()
+        // Until the stack has fanned out and its words have faded in: an audit mid-way reads fading words and moving
+        // targets (CI failed it after a fixed second).
+        var last: [CGRect] = []
+        for _ in 0..<20 {
+            Thread.sleep(forTimeInterval: 0.25)
+            let frames = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.map(\.frame)
+            if frames.count == 3, frames == last { break }
+            last = frames
+        }
+        Thread.sleep(forTimeInterval: 0.5)
+        XCTAssertEqual(shownDismissButtons(app), 3, "a tap opens the stack")
     }
 
     /// Claim toast.action-stays: a toast with an action is still there after the five seconds a plain one gets. The
@@ -165,5 +262,42 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(action.waitForExistence(timeout: 3))
         XCTAssertGreaterThan(action.frame.width, app.windows.firstMatch.frame.width * 0.7, "the action hugs its label")
         app.terminate()
+    }
+
+    /// An empty state's symbol is drawn just above its title, centred on it, once it has arrived (round 4's cascade drew
+    /// it at the screen's origin, over the page title). The symbol is hidden from VoiceOver, so this reads the pixels.
+    func testAnEmptyStatesSymbolSitsAboveItsTitle() throws {
+        let app = launch("empty")
+        let title = app.staticTexts["No recipes yet"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        Thread.sleep(forTimeInterval: 1.5)
+        let shot = app.windows.firstMatch.screenshot().image
+        let t = title.frame
+        let above = CGRect(x: t.midX - 40, y: t.minY - 64, width: 80, height: 56)
+        let corner = CGRect(x: 0, y: 60, width: 80, height: 56)
+        let inked = Self.inkedFraction(shot, in: above)
+        XCTAssertGreaterThan(inked, 0.05, "no symbol drawn above the title (\(inked))")
+        let stray = Self.inkedFraction(shot, in: corner)
+        let pageTitle = app.staticTexts.matching(NSPredicate(format: "label == 'Pearl'")).firstMatch
+        XCTAssertTrue(pageTitle.exists)
+        // The corner holds only the page title's ink, never more than the title alone draws there.
+        XCTAssertLessThan(stray, 0.35, "something drawn over the page title (\(stray))")
+        app.terminate()
+    }
+
+    /// The share of pixels in `rect` (points) darker than the page, on a light page.
+    static func inkedFraction(_ image: UIImage, in rect: CGRect) -> Double {
+        guard let cg = image.cgImage else { return 0 }
+        let scale = image.scale
+        let r = CGRect(x: rect.minX * scale, y: rect.minY * scale, width: rect.width * scale, height: rect.height * scale).integral
+        guard let crop = cg.cropping(to: r) else { return 0 }
+        let w = crop.width, h = crop.height
+        var px = [UInt8](repeating: 0, count: w * h * 4)
+        let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        ctx?.draw(crop, in: CGRect(x: 0, y: 0, width: w, height: h))
+        var inked = 0
+        for i in stride(from: 0, to: px.count, by: 4) where Int(px[i]) + Int(px[i + 1]) + Int(px[i + 2]) < 600 { inked += 1 }
+        return Double(inked) / Double(w * h)
     }
 }

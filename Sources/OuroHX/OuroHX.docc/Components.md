@@ -1,6 +1,8 @@
 # Components
 
-Button, EmptyState, Banner, Sheet and Toast: the same five components as Ouro HX for web, drawn in SwiftUI.
+Button, EmptyState, Banner, Sheet and Toast: the same five components as Ouro HX for web, drawn in SwiftUI and at
+their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
+26, and springs you can interrupt everywhere.
 
 ## Overview
 
@@ -58,7 +60,8 @@ claim has no test here.
 - **44-point targets** on a touch screen (`target.touch`): every size of ``OuroButton``, and every close, dismiss
   and action control. With a pointer, buttons step down to desktop density (28, 32 and 40 points).
 - **No motion under Reduce Motion** (`motion.reduced`): no press scale, banners and toasts crossfade instead of
-  sliding, and a sheet appears without sliding up. See ``OuroAppearance``.
+  unfolding or sliding, and a sheet appears without sliding up. A toast still follows a finger dragging it. See
+  ``OuroAppearance``.
 - **VoiceOver names and traits** (`name.spoken`): titles are labels and headings, icons are decorative and hidden,
   close buttons are named ("Close", "Dismiss"; pass your own words to translate them).
 - **Large text wraps** (`text.reflows`): no label, title or message has a line limit; at the accessibility sizes an
@@ -100,10 +103,42 @@ What the components don't do for you, and how to match them:
   clipping there unchecked, so audit the sheet once more at full height: present it with `detents: [.large]` from a
   launch argument your app reads.
 
-### Spacing
+### How they move and look
 
-Core has no spacing tokens yet, so the components use web's own measurements (a medium button is 44 points tall
-with 16 points at its sides, web's `h-11 px-4`). Radii come from the theme (``OuroTheme/radius(_:)``).
+Everything moves on springs (``OuroMotion``), never fixed durations, so a change mid-way turns around from where it
+is instead of jumping. The defaults are the designed version; options are for the exceptions.
+
+- **Buttons** are capsules at every text size, 50 points tall at the medium size (34 drawn small, 56 large, each
+  with at least a 44-point target); a label wrapped onto several lines rounds its corners at 44 points. Outlines
+  are drawn in their tone at 50%, secondary's in the page's foreground at 25% (two points of the full tone under
+  Increase Contrast), and an icon sits on the label's first line. A plain button's words sit on the layout margin,
+  its target still 44 points. A press answers on touch-down: it shrinks to 97% on a quick spring and springs back with a
+  little bounce. A plain tap plays no haptic; pass `haptic:` for a moment that earns one.
+- **An empty state** is open, like the system's `ContentUnavailableView`: a 60-point one-tone symbol (44
+  inline, at most 80 at large text sizes) that bounces once as the state cascades in, line by line, 40 ms apart, semibold in the theme's secondary
+  colour, so the title carries the state and an action the colour; a bold title and a line of description in a 340-point column. `variant: .outline` draws a dashed
+  edge, for a drop zone.
+- **A banner** is a soft tint with a fine edge in its tone (two points of the full tone under Increase Contrast),
+  16-point corners; its words
+  are the page's own colours and the tone is in the wash and the icon. Give it
+  `isPresented:` rather than an `if` around it: changed inside `withOuroAnimation(.layout, …)` it folds away at its
+  top edge as the page closes up, its words gone by 60% of the way, and unfolds again, turning around smoothly if changed mid-way. A stack's spacing
+  still leaves a gap where a folded banner was.
+- **A sheet** is the system sheet on the theme's surface (its raised popover colour in dark), with a solid 44-point
+  close disc and a Title 2 title, a hairline rim in dark, and a grabber only when it has several heights to drag between.
+- **Toasts** are 56-point glass capsules over the theme's surface, edged with a hairline and casting one soft shadow, at the top centre, at most 420 points wide, that drop in on a
+  bouncy spring that visibly overshoots and lift away without one, shrinking to 96%. The icon grows with the words. Swipe one up to dismiss it; dragged down, it gives a little and comes back. Up to three stack,
+  the older ones shaded a step deeper and tucked 12 and 22 points behind the newest with only a hairline edge and no shadow of their own, their words
+  fading in 0.1 s as they tuck, so two sets of words never share a place. A tucking toast keeps its own size until the newest is measured,
+  then takes that size on the arrival's spring, and older toasts fade out as the stack empties. Each keeps its own glass edge. A tap fans them out, and VoiceOver and Switch Control see them
+  fanned out from the start; the region's "Show all" action fans them out for Voice Control and Full Keyboard
+  Access. The glass sits over the theme's opaque surface, so the page never reads through, and the words take the
+  system's vibrant label styles; under Increase Contrast or Reduce Transparency, and before iOS 26, the toast is solid
+  with an edge, in the theme's colours. An action is tinted words after a hairline, not a button in the capsule. A toast's icon bounces as it lands; give
+  one its own with `systemImage:`.
+
+The measurements, and the apps they were studied from, are in decision 15 of `docs/decisions/2026-11-04-hx-components.md`.
+Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 
 ### Where they came from
 

@@ -118,9 +118,12 @@ public struct OuroFeel {
         let window = Self.mainWindow(root)
         var found: [FeelSeen] = []
         func walk(_ node: any XCUIElementSnapshot) {
-            if node.elementType != .application && node.elementType != .window,
-               keys.isEmpty || keys.contains(node.identifier) || keys.contains(node.label) {
-                found.append(FeelSeen(key: Self.key(node), label: node.label, frame: node.frame))
+            // Read into values first: Xcode 26's Release build reads the snapshot inside `&&` and `||`'s autoclosures
+            // as sending it across isolation, and refuses to compile.
+            let type = node.elementType, identifier = node.identifier, label = node.label
+            if type != .application && type != .window,
+               keys.isEmpty || keys.contains(identifier) || keys.contains(label) {
+                found.append(FeelSeen(key: Self.key(node), label: label, frame: node.frame))
             }
             for child in node.children { walk(child) }
         }
@@ -238,12 +241,22 @@ public struct OuroFeel {
         func trial(_ spot: FeelTapSpot, expected: Bool, _ act: () -> Void) {
             let before = read()
             act()
-            var landed = wait(within) { read() != before }
+            // Polled here rather than in a closure handed to `wait`: Xcode 26's Release build reads that closure,
+            // which holds `read`, as sending it across isolation, and refuses to compile.
+            func changed(within timeout: TimeInterval) -> Bool {
+                let deadline = Date().addingTimeInterval(timeout)
+                while Date() < deadline {
+                    if read() != before { return true }
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+                }
+                return read() != before
+            }
+            var landed = changed(within: within)
             // One tap, never resent. A loaded machine can report a change late, so a tap that should land is given
             // twice as long again before it counts as a miss; one that lands then is noted as late.
             var late = false
             if expected && !landed {
-                landed = wait(within * 2) { read() != before }
+                landed = changed(within: within * 2)
                 late = landed
             }
             results.append(FeelTapTrial(spot: spot, landed: landed, expected: expected, late: late))

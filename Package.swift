@@ -29,6 +29,8 @@ let package = Package(
         // Ouro Feel: deterministic checks of how an app feels, for UI tests. See docs/ouro-feel/README.md.
         .library(name: "OuroFeel", targets: ["OuroFeel"]),
         .library(name: "OuroFeelCore", targets: ["OuroFeelCore"]),
+        // Ouro Reins: an app's screens as state plus actions, driven headless with `ls` and `do`. See docs/ouro-reins/README.md.
+        .library(name: "OuroReins", targets: ["OuroReins"]),
     ],
     targets: [
         // Ouro HX for Apple: tokens (vendored from ouro-ui-core), theme, colour, motion, haptics, fold posture.
@@ -74,6 +76,13 @@ let package = Package(
         .target(name: "OuroFeelCore", swiftSettings: strict),
         .target(name: "OuroFeel", dependencies: ["OuroFeelCore"], swiftSettings: strict),
         .testTarget(name: "OuroFeelTests", dependencies: ["OuroFeelCore"], swiftSettings: strict),
+
+        // Ouro Reins. No SwiftUI and no XCTest, so an app's UI-free core links it, and so does a headless
+        // command line. The debug socket compiles out of release builds.
+        .target(name: "OuroReins", dependencies: ["OuroAX"], swiftSettings: strict),
+        // A tiny app core driven through Reins: what `ls` and `do` look like, and CI's command-line check.
+        .executableTarget(name: "ouro-reins-sample", dependencies: ["OuroReins"], swiftSettings: strict),
+        .testTarget(name: "OuroReinsTests", dependencies: ["OuroReins"], swiftSettings: strict),
 
         // `__Snapshots__/macOS-<major>` holds the component snapshot references, one folder per host macOS major.
         .testTarget(name: "OuroHXTests", dependencies: ["OuroHX", "OuroHXTesting"], exclude: ["__Snapshots__"], swiftSettings: strict),

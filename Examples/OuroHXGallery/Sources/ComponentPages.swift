@@ -94,10 +94,11 @@ private struct GlassField: View {
     @Environment(\.colorScheme) private var scheme
     var body: some View {
         // Warm to cool, as a food photo runs, with enough colour in dark for the glass to bend (taste round 6: over a
-        // near-black field dark glass read as flat grey).
+        // near-black field dark glass read as flat grey). Light stays pale: over a saturated warm field the glass
+        // Success and Warning labels measured 4.8:1, under the 5:1 the claims test holds them to.
         LinearGradient(colors: scheme == .dark
                        ? [Color(red: 0.34, green: 0.19, blue: 0.09), Color(red: 0.11, green: 0.14, blue: 0.33)]
-                       : [Color(red: 0.99, green: 0.87, blue: 0.75), Color(red: 0.80, green: 0.88, blue: 0.99)],
+                       : [Color(red: 0.98, green: 0.95, blue: 0.92), Color(red: 0.94, green: 0.95, blue: 0.99)],
                        startPoint: .topLeading, endPoint: .bottomTrailing)
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             .accessibilityHidden(true)

@@ -49,11 +49,14 @@ final class ComponentClaimTests: XCTestCase {
                         // pixels, read at 5:1 against the glass under them.
                         let shot = app.windows.firstMatch.screenshot().image
                         let glass = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'button.glass.'")).allElementsBoundByIndex
-                        XCTAssertFalse(glass.isEmpty, "\(name): no glass buttons")
+                        var measured = 0
                         for button in glass where app.windows.firstMatch.frame.contains(button.frame) {
                             let ratio = Self.inkContrast(shot, in: button.frame.insetBy(dx: 12, dy: 10))
                             XCTAssertGreaterThanOrEqual(ratio, 5, "\(name): glass \(button.label) reads at \(ratio):1")
+                            measured += 1
                         }
+                        // The glass row is shown first, so some of it is always on screen to measure.
+                        XCTAssertGreaterThan(measured, 0, "\(name): no glass button on screen to measure")
                     }
                     if run.page == "toasts", size == nil {
                         // Expanded, as VoiceOver users always see the stack: every toast's own words are measured.

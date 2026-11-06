@@ -198,18 +198,18 @@ public enum OuroToastMetrics {
     /// The largest text size a toast's icon grows to: a step short of the largest, so it never outweighs the words.
     public static let largestIconSize = DynamicTypeSize.accessibility3
 
-    /// How long a tucking toast's words take to fade: quick, so they are gone before its plate slides under the
-    /// toast arriving and two sets of words never share a place.
-    public static let wordsFadeSeconds = 0.1
-    public static func wordsFade(reduceMotion: Bool) -> Animation { .easeOut(duration: wordsFadeSeconds) }
+    /// How long a toast's words take to fade out as it tucks, or in as it comes to the front: quick, so they are gone
+    /// before its plate slides under the toast arriving and two sets of words never share a place.
+    static let wordsFadeSeconds = 0.1
+    static let wordsFade = Animation.easeOut(duration: wordsFadeSeconds)
 
     /// The size a toast tucked behind a newer one takes: the newer one's, or its own until the newer one is measured,
     /// so it never collapses to nothing for an arrival's first frames.
-    public static func tuckedSize(front: CGSize?, own: CGSize?) -> CGSize? { front ?? own }
+    static func tuckedSize(front: CGSize?, own: CGSize?) -> CGSize? { front ?? own }
 
-    /// Whether a toast's first measurement tucks the stack behind it: the front toast's, with others behind it. That
-    /// change is animated with the arrival, never applied bare.
-    public static func tucksOnMeasure(depth: Int, count: Int, measured: Bool) -> Bool {
+    /// Whether a toast's first measurement resizes the plates tucked behind it: the front toast's, with others behind
+    /// it. That change is animated with the arrival, never applied bare.
+    static func resizesTuckedOnMeasure(depth: Int, count: Int, measured: Bool) -> Bool {
         depth == 0 && count > 1 && !measured
     }
 
@@ -248,8 +248,8 @@ public enum OuroToastMetrics {
     public static let rubberBand: CGFloat = 0.3
 
     /// Where a toast sits in the stack, `depth` toasts behind the newest. Collapsed, older toasts tuck behind the
-    /// newest, peeking out 8 then 14 points below it, 95% then 90% the size, on a solid surface shaded 4% then 8%
-    /// toward the words' colour (opaque, so the page never shows through a peek), with their words hidden; expanded (VoiceOver or Switch Control
+    /// newest, peeking out 12 then 22 points below it, 95% then 90% the size, on glass over an opaque plate shaded 4%
+    /// then 8% toward the words' colour (so the page never shows through a peek), with their words hidden; expanded (VoiceOver or Switch Control
     /// running, or the stack tapped open) they list down the screen, `above` points of newer toasts over each. Under
     /// Reduce Motion nothing is scaled, and the host moves toasts to their places without animating them there.
     public static func placement(depth: Int, expanded: Bool, above: CGFloat, reduceMotion: Bool = false) -> (offset: CGFloat, scale: Double, shade: Double, showsWords: Bool) {
@@ -423,10 +423,10 @@ struct OuroToastHost: ViewModifier {
                                 OuroToastView(toast: toast, closeLabel: labels.closeLabel, showsWords: place.showsWords, tucked: place.showsWords ? nil : OuroToastMetrics.tuckedSize(front: front, own: sizes[toast.id]), shade: place.shade) { toaster.dismiss(toast.id) }
                                     .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
                                         guard place.showsWords else { return }
-                                        // The front toast's first size is what tucks the others behind it, so it lands
-                                        // on the arrival's spring: set bare, the tuck snapped in one frame, dropped it,
-                                        // and left a blank plate before the new toast showed (W8 round 7).
-                                        if OuroToastMetrics.tucksOnMeasure(depth: depth, count: visible.count, measured: sizes[toast.id] != nil) {
+                                        // The front toast's first size resizes the plates tucked behind it, so it
+                                        // lands on the arrival's spring: set bare, it snapped in one frame and dropped
+                                        // it (W8 round 7).
+                                        if OuroToastMetrics.resizesTuckedOnMeasure(depth: depth, count: visible.count, measured: sizes[toast.id] != nil) {
                                             withAnimation(OuroToastMetrics.arrival(reduceMotion: reduceMotion).animation) { sizes[toast.id] = size }
                                         } else {
                                             sizes[toast.id] = size
@@ -620,7 +620,8 @@ struct OuroToastView: View {
                     .font(.caption.weight(.bold))
                     .dynamicTypeSize(...OuroToastMetrics.largestIconSize)
                     .foregroundStyle(secondary)
-                    .frame(width: OuroToastMetrics.dismissTarget, height: OuroToastMetrics.dismissTarget)
+                    // At least 44 points, and more as the mark grows, so it is never clipped at the largest sizes.
+                    .frame(minWidth: OuroToastMetrics.dismissTarget, minHeight: OuroToastMetrics.dismissTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.ouroPress)
@@ -632,9 +633,9 @@ struct OuroToastView: View {
         .padding(.trailing, 10)
         .padding(.vertical, 6)
         .frame(minHeight: OuroToastMetrics.height)
-        // The words leave in 0.1 s on their own clock, before the plate has moved far, so a tucking toast never
-        // shows its words under the one arriving (taste round 6: two sets of words in one place).
-        .transition(.opacity.animation(OuroToastMetrics.wordsFade(reduceMotion: reduceMotion)))
+        // The words fade in 0.1 s on their own clock, out as a toast tucks and in as it comes to the front, before its
+        // plate has moved far, so two sets of words never share a place (taste round 6).
+        .transition(.opacity.animation(OuroToastMetrics.wordsFade))
         } else {
             Color.clear.frame(minHeight: OuroToastMetrics.height).accessibilityHidden(true)
         }

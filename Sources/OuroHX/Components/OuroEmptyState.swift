@@ -16,8 +16,7 @@ public struct OuroEmptyStatePalette: Sendable {
     public var border: Color.Resolved
     public var surface: Color.Resolved
 
-    /// `hasAction`: the symbol gives way to the action, in the secondary colour, so there is one thing to look at.
-    public init(style: OuroHXStyle, hasAction: Bool = false) {
+    public init(style: OuroHXStyle) {
         let c = style.colors
         surface = OuroInk.r(c.background)
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
@@ -78,7 +77,7 @@ public struct OuroEmptyState<Action: View>: View {
     }
 
     public var body: some View {
-        let p = OuroEmptyStatePalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), hasAction: Action.self != EmptyView.self)
+        let p = OuroEmptyStatePalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         let symbolSize = min(OuroEmptyStateMetrics.symbolSize(alignment: alignment) * scale, OuroEmptyStateMetrics.maximumSymbolSize)
         let horizontal: HorizontalAlignment = alignment == .center ? .center : .leading
         let text: TextAlignment = alignment == .center ? .center : .leading

@@ -306,10 +306,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         for (name, style) in styles {
             let c = style.colors
             let surface = OuroInk.r(c.background)
-            for hasAction in [false, true] {
-                let p = OuroEmptyStatePalette(style: style, hasAction: hasAction)
-                #expect(distance(p.icon, OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)) < 0.01, "\(name) \(hasAction)")
-            }
+            let p = OuroEmptyStatePalette(style: style)
+            #expect(distance(p.icon, OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)) < 0.01, "\(name)")
         }
         #expect(OuroEmptyStateMetrics.symbolWeight == .semibold)
     }
@@ -394,19 +392,16 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     /// Collapsed, older toasts tuck behind the newest, peeking 12 then 22 points, at 95% and 90%, words hidden. They stay
     /// opaque, shaded 4% then 8% toward the words' colour, so the page never shows through a peek; expanded, every toast
     /// shows its words, listed below the newer ones.
-    /// A toast tucking behind a newer one keeps its own size until the newer one is measured, so it never collapses to
-    /// nothing for the first frames of an arrival; then it takes the newer one's.
-    /// Until a newly arrived toast is measured, the older ones hold their places, and tuck on the next frame: the
-    /// arrival's first frame only adds the new toast, and the tuck follows, so the two never cost the same frame.
-    @Test func aTuckingToastsWordsAreGoneBeforeItsPlateMovesFar() {
+    /// A tucking toast's words fade in at most 0.1 s, so they are gone before its plate slides under the one arriving.
+    @Test func aTuckingToastsWordsFadeWithinATenthOfASecond() {
         #expect(OuroToastMetrics.wordsFadeSeconds <= 0.1)
     }
 
     @Test func onlyTheFrontToastsFirstSizeTucksTheStackSoOnlyItIsAnimated() {
-        #expect(OuroToastMetrics.tucksOnMeasure(depth: 0, count: 2, measured: false))
-        #expect(!OuroToastMetrics.tucksOnMeasure(depth: 0, count: 2, measured: true))
-        #expect(!OuroToastMetrics.tucksOnMeasure(depth: 0, count: 1, measured: false))
-        #expect(!OuroToastMetrics.tucksOnMeasure(depth: 1, count: 3, measured: false))
+        #expect(OuroToastMetrics.resizesTuckedOnMeasure(depth: 0, count: 2, measured: false))
+        #expect(!OuroToastMetrics.resizesTuckedOnMeasure(depth: 0, count: 2, measured: true))
+        #expect(!OuroToastMetrics.resizesTuckedOnMeasure(depth: 0, count: 1, measured: false))
+        #expect(!OuroToastMetrics.resizesTuckedOnMeasure(depth: 1, count: 3, measured: false))
     }
 
     @Test func aTuckingToastKeepsItsSizeUntilTheNewOneIsMeasured() {

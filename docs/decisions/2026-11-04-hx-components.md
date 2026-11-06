@@ -154,7 +154,7 @@ Status: accepted (W8 of the HX and AX native program).
       made it worse. The remaining drop was the tuck itself: the front toast's first size, which tucks the stack, was
       set outside any animation, so the tuck snapped in one frame (words gone, plate resized and moved), dropped it
       in light and dark, and left a blank plate for about 130 ms before the new toast showed. That size now lands on
-      the arrival's spring (`OuroToastMetrics.tucksOnMeasure`). Keeping the words mounted while hidden did not clear it.
+      the arrival's spring (`OuroToastMetrics.resizesTuckedOnMeasure`). Keeping the words mounted while hidden did not clear it.
       Round 6's panel said yes to five of six; both lenses said no to the stack. The older toast's words faded on the
       arrival's 0.5 s spring, so for a moment two sets of words shared a place. And one `GlassEffectContainer` merged
       the tucked plate and the front toast into one lumpy shape at rest. Round 7 fades a tucking toast's words in
@@ -162,7 +162,12 @@ Status: accepted (W8 of the HX and AX native program).
       measurement (the tucked toast keeps its own size until then, so it never vanishes), and drops the container,
       so each plate keeps its own glass edge. Measured over three light and three dark runs, every arrival had no
       drops. It also grows the toast's close mark to Accessibility 3, as the banner's does, and gives the
-      gallery's glass field real colour in dark, where dark glass read as flat grey over near-black. On the buttons page, contrast on a glass button is excused and
+      gallery's glass field real colour in dark, where dark glass read as flat grey over near-black (light stays pale:
+      over a saturated warm field, glass Success and Warning measured 4.8:1, under 5:1). The toast's close frame grows
+      with its mark, so the mark isn't clipped. Round 7's first pass had one no, lens B's on the empty state: its
+      layered magnifier drew two-tone under hierarchical rendering and sank into a dark page, so every symbol is now
+      one tone (`.monochrome`), and its one bounce on arrival was shown in a dense strip. Then both lenses said yes
+      to all six. On the buttons page, contrast on a glass button is excused and
       measured instead from the screen's pixels (`glassMisreadings`, `inkContrast`). The gallery shows the components over real content (a recipe list)
       rather than on grouped card backgrounds, which would box every section.
     - **Hitches are measured, not eyeballed.** `FrameProbe` (gallery only) counts late frames with a display link and

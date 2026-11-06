@@ -226,6 +226,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: A simulator for this job
+        id: simulator
         run: |
           set -eu
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
@@ -272,8 +273,8 @@ jobs:
           fi
           exit "$status"
       - name: Every transition is smooth (hitch probe, Release build)
-        # Runs whether or not the claims passed, so one run reports both.
-        if: success() || failure()
+        # Runs whether or not the claims passed, so one run reports both; not without a simulator.
+        if: (success() || failure()) && steps.simulator.outcome == 'success'
         # Release, as people run it: a Debug SwiftUI build hitches where the shipped one does not.
         run: |
           set -o pipefail

@@ -51,7 +51,7 @@ public enum OuroBannerMetrics {
     /// change, not each time it scrolls back into view or its screen is shown again.
     public static func announces(_ words: String, after last: String?) -> Bool { words != last }
 
-    /// The corner radius: 20 points, continuous, as iOS 26's inset grouped sections.
+    /// The corner radius: 16 points, continuous, as iOS 26's inset grouped sections.
     public static let cornerRadius: CGFloat = 16
     /// How much of its tone a banner's edge is: 25% in light, 30% in dark.
     public static func edgeTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.3 : 0.25 }

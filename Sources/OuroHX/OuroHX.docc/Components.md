@@ -114,7 +114,7 @@ is instead of jumping. The defaults are the designed version; options are for th
   Increase Contrast), and an icon sits on the label's first line. A plain button's words sit on the layout margin,
   its target still 44 points. A press answers on touch-down: it shrinks to 97% on a quick spring and springs back with a
   little bounce. A plain tap plays no haptic; pass `haptic:` for a moment that earns one.
-- **An empty state** is open, like the system's `ContentUnavailableView`: a 60-point hierarchical symbol (44
+- **An empty state** is open, like the system's `ContentUnavailableView`: a 60-point one-tone symbol (44
   inline, at most 80 at large text sizes) that bounces once as the state cascades in, line by line, 40 ms apart, semibold in the theme's secondary
   colour, so the title carries the state and an action the colour; a bold title and a line of description in a 340-point column. `variant: .outline` draws a dashed
   edge, for a drop zone.

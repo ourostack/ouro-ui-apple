@@ -23,9 +23,8 @@ public struct OuroEmptyStatePalette: Sendable {
         title = OuroInk.readable(OuroInk.r(c.foreground), on: surface, style)
         description = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         iconWell = OuroInk.r(c.muted)
-        // Standing alone the symbol is the state's one note of colour, the theme's primary; with an action it is quiet,
-        // the secondary colour, and the action carries the colour. Hierarchical either way, reading at the words'
-        // contrast where it is solid.
+        // The symbol is quiet, the secondary colour, with or without an action, as ContentUnavailableView draws it,
+        // and drawn in one tone at the words' contrast.
         icon = OuroInk.readable(OuroInk.r(c.mutedForeground), on: surface, style)
         border = OuroColor.push(OuroInk.r(c.border), against: surface, to: OuroColor.increasedLineContrast)
     }
@@ -89,7 +88,9 @@ public struct OuroEmptyState<Action: View>: View {
                 // one small bounce as it arrives (not under Reduce Motion).
                 Image(systemName: systemImage)
                     .font(.system(size: symbolSize, weight: OuroEmptyStateMetrics.symbolWeight))
-                    .symbolRenderingMode(.hierarchical)
+                    // One tone for every symbol: hierarchical drew layered symbols (a magnifier over lines) two-tone,
+                    // with the lighter layer sinking into a dark page (taste round 7).
+                    .symbolRenderingMode(.monochrome)
                     .foregroundStyle(Color(p.icon))
                     .symbolEffect(.bounce.down, options: .nonRepeating, value: arrived)
                     // A symbol's own side bearing sets it in from a leading edge; this lines its ink up with the title.

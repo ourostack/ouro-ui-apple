@@ -46,6 +46,11 @@ public enum OuroSheetMetrics {
     /// or has one detent, has none, as on Apple's own.
     public static func showsGrabber(detents: Set<PresentationDetent>?) -> Bool { (detents?.count ?? 0) > 1 }
 
+    /// A bottom inset larger than this, in points, is the keyboard rather than the home indicator's safe area.
+    static let keyboardInset: CGFloat = 100
+    /// The end of a sheet's content, scrolled to when the keyboard comes up at the accessibility sizes.
+    static let endIdentifier = "ouro.sheet.end"
+
     /// The accessibility identifier of every `.ouroSheet`'s content, which `OuroHXTesting`'s audit looks for.
     public static let accessibilityIdentifier = "ouro.sheet"
 
@@ -93,7 +98,8 @@ extension View {
     ///   size your own rows with `@Environment(\\.ouroTouchTarget)` to match.
     /// - The body scrolls when it is taller than the sheet; `footer` is the actions row, full width, primary last. At
     ///   the accessibility sizes the whole sheet scrolls, title and actions too, and while the keyboard is up its end
-    ///   (the field being typed in and the actions) stays in view.
+    ///   (the field and the actions) stays in view. That assumes the field sits last, just above the actions: at
+    ///   those sizes a field higher up scrolls away as the keyboard arrives.
     /// - Under Reduce Motion it appears without sliding up, and its content crossfades in.
     public func ouroSheet<Content: View, Footer: View>(
         isPresented: Binding<Bool>,
@@ -259,33 +265,56 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
         // being typed in and the actions under it (VoiceOver still reads the words above first). Below those sizes the
         // title and actions stay put and only the body scrolls. The same views either way, only what scrolls changes,
         // so nothing is rebuilt when the text size changes.
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                headerRow
-                ScrollView { bodyContent }
-                    .scrollBounceBehavior(.basedOnSize)
-                    // At its full height when the whole sheet scrolls.
-                    .scrollDisabled(wholeSheetScrolls)
-                    .fixedSize(horizontal: false, vertical: wholeSheetScrolls)
-                    // A sheet without detents fits its content: header, body and actions row, measured as laid out.
-                    .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, h in bodyHeight = h }
-                actionsRow
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    headerRow
+                    ScrollView { bodyContent }
+                        .scrollBounceBehavior(.basedOnSize)
+                        // At its full height when the whole sheet scrolls.
+                        .scrollDisabled(wholeSheetScrolls)
+                        .fixedSize(horizontal: false, vertical: wholeSheetScrolls)
+                        // A sheet without detents fits its content: header, body and actions row, measured as laid out.
+                        .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, h in bodyHeight = h }
+                    actionsRow
+                    Color.clear.frame(height: 0).id(OuroSheetMetrics.endIdentifier)
+                }
+                // Below the accessibility sizes, exactly the room the sheet shows, above the keyboard when it is up: the
+                // title and actions stay put and the body scrolls between them.
+                .frame(height: wholeSheetScrolls || shown == 0 ? nil : shown)
             }
-            // Below the accessibility sizes, exactly the room the sheet shows, above the keyboard when it is up: the
-            // title and actions stay put and the body scrolls between them.
-            .frame(height: wholeSheetScrolls || shown == 0 ? nil : shown)
+            .scrollDisabled(!wholeSheetScrolls)
+            .scrollBounceBehavior(.basedOnSize)
+            // At the accessibility sizes, as the room changes (the keyboard arriving), the end stays in view: the field
+            // being typed in and the actions under it. Below them the outer view doesn't scroll, so this does nothing.
+            .defaultScrollAnchor(.top, for: .initialOffset)
+            .defaultScrollAnchor(wholeSheetScrolls ? .bottom : nil, for: .sizeChanges)
+            // A scroll view keeps its size as the keyboard arrives and insets its content instead; the room shown is its
+            // height less those insets.
+            .onScrollGeometryChange(for: CGFloat.self) { g in
+                max(0, g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom)
+            } action: { _, h in shown = h }
+            // iOS 27 keeps the offset as the keyboard's inset arrives and as the content's size changes, where iOS 26
+            // holds the end in view by the anchor above. So the end is scrolled to as the keyboard arrives, and again
+            // when the room or content changes size (a taller keyboard, text wrapping) if the end was in view before:
+            // someone who scrolled up to read stays where they are.
+            .onScrollGeometryChange(for: KeyboardRoom.self) { g in
+                let room = g.containerSize.height - g.contentInsets.bottom
+                return KeyboardRoom(up: g.contentInsets.bottom > OuroSheetMetrics.keyboardInset,
+                                    content: g.contentSize.height.rounded(), room: room.rounded(),
+                                    atEnd: g.contentOffset.y + room >= g.contentSize.height - 1)
+            } action: { was, now in
+                guard now.up, wholeSheetScrolls else { return }
+                let arrived = !was.up
+                let resized = was.content != now.content || was.room != now.room
+                guard arrived || (resized && was.atEnd) else { return }
+                Task { @MainActor in
+                    withAnimation(OuroMotion.animation(.smooth, reduceMotion: reduceMotion)) {
+                        proxy.scrollTo(OuroSheetMetrics.endIdentifier, anchor: .bottom)
+                    }
+                }
+            }
         }
-        .scrollDisabled(!wholeSheetScrolls)
-        .scrollBounceBehavior(.basedOnSize)
-        // At the accessibility sizes, as the room changes (the keyboard arriving), the end stays in view: the field
-        // being typed in and the actions under it. Below them the outer view doesn't scroll, so this does nothing.
-        .defaultScrollAnchor(.top, for: .initialOffset)
-        .defaultScrollAnchor(wholeSheetScrolls ? .bottom : nil, for: .sizeChanges)
-        // A scroll view keeps its size as the keyboard arrives and insets its content instead; the room shown is its
-        // height less those insets.
-        .onScrollGeometryChange(for: CGFloat.self) { g in
-            max(0, g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom)
-        } action: { _, h in shown = h }
         #endif
     }
 
@@ -329,6 +358,15 @@ private struct CloseDisc: ViewModifier {
     func body(content: Content) -> some View {
         content.background(fill, in: Circle())
     }
+}
+
+/// Whether the keyboard is up, and the heights a sheet's whole-sheet scroll view keeps its end in view across.
+private struct KeyboardRoom: Equatable {
+    var up: Bool
+    var content: CGFloat
+    var room: CGFloat
+    /// Whether the end of the content is in view.
+    var atEnd: Bool
 }
 
 /// The theme's surface behind the sheet, on iOS 26 too: the sheet's text and the components in it are made readable

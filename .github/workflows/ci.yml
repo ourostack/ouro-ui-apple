@@ -251,11 +251,12 @@ jobs:
               -skip-testing:OuroHXGalleryUITests/MotionTests \
               CODE_SIGNING_ALLOWED=NO > ".build/$1.log" 2>&1
           }
-          # A runner that loses testmanagerd or never bootstraps ran nothing wrong in the app: that is the machine, so it
-          # gets one more run on a rebooted simulator, reported as an infrastructure retry. Any other failure fails.
+          # A runner that loses testmanagerd, never bootstraps, can't find the simulator it just booted (#42) or times
+          # out taking a screenshot (#43) ran nothing wrong in the app: that is the machine, so it gets one more run on a
+          # rebooted simulator, reported as an infrastructure retry. Any other failure fails.
           infra() {
             { cat ".build/$1.log"; xcrun xcresulttool get test-results summary --path ".build/$1.xcresult" 2>/dev/null; } |
-              grep -m1 -oE "Lost connection to testmanagerd|never finished bootstrapping|Test runner exited before starting test execution|Failed to establish communication with the test runner"
+              grep -m1 -oE "Lost connection to testmanagerd|never finished bootstrapping|Test runner exited before starting test execution|Failed to establish communication with the test runner|Unable to find a device matching the provided destination specifier|Timed out while requesting screenshot"
           }
           status=0; gallery gallery-ui || status=$?
           grep -E "error|failed|passed|Executed|TEST" .build/gallery-ui.log | tail -80

@@ -662,6 +662,8 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(!FeelWayBack.isBackButton(identifier: "Cancel", label: "Cancel"))
         #expect(!FeelWayBack.isBackButton(identifier: "", label: "Close"))
         #expect(!FeelWayBack.isBackButton(identifier: "", label: "Feedback"))
+        // A popover with its own Done bar adds a bar with no way back: it stays an overlay candidate.
+        #expect(!FeelWayBack.replacedBar(barsBefore: ["Recipes"], barsAfter: ["Recipes", FeelWayBack.barIdentity(key: "Filter", backLabels: [])]))
     }
 
     /// A tap that replaced a bar that was on screen, or brought a bar with a back button, went somewhere new, so what it

@@ -101,8 +101,9 @@ public enum FeelWayBack {
     }
 
     /// Whether a tap reached a new screen. A tap that left the navigation bars as they were (`barsBefore`, by
-    /// ``barIdentity(key:backLabels:)``) and most of the screen's followable controls still in the tree (`stillThere` of `of`; covered counts) changed
-    /// the screen in place (a menu opened, edit mode, a row expanded), so the walk does not ask it for a way back.
+    /// ``barIdentity(key:backLabels:)``) and most of the screen's followable controls still in the tree (`stillThere`
+    /// of `of`; covered counts) changed the screen in place (a menu opened, edit mode, a row expanded), so the walk
+    /// does not ask it for a way back.
     public static func isNewScreen(barsBefore: [String], barsAfter: [String], stillThere: Int, of total: Int) -> Bool {
         if barsBefore.sorted() != barsAfter.sorted() { return true }
         guard total > 0 else { return true }

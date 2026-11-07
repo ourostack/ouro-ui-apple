@@ -542,7 +542,7 @@ extension OuroFeel {
         var outsideDismisses: Bool?
         if let p = outside {
             point(p.x, p.y).tap()
-            // The walk's own timeout, never a shorter fixed one: on a slow runner a popover's exit can outlast 3 s,
+            // The walk's own timeout for a dismissal or a return: on a slow runner a popover's exit can outlast 3 s,
             // and a slow dismissal is still a dismissal (#48).
             outsideDismisses = wait(timeout) { !showing() }
             // A tap that went through the overlay to the screen behind (a row it opened) is no dismissal: the screen

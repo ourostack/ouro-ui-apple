@@ -44,7 +44,7 @@ jobs:
           set -eu
           if [ "$EVENT" != pull_request ]; then echo "xray=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           git diff --name-only "$BASE...$HEAD" > changed.txt
-          if grep -E '^(Sources/(OuroAX|OuroAXTesting|OuroAXTestingProbe|OuroAXSkillsLint|ouro-ax-xray|OuroFeel|OuroFeelCore)/|Templates/XrayProbe/|Examples/(OuroAXXrayFixture|OuroFeelFixture)/|scripts/(xray-probe|ouro-feel-cold|select-xcode)\.sh$|\.github/workflows/|Package\.(swift|resolved)$)' changed.txt; then
+          if grep -E '^(Sources/(OuroAX|OuroAXTesting|OuroAXTestingProbe|OuroAXSkillsLint|ouro-ax-xray|OuroFeel|OuroFeelCore|OuroFeelRecorder)/|Templates/XrayProbe/|Examples/(OuroAXXrayFixture|OuroFeelFixture)/|scripts/(xray-probe|ouro-feel-cold|select-xcode)\.sh$|\.github/workflows/|Package\.(swift|resolved)$)' changed.txt; then
             echo "xray=true" >> "$GITHUB_OUTPUT"
           else
             echo "xray=false" >> "$GITHUB_OUTPUT"

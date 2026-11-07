@@ -13,6 +13,9 @@ targets:
     type: application
     platform: iOS
     sources: [Sources]
+    dependencies:
+      - package: OuroUIApple
+        product: OuroFeelRecorder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.feel.fixture

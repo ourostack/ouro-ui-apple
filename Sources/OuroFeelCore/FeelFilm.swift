@@ -298,7 +298,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             var what: String?
             if let m = moved(i), m > distance, quietBefore, quietAfter, atRest(i), atRest(i + 1) {
                 what = "\"\(key)\" moved \(FeelResult.number(round3(m))) pt between \(FeelResult.number(round3(frames[i].t))) s and \(FeelResult.number(round3(frames[i + 1].t))) s with nothing in between"
-            } else if appearing, places[i] == nil, places[i + 1] != nil, quietAfter, i + 2 < places.count {
+            } else if appearing, places[i] == nil, let arrival = places[i + 1], quietAfter, i + 2 < places.count,
+                      // In full means where it stays: one that arrives, holds a sample (a busy first animation frame),
+                      // then travels was a transition (#53).
+                      !places[(i + 1)...].contains(where: { $0.map { Self.distance(arrival, $0) > distance } ?? false }) {
                 what = "\"\(key)\" appeared in full at \(FeelResult.number(round3(frames[i + 1].t))) s with no transition"
             }
             guard let what else { continue }

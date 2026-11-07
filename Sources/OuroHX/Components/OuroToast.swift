@@ -209,7 +209,7 @@ public enum OuroToastMetrics {
     /// How long a toast's words take to fade out as it tucks, or in as it comes to the front: quick, so they are gone
     /// before its plate slides under the toast arriving and two sets of words never share a place.
     static let wordsFadeSeconds = 0.1
-    static let wordsFade = Animation.easeOut(duration: wordsFadeSeconds)
+    static var wordsFade: Animation { OuroMotion.clocked(.easeOut(duration: wordsFadeSeconds), on: OuroMotion.clock) }
 
     /// The size a toast tucked behind a newer one takes: the newer one's, or its own until the newer one is measured,
     /// so it never collapses to nothing for an arrival's first frames.

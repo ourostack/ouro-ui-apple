@@ -53,7 +53,10 @@ public enum OuroMotion {
         /// No animation at all.
         case none
 
-        public var animation: Animation? {
+        /// On ``OuroMotion/clock`` when one is installed.
+        public var animation: Animation? { OuroMotion.clocked(screenAnimation, on: OuroMotion.clock) }
+
+        private var screenAnimation: Animation? {
             switch self {
             case let .spring(duration, bounce): .spring(duration: duration, bounce: bounce)
             case let .curve(bezier, duration): bezier.animation(duration: duration)

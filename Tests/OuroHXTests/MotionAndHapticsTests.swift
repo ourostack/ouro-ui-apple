@@ -1,4 +1,4 @@
-import OuroHX
+@_spi(OuroMotionClock) import OuroHX
 import SwiftUI
 import Testing
 
@@ -95,5 +95,32 @@ import Testing
         #if os(macOS)
         #expect(OuroHaptics.play(.checked) == false)
         #endif
+    }
+}
+
+/// A UI test can run OuroHX's motion on a clock it moves one tick at a time, so a film of a real spring reads the same
+/// frames on a busy runner as on an idle one (#33).
+@Suite struct MotionClockTests {
+    @Test func aClockStartsAtZeroAndMovesOnlyWhenAdvanced() {
+        let clock = OuroMotionClock()
+        #expect(clock.now == 0)
+        clock.advance(by: 0.05)
+        clock.advance(by: 0.05)
+        #expect(abs(clock.now - 0.1) < 1e-9)
+    }
+
+    @Test func withNoClockAnAnimationIsLeftAsItIs() {
+        let spring = Animation.spring(duration: 0.5, bounce: 0.3)
+        #expect(OuroMotion.clocked(spring, on: nil) == spring)
+        #expect(OuroMotion.clocked(nil, on: OuroMotionClock()) == nil)
+    }
+
+    @Test func onAClockAnAnimationIsWrappedForThatClock() {
+        let spring = Animation.spring(duration: 0.5, bounce: 0.3)
+        let clock = OuroMotionClock()
+        let clocked = OuroMotion.clocked(spring, on: clock)
+        #expect(clocked != spring)
+        #expect(clocked == OuroMotion.clocked(spring, on: clock))
+        #expect(clocked != OuroMotion.clocked(spring, on: OuroMotionClock()))
     }
 }

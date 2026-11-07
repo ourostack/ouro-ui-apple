@@ -14,17 +14,12 @@ final class FeelTests: XCTestCase {
     /// rest within 1.5 s (settle). The older ones move once more by design, as each tucks behind the next, so their
     /// jumps are recorded, not judged.
     ///
-    /// The demo plays twice (`-repeat 2`) so the film holds a whole play even when launch runs long, and the checks
-    /// read one play: from the first toast's arrival to just before the stack empties. A film over both plays read the
-    /// exit, and the second arrival at a new place, as a jump after landing.
-    ///
-    /// A film sampled too sparsely to judge ("could not check", seen on a loaded CI runner) is not a verdict, so it is
-    /// filmed once more in a fresh launch.
+    /// The demo and OuroHX's springs run on the app's own clock (`-clock 1`, ``OuroMotionClock``), which this test moves
+    /// one 0.05 s tick at a time, sampling after each. So it reaches the same verdicts however busy the runner is
+    /// (#33); a wall-clock film here thinned out on loaded CI runners and its verdicts moved with the load. The checks
+    /// read one play: from the first toast's arrival to just before the stack empties.
     func testAToastStackArrivesWithoutJumpsGhostsOrALongSettle() throws {
-        var (feel, play) = try filmOnePlay()
-        if feel.record(play.doubleDraws(of: Self.stack), name: "stack-double-draw-first", film: play).text.contains("could not check") {
-            (feel, play) = try filmOnePlay()
-        }
+        let (feel, play) = try filmOnePlay()
         // Recorded with the film, so its samples are attached for anyone reading a failure.
         let ghosts = feel.record(play.doubleDraws(of: Self.stack), name: "stack-double-draw", film: play)
         XCTAssertTrue(ghosts.passed, ghosts.text)
@@ -33,13 +28,18 @@ final class FeelTests: XCTestCase {
         for older in Self.stack.dropLast() { feel.record(play.jumps(of: older), name: "stack-tuck-\(older)") }
     }
 
-    /// Launches the demo and films one play: from the first toast's arrival to just before the stack empties.
+    /// Launches the demo on the app's clock and films one play: from the first toast's arrival to just before the
+    /// stack empties.
     private func filmOnePlay() throws -> (OuroFeel, FeelFilm) {
         let app = XCUIApplication()
-        app.launchArguments = ["-theme", "pearl", "-page", "toasts", "-open", "0", "-demo", "stack", "-repeat", "2"]
+        app.launchArguments = ["-theme", "pearl", "-page", "toasts", "-open", "0", "-demo", "stack", "-clock", "1"]
         app.launch()
         let feel = OuroFeel(app)
-        let whole = feel.film(Self.stack, for: 13)
+        // 3.6 s of the app's clock: still for half a second, the three arrivals, and their rest until the stack
+        // empties at 3.5 s.
+        let whole = feel.film(Self.stack, steps: 72, tick: 0.05, clock: "gallery.clock",
+                              advance: FeelClock.darwinNotification("bot.ouro.hx.gallery.tick"))
+        XCTAssertNil(whole.stalledAt, "the app stopped taking ticks")
         let first = try XCTUnwrap(whole.frames.first { $0.seen.contains { $0.label == Self.stack[0] || $0.key == Self.stack[0] } }?.t,
                                   "the first toast never arrived")
         // The demo empties the stack 3 s after the first toast; stop 0.1 s short of that.

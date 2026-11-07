@@ -48,11 +48,22 @@ if [ "$platform" = "ios" ]; then
   # launches races XCTest's own terminate and relaunch, and the launch can fail with no process ID (#36).
   stop_app() {
     xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
+    # The app's job is listed as "<pid> <status> UIKitApplication:<bundle id>[<instance>]...", with "-" for a pid once
+    # it has exited. If the list cannot be read at all, say so rather than take silence for a stopped app.
     i=0
-    while xcrun simctl spawn "$udid" launchctl list 2>/dev/null \
-        | awk -v job="UIKitApplication:$bundle_id[" 'index($3, job) == 1 && $1 ~ /^[0-9]+$/ { found = 1 } END { exit !found }'; do
+    while :; do
+      if ! jobs="$(xcrun simctl spawn "$udid" launchctl list 2>&1)"; then
+        echo "xray-probe: could not list the simulator's jobs, so whether $bundle_id stopped is unknown: $jobs" >&2
+        return 0
+      fi
+      printf '%s\n' "$jobs" \
+        | awk -v job="UIKitApplication:$bundle_id[" 'index($3, job) == 1 && $1 ~ /^[0-9]+$/ { found = 1 } END { exit !found }' \
+        || return 0
       i=$((i + 1))
-      [ "$i" -ge 40 ] && { echo "xray-probe: $bundle_id was still running 20 s after it was told to stop" >&2; return 0; }
+      if [ "$i" -ge 40 ]; then
+        echo "xray-probe: $bundle_id was still running 20 s after it was told to stop" >&2
+        return 0
+      fi
       sleep 0.5
     done
   }
@@ -79,7 +90,7 @@ if [ "$platform" = "ios" ]; then
   if ! grep -q OURO-AX-PROBE-BEGIN "$out/probe.log" \
       && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch.*process ID|OURO-AX-PROBE-UNREACHED" "$out/probe.log"; then
     echo "xray-probe: the probe never reached the app (see probe-first-try.log); rebooting the simulator and trying once more"
-    [ -n "${GITHUB_ACTIONS:-}" ] && echo "::warning::xray-probe: the first probe run never reached the app; retried once (see probe-first-try.log)"
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::warning::xray-probe: the first probe run never reached the app; retried once (see probe-first-try.log)"; fi
     mv "$out/probe.log" "$out/probe-first-try.log"
     xcrun simctl shutdown "$udid" >/dev/null 2>&1
     xcrun simctl boot "$udid"

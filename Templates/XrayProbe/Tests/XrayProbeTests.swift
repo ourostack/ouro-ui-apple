@@ -26,7 +26,6 @@ final class XrayProbeTests: XCTestCase {
             XCTFail("the probe could not reach the app: it never reached the foreground (state \(app.state.rawValue))")
             return
         }
-        continueAfterFailure = false
         #if os(iOS)
         let platform = "iOS"
         #else

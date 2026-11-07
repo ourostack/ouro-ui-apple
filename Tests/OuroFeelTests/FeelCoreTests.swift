@@ -157,6 +157,18 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(result.findings.count == 1)
     }
 
+    @Test("with every copy filmed, one key twice in one place is one drawing; the same key in two places is a ghost")
+    func copiesOfOneKey() {
+        let same = film([(0, [card(100, key: "title", label: "Pancakes"), card(100, key: "title", label: "Pancakes")]),
+                         (0.02, [card(100, key: "title", label: "Pancakes"), card(100, key: "title", label: "Pancakes")])])
+        #expect(same.doubleDraws(of: ["Pancakes"]).passed)
+        let ghost = film([(0, [card(100, key: "title", label: "Pancakes")]),
+                          (0.02, [card(100, key: "title", label: "Pancakes"), card(500, key: "title", label: "Pancakes")])])
+        let r = ghost.doubleDraws(of: ["Pancakes"])
+        #expect(!r.passed)
+        #expect(r.detections.count == 1)
+    }
+
     @Test func aCopyOffScreenIsNotADoubleDraw() {
         let f = film([(0, [card(100, label: "Pancakes"), card(2000, key: "b", label: "Pancakes")])])
         #expect(f.doubleDraws(of: ["Pancakes"]).passed)

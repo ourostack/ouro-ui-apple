@@ -251,17 +251,22 @@ jobs:
               -skip-testing:OuroHXGalleryUITests/MotionTests \
               CODE_SIGNING_ALLOWED=NO > ".build/$1.log" 2>&1
           }
-          # A runner that loses testmanagerd, never bootstraps, can't find the simulator it just booted (#42) or times
-          # out taking a screenshot (#43) ran nothing wrong in the app: that is the machine, so it gets one more run on a
-          # rebooted simulator, reported as an infrastructure retry. Any other failure fails.
+          # A runner that loses testmanagerd, never bootstraps or can't find the simulator it just booted (#42) ran
+          # nothing wrong in the app: that is the machine, so it gets one more run on a rebooted simulator, reported as an
+          # infrastructure retry. So does a run whose only failures are screenshot requests the simulator never answered
+          # (#43); a real assertion failure next to one still fails. Any other failure fails.
           infra() {
             { cat ".build/$1.log"; xcrun xcresulttool get test-results summary --path ".build/$1.xcresult" 2>/dev/null; } |
-              grep -m1 -oE "Lost connection to testmanagerd|never finished bootstrapping|Test runner exited before starting test execution|Failed to establish communication with the test runner|Unable to find a device matching the provided destination specifier|Timed out while requesting screenshot"
+              grep -m1 -oE "Lost connection to testmanagerd|never finished bootstrapping|Test runner exited before starting test execution|Failed to establish communication with the test runner|Unable to find a device matching the provided destination specifier" && return 0
+            failures="$(grep -c ': error: -\[' ".build/$1.log" || true)"
+            timeouts="$(grep -c ': error: -\[.*Failed to get screenshot: Timed out while requesting screenshot' ".build/$1.log" || true)"
+            if [ "$timeouts" -gt 0 ] && [ "$timeouts" -eq "$failures" ]; then echo "Timed out while requesting screenshot"; return 0; fi
+            return 1
           }
           status=0; gallery gallery-ui || status=$?
           grep -E "error|failed|passed|Executed|TEST" .build/gallery-ui.log | tail -80
           if [ "$status" -ne 0 ] && cause="$(infra gallery-ui)"; then
-            echo "::warning title=Infrastructure retry::Gallery UI tests: \"$cause\". Rebooting the simulator and running them once more; the first attempt's result bundle is kept as gallery-ui-attempt-1."
+            echo "::warning title=Infrastructure retry::Gallery UI tests: \"$cause\". Rebooting the simulator and running them once more; the first attempt's log, and its result bundle where one was written, are kept as gallery-ui-attempt-1."
             # A runner that never bootstrapped may have left no bundle; one that did must move it, or xcodebuild
             # refuses to write the next.
             if [ -e .build/gallery-ui.xcresult ]; then mv .build/gallery-ui.xcresult .build/gallery-ui-attempt-1.xcresult; fi

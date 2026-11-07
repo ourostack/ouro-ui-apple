@@ -92,7 +92,7 @@ tap outside that goes through the overlay and changes the screen behind (opening
 report says it could not be checked. A tap that
 changes the selected tab of a bottom tab bar ("See all" taking you to the Recipes tab) and lands on that tab's root
 has its tab button as its way back: the report notes it and the walk returns by the button for the tab it started on.
-The walk learns each tab's root once, from a fresh launch (one relaunch per tab, listed in the report). One that lands
+The walk learns each tab's root once, from a fresh launch (up to two relaunches per tab, listed in the report). One that lands
 anywhere else on that tab ("Open in Recipes" pushing a page) is checked like any other screen: a back control and an
 edge swipe must each reach that tab's root. Tabs are told by their
 place in the bar, and the tab bar is never part of a screen's identity, since the system renames its buttons once a

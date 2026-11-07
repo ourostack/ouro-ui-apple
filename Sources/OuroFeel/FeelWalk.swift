@@ -400,8 +400,9 @@ extension OuroFeel {
         var missing: [String] = []
         var capped: [String] = []
         var tabSwitches: [String] = []
-        /// Each tab's root, by its place in the bar, learned once from a fresh launch ("" when it could not be).
-        var tabRoots: [Int: String] = [:]
+        /// Each tab's root, by its place in the bar, learned once from a fresh launch: its navigation bar titles and
+        /// its signature (nil inside when it could not be learned).
+        var tabRoots: [Int: (bars: [String], signature: String)?] = [:]
         /// What the walk could not check, each with its reason.
         var unchecked: [String] = []
     }
@@ -530,9 +531,14 @@ extension OuroFeel {
         let grid = stride(from: 0.15, through: 0.85, by: 0.1).flatMap { y in
             [0.1, 0.3, 0.5, 0.7, 0.9].map { x in CGPoint(x: w.minX + w.width * x, y: w.minY + w.height * y) }
         }
-        let outside = ([CGPoint(x: w.midX, y: w.maxY - 40), CGPoint(x: w.minX + 20, y: w.midY), CGPoint(x: w.maxX - 20, y: w.midY),
-                        CGPoint(x: w.midX, y: w.midY), CGPoint(x: w.midX, y: w.minY + 70)] + grid)
-            .first { p in !area.contains(p) && !controls.contains { $0.insetBy(dx: -4, dy: -4).contains(p) } }
+        let points = [CGPoint(x: w.midX, y: w.maxY - 40), CGPoint(x: w.minX + 20, y: w.midY), CGPoint(x: w.maxX - 20, y: w.midY),
+                      CGPoint(x: w.midX, y: w.midY), CGPoint(x: w.midX, y: w.minY + 70)] + grid
+        func free(of avoided: [CGRect]) -> CGPoint? {
+            points.first { p in !area.contains(p) && !avoided.contains { $0.insetBy(dx: -4, dy: -4).contains(p) } }
+        }
+        // A long list or a full-bleed image can leave no such place; then only the keyed controls are avoided, and a
+        // tap that lands on the screen behind is caught below.
+        let outside = free(of: controls) ?? free(of: before.values.filter { Self.actsOnTap.contains($0.type) && $0.type != .image }.map(\.frame))
         var outsideDismisses: Bool?
         if let p = outside {
             point(p.x, p.y).tap()
@@ -655,13 +661,13 @@ extension OuroFeel {
                 // The tab's own root, learned once per walk from a fresh launch. Neither a missing back control nor a
                 // second tap on the tab tells a root from a pushed page in every app.
                 if walk.tabRoots[to.index] == nil {
-                    var learned = ""
+                    var learned: (bars: [String], signature: String)?
                     if recover(entry, [], because: "to learn the \(to.name) tab's root", &walk), tapTab(to.index) {
                         pause(0.8)
                         landed()
-                        learned = signature(follow)
+                        learned = (barTitles(), signature(follow))
                     }
-                    walk.tabRoots[to.index] = learned
+                    walk.tabRoots[to.index] = .some(learned)
                     if !returned() {
                         guard recover(entry, path, because: "to get back to \(place) after learning the \(to.name) tab's root", &walk) else { return }
                     }
@@ -670,12 +676,19 @@ extension OuroFeel {
                         _ = reland()
                     }
                 }
-                let root = walk.tabRoots[to.index] ?? ""
-                func atRoot() -> Bool { signature(follow) == root }
-                if root.isEmpty || !onLanding() {
+                let root = walk.tabRoots[to.index] ?? nil
+                // The root is told by its navigation bar, which holds still while its content loads or is filtered;
+                // by the whole screen only when it has no bar title.
+                func atRoot() -> Bool {
+                    guard let root else { return false }
+                    let bars = barTitles()
+                    return bars == root.bars && (!bars.isEmpty || signature(follow) == root.signature)
+                }
+                let landedAtRoot = atRoot()
+                if root == nil || !onLanding() {
                     walk.unchecked.append("\(label): switched to the \(to.name) tab, but the walk could not "
-                        + (root.isEmpty ? "learn that tab's root" : "land on that page again") + ", so its way back was not checked")
-                } else if landing == root {
+                        + (root == nil ? "learn that tab's root" : "land on that page again") + ", so its way back was not checked")
+                } else if landedAtRoot {
                     walk.tabSwitches.append("\(label): switched to the \(to.name) tab")
                 } else {
                     // A page pushed on the other tab: a gesture and a back control must each reach that tab's root.

@@ -13,7 +13,9 @@ on:
 # request and push. The billed xcode-27 runner (capped at $15 a month for this repository; usage stops at the cap) runs
 # only what needs Xcode 27 or an iOS 27 OS, on pushes to main and on published releases. The X-ray lanes also run on a
 # pull request that touches the X-ray, Ouro Feel, their fixtures or this workflow (the `paths` job), so a break is
-# caught before merge rather than on main. Drop it once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the
+# caught before merge rather than on main. The same job runs the simulator jobs (gallery, Feel fixture) on a pull
+# request only when it changes what they link; main and releases run them always, and the gallery's report-only
+# hitch probe runs only there. A red main is fixed by whoever merged the change that turned it red (AGENTS.md). Drop it once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the
 # `if:` gates below. No self-hosted runners.
 
 permissions:
@@ -30,6 +32,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       xray: ${{ steps.diff.outputs.xray }}
+      gallery: ${{ steps.diff.outputs.gallery }}
+      feel: ${{ steps.diff.outputs.feel }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,8 +46,22 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -eu
-          if [ "$EVENT" != pull_request ]; then echo "xray=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # Pushes and releases run every simulator job; these outputs only narrow pull requests.
+          if [ "$EVENT" != pull_request ]; then printf 'xray=false\ngallery=true\nfeel=true\n' >> "$GITHUB_OUTPUT"; exit 0; fi
           git diff --name-only "$BASE...$HEAD" > changed.txt
+          shared='|\.github/workflows/|scripts/ci-simulator\.py$|Package\.(swift|resolved)$'
+          # The gallery links OuroHX, OuroHXTesting (with OuroDeviceHub) and OuroFeel (Examples/OuroHXGallery/project.yml).
+          if grep -E "^(Sources/(OuroHX|OuroHXTesting|OuroDeviceHub|OuroFeel[^/]*)/|Examples/OuroHXGallery/$shared)" changed.txt; then
+            echo "gallery=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gallery=false" >> "$GITHUB_OUTPUT"
+          fi
+          # The Feel fixture links only OuroFeel, OuroFeelCore and OuroFeelRecorder (Examples/OuroFeelFixture/project.yml).
+          if grep -E "^(Sources/OuroFeel[^/]*/|Examples/OuroFeelFixture/$shared)" changed.txt; then
+            echo "feel=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "feel=false" >> "$GITHUB_OUTPUT"
+          fi
           if grep -E '^(Sources/(OuroAX|OuroAXTesting|OuroAXTestingProbe|OuroAXSkillsLint|ouro-ax-xray|OuroFeel|OuroFeelCore|OuroFeelRecorder)/|Templates/XrayProbe/|Examples/(OuroAXXrayFixture|OuroFeelFixture)/|scripts/(xray-probe|ouro-feel-cold|select-xcode)\.sh$|\.github/workflows/|Package\.(swift|resolved)$)' changed.txt; then
             echo "xray=true" >> "$GITHUB_OUTPUT"
           else
@@ -235,33 +253,38 @@ jobs:
   gallery-ui:
     name: Gallery UI tests, the component claims (free macos-26, Xcode 26)
     # performAccessibilityAudit on every component page at the default and the largest text size, in light and dark,
-    # plus 44-point targets, VoiceOver names, close controls and the waiting action toast; then MotionTests' hitch gate.
+    # plus 44-point targets, VoiceOver names, close controls and the waiting action toast; then, on main and releases,
+    # MotionTests' hitch probe. Pull requests run it only when they change what the gallery links (the `paths` job).
+    needs: paths
+    if: needs.paths.outputs.gallery == 'true'
     runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: A simulator for this job
+      - name: A simulator for this job, booting while the build runs
         id: simulator
         run: |
           set -eu
+          python3 -I scripts/ci-simulator.py --selftest
+          python3 -I scripts/ci-simulator.py start ouro-hx-ui
+      - name: Build the gallery and its UI tests once
+        run: |
+          set -o pipefail
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           (cd Examples/OuroHXGallery && xcodegen generate)
-          runtime="$(xcrun simctl list runtimes -j | python3 -I -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(sorted(r,key=lambda x:[int(p) for p in x["version"].split(".")])[-1]["identifier"])')"
-          for device in "iPhone 17 Pro" "iPhone 16 Pro" "iPhone 16"; do
-            udid="$(xcrun simctl create ouro-hx-ui "$device" "$runtime" 2>/dev/null)" && break
-          done
-          echo "Using $device on $runtime: $udid"
-          echo "UDID=$udid" >> "$GITHUB_ENV"
-          # Booted and settled before xcodebuild starts, as the X-ray probe does: a cold boot under the first test was
-          # where the runner lost testmanagerd (main, run 42166414006).
-          xcrun simctl boot "$udid" || true
-          xcrun simctl bootstatus "$udid" -b >/dev/null
+          xcodebuild build-for-testing -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
+            -destination "id=$UDID" -derivedDataPath .build/gallery CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+      # Booted and settled before the tests start, as the X-ray probe does: a cold boot under the first test was where
+      # the runner lost testmanagerd (main, run 42166414006). A boot that hangs or aborts gets one fresh device.
+      - name: The simulator finished booting
+        timeout-minutes: 12
+        run: python3 -I scripts/ci-simulator.py wait ouro-hx-ui 300
       - name: Gallery UI tests
         run: |
           set -u
           mkdir -p .build
           gallery() {
-            xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
+            xcodebuild test-without-building -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
               -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath ".build/$1.xcresult" \
               -skip-testing:OuroHXGalleryUITests/MotionTests \
               CODE_SIGNING_ALLOWED=NO > ".build/$1.log" 2>&1
@@ -294,8 +317,9 @@ jobs:
           fi
           exit "$status"
       - name: Every transition is smooth (hitch probe, Release build)
-        # Runs whether or not the claims passed, so one run reports both; not without a simulator.
-        if: (success() || failure()) && steps.simulator.outcome == 'success'
+        # Runs whether or not the claims passed, so one run reports both; not without a simulator. Main and releases
+        # only: it reports and never gates here (below), and its Release build cost every pull request 9 minutes.
+        if: (success() || failure()) && steps.simulator.outcome == 'success' && github.event_name != 'pull_request'
         # Reported, not gated, on this hosted VM: it has no GPU, and its frame timing swings run to run. On one
         # commit (a41b0ae vs 8c02d4e's identical components), sheet, toast and stack passed in one run and failed all
         # three tries in the next (#25). The 5 ms/s limit is unchanged and gates on a Mac's simulator and on device;
@@ -438,31 +462,35 @@ jobs:
   feel-fixture:
     name: Ouro Feel catches every genre's bug (free macos-26, Xcode 26)
     # Examples/OuroFeelFixture has one page per genre of jank with a known bug behind `-bug 1`; FeelCatchesTests proves
-    # each check fails on the bug and passes without it. Reports go up as an artifact.
+    # each check fails on the bug and passes without it. Reports go up as an artifact. Pull requests run it only when
+    # they change Ouro Feel, the fixture or what they share (the `paths` job); main and releases always do.
+    needs: paths
+    if: needs.paths.outputs.feel == 'true'
     runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: A fresh simulator for this job
+      - name: A fresh simulator for this job, booting while the build runs
         run: |
           set -eu
+          python3 -I scripts/ci-simulator.py start ouro-feel-ci
+      - name: Build the fixture and its UI tests once
+        run: |
+          set -o pipefail
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           (cd Examples/OuroFeelFixture && xcodegen generate)
-          runtime="$(xcrun simctl list runtimes -j | python3 -I -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x["platform"]=="iOS" and x["isAvailable"]]; print(sorted(r,key=lambda x:[int(p) for p in x["version"].split(".")])[-1]["identifier"])')"
-          for device in "iPhone 17 Pro" "iPhone 16 Pro" "iPhone 16"; do
-            udid="$(xcrun simctl create ouro-feel-ci "$device" "$runtime" 2>/dev/null)" && break
-          done
-          echo "Using $device on $runtime: $udid"
-          echo "UDID=$udid" >> "$GITHUB_ENV"
-          # Boot it and wait until it has finished booting: left to xcodebuild, the first test's setUp can reach a
-          # simulator whose accessibility is not up yet ("Failed to get list of active applications", kAXError -25218).
-          xcrun simctl boot "$udid"
-          xcrun simctl bootstatus "$udid" -b >/dev/null
+          xcodebuild build-for-testing -project Examples/OuroFeelFixture/OuroFeelFixture.xcodeproj -scheme OuroFeelFixture \
+            -destination "id=$UDID" -derivedDataPath .build/feel-fixture CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+      # Booted and settled before the tests: left to xcodebuild, the first test's setUp can reach a simulator whose
+      # accessibility is not up yet ("Failed to get list of active applications", kAXError -25218).
+      - name: The simulator finished booting
+        timeout-minutes: 12
+        run: python3 -I scripts/ci-simulator.py wait ouro-feel-ci 300
       - name: Fixture UI tests (a fresh simulator; only the first test starts cold, so reports say "not labelled")
         run: |
           set -o pipefail
           TEST_RUNNER_OURO_FEEL_REPORT_DIR="$PWD/.build/feel-reports" \
-          xcodebuild test -project Examples/OuroFeelFixture/OuroFeelFixture.xcodeproj -scheme OuroFeelFixture \
+          xcodebuild test-without-building -project Examples/OuroFeelFixture/OuroFeelFixture.xcodeproj -scheme OuroFeelFixture \
             -destination "id=$UDID" -derivedDataPath .build/feel-fixture -resultBundlePath .build/feel-fixture.xcresult \
             CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" | tail -200
       - if: always()

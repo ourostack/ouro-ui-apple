@@ -52,6 +52,7 @@ final class Recorder: NSObject {
     let cap: CFTimeInterval = 20
     private var link: CADisplayLink?
     private var wanted: Set<String> = []
+    private var copies = false
     private var id = ""
     private var frames: [FeelFrame] = []
     private var start: CFTimeInterval?
@@ -71,6 +72,7 @@ final class Recorder: NSObject {
             .flatMap({ try? JSONDecoder().decode(FeelRecording.Request.self, from: $0) }) else { return }
         id = request.id
         wanted = Set(request.keys)
+        copies = request.copies
         let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
         link.add(to: .main, forMode: .common)
         self.link = link
@@ -134,13 +136,14 @@ final class Recorder: NSObject {
     /// How opaque each view is drawn this frame, through all its ancestors' presentation layers; nil when hidden.
     private var opacities: [ObjectIdentifier: Float?] = [:]
 
-    /// One sample per key: where a key shows twice (the same title on both pages of a push), the one the walk reaches
+    /// One sample per key, unless the request asks for every copy: where a key shows twice (the same title on both pages of a push), the one the walk reaches
     /// last, which is the frontmost among sibling views (not always across windows or a custom reading order). Track by
     /// identifier where a label can repeat.
     private func sample() -> [FeelSeen] {
         opacities = [:]
         var seen: [FeelSeen] = []
         for window in windows { visit(window, depth: 0, into: &seen) }
+        if copies { return seen }  // Every copy, for double draws.
         var last: [String: Int] = [:]
         for (i, s) in seen.enumerated() { last[s.key] = i }
         return seen.enumerated().filter { last[$0.element.key] == $0.offset }.map(\.element)

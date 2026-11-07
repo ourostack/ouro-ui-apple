@@ -266,7 +266,7 @@ The test posts a Darwin notification; the app starts a `CADisplayLink` and, ever
 each named element is drawn: its accessibility frame carried from where its view is laid out to where the view's
 presentation layer draws it (a push, sheet or zoom moves and scales the layer, not the view), and left out while a
 layer above it is hidden or transparent. A key that shows twice in a frame (the same title on both pages of a push)
-is sampled once, from the frontmost. The test taps and posts stop; the app ends the film once everything it watches has held still for half a
+is sampled once, from the frontmost, unless the test asks for every copy (`recordedFilm(keys, copies: true)`). Then `doubleDraws` counts copies frame by frame on the app's own display clock, not on wall-clock snapshots, so a busy machine cannot hide a ghost between samples. The test taps and posts stop; the app ends the film once everything it watches has held still for half a
 second, since a tap can return to the test while its transition is still moving. Each sample is stamped with the display link's own time, and the report says
 so. In the fixture, a push filmed this way held 67 frames about 0.019 s apart with the title in 21
 places (three runs), and a push with animations turned off showed the title in one place: the snap check caught it

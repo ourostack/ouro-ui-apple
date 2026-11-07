@@ -19,9 +19,19 @@ public enum FeelRecording {
     public struct Request: Codable, Equatable, Sendable {
         public var id: String
         public var keys: [String]
-        public init(id: String = UUID().uuidString, keys: [String]) {
+        /// Every copy of each key on screen, not only the frontmost: for counting double draws frame by frame.
+        public var copies: Bool
+        public init(id: String = UUID().uuidString, keys: [String], copies: Bool = false) {
             self.id = id
             self.keys = keys
+            self.copies = copies
+        }
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            keys = try c.decode([String].self, forKey: .keys)
+            // A request from before copies existed asks for one copy per key.
+            copies = try c.decodeIfPresent(Bool.self, forKey: .copies) ?? false
         }
     }
 }

@@ -480,12 +480,15 @@ public struct OuroFeel {
     ///
     /// Waits only on the app's answers. If the app does not start recording, or writes no film, within `timeout`
     /// seconds, the film is empty and stalled (``FeelFilm/stalledAt``), so every motion check on it could not be checked.
-    public func recordedFilm(_ keys: [String], timeout: TimeInterval = 30, during action: () -> Void) -> FeelFilm {
+    /// With `copies`, the film holds every copy of each key on screen, not only the frontmost, so
+    /// ``FeelFilm/doubleDraws(of:maxGap:)`` counts them frame by frame rather than on wall-clock snapshots.
+    public func recordedFilm(_ keys: [String], copies: Bool = false, timeout: TimeInterval = 30,
+                             during action: () -> Void) -> FeelFilm {
         let timedBy = FeelRecording.timedBy
         let files = FileManager.default
         let dir = Self.recordDirectory
         try? files.createDirectory(at: dir, withIntermediateDirectories: true)
-        let request = FeelRecording.Request(keys: keys)
+        let request = FeelRecording.Request(keys: keys, copies: copies)
         let recording = dir.appendingPathComponent(FeelRecording.recordingFile(request.id))
         let filmURL = dir.appendingPathComponent(FeelRecording.filmFile(request.id))
         try? JSONEncoder().encode(request).write(to: dir.appendingPathComponent(FeelRecording.requestFile), options: .atomic)

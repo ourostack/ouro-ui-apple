@@ -975,6 +975,16 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(decoded == first)
     }
 
+    @Test("a request can ask for every copy of a key, for double draws counted frame by frame; an older one cannot")
+    func requestsAskForCopies() throws {
+        let copies = FeelRecording.Request(keys: ["recipe.title"], copies: true)
+        #expect(copies.copies)
+        #expect(try JSONDecoder().decode(FeelRecording.Request.self, from: JSONEncoder().encode(copies)) == copies)
+        #expect(!FeelRecording.Request(keys: ["recipe.title"]).copies)
+        let older = try JSONDecoder().decode(FeelRecording.Request.self, from: Data(#"{"id":"a","keys":["k"]}"#.utf8))
+        #expect(!older.copies)
+    }
+
     @Test("a film cut at the recorder's cap reads as stalled, so no motion check passes on what came after")
     func aCappedFilmIsNotJudged() {
         let frames = (0..<10).map { FeelFrame(t: Double($0) * 0.016, seen: [FeelSeen(key: "card", frame: CGRect(x: Double($0) * 10, y: 0, width: 50, height: 50))]) }

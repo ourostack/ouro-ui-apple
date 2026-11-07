@@ -370,6 +370,9 @@ jobs:
             -destination '${{ matrix.destination }}' -derivedDataPath .build/fixture CODE_SIGN_IDENTITY=- 2>&1 | tail -20
           find .build/fixture/Build/Products -maxdepth 2 -name XrayFixture.app
       - name: X-ray it, metadata and behaviour
+        # A passing probe takes 9 to 14 minutes. Its own limit, inside the job's, fails a hang here with the log kept
+        # and the report still uploaded; at the job's limit GitHub cancels the job and keeps no log (#46).
+        timeout-minutes: 25
         run: |
           set -eu
           app="$(find .build/fixture/Build/Products -maxdepth 2 -name XrayFixture.app | head -1)"

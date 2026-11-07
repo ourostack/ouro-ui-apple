@@ -10,6 +10,8 @@
 [ui.ouroboros.bot](https://ui.ouroboros.bot/), now on iPhone, iPad and Mac, plus the bits that make an app pleasant for Siri and
 every other agent that comes knocking.
 
+[ui.ouroboros.bot](https://ui.ouroboros.bot/) · [Releases](https://github.com/ourostack/ouro-ui-apple/releases) · [Ouro UI core](https://github.com/ourostack/ouro-ui-core) · [Ouro Reins](docs/ouro-reins/README.md) · [More from Ouro](https://github.com/ourostack)
+
 Meets core [v0.3.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.3.0): the tokens and the claim sets (AX's
 `apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
 

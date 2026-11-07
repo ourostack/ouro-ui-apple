@@ -71,10 +71,13 @@ may tap (cells and links by default; `FeelFollow(types: [.cell, .link, .button])
 `FeelFollow(types: [], prefixes: ["recipe."])` for only your own identifiers). It never taps a back control, a menu
 button (a SwiftUI `Menu` shows up as a plain button, so the walk taps it and checks the menu as an overlay), anything inside a tab bar, segmented control, picker or menu (they switch what a screen shows), or one whose
 identifier or label says delete, remove, sign out, clear, pay, checkout, send, share or the like
-(`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). A tap that leaves the navigation bars as they were and most of the screen's controls still there did
-not reach a new screen, and neither did one that hid the screen but brought no navigation bar or way back of its own
+(`FeelSafety.dangerous`, matched across camelCase, acronyms and punctuation). A tap reached a new screen when it replaced a navigation bar (known by its title and its back button's label, so an
+untitled bar counts), brought a bar with a back button, or took away most of the screen's own texts and controls (the
+tab, navigation and toolbar chrome every screen shares is left out), so a push stays a push when its page shares a
+control with the last one or scrolls under a tab bar. A tap that leaves the navigation bars as they were and most of
+the screen's controls still there did not reach a new screen, and neither did one that hid the screen but brought no navigation bar or way back of its own
 and covers under 60% of the window (a system menu hides what is behind it). What such a tap added is an overlay when
-it hid the screen or floats over controls that stayed where they were; otherwise it changed the screen in place
+it hid the screen or floats over controls that stayed where they were (never when it replaced the bar or the content); otherwise it changed the screen in place
 (edit mode, a row expanding, "Show more"), which the report notes. If new elements appeared (a menu, a popover), the walk checks that overlay as the overlay
 genre does: a tap outside it, on nothing the screen behind would act on, must close it, and so must picking its
 topmost safe item; one that stays open fails the way back. If a pick leaves the screen, the walk relaunches back rather

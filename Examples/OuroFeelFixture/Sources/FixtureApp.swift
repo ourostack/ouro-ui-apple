@@ -12,6 +12,7 @@ struct FixtureApp: App {
             case "motion": MotionPage()
             case "place": PlacePage()
             case "overlay": OverlayPage()
+            case "push": PushPage()
             default: NavPage()
             }
         }
@@ -307,5 +308,65 @@ struct OverlayPage: View {
                 .accessibilityIdentifier("overlay.sidebar")
             }
         }
+    }
+}
+
+/// A push the walk must not mistake for an overlay or a change in place, shaped like Spoonjoy's chef page: a tab bar the
+/// pushed page's long content scrolls under, navigation bars with no title, and the Chefs screen's only other control
+/// (a status banner's close button) on the pushed page too. The walk enters at Chefs, one push in, as Spoonjoy's does.
+/// The bug: the profile hides its back button, so it has no way back; in both builds it is a screen, never an overlay.
+struct PushPage: View {
+    var body: some View {
+        TabView {
+            Tab("Kitchen", systemImage: "house") {
+                NavigationStack {
+                    NavigationLink("Chefs") { ChefsList() }
+                        .accessibilityIdentifier("push.chefs")
+                }
+            }
+            Tab("Recipes", systemImage: "book") { Text("Recipes") }
+        }
+    }
+}
+
+struct ChefsList: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                StatusBanner()
+                Text("Chefs").font(.largeTitle)
+                Text("1 chef")
+                NavigationLink { ChefProfile() } label: {
+                    Text("ada, Open kitchen profile").frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("push.chef")
+            }
+            .padding()
+        }
+    }
+}
+
+struct StatusBanner: View {
+    var body: some View {
+        HStack {
+            Text("Showing saved kitchen")
+            Button { } label: { Image(systemName: "xmark.circle") }.accessibilityLabel("Hide offline status")
+        }
+    }
+}
+
+struct ChefProfile: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("@ada").font(.largeTitle)
+                StatusBanner()
+                ForEach(1...14, id: \.self) { n in
+                    Text("Recipe \(n), a long description of how it is cooked").frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
+                }
+            }
+            .padding()
+        }
+        .navigationBarBackButtonHidden(bug)
     }
 }

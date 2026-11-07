@@ -187,12 +187,16 @@ public struct FeelOverlayTrial: Codable, Equatable, Sendable {
     public var outsideDismisses: Bool?
     /// Whether picking an item in it dismissed it; nil when not tried.
     public var pickDismisses: Bool?
+    /// Why no pick was asked of it, when it is no menu: a popover of controls (a stepper, a slider) stays open while
+    /// you adjust them and closes with a tap outside.
+    public var noPickBecause: String?
 
-    public init(name: String, appeared: Bool, outsideDismisses: Bool? = nil, pickDismisses: Bool? = nil) {
+    public init(name: String, appeared: Bool, outsideDismisses: Bool? = nil, pickDismisses: Bool? = nil, noPickBecause: String? = nil) {
         self.name = name
         self.appeared = appeared
         self.outsideDismisses = outsideDismisses
         self.pickDismisses = pickDismisses
+        self.noPickBecause = noPickBecause
     }
 }
 
@@ -205,6 +209,7 @@ public enum FeelOverlays {
             if t.outsideDismisses == false { findings.append(FeelFinding(what: "\(t.name): a tap outside it did not dismiss it")) }
             if t.outsideDismisses == nil { findings.append(.couldNotCheck("\(t.name): there was no place outside it to tap, so a tap outside was not tried")) }
             if t.pickDismisses == false { findings.append(FeelFinding(what: "\(t.name): still on screen after picking an item")) }
+            if let why = t.noPickBecause { findings.append(.note("\(t.name): \(why), so only a tap outside was asked of it")) }
         }
         if trials.isEmpty { findings.append(.couldNotCheck("no overlays were named")) }
         let tried = trials.filter(\.appeared).count

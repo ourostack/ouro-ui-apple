@@ -475,6 +475,13 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
     @Test func anOverlayThatNeverOpenedFails() {
         #expect(!FeelOverlays.evaluate([FeelOverlayTrial(name: "menu", appeared: false)]).passed)
     }
+
+    @Test func aPopoverOfControlsIsAskedOnlyForATapOutsideAndSaysSo() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "serves", appeared: true, outsideDismisses: true,
+                                                        noPickBecause: "it holds a stepper or slider, which it stays open to adjust")])
+        #expect(r.passed)
+        #expect(r.findings.contains { $0.note && $0.what.contains("only a tap outside") })
+    }
 }
 
 @Suite struct SettleFromMotionTests {

@@ -100,6 +100,22 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// Shapes once misread as missing ways back, none a bug (``KitchenPage`` in the app): a tab switch, a zoom push whose
+    /// edge swipe starts lower, a popover of a stepper, and a menu with a submenu. The walk passes them all.
+    func testWhatIsNotABrokenWayBack() {
+        let (app, feel) = launch("kitchen", bug: false)
+        XCTAssertTrue(app.buttons["kitchen.seeAll"].waitForExistence(timeout: 30))
+        let result = feel.record(feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1), name: "kitchen")
+        XCTAssertTrue(result.passed, "none of these is a broken way back:\n\(result.text)")
+        XCTAssertTrue(result.findings.contains { $0.what.contains("kitchen.seeAll") && $0.what.contains("switched to") },
+                      "See all is a tab switch:\n\(result.text)")
+        XCTAssertTrue(result.findings.contains { $0.what.contains("kitchen.serves") && $0.what.contains("stepper") },
+                      "the stepper's popover is asked only for a tap outside:\n\(result.text)")
+        XCTAssertGreaterThanOrEqual(result.measures["good"] ?? 0, 1, "the zoomed recipe has a way back and a gesture back:\n\(result.text)")
+        XCTAssertGreaterThanOrEqual(result.measures["overlays"] ?? 0, 2, "the popover and the menu were both checked:\n\(result.text)")
+        app.terminate()
+    }
+
     func testOverlayDismissal() {
         both("overlay") { _, feel in (feel.overlays([.button("overlay.open", overlay: "overlay.sidebar", pick: "overlay.saved")]), nil) }
     }

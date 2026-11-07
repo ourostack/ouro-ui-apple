@@ -89,6 +89,9 @@ extension OuroFeel {
         var parts: [String] = []
         func walk(_ node: any XCUIElementSnapshot) {
             guard node.elementType != .keyboard else { return }  // The keyboard is not the screen.
+            // Nor is the tab bar, which every tab's screens share, and whose buttons the system renames (from "Kitchen"
+            // to its image's "house") once a page has been pushed. A tab switch is told by ``selectedTab()``.
+            guard node.elementType != .tabBar else { return }
             let key = Self.key(node)
             if node.elementType == .navigationBar || (node.elementType == .button && Self.isBack(node))
                 || follow.allows(type: node.elementType, key: key, label: node.label) {
@@ -212,10 +215,18 @@ extension OuroFeel {
     /// pop gesture never turns into a full swipe across a row and fires its swipe action.
     /// A swipe in from the leading edge. `slower` is the retry for a swipe that moved nothing: a longer press, a slow
     /// drag nearly across, and a hold before letting go, so a loaded machine has time to start the transition.
-    func edgeSwipe(slower: Bool = false) {
+    /// `lower` sends it beside the page's middle instead, at a height with no row at the edge: a zoom transition's
+    /// pop does not start from the navigation bar's height (seen on iOS 27.2).
+    func edgeSwipe(slower: Bool = false, lower: Bool = false) {
         let w = windowFrame
         let bar = app.navigationBars.firstMatch
-        let y = bar.exists && w.contains(bar.frame) ? bar.frame.midY : w.minY + min(100, w.height * 0.12)
+        var y = bar.exists && w.contains(bar.frame) ? bar.frame.midY : w.minY + min(100, w.height * 0.12)
+        if lower {
+            let rows = tree().onScreen.values.filter { $0.type == .cell }.map(\.frame)
+            let edge = w.minX + 1
+            y = [0.5, 0.42, 0.58, 0.34, 0.66].map { w.minY + w.height * $0 }
+                .first { y in !rows.contains { $0.minX <= edge + 30 && $0.maxX >= edge && $0.minY <= y && $0.maxY >= y } } ?? y
+        }
         if slower {
             point(w.minX + 1, y).press(forDuration: 0.3, thenDragTo: point(w.minX + w.width * 0.9, y), withVelocity: .slow, thenHoldForDuration: 0.3)
         } else {
@@ -338,6 +349,7 @@ extension OuroFeel {
         var result = FeelWayBack.evaluate(walk.screens, overlays: walk.overlays, relaunches: walk.relaunches)
         // Taps that changed a screen in place were not walked; say which, so the report shows what was left out.
         result.findings += walk.skipped.map { .note("\($0): changed the screen in place (edit mode, a row expanding), so no way back was asked") }
+        result.findings += walk.tabSwitches.map { .note("\($0), whose way back is its tab button, so no back control was asked") }
         if !walk.capped.isEmpty {
             result.findings += walk.capped.map { .couldNotCheck("\($0): its controls kept renaming, so the walk stopped after trying three times as many as it first found") }
             result.passed = false
@@ -372,6 +384,22 @@ extension OuroFeel {
         var relaunches: [String] = []
         var missing: [String] = []
         var capped: [String] = []
+        var tabSwitches: [String] = []
+    }
+
+    /// The label of the selected button in a tab bar, if the screen has one.
+    func selectedTab() -> String? {
+        guard let root = try? app.snapshot() else { return nil }
+        var found: String?
+        func walk(_ node: any XCUIElementSnapshot, inBar: Bool) {
+            if found != nil { return }
+            let bar = inBar || node.elementType == .tabBar
+            // By label: the system renames a tab button's identifier, never its label.
+            if bar, node.elementType == .button, node.isSelected { found = node.label.isEmpty ? Self.key(node) : node.label; return }
+            node.children.forEach { walk($0, inBar: bar) }
+        }
+        walk(root, inBar: false)
+        return found
     }
 
     /// Every element on screen that has an identifier or label, of any type, with its frame and type. Unlike the
@@ -414,6 +442,14 @@ extension OuroFeel {
 
     /// An overlay a tap opened (`appeared` holds its elements): a tap outside it should close it, and so should
     /// picking an item in it, after `reopen` brings it back.
+    /// Why an overlay is a popover of controls rather than a menu, or nil: a stepper or slider in it.
+    static func holdsControls(_ appeared: [String: (frame: CGRect, type: XCUIElement.ElementType)]) -> String? {
+        if appeared.contains(where: { [.stepper, .slider].contains($0.value.type) || $0.key.hasSuffix("-Increment") || $0.key.hasSuffix("-Decrement") }) {
+            return "it holds a stepper or slider, which it stays open to adjust"
+        }
+        return nil
+    }
+
     func checkOverlay(_ name: String, appeared: [String: (frame: CGRect, type: XCUIElement.ElementType)],
                       around before: [String: (frame: CGRect, type: XCUIElement.ElementType)], reopen: () -> Void) -> FeelOverlayTrial {
         func showing() -> Bool { let now = elements(); return appeared.keys.contains { now[$0] != nil } }
@@ -436,14 +472,32 @@ extension OuroFeel {
                 return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: nil)
             }
         }
-        // The topmost item that is safe to pick.
-        let items = appeared.filter { [.button, .menuItem, .cell].contains($0.value.type) && !FeelSafety.isDangerous($0.key) && !FeelWayBack.saysBack($0.key) }
-            .sorted { $0.value.frame.minY < $1.value.frame.minY }
+        // A popover of controls (a stepper, a slider) stays open while they are adjusted: no pick is asked of it.
+        if let why = Self.holdsControls(appeared) {
+            // Leave it closed, as a person would, so the walk carries on without a relaunch.
+            if let p = outside, showing() { point(p.x, p.y).tap(); _ = wait(3) { !showing() } }
+            return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, noPickBecause: why)
+        }
+        // The topmost item that is safe to pick. One that opens a submenu leaves the menu up with new items in it:
+        // the pick is then made in the submenu, once.
+        func pickable(_ shown: [String: (frame: CGRect, type: XCUIElement.ElementType)]) -> (key: String, value: (frame: CGRect, type: XCUIElement.ElementType))? {
+            shown.filter { [.button, .menuItem, .cell].contains($0.value.type) && !FeelSafety.isDangerous($0.key) && !FeelWayBack.saysBack($0.key) }
+                .min { $0.value.frame.minY < $1.value.frame.minY }
+        }
         var pickDismisses: Bool?
-        if let item = items.first {
+        if let item = pickable(appeared) {
             let f = item.value.frame
             point(f.midX, f.midY).tap()
             pickDismisses = wait(3) { !showing() }
+            if pickDismisses == false {
+                let now = elements()
+                // What the submenu brought, leaving out its header, which takes the picked item's place (and goes back).
+                let submenu = now.filter { appeared[$0.key] == nil && before[$0.key] == nil && !$0.value.frame.intersects(f) }
+                if let inner = pickable(submenu) {
+                    point(inner.value.frame.midX, inner.value.frame.midY).tap()
+                    pickDismisses = wait(3) { !showing() }
+                }
+            }
         }
         return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: pickDismisses)
     }
@@ -477,11 +531,25 @@ extension OuroFeel {
                 continue
             }
             let (before, _, chrome) = tree()
+            let tabBefore = selectedTab()
             target.tap()
             lastTap = Date()
             pause(0.8)
             landed()
             let there = signature(follow)
+            // A control that switches tabs ("See all" taking you to the Recipes tab) leads to a tab's own root, whose
+            // way back is its tab button, not a back control: say so and return by that button.
+            if let from = tabBefore, let to = selectedTab(), to != from {
+                let label = ([entry.name] + path + [key]).joined(separator: " › ")
+                walk.tabSwitches.append("\(label): switched to the \(to) tab")
+                app.tabBars.buttons.matching(NSPredicate(format: "label == %@", from)).firstMatch.tap()
+                if !wait(3, until: { signature(follow) == here }) {
+                    guard recover(entry, path, because: "to get back to \(place) after \(label) switched tabs", &walk) else { return }
+                }
+                here = signature(follow)
+                keys = followable(follow)
+                continue
+            }
             let (after, afterAll, _) = tree()
             // What the tap added; scroll bars and other plain containers are noise.
             let appeared = after.filter { before[$0.key] == nil && $0.value.type != .other }
@@ -591,6 +659,7 @@ extension OuroFeel {
                 return (false, moved)
             }
             if !attempt("edge swipe", .horizontal, { edgeSwipe() }).returned,
+               !attempt("edge swipe lower", .horizontal, { edgeSwipe(lower: true) }).returned,
                !attempt("slower edge swipe", .horizontal, { edgeSwipe(slower: true) }).returned,
                !attempt("swipe down", .vertical, { swipeDown() }).returned {
                 _ = attempt("slower swipe down", .vertical) { swipeDown(slower: true) }

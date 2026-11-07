@@ -13,6 +13,7 @@ struct FixtureApp: App {
             case "place": PlacePage()
             case "overlay": OverlayPage()
             case "push": PushPage()
+            case "kitchen": KitchenPage()
             default: NavPage()
             }
         }
@@ -430,5 +431,68 @@ struct ChefProfile: View {
             .padding()
         }
         .navigationBarBackButtonHidden(bug)
+    }
+}
+
+/// Shapes a walk once misread as missing ways back (Spoonjoy, 2026-11-07), none of them a bug, in either build: "See all"
+/// switches to the Recipes tab (a tab's root, left by its tab button); a recipe opens with a zoom transition over a
+/// full-bleed cover (its edge swipe does not start at the navigation bar's height); "Serves" opens a popover of a
+/// stepper, which stays open to adjust; "More" is a menu whose first item opens a submenu.
+struct KitchenPage: View {
+    @State private var tab = "kitchen"
+    @State private var serves = 2
+    @State private var adjusting = false
+    @State private var scale = 1.0
+    @Namespace private var zoom
+    var body: some View {
+        TabView(selection: $tab) {
+            Tab("Kitchen", systemImage: "house", value: "kitchen") {
+                NavigationStack {
+                    List {
+                        NavigationLink {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Color.orange.frame(height: 360)
+                                    Text("Tomato Toast").font(.largeTitle)
+                                    Text("Salted tomato on hot toast")
+                                }
+                            }
+                            .ignoresSafeArea(edges: .top)
+                            .navigationTransition(.zoom(sourceID: "toast", in: zoom))
+                        } label: {
+                            Text("Tomato Toast").matchedTransitionSource(id: "toast", in: zoom)
+                        }
+                        .accessibilityIdentifier("kitchen.recipe")
+                        Button("See all") { tab = "recipes" }.accessibilityIdentifier("kitchen.seeAll")
+                        Button("Serves \(serves)") { adjusting = true }
+                            .accessibilityIdentifier("kitchen.serves")
+                            .popover(isPresented: $adjusting) {
+                                Stepper("Serves \(serves)", value: $serves, in: 1...12)
+                                    .accessibilityIdentifier("kitchen.serves.stepper")
+                                    .padding()
+                                    .presentationCompactAdaptation(.popover)
+                            }
+                    }
+                    .navigationTitle("Kitchen")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Menu {
+                                Picker(selection: $scale) {
+                                    ForEach([0.5, 1, 2], id: \.self) { Text("\($0, specifier: "%g")×").tag($0) }
+                                } label: {
+                                    Label("Scale", systemImage: "person.2")
+                                }
+                                .pickerStyle(.menu)
+                                Button("Print", systemImage: "printer") { }
+                            } label: {
+                                Label("More", systemImage: "ellipsis")
+                            }
+                            .accessibilityIdentifier("kitchen.more")
+                        }
+                    }
+                }
+            }
+            Tab("Recipes", systemImage: "book", value: "recipes") { Text("All recipes") }
+        }
     }
 }

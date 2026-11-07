@@ -7,7 +7,7 @@
 # Ouro UI for Apple
 
 **Ouro HX for people and Ouro AX for agents, in Swift.** The same colours, motion and manners as
-[ui.ouro.bot](https://ui.ouro.bot/), now on iPhone, iPad and Mac, plus the bits that make an app pleasant for Siri and
+[ui.ouroboros.bot](https://ui.ouroboros.bot/), now on iPhone, iPad and Mac, plus the bits that make an app pleasant for Siri and
 every other agent that comes knocking.
 
 Meets core [v0.3.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.3.0): the tokens and the claim sets (AX's

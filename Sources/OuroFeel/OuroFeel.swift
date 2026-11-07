@@ -477,7 +477,10 @@ public struct OuroFeel {
     public static var injectedRecorderEnvironment: [String: String]? {
         try? FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
         let bundles = [Bundle(for: FeelBundleMarker.self), Bundle.main] + Bundle.allBundles
+        // Embedded in the test bundle or its runner, or, when the test runs from the build products, wherever the
+        // loaded frameworks sit (the test bundle links it, so it is loaded).
         let dirs = bundles.flatMap { [$0.privateFrameworksURL, $0.bundleURL.appendingPathComponent("Frameworks")].compactMap { $0 } }
+            + Bundle.allFrameworks.map { $0.bundleURL.deletingLastPathComponent() }
         guard let library = FeelRecording.injectableLibrary(in: dirs) else { return nil }
         return FeelRecording.injectionEnvironment(library: library, directory: recordDirectory.path)
     }

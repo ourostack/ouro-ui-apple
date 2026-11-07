@@ -27,7 +27,8 @@ public struct FeelFrame: Codable, Equatable, Sendable {
 
 /// Samples of the screen over time, and the motion checks that read them.
 ///
-/// In a UI test each sample is one accessibility snapshot, timed by the test runner's clock, so a film sees
+/// In a UI test each sample is one accessibility snapshot, timed by the test runner's clock (or by the app's own clock,
+/// for a film made with ``OuroFeel/film(_:steps:tick:clock:advance:stall:during:)``), so a film sees
 /// positions every few tens of milliseconds, not every frame: it catches settling, jumps, double draws and chrome
 /// hand-overs, never a single dropped frame (use ``FeelHitches`` for that).
 public struct FeelFilm: Codable, Equatable, Sendable {
@@ -37,11 +38,23 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// at which the app stopped moving its clock on, so the film ended early; nil when it ran to the end. Every motion
     /// check on a stalled film could not be checked, since what was due after it was never filmed.
     public var stalledAt: Double?
+    /// What timed the film when it was not the test runner's wall clock, in words for the report ("the app's own
+    /// clock …"). Every motion check on the film says it was timed by this; nil leaves the runner's clock to the report.
+    public var timedBy: String?
 
-    public init(window: CGRect, frames: [FeelFrame], stalledAt: Double? = nil) {
+    public init(window: CGRect, frames: [FeelFrame], stalledAt: Double? = nil, timedBy: String? = nil) {
         self.window = window
         self.frames = frames
         self.stalledAt = stalledAt
+        self.timedBy = timedBy
+    }
+
+    /// A judgment's result, saying which clock timed the film when that was not the runner's.
+    func timed(_ result: FeelResult) -> FeelResult {
+        guard let timedBy, result.environment == nil else { return result }
+        var stamped = result
+        stamped.environment = FeelEnvironment.current(clock: timedBy)
+        return stamped
     }
 
     /// Why a stalled film cannot be judged, or nil.
@@ -134,6 +147,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// film started by a tap begins after XCUITest's idle wait, when the motion is over), was still moving when the film
     /// ended, or when samples are usually more than `maxGap` apart.
     public func settles(_ key: String, within limit: Double, hold: Double = 0.3, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
+        timed(settlesUntimed(key, within: limit, hold: hold, maxGap: maxGap, tolerance: tolerance))
+    }
+
+    private func settlesUntimed(_ key: String, within limit: Double, hold: Double, maxGap: Double, tolerance: Double) -> FeelResult {
         let check = FeelGenre.settleTime.rawValue
         if let stall = stall() {
             return FeelResult(check: check, passed: false, summary: "could not check: " + stall.what, findings: [stall])
@@ -169,6 +186,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// A jump is the element moving more than `limit` points after it had landed: after its first move, then `rest`
     /// seconds still. Its first move from rest is the transition itself, so start the film before the transition.
     public func jumps(of key: String, rest: Double = 0.3, limit: Double = 2, tolerance: Double = 0.5) -> FeelResult {
+        timed(jumpsUntimed(of: key, rest: rest, limit: limit, tolerance: tolerance))
+    }
+
+    private func jumpsUntimed(of key: String, rest: Double, limit: Double, tolerance: Double) -> FeelResult {
         let track = track(key)
         var findings: [FeelFinding] = [stall(), unseen(key)].compactMap { $0 }
         var stillSince = track.first?.t ?? 0
@@ -196,6 +217,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// `maxGap` is the longest a copy may be on screen and still be missed: when no copy is seen, a film whose samples
     /// were ever further apart than that could have missed one, so it could not be checked.
     public func doubleDraws(of contents: [String], maxGap: Double = 0.5) -> FeelResult {
+        timed(doubleDrawsUntimed(of: contents, maxGap: maxGap))
+    }
+
+    private func doubleDrawsUntimed(of contents: [String], maxGap: Double) -> FeelResult {
         var findings: [FeelFinding] = []
         var total = 0
         if let stall = stall() { findings.append(stall) }
@@ -246,6 +271,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// saying so; so does sampling usually slower than `maxGap`, moves seen or not, and a film in which the element
     /// never moved more than `distance` (or, with `appearing`, never arrived). It never passes on what it did not see.
     public func snaps(of key: String, distance: Double = 40, appearing: Bool = false, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
+        timed(snapsUntimed(of: key, distance: distance, appearing: appearing, maxGap: maxGap, tolerance: tolerance))
+    }
+
+    private func snapsUntimed(of key: String, distance: Double, appearing: Bool, maxGap: Double, tolerance: Double) -> FeelResult {
         let places: [CGRect?] = frames.map { find(key, in: $0)?.frame }
         func moved(_ i: Int) -> Double? {
             guard i >= 0, i + 1 < places.count, let a = places[i], let b = places[i + 1] else { return nil }
@@ -303,6 +332,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// fails when both are on screen together, or neither is, for longer than `grace` seconds (a short crossfade is fine), counted from the first
     /// sample that shows either.
     public func chrome(from a: String, to b: String, grace: Double = 0.25) -> FeelResult {
+        timed(chromeUntimed(from: a, to: b, grace: grace))
+    }
+
+    private func chromeUntimed(from a: String, to b: String, grace: Double) -> FeelResult {
         var both = 0.0, neither = 0.0, longestBoth = 0.0, longestNeither = 0.0, runBoth = 0.0, runNeither = 0.0
         var started = false
         for (f, next) in zip(frames, frames.dropFirst()) {

@@ -82,7 +82,26 @@ it hid the screen or floats over controls that stayed where they were (never whe
 (edit mode, a row expanding, "Show more"), which the report notes. A tap that swaps most of a screen's texts in place (paging, a filter row that rebuilds the
 list) reads as a new screen and is asked for a way back; follow such controls out of the walk with `prefixes`. If new elements appeared (a menu, a popover), the walk checks that overlay as the overlay
 genre does: a tap outside it, on nothing the screen behind would act on, must close it, and so must picking its
-topmost safe item; one that stays open fails the way back. If a pick leaves the screen, the walk relaunches back rather
+topmost safe item; one that stays open fails the way back. An item that opens a submenu is picked through it: only
+when its header takes the picked item's place (or the item goes) is the submenu's own topmost item picked, and only
+an item over the menu, never something new elsewhere (a toast's Undo), so a menu that stays open after a pick still
+fails. A popover that holds only a stepper or slider (which it stays open to adjust) is asked only for the tap
+outside; one that also has a button (Apply, or failing an item its Done or Close) must close on it. An overlay with
+nothing safe to pick (each item reads as destructive) is asked only for the tap outside too. The report notes both. A
+tap outside that goes through the overlay and changes the screen behind (opening a row) counts as no dismissal: the
+report says it could not be checked. A tap that
+changes the selected tab of a bottom tab bar ("See all" taking you to the Recipes tab) and lands on that tab's root
+has its tab button as its way back: the report notes it and the walk returns by the button for the tab it started on.
+The walk learns each tab's root once, from a fresh launch (up to two relaunches per tab, listed in the report). One that lands
+anywhere else on that tab ("Open in Recipes" pushing a page) is checked like any other screen: a back control and an
+edge swipe must each reach that tab's root. A root is told by its navigation bar titles (by the whole screen when it has none), so it holds
+while the root's content loads or is filtered; a page pushed there under the root's own title with its back button
+hidden would be noted as a tab switch rather than failed. A pager taller than half the window at the leading edge is
+not kept clear of the lower edge swipe. Tabs are told by their
+place in the bar, and the tab bar is never part of a screen's identity, since the system renames its buttons once a
+page has been pushed. The iPad sidebar, which lists tabs as cells, is not read as a tab bar. The fixture holds each
+of these shapes beside a near miss that is a real bug (`testWhatIsNotABrokenWayBack`,
+`testNearMissesOfWhatIsNotABrokenWayBack`). If a pick leaves the screen, the walk relaunches back rather
 than carrying on from there, and a control that is gone by the time the walk comes to it is reported as not checked.
 Two limits: a pushed screen with its bar hidden, or a cover with no Close button, that covers under 60% of the window
 is judged as an overlay, so it fails as "a tap outside did not dismiss it" rather than "no visible way back"; and a
@@ -95,7 +114,10 @@ overlay that stayed open, a screen it could not leave), lists every relaunch in 
 summary line, so a PASS is never read as recovery-free. When buttons are followed, Save or Add can still be tapped, so launch into a fixture state
 that is safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
 relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe starts at the navigation bar's height,
-above any list row, so a missing pop gesture never fires a row's swipe action.
+above any list row, so a missing pop gesture never fires a row's swipe action. If that moves nothing, a second edge
+swipe goes beside the page's middle, at a height where nothing reaches the edge (any cell, keyed or not, and any short
+scroll view, a carousel), and is not sent when every such height is taken: a zoom transition's pop does not start from
+the bar's height (seen on iOS 27.2).
 
 Before each gesture the walk waits for the screen to land (navigation bars and buttons holding still), since a push
 still sliding in ignores a back swipe. It watches each gesture while the finger is down (a few of the screen's texts,

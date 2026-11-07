@@ -475,6 +475,33 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
     @Test func anOverlayThatNeverOpenedFails() {
         #expect(!FeelOverlays.evaluate([FeelOverlayTrial(name: "menu", appeared: false)]).passed)
     }
+
+    @Test func aPopoverOfControlsIsAskedOnlyForATapOutsideAndSaysSo() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "serves", appeared: true, outsideDismisses: true,
+                                                        noPickBecause: "it holds only a stepper or slider, which it stays open to adjust")])
+        #expect(r.passed)
+        #expect(r.findings.contains { $0.note && $0.what.contains("only a tap outside") })
+    }
+
+    @Test func aTapOutsideThatLandsOnTheScreenBehindIsNotCountedAsADismissal() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "filter", appeared: true, outsideLandedBehind: true)])
+        #expect(!r.passed)
+        #expect(r.detections.isEmpty)
+        #expect(r.findings.contains { $0.unchecked && $0.what.contains("landed on the screen behind") })
+        #expect(!r.findings.contains { $0.what.contains("no place outside") })
+    }
+
+    @Test func theLowerEdgeSwipeAvoidsEveryRowAtTheEdgeAndIsSkippedWhenNoHeightIsFree() {
+        let window = CGRect(x: 0, y: 0, width: 400, height: 800)
+        // Rows that share one identifier still each block their height.
+        let row = { (y: CGFloat) in CGRect(x: 0, y: y, width: 400, height: 60) }
+        #expect(FeelWayBack.quietEdgeHeight(window: window, blocked: []) == 400)
+        #expect(FeelWayBack.quietEdgeHeight(window: window, blocked: [row(380)]) == 336)
+        // A row that starts away from the edge leaves it free.
+        #expect(FeelWayBack.quietEdgeHeight(window: window, blocked: [CGRect(x: 60, y: 380, width: 300, height: 60)]) == 400)
+        let full = stride(from: 0, to: 800, by: 60).map { row(CGFloat($0)) }
+        #expect(FeelWayBack.quietEdgeHeight(window: window, blocked: full) == nil)
+    }
 }
 
 @Suite struct SettleFromMotionTests {

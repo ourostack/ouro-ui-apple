@@ -135,6 +135,15 @@ public enum FeelWayBack {
         return !before.isSubset(of: Set(barsAfter)) || barsAfter.contains { !before.contains($0) && $0.contains(backMark) }
     }
 
+    /// A height beside the page's middle for an edge swipe, with nothing at the leading edge that a missing pop would
+    /// turn the swipe into (a row's swipe action, a carousel): the first of a few heights near the middle that no
+    /// `blocked` frame touching the edge covers, or nil when none is free, so the swipe is better not sent.
+    public static func quietEdgeHeight(window w: CGRect, blocked: [CGRect]) -> CGFloat? {
+        let edge = w.minX + 1
+        return [0.5, 0.42, 0.58, 0.34, 0.66].map { w.minY + w.height * $0 }
+            .first { y in !blocked.contains { $0.minX <= edge + 30 && $0.maxX >= edge && $0.minY <= y && $0.maxY >= y } }
+    }
+
     /// Whether a tap left the screen by its content: under half of the screen's own texts and controls (`kept` of `of`,
     /// leaving out the tab and navigation bars every screen shares) are still there. A menu, edit mode or a row
     /// expanding keeps the content around it; a push replaces it, even when the bar and a shared control stay. Under
@@ -187,12 +196,21 @@ public struct FeelOverlayTrial: Codable, Equatable, Sendable {
     public var outsideDismisses: Bool?
     /// Whether picking an item in it dismissed it; nil when not tried.
     public var pickDismisses: Bool?
+    /// Why no pick was asked of it, when it is no menu: a popover of controls (a stepper, a slider) stays open while
+    /// you adjust them and closes with a tap outside.
+    public var noPickBecause: String?
+    /// True when the tap outside changed the screen behind (it went through the overlay to a row, say), so whether
+    /// the overlay dismisses was not seen. `outsideDismisses` is then nil.
+    public var outsideLandedBehind: Bool?
 
-    public init(name: String, appeared: Bool, outsideDismisses: Bool? = nil, pickDismisses: Bool? = nil) {
+    public init(name: String, appeared: Bool, outsideDismisses: Bool? = nil, pickDismisses: Bool? = nil, noPickBecause: String? = nil,
+                outsideLandedBehind: Bool? = nil) {
         self.name = name
         self.appeared = appeared
         self.outsideDismisses = outsideDismisses
         self.pickDismisses = pickDismisses
+        self.noPickBecause = noPickBecause
+        self.outsideLandedBehind = outsideLandedBehind
     }
 }
 
@@ -203,8 +221,13 @@ public enum FeelOverlays {
         for t in trials {
             if !t.appeared { findings.append(.couldNotCheck("\(t.name): never appeared")); continue }
             if t.outsideDismisses == false { findings.append(FeelFinding(what: "\(t.name): a tap outside it did not dismiss it")) }
-            if t.outsideDismisses == nil { findings.append(.couldNotCheck("\(t.name): there was no place outside it to tap, so a tap outside was not tried")) }
+            if t.outsideLandedBehind == true {
+                findings.append(.couldNotCheck("\(t.name): the tap outside landed on the screen behind (the screen changed), so whether it dismisses was not seen"))
+            } else if t.outsideDismisses == nil {
+                findings.append(.couldNotCheck("\(t.name): there was no place outside it to tap, so a tap outside was not tried"))
+            }
             if t.pickDismisses == false { findings.append(FeelFinding(what: "\(t.name): still on screen after picking an item")) }
+            if let why = t.noPickBecause { findings.append(.note("\(t.name): \(why), so only a tap outside was asked of it")) }
         }
         if trials.isEmpty { findings.append(.couldNotCheck("no overlays were named")) }
         let tried = trials.filter(\.appeared).count

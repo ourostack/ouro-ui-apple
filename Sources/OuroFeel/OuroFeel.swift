@@ -429,6 +429,7 @@ public struct OuroFeel {
     public func film(_ keys: [String], steps: Int, tick: TimeInterval, clock: String, advance: () -> Void,
                      stall: TimeInterval = 30, during action: (() -> Void)? = nil) -> FeelFilm {
         let wanted = Set(keys).union([clock])
+        let timedBy = "the app's own clock (\"\(clock)\", \(String(format: "%g", tick)) s a tick), one accessibility snapshot per tick"
         func count(_ seen: [FeelSeen]) -> Int? { seen.first { $0.key == clock }.flatMap { Int($0.label) } }
         // Snapshots until the app shows a count of at least `least`; nil if it shows none for `stall` seconds.
         func sample(atLeast least: Int) -> (window: CGRect, seen: [FeelSeen], count: Int)? {
@@ -442,20 +443,20 @@ public struct OuroFeel {
         }
         action?()
         guard let (w0, first, base) = sample(atLeast: .min) else {
-            return FeelFilm(window: .zero, frames: [], stalledAt: 0)
+            return FeelFilm(window: .zero, frames: [], stalledAt: 0, timedBy: timedBy)
         }
         var window = w0
         var frames = [FeelFrame(t: 0, seen: first)]
         for step in 1...max(1, steps) {
             advance()
             guard let (w, seen, n) = sample(atLeast: base + step) else {
-                return FeelFilm(window: window, frames: frames, stalledAt: Double(step - 1) * tick)
+                return FeelFilm(window: window, frames: frames, stalledAt: Double(step - 1) * tick, timedBy: timedBy)
             }
             if w != .zero { window = w }
             // Stamped with the count the app shows, so a tick the app took on its own is never hidden.
             frames.append(FeelFrame(t: Double(n - base) * tick, seen: seen))
         }
-        return FeelFilm(window: window, frames: frames)
+        return FeelFilm(window: window, frames: frames, timedBy: timedBy)
     }
 
     #if !os(visionOS)

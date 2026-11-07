@@ -106,6 +106,21 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(old != nil && old?.stalledAt == nil)
     }
 
+    @Test func aFilmSaysWhichClockTimedIt() {
+        var f = film([(0, [card(200)]), (0.1, [card(200)]), (0.2, [card(200)]), (0.3, [card(200)])])
+        let wall = [f.jumps(of: "card"), f.settles("card", within: 1)]
+        #expect(wall.allSatisfy { $0.environment == nil }, "a wall-clock film leaves the clock to the runner's report")
+        f.timedBy = "the app's own clock (motion.clock, 0.1 s a tick)"
+        let results = [f.jumps(of: "card"), f.settles("card", within: 1), f.doubleDraws(of: ["Card"]),
+                       f.snaps(of: "card"), f.chrome(from: "bar.full", to: "bar.compact")]
+        for r in results {
+            #expect(r.environment?.clock == "the app's own clock (motion.clock, 0.1 s a tick)", "\(r.check)")
+            #expect(r.text.contains("timed by the app's own clock") && !r.text.contains("wall clock"), "\(r.check): \(r.text)")
+        }
+        let decoded = try? JSONDecoder().decode(FeelFilm.self, from: f.json)
+        #expect(decoded?.timedBy == f.timedBy)
+    }
+
     @Test func settleTimeIsWhenTheElementLastMoved() {
         let f = film([(0, [card(900)]), (0.1, [card(600)]), (0.2, [card(420)]), (0.3, [card(400)]), (0.4, [card(400)]), (0.8, [card(400)])])
         #expect(f.settleTime(of: "card") == 0.3)

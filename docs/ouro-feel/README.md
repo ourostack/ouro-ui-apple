@@ -218,8 +218,8 @@ example `FeelClock.darwinNotification("my.app.tick")`, which the app observes wi
 `CFNotificationCenterGetDarwinNotifyCenter`) and shows its tick count in the element keyed `clock`. The film samples
 once per tick, after the app shows the new count, and stamps each sample with the app's time, so a slow machine films
 the same frames as a fast one. If the app stops answering for `stall` seconds (30 by default), the film ends there
-(`FeelFilm.stalledAt`) and every motion check on it says it could not be checked. The fixture's motion page works this
-way (`FixtureClock`).
+(`FeelFilm.stalledAt`) and every motion check on it says it could not be checked. Its reports say they were timed by
+the app's own clock (`FeelFilm.timedBy`), not the runner's. The fixture's motion page works this way (`FixtureClock`).
 
 ```swift
 let film = feel.film(["motion.card", "bar.full", "bar.compact"], steps: 35, tick: 0.1, clock: "motion.clock",

@@ -13,7 +13,8 @@ returns at once, so `xcodebuild build-for-testing` runs while the simulator boot
 `wait` waits for that record with its own limit. A boot that fails, aborts inside CoreSimulator or hangs past the
 limit (spoonjoy-apple#218: create hung 6 min; bootstatus exited 134 and 142) is the machine, not the app: it deletes
 that device, creates a fresh one, boots it with the same limit and writes the new UDID, as a warning titled
-"Infrastructure retry". A second failure fails the step. `simctl create` has its own 120 s limit for the same reason.
+"Infrastructure retry". A second failure fails the step. `simctl create` has its own 90 s limit and cleanup calls 30 s,
+for the same reason. Worst case for `wait <name> 240`: 240 + 60 + 270 + 240 s, inside a 16-minute step limit.
 """
 import json
 import os
@@ -24,7 +25,7 @@ import time
 from pathlib import Path
 
 DEVICES = ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 16"]
-CREATE_LIMIT = 120
+CREATE_LIMIT = 90
 
 
 def state_dir():
@@ -45,13 +46,21 @@ def newest_ios_runtime(runtimes, sdk):
     return max(ios, key=lambda r: version(r["version"]))["identifier"]
 
 
-def simctl(*args, timeout=None):
+def simctl(*args, timeout=60):
     return subprocess.run(["xcrun", "simctl", *args], capture_output=True, text=True, timeout=timeout)
+
+
+def quietly(*args):
+    """A cleanup call on a device that may itself be hung: a timeout or failure is only a warning."""
+    try:
+        simctl(*args, timeout=30)
+    except subprocess.TimeoutExpired:
+        print(f"::warning::simctl {' '.join(args)} hung past 30 s; going on with a fresh device.")
 
 
 def create(name):
     sdk = subprocess.run(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"], capture_output=True, text=True,
-                         check=True).stdout.strip()
+                         check=True, timeout=60).stdout.strip()
     runtime = newest_ios_runtime(json.loads(simctl("list", "runtimes", "-j").stdout)["runtimes"], sdk)
     for device in DEVICES:
         try:
@@ -116,8 +125,8 @@ def main(argv):
         tail = (state_dir() / f"{udid}.log").read_text(errors="replace")[-2000:]
         print(f"::warning title=Infrastructure retry::Simulator {udid}: {describe(code, limit)}. Deleting it and booting a fresh one (spoonjoy-apple#218).")
         print(tail)
-        simctl("shutdown", udid, timeout=60)
-        simctl("delete", udid, timeout=60)
+        quietly("shutdown", udid)
+        quietly("delete", udid)
         udid = create(name)
         export(udid)
         boot(udid)

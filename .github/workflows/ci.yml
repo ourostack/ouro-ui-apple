@@ -15,7 +15,8 @@ on:
 # pull request that touches the X-ray, Ouro Feel, their fixtures or this workflow (the `paths` job), so a break is
 # caught before merge rather than on main. The same job runs the simulator jobs (gallery, Feel fixture) on a pull
 # request only when it changes what they link; main and releases run them always, and the gallery's report-only
-# hitch probe runs only there. A red main is fixed by whoever merged the change that turned it red (AGENTS.md). Drop it once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the
+# hitch probe runs only there. A red main is fixed by whoever merged the change that turned it red (AGENTS.md).
+# Drop the xcode-27 lanes once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the
 # `if:` gates below. No self-hosted runners.
 
 permissions:
@@ -277,8 +278,9 @@ jobs:
       # Booted and settled before the tests start, as the X-ray probe does: a cold boot under the first test was where
       # the runner lost testmanagerd (main, run 42166414006). A boot that hangs or aborts gets one fresh device.
       - name: The simulator finished booting
-        timeout-minutes: 12
-        run: python3 -I scripts/ci-simulator.py wait ouro-hx-ui 300
+        id: booted
+        timeout-minutes: 16
+        run: python3 -I scripts/ci-simulator.py wait ouro-hx-ui 240
       - name: Gallery UI tests
         run: |
           set -u
@@ -319,7 +321,7 @@ jobs:
       - name: Every transition is smooth (hitch probe, Release build)
         # Runs whether or not the claims passed, so one run reports both; not without a simulator. Main and releases
         # only: it reports and never gates here (below), and its Release build cost every pull request 9 minutes.
-        if: (success() || failure()) && steps.simulator.outcome == 'success' && github.event_name != 'pull_request'
+        if: (success() || failure()) && steps.booted.outcome == 'success' && github.event_name != 'pull_request'
         # Reported, not gated, on this hosted VM: it has no GPU, and its frame timing swings run to run. On one
         # commit (a41b0ae vs 8c02d4e's identical components), sheet, toast and stack passed in one run and failed all
         # three tries in the next (#25). The 5 ms/s limit is unchanged and gates on a Mac's simulator and on device;
@@ -484,8 +486,9 @@ jobs:
       # Booted and settled before the tests: left to xcodebuild, the first test's setUp can reach a simulator whose
       # accessibility is not up yet ("Failed to get list of active applications", kAXError -25218).
       - name: The simulator finished booting
-        timeout-minutes: 12
-        run: python3 -I scripts/ci-simulator.py wait ouro-feel-ci 300
+        id: booted
+        timeout-minutes: 16
+        run: python3 -I scripts/ci-simulator.py wait ouro-feel-ci 240
       - name: Fixture UI tests (a fresh simulator; only the first test starts cold, so reports say "not labelled")
         run: |
           set -o pipefail

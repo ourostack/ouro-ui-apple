@@ -183,20 +183,51 @@ final class ComponentClaimTests: XCTestCase {
     /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.
     /// The 2nd and 98th percentiles, so antialiasing and a stray highlight don't decide it.
     static func inkContrast(_ image: UIImage, in rect: CGRect) -> Double {
-        guard let cg = image.cgImage else { return 0 }
+        let rows = luminanceRows(image, in: rect)
+        return rows.isEmpty ? 0 : contrast(rows.flatMap { $0 })
+    }
+
+    /// The lowest contrast of any line of ink in `rect`: rows that hold ink, split wherever a row holds none, each
+    /// measured on its own. So a near-white message can never carry a faint description under it past 5:1.
+    static func lineInkContrast(_ image: UIImage, in rect: CGRect) -> Double {
+        let rows = luminanceRows(image, in: rect)
+        guard !rows.isEmpty else { return 0 }
+        let all = rows.flatMap { $0 }.sorted()
+        let paper = all[all.count / 2]
+        func ratio(_ a: Double, _ b: Double) -> Double { (max(a, b) + 0.05) / (min(a, b) + 0.05) }
+        let inked = rows.map { row in row.contains { ratio($0, paper) > 1.5 } }
+        var lines: [[Double]] = [], line: [Double] = [], height = 0
+        for (row, ink) in zip(rows, inked) {
+            if ink { line += row; height += 1; continue }
+            if height >= 4 { lines.append(line) }
+            line = []; height = 0
+        }
+        if height >= 4 { lines.append(line) }
+        return lines.map(contrast).min() ?? 0
+    }
+
+    private static func luminanceRows(_ image: UIImage, in rect: CGRect) -> [[Double]] {
+        guard let cg = image.cgImage else { return [] }
         let scale = image.scale
         let r = CGRect(x: rect.minX * scale, y: rect.minY * scale, width: rect.width * scale, height: rect.height * scale).integral
-        guard let crop = cg.cropping(to: r) else { return 0 }
+        guard let crop = cg.cropping(to: r) else { return [] }
         let w = crop.width, h = crop.height
         var px = [UInt8](repeating: 0, count: w * h * 4)
         let ctx = CGContext(data: &px, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
                             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         ctx?.draw(crop, in: CGRect(x: 0, y: 0, width: w, height: h))
         func lin(_ v: UInt8) -> Double { let c = Double(v) / 255; return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
-        var lum: [Double] = []
-        lum.reserveCapacity(w * h)
-        for i in stride(from: 0, to: px.count, by: 4) { lum.append(0.2126 * lin(px[i]) + 0.7152 * lin(px[i + 1]) + 0.0722 * lin(px[i + 2])) }
-        lum.sort()
+        return (0..<h).map { y in
+            (0..<w).map { x in
+                let i = (y * w + x) * 4
+                return 0.2126 * lin(px[i]) + 0.7152 * lin(px[i + 1]) + 0.0722 * lin(px[i + 2])
+            }
+        }
+    }
+
+    /// The contrast between the darkest and lightest 2% of `lum`.
+    private static func contrast(_ lum: [Double]) -> Double {
+        let lum = lum.sorted()
         guard !lum.isEmpty else { return 0 }
         let lo = lum[lum.count * 2 / 100], hi = lum[lum.count * 98 / 100]
         return (hi + 0.05) / (lo + 0.05)
@@ -205,14 +236,15 @@ final class ComponentClaimTests: XCTestCase {
     /// iOS 27's audit reads a toast's words on glass as failing contrast though the screen shows them above 5:1 (the
     /// dark error toast's description, 5.65:1 measured from a screenshot; the message, near white, 14.9:1). Excused
     /// only for words inside a toast, and only when their own pixels, measured from the screen as the audit runs,
-    /// read at 5:1 or more: the claim itself, held another way.
+    /// read at 5:1 or more, each line of ink on its own (a message and its description are one element, so measured
+    /// together the message's ink could carry a faint description): the claim itself, held another way.
     static func toastGlassMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
         { issue in
             guard issue.auditType == .contrast, let element = issue.element, element.exists else { return false }
             let frame = element.frame
             let toasts = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.toastIdentifier).allElementsBoundByIndex.map(\.frame)
             guard !frame.isEmpty, toasts.contains(where: { $0.insetBy(dx: -1, dy: -1).contains(frame) }) else { return false }
-            let ratio = inkContrast(app.windows.firstMatch.screenshot().image, in: frame)
+            let ratio = lineInkContrast(app.windows.firstMatch.screenshot().image, in: frame)
             print("toast words \"\(element.label)\" read at \(ratio):1 on screen")
             return ratio >= 5
         }
@@ -269,8 +301,14 @@ final class ComponentClaimTests: XCTestCase {
                 XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "\(name): the keyboard is not up")
                 let field = app.descendants(matching: .any).matching(identifier: "sheet.name").firstMatch
                 XCTAssertTrue(field.waitForExistence(timeout: 5), "\(name): no name field")
-                var last = CGRect.null
-                for _ in 0..<10 where field.frame != last { last = field.frame; Thread.sleep(forTimeInterval: 0.3) }
+                // Settled: the field stops moving once the keyboard has arrived (unmoved over two looks).
+                var last = CGRect.null, still = 0
+                for _ in 0..<16 where still < 2 {
+                    let now = field.frame
+                    still = now == last ? still + 1 : 0
+                    last = now
+                    Thread.sleep(forTimeInterval: 0.3)
+                }
                 let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
                 let screen = app.windows.firstMatch.frame
                 let inSight = CGRect(x: screen.minX, y: sheet.frame.minY, width: screen.width, height: keyboard.frame.minY - sheet.frame.minY + 1)

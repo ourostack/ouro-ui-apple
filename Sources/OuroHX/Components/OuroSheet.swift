@@ -247,6 +247,14 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
     private var fittedHeight: CGFloat { max(160, header + bodyHeight + footerHeight + 16) }
     /// At the accessibility sizes the whole sheet scrolls, title and actions too, not only its body.
     private var wholeSheetScrolls: Bool { typeSize.isAccessibilitySize }
+
+    private func stopFollowingKeyboard() {
+        followsKeyboard = false
+        keyboardTail = 0
+        #if os(iOS) || os(visionOS)
+        scrollHost.tail = 0
+        #endif
+    }
     @State private var visible = false
 
     /// The title, description and close button.
@@ -351,7 +359,10 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                     .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, h in bodyHeight = h }
                 actionsRow
                     .background { OuroSheetScrollProbe(host: scrollHost, role: .actions) }
-                if keyboardTail > 0 { Color.clear.frame(height: keyboardTail).accessibilityHidden(true) }
+                if keyboardTail > 0 {
+                    Color.clear.frame(height: keyboardTail).accessibilityHidden(true)
+                        .background { OuroSheetScrollProbe(host: scrollHost, role: .tail) }
+                }
             }
             // Below the accessibility sizes, exactly the room the sheet shows, above the keyboard when it is up: the
             // title and actions stay put and the body scrolls between them.
@@ -386,29 +397,17 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
             KeyboardRoom(up: g.contentInsets.bottom > OuroSheetMetrics.keyboardInset,
                          content: g.contentSize.height.rounded(), room: (g.containerSize.height - g.contentInsets.bottom).rounded())
         } action: { was, now in
-            guard now.up, wholeSheetScrolls else {
-                if !now.up {
-                    followsKeyboard = false
-                    keyboardTail = 0
-                    scrollHost.tail = 0
-                }
-                return
-            }
+            guard now.up, wholeSheetScrolls else { return stopFollowingKeyboard() }
             if !was.up { followsKeyboard = true }
-            guard followsKeyboard, !was.up || was != now else { return }
+            guard followsKeyboard else { return }
             Task { @MainActor in scrollHost.keepFocusedFieldInView(animated: !reduceMotion) }
         }
+        // Back to an ordinary size with the keyboard still up: the sheet is fitted again, and a tail would squeeze it.
+        .onChange(of: wholeSheetScrolls) { _, scrolls in if !scrolls { stopFollowingKeyboard() } }
         .onScrollPhaseChange { _, phase in
             if phase == .interacting { followsKeyboard = false }
         }
         .onAppear { scrollHost.onTail = { keyboardTail = $0 } }
-        .onChange(of: keyboardTail) { _, tail in
-            guard tail > 0 else { return }
-            Task { @MainActor in
-                await Task.yield()
-                scrollHost.keepFocusedFieldInView(animated: !reduceMotion)
-            }
-        }
         #endif
     }
 
@@ -503,11 +502,24 @@ import UIKit
     /// The room added after the actions so the sheet can scroll to an offset past its end, and how to ask for it.
     var tail: CGFloat = 0
     var onTail: (CGFloat) -> Void = { _ in }
+    /// A probe behind the tail, so the content is measured without the tail it has laid out, not the one asked for.
+    weak var tailView: UIView?
+    private var animates = true
+
+    /// The tail has been laid out at a new height: place the sheet now that the content holds it.
+    func tailLaidOut() {
+        guard tail > 0 else { return }
+        DispatchQueue.main.async { [weak self] in self.map { $0.keepFocusedFieldInView(animated: $0.animates) } }
+    }
 
     /// Scrolls as far toward the end as keeps the focused field in view, cutting through neither words nor the actions
     /// (``OuroSheetMetrics/keyboardOffset``).
     func keepFocusedFieldInView(animated: Bool) {
+        animates = animated
         guard let scroll = probe?.enclosingScrollView else { return }
+        // A tail asked for but not laid out yet: wait for it (``tailLaidOut()``), as the content's size is stale.
+        let laidTail = tailView.flatMap { $0.window == nil ? nil : $0.bounds.height } ?? 0
+        guard abs(laidTail - tail) <= 0.5 else { return }
         let field = Self.firstResponder(in: scroll).map { $0.convert($0.bounds, to: scroll) }
         let inset = scroll.adjustedContentInset
         // The keyboard's inset, capped at what it covers: iOS 27 insets a sheet it has lifted clear of the keyboard.
@@ -524,7 +536,7 @@ import UIKit
             let lines = max(1, (frame.height / line).rounded())
             stops += (0...Int(lines)).map { frame.minY + CGFloat($0) * frame.height / lines }
         }
-        let content = scroll.contentSize.height - tail
+        let content = scroll.contentSize.height - laidTail
         let viewport = scroll.bounds.height
         let y = OuroSheetMetrics.keyboardOffset(field: field, actions: actionsFrame.map { $0.minY...$0.maxY },
                                                 header: words.map { $0.minY...$0.maxY }, stops: stops,
@@ -564,22 +576,36 @@ private extension UIView {
 /// An empty view in a sheet's scrolling content, through which its host finds the scroll view.
 private struct OuroSheetScrollProbe: UIViewRepresentable {
     let host: OuroSheetScrollHost
-    enum Role { case content, actions, title, detail }
-    /// What it sits behind: the whole content, the actions row, the title or the description.
+    enum Role { case content, actions, title, detail, tail }
+    /// What it sits behind: the whole content, the actions row, the title, the description or the keyboard's tail.
     var role = Role.content
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+    func makeUIView(context: Context) -> ProbeView {
+        let view = ProbeView()
         view.isUserInteractionEnabled = false
         view.isAccessibilityElement = false
         updateUIView(view, context: context)
         return view
     }
-    func updateUIView(_ view: UIView, context: Context) {
+    func updateUIView(_ view: ProbeView, context: Context) {
         switch role {
         case .content: host.probe = view
         case .actions: host.actions = view
         case .title: host.title = view
         case .detail: host.detail = view
+        case .tail:
+            host.tailView = view
+            view.onResize = { [weak host] in host?.tailLaidOut() }
+        }
+    }
+
+    final class ProbeView: UIView {
+        var onResize: (() -> Void)?
+        private var height: CGFloat = 0
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard abs(bounds.height - height) > 0.5 else { return }
+            height = bounds.height
+            onResize?()
         }
     }
 }

@@ -6,7 +6,7 @@ extension XCUIApplication {
     /// Runs Xcode's accessibility audit (`performAccessibilityAudit`, iOS 17 and macOS 14) and fails on every issue
     /// except those whose description contains one of `knownIssues`, each of which should carry a reason in the test.
     ///
-    /// It also excuses "Contrast failed" on page content a toast covers (partly, or wholly at the largest sizes) and on an element mostly off the
+    /// It also excuses "Contrast failed" on page content a toast covers, partly or wholly, and on an element mostly off the
     /// screen (see ``OuroAuditExcuse``), and "Text clipped" inside an `.ouroSheet` that iOS draws at 96%, a sheet below full height on
     /// iOS 26 and later (see ``OuroAuditExcuse``), because the audit reads the scaled text as clipped. That leaves real
     /// clipping in such a sheet unchecked, so audit it once more at full height: present it with `detents: [.large]`
@@ -31,14 +31,14 @@ extension XCUIApplication {
                 .map(\.frame)
         }
         let scaledSheets = scaledSheetFrames()
-        let toasts = [OuroToastMetrics.regionIdentifier, OuroToastMetrics.toastIdentifier].flatMap { id in
-            descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex.map(\.frame)
+        func toastFrames() -> (regions: [CGRect], contents: [CGRect]) {
+            let toasts = [OuroToastMetrics.regionIdentifier, OuroToastMetrics.toastIdentifier].flatMap { id in
+                descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex
+            }
+            // The toasts' own elements, so page content a toast covers wholly is told from the toast's words.
+            return (toasts.map(\.frame), toasts.flatMap { $0.descendants(matching: .any).allElementsBoundByIndex.map(\.frame) })
         }
-        // The toasts' own elements, so page content a toast covers wholly is told from the toast's words.
-        let toastContents = [OuroToastMetrics.regionIdentifier, OuroToastMetrics.toastIdentifier].flatMap { id in
-            descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex
-                .flatMap { $0.descendants(matching: .any).allElementsBoundByIndex.map(\.frame) }
-        }
+        let (toasts, toastContents) = toastFrames()
         let screen = windows.firstMatch.exists ? windows.firstMatch.frame : frame
         let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
             if knownIssues.contains(where: { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }) {
@@ -48,12 +48,20 @@ extension XCUIApplication {
             // A sheet can move while the audit runs (iOS 27: a medium-detent sheet with the keyboard up rose 33 points
             // during its text-size check), so clipped text is also judged against where the sheets are now.
             let sheetsNow = issue.compactDescription.contains("Text clipped") ? scaledSheets + scaledSheetFrames() : scaledSheets
-            let excused = OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: sheetsNow, toasts: toasts, toastContents: toastContents, screen: screen)
+            // Toasts move too (one times out, a stack expands), so contrast is also judged against where they are now:
+            // a toast's own words match its elements before or now, and still fail.
+            var toastsNow = toasts, contentsNow = toastContents
+            if issue.auditType == .contrast {
+                let now = toastFrames()
+                toastsNow += now.regions
+                contentsNow += now.contents
+            }
+            let excused = OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: sheetsNow, toasts: toastsNow, toastContents: contentsNow, screen: screen)
             if !excused {
                 // XCTest reports only "Contrast failed" for the issue; this names what it failed on, so a run on a
                 // runtime you cannot run locally says which element (and where) the audit objected to.
                 let element = issue.element
-                print("audit issue failed: \(issue.compactDescription) | \(issue.detailedDescription) | type=\(issue.auditType.rawValue) | \(String(reflecting: issue)); element label=\"\(element?.label ?? "none")\" id=\"\(element?.identifier ?? "none")\" frame=\(element.map { "\($0.frame)" } ?? "none"); toasts=\(toasts); scaledSheets=\(sheetsNow); screen=\(screen)")
+                print("audit issue failed: \(issue.compactDescription) | \(issue.detailedDescription) | type=\(issue.auditType.rawValue) | \(String(reflecting: issue)); element label=\"\(element?.label ?? "none")\" id=\"\(element?.identifier ?? "none")\" frame=\(element.map { "\($0.frame)" } ?? "none"); toasts=\(toastsNow); scaledSheets=\(sheetsNow); screen=\(screen)")
             }
             return excused
         }

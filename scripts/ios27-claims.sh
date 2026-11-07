@@ -6,10 +6,18 @@
 #   xcrun simctl delete <that UDID>
 # It never creates or deletes a simulator, so it cannot touch one you already use. It exits non-zero when any claim
 # fails; the release waits for it to pass, and the log is attached to the release.
+# It runs from the repository root wherever it is called from, and refuses a checkout with changes, so the commit the
+# log names is the code that ran. Pick the Xcode with DEVELOPER_DIR, never xcode-select.
 set -eu
 udid="$1"
-log="$2"
-mkdir -p "$(dirname "$log")"
+mkdir -p "$(dirname "$2")"
+log="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
+cd "$(dirname "$0")/.."
+if [ -n "$(git status --porcelain)" ]; then
+  echo "ios27-claims: the checkout has changes; run it on a clean checkout of the commit you will tag" >&2
+  git status --short >&2
+  exit 2
+fi
 runtime="$(xcrun simctl list devices -j | python3 -I -c 'import json,sys; u=sys.argv[1]; print(next(r for r,ds in json.load(sys.stdin)["devices"].items() for d in ds if d["udid"]==u))' "$udid")"
 case "$runtime" in *iOS-27*) ;; *) echo "ios27-claims: $udid runs $runtime, not iOS 27" >&2; exit 2 ;; esac
 {

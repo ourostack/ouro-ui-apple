@@ -15,7 +15,8 @@ Releases are tags `vX.Y.Z` on `main`, published as GitHub releases.
    xcrun simctl delete "$udid"
    ```
 
-   Every claim must pass. A failure is a bug to fix before the tag, not something to rerun past.
+   It refuses a checkout with changes. To use another Xcode, set `DEVELOPER_DIR` (never `xcode-select`). Every claim
+   must pass. A failure is a bug to fix before the tag, not something to rerun past.
 3. Check the next free tag (`git ls-remote --tags origin`), then tag and publish:
 
    ```sh

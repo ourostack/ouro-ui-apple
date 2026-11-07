@@ -202,6 +202,66 @@ final class FeelCatchesTests: XCTestCase {
     /// The fixed card eases for 0.8 s of the app's clock; the bug's late nudge, 2 s after it landed, is well past 1.25 s.
     func testSettleTime() { motion { $0.settles("motion.card", within: 1.25) } }
 
+    /// Flicker on the app's own clock: the bug's words turn, turn back and turn again, and its badge blinks on for one
+    /// tick; the fixed page turns once and its badge appears once.
+    func testFlicker() {
+        both("flicker") { app, feel in
+            let play = app.buttons["flicker.play"]
+            _ = play.waitForExistence(timeout: 10)
+            let film = feel.film(["flicker.words", "flicker.badge"], steps: 12, tick: 0.1, clock: "flicker.clock",
+                                 advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+            let result = film.flickers(of: ["flicker.words", "flicker.badge"])
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("flicker.words") && $0.what.contains("taken back") }, result.text)
+                XCTAssertTrue(result.detections.contains { $0.what.contains("flicker.badge") && $0.what.contains("blinked on") }, result.text)
+            }
+            return (result, film)
+        }
+    }
+
+    /// Place kept through stray input: a tap in the middle, an edge swipe, the Contents sheet swiped away and a trip
+    /// to the Home Screen, after reading on to page 3. The bug build's middle tap turns the page and its sheet resets it.
+    func testPlaceKeptThroughStrayInput() {
+        both("stray") { app, feel in
+            let next = app.buttons["stray.next"]
+            _ = next.waitForExistence(timeout: 10)
+            next.tap(); next.tap()
+            let contents = FeelPlaceStep.sheetDismissed("Contents") { $0.buttons["stray.contents"].tap() }
+            let result = feel.placeHeld(across: [.strayTap(), .edgeSwipe, contents, .background],
+                                        read: { app.staticTexts["stray.page"].label })
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("stray tap") }, result.text)
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("Contents opened and swiped away") }, result.text)
+                XCTAssertFalse(result.detections.contains { $0.what.hasPrefix("edge swipe") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Navigation that fights you, read once a tick on the app's own clock: the bug build's sync lands three ticks after
+    /// Next and pulls the page back; the fixed build's sync agrees.
+    func testNavigationThatFightsYou() {
+        both("fight") { app, feel in
+            let next = app.buttons["fight.next"]
+            _ = next.waitForExistence(timeout: 10)
+            let clock = app.staticTexts["fight.clock"]
+            let advance = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
+            // One tick, then wait for the app to show it, so each read is one tick later however slow the runner.
+            let tick = {
+                let before = clock.label
+                advance()
+                let deadline = Date().addingTimeInterval(30)
+                while clock.label == before && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+            }
+            let turn = FeelPlaceStep("next page") { feel in feel.app.buttons["fight.next"].tap() }
+            let result = feel.placeFights([turn], reads: 6, between: tick, read: { app.staticTexts["fight.page"].label })
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("late restore") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
     /// Not a pass or fail: one `XCTHitchMetric` reading of the fixed motion page, so the result bundle shows what the
     /// simulator reports (a proxy; gate hitches on a device).
     func testHitchMetricReading() throws {

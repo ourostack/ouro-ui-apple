@@ -57,6 +57,9 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
 | place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
+| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. | `film.flickers(of:within:changes:)` |
+| place kept through stray input | A stray tap, an edge swipe that goes nowhere, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:read:)` |
+| navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:read:)` |
 | hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `feel.measureHitches(in:)` |
 
 ### The way back
@@ -333,6 +336,42 @@ feel.expect(feel.place(read: { app.otherElements["reader.page"].value as? String
 ```
 
 `.relaunch` reuses `app.launchArguments`, so drop any reset arguments before calling it.
+
+### Flicker
+
+Proves: each named element changes once on its way to where it ends. It fails when an element blinks (shown, hidden,
+shown, or the reverse, with the middle run at most `within` samples), when its words are taken back (A, B, A) or change
+more than `changes` times within `within` samples, or when it leaves a resting place by more than `distance` points (seen
+in at least one sample) and rests there again within `within` samples. A spring that overshoots never rests on its way,
+so it is no flicker. Everything is counted in samples, never seconds. It could not be checked when an element was still
+changing in the film's last `hold` samples, or when nothing flickered but samples were once more than `maxGap` (0.15 s)
+apart, so film it in the app (`recordedFilm`) or on the app's own clock.
+
+```swift
+let film = feel.recordedFilm(["reader.page"]) { app.swipeLeft() }
+feel.expect(film.flickers(of: ["reader.page"]))
+```
+
+### Place kept through stray input, and navigation that fights you
+
+Both read the place after every action and keep only fingerprints (`FeelPlaceTrail`), judged in reads, never seconds.
+
+`feel.placeHeld(across:read:)` runs actions that must keep the place and fails if any read after one shows another
+place, even if it later came back. The default steps are `.strayTap()` (the middle of the window, where a reader shows
+or hides its controls; pass `at:` where the middle is a deliberate control), `.edgeSwipe` (the way back's own gesture,
+for a screen where it is not a way back) and `.background`; add `.sheetDismissed("Contents") { app in … }` for a sheet
+opened and swiped away.
+
+`feel.placeFights(_:reads:hold:read:)` runs your own moves. After each one the place must land (the first place two
+reads in a row agree on, so a page that lands across two reads mid-animation is fine) and then hold for at least `hold`
+reads: moving back is a late restore, moving on is a re-sent or late jump. Give it enough `reads` to outlast your app's
+restore or sync, and `between:` to advance an app on its own clock between reads.
+
+```swift
+let turn = FeelPlaceStep("next page") { feel in feel.app.swipeLeft() }
+feel.expect(feel.placeHeld(read: { app.otherElements["reader.page"].value as? String ?? "" }))
+feel.expect(feel.placeFights([turn, turn], read: { app.otherElements["reader.page"].value as? String ?? "" }))
+```
 
 ### Hitches
 

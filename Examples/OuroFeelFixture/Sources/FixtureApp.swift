@@ -20,6 +20,9 @@ struct FixtureApp: App {
             case "push": PushPage()
             case "kitchen": KitchenPage()
             case "transition": TransitionPage()
+            case "flicker": FlickerPage()
+            case "stray": StrayPage()
+            case "fight": FightPage()
             default: NavPage()
             }
         }
@@ -604,6 +607,81 @@ struct TransitionPage: View {
             withTransaction(transaction) { path.append(name) }
         } else {
             path.append(name)
+        }
+    }
+}
+
+/// Flicker, on the app's own clock (``FixtureClock``). Three ticks after Play the page turns and a Saved badge shows.
+/// Fixed: the words change once and the badge appears once. The bug, as Gatefold build 20 spazzed: the words turn,
+/// turn back for a tick, then turn again, and the badge blinks on for one tick only.
+struct FlickerPage: View {
+    private let clock = FixtureClock.shared
+    @State private var playedAt: Int?
+
+    var body: some View {
+        let k = playedAt.map { clock.ticks - $0 } ?? -1
+        let page = bug ? (k == 3 || k >= 5 ? 2 : 1) : (k >= 3 ? 2 : 1)
+        let badge = bug ? k == 4 : k >= 4
+        VStack(spacing: 24) {
+            if badge { Text("Saved").accessibilityIdentifier("flicker.badge") }
+            Text("Page \(page)").font(.title).accessibilityIdentifier("flicker.words")
+            Button("Play") { playedAt = clock.ticks }.accessibilityIdentifier("flicker.play")
+            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("flicker.clock")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Place kept through stray input. A page you read, a Next button, and a Contents sheet. Fixed: a tap in the middle
+/// shows or hides a top bar, and swiping the sheet away keeps the page. The bugs: a tap in the middle turns the page,
+/// and swiping the sheet away goes back to page 1, as a stray touch moved Ari's place in Gatefold build 20.
+struct StrayPage: View {
+    @State private var page = 1
+    @State private var bar = false
+    @State private var contents = false
+
+    var body: some View {
+        ZStack {
+            Color.white.opacity(0.001).contentShape(Rectangle())
+                .onTapGesture { if bug { page += 1 } else { bar.toggle() } }
+            Text("Page \(page)").font(.title).accessibilityIdentifier("stray.page").allowsHitTesting(false)
+            VStack {
+                if bar { Text("Reading").font(.headline).padding().accessibilityIdentifier("stray.bar") }
+                Spacer()
+                HStack(spacing: 40) {
+                    Button("Contents") { contents = true }.accessibilityIdentifier("stray.contents")
+                    Button("Next") { page += 1 }.accessibilityIdentifier("stray.next")
+                }
+                .padding(.bottom, 40)
+            }
+        }
+        .sheet(isPresented: $contents, onDismiss: { if bug { page = 1 } }) {
+            List(1...5, id: \.self) { Text("Chapter \($0)") }.accessibilityIdentifier("stray.sheet")
+        }
+    }
+}
+
+/// Navigation that fights you, on the app's own clock (``FixtureClock``). Next turns the page; three ticks later a
+/// sync lands. Fixed: the sync agrees with where you are. The bug: the sync carries the place from before your move,
+/// so it pulls you back (a late restore).
+struct FightPage: View {
+    private let clock = FixtureClock.shared
+    @State private var page = 1
+    @State private var pending: (at: Int, page: Int)?
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("Page \(page)").font(.title).accessibilityIdentifier("fight.page")
+            Button("Next") {
+                pending = (clock.ticks + 3, bug ? page : page + 1)
+                page += 1
+            }
+            .accessibilityIdentifier("fight.next")
+            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("fight.clock")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: clock.ticks) { _, now in
+            if let p = pending, now >= p.at { page = p.page; pending = nil }
         }
     }
 }

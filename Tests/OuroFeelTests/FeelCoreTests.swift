@@ -332,6 +332,7 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(!film([nil, 400, 400, 400, 400, 400, 500, 600, 700]).snaps(of: "panel", appearing: true).passed)
         #expect(!film([nil, 800, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
         #expect(film([nil, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
+        #expect(film([nil, 800, 770, 770, 740, 710, 680, 650, 650]).snaps(of: "panel", appearing: true).passed)
     }
 
     /// Mid-animation, SwiftUI's accessibility frame stretches from where the element is drawn to where it is going

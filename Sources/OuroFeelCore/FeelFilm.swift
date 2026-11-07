@@ -290,19 +290,16 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             guard let r = places[i] else { return false }
             return "\(Int(r.width.rounded()))x\(Int(r.height.rounded()))" == restingSize
         }
-        // An arrival that holds for a sample or two (a busy first animation frame) and then travels on, without
-        // stopping, more than `distance` from where it arrived is a transition (#53). Counted in samples, not seconds,
+        // An arrival that holds for at most two samples in all (a busy first animation frame, a repeated frame on the
+        // way) and travels more than `distance` from where it arrived is a transition (#53). Counted in samples, not seconds,
         // so a slow machine cannot change the answer; a later, separate move (a dismissal, say) does not count.
         func travelsOnArrival(_ start: Int) -> Bool {
             guard let arrival = places[start] else { return false }
-            var held = 0, travelling = false
+            var held = 0
             for j in start..<(places.count - 1) {
                 guard let step = moved(j), let next = places[j + 1] else { return false }
-                if step > tolerance {
-                    travelling = true
-                } else if travelling {
-                    return false
-                } else {
+                // A repeated frame mid-travel is the same busy runner, so it spends the same budget of two.
+                if step <= tolerance {
                     held += 1
                     if held > 2 { return false }
                 }

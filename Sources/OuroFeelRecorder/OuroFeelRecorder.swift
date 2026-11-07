@@ -36,6 +36,13 @@ public enum OuroFeelRecorder {
     }
 }
 
+/// Called when the injectable recorder library is loaded into an app (`OuroFeelRecorderInjectable`, see
+/// `OuroFeel.injectedRecorderEnvironment`): installs the recorder on the main queue once the app is running.
+@_cdecl("ouro_feel_recorder_install_when_launched")
+public func ouroFeelRecorderInstallWhenLaunched() {
+    DispatchQueue.main.async { MainActor.assumeIsolated { OuroFeelRecorder.installIfRequested() } }
+}
+
 // Not main-actor code: Darwin notifications may arrive on any thread, so the callbacks hop to the main queue themselves.
 private let recorderStarted: CFNotificationCallback = { _, _, _, _, _ in
     DispatchQueue.main.async { MainActor.assumeIsolated { OuroFeelRecorder.recorder?.begin() } }

@@ -997,6 +997,16 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(!older.copies)
     }
 
+    @Test("the injectable recorder is found in the first frameworks folder that holds it, and loaded with the folder")
+    func injectableRecorder() {
+        let dirs = [URL(fileURLWithPath: "/runner/Frameworks"), URL(fileURLWithPath: "/runner/PlugIns/UITests.xctest/Frameworks")]
+        let path = "/runner/PlugIns/UITests.xctest/Frameworks/OuroFeelRecorderInjectable.framework/OuroFeelRecorderInjectable"
+        #expect(FeelRecording.injectableLibrary(in: dirs) { $0 == path } == path)
+        #expect(FeelRecording.injectableLibrary(in: dirs) { _ in false } == nil)
+        let env = FeelRecording.injectionEnvironment(library: path, directory: "/tmp/films")
+        #expect(env == ["DYLD_INSERT_LIBRARIES": path, FeelRecording.directoryVariable: "/tmp/films"])
+    }
+
     @Test("a film cut at the recorder's cap reads as stalled, so no motion check passes on what came after")
     func aCappedFilmIsNotJudged() {
         let frames = (0..<10).map { FeelFrame(t: Double($0) * 0.016, seen: [FeelSeen(key: "card", frame: CGRect(x: Double($0) * 10, y: 0, width: 50, height: 50))]) }

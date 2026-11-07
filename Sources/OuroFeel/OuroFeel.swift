@@ -471,6 +471,17 @@ public struct OuroFeel {
         return [FeelRecording.directoryVariable: recordDirectory.path]
     }
 
+    /// What to add to `launchEnvironment` so the app records without linking the recorder: the UI test bundle links
+    /// the `OuroFeelRecorderInjectable` product, and this loads it into the app (simulator only). Nil when the test
+    /// bundle does not carry it; a film then stalls, and every check on it could not be checked.
+    public static var injectedRecorderEnvironment: [String: String]? {
+        try? FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
+        let bundles = [Bundle(for: FeelBundleMarker.self), Bundle.main] + Bundle.allBundles
+        let dirs = bundles.flatMap { [$0.privateFrameworksURL, $0.bundleURL.appendingPathComponent("Frameworks")].compactMap { $0 } }
+        guard let library = FeelRecording.injectableLibrary(in: dirs) else { return nil }
+        return FeelRecording.injectionEnvironment(library: library, directory: recordDirectory.path)
+    }
+
     /// A film the app records itself, one sample per display frame on the app's own display clock, so it holds the
     /// transition `action` starts frame by frame: the frames XCUITest's wait for an idle app hides from
     /// ``film(_:for:every:during:)``. The app must call `OuroFeelRecorder.installIfRequested()` at launch and be launched
@@ -621,4 +632,6 @@ public struct FeelPlaceStep {
     public static let standard = [relaunch]
     #endif
 }
+/// A class in this module, so `Bundle(for:)` finds the bundle OuroFeel is linked into.
+private final class FeelBundleMarker {}
 #endif

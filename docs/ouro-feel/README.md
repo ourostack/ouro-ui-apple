@@ -277,6 +277,19 @@ so. In the fixture, a push filmed this way held 67 frames about 0.019 s apart wi
 places (three runs), and a push with animations turned off showed the title in one place: the snap check caught it
 ([fixture](../../Examples/OuroFeelFixture/UITests/FeelCatchesTests.swift), `testAPushFilmedInTheApp`).
 
+**Without linking it into the app.** Xcode links a package product into every configuration of an app, Release
+included, so a linked recorder ships inert in the App Store build. To keep it out, link the
+`OuroFeelRecorderInjectable` product into the UI test target instead, drop the app's call, and launch with
+`OuroFeel.injectedRecorderEnvironment`. That loads the recorder into the app with `DYLD_INSERT_LIBRARIES`, on the
+simulator only, and it installs itself once the app runs. It is nil when the test bundle carries no such library;
+merge it in only when it is there, or the films stall and every check on them says it could not be checked:
+
+```swift
+if let recorder = OuroFeel.injectedRecorderEnvironment {
+    app.launchEnvironment.merge(recorder) { $1 }
+}
+```
+
 What it cannot do:
 
 - **It runs on the simulator only.** The test and the app share a folder under the test runner's temporary

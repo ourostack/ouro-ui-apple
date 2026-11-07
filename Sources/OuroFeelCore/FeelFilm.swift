@@ -33,10 +33,20 @@ public struct FeelFrame: Codable, Equatable, Sendable {
 public struct FeelFilm: Codable, Equatable, Sendable {
     public var window: CGRect
     public var frames: [FeelFrame]
+    /// On a film timed by the app's own clock (``OuroFeel/film(_:steps:tick:clock:advance:stall:during:)``), the time
+    /// at which the app stopped moving its clock on, so the film ended early; nil when it ran to the end. Every motion
+    /// check on a stalled film could not be checked, since what was due after it was never filmed.
+    public var stalledAt: Double?
 
-    public init(window: CGRect, frames: [FeelFrame]) {
+    public init(window: CGRect, frames: [FeelFrame], stalledAt: Double? = nil) {
         self.window = window
         self.frames = frames
+        self.stalledAt = stalledAt
+    }
+
+    /// Why a stalled film cannot be judged, or nil.
+    func stall() -> FeelFinding? {
+        stalledAt.map { .couldNotCheck("the app's clock stopped at \(FeelResult.number(round3($0))) s, so the rest of the film was never seen") }
     }
 
     /// The film as JSON, to attach beside a report when a motion check needs explaining (frames, not pixels).
@@ -123,6 +133,9 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// ended, or when samples are usually more than `maxGap` apart.
     public func settles(_ key: String, within limit: Double, hold: Double = 0.3, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
         let check = FeelGenre.settleTime.rawValue
+        if let stall = stall() {
+            return FeelResult(check: check, passed: false, summary: "could not check: " + stall.what, findings: [stall])
+        }
         guard let end = settleTime(of: key, tolerance: tolerance), let last = track(key).last else {
             return FeelResult(check: check, passed: false, summary: "could not check: \"\(key)\" was never on screen",
                               findings: [.couldNotCheck("\"\(key)\" was not on screen in any of \(frames.count) samples")])
@@ -155,7 +168,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// seconds still. Its first move from rest is the transition itself, so start the film before the transition.
     public func jumps(of key: String, rest: Double = 0.3, limit: Double = 2, tolerance: Double = 0.5) -> FeelResult {
         let track = track(key)
-        var findings: [FeelFinding] = unseen(key).map { [$0] } ?? []
+        var findings: [FeelFinding] = [stall(), unseen(key)].compactMap { $0 }
         var stillSince = track.first?.t ?? 0
         var landed = false
         for (previous, sample) in zip(track, track.dropFirst()) {
@@ -183,6 +196,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     public func doubleDraws(of contents: [String], maxGap: Double = 0.5) -> FeelResult {
         var findings: [FeelFinding] = []
         var total = 0
+        if let stall = stall() { findings.append(stall) }
         if contents.isEmpty { findings.append(.couldNotCheck("no contents were named")) }
         for content in contents {
             if let unseen = unseen(content) { findings.append(unseen); continue }
@@ -275,6 +289,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
                 + "seen; start the film before the motion"), at: 0)
         }
         if let unseen = unseen(key) { findings.insert(unseen, at: 0) }
+        if let stall = stall() { findings.insert(stall, at: 0) }
         return FeelResult.judged(check: FeelGenre.snap.rawValue, passing: "\"\(key)\" travelled wherever it moved",
                                  failing: { "\"\(key)\" snapped \(Self.times($0))" },
                                  measures: ["snaps": Double(findings.filter { !$0.unchecked }.count), "cadence": round3(cadence)], findings: findings)
@@ -298,7 +313,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             longestBoth = max(longestBoth, runBoth)
             longestNeither = max(longestNeither, runNeither)
         }
-        var findings: [FeelFinding] = []
+        var findings: [FeelFinding] = stall().map { [$0] } ?? []
         if !started {
             findings.append(.couldNotCheck("neither \"\(a)\" nor \"\(b)\" was ever on screen in \(frames.count) samples"))
         }

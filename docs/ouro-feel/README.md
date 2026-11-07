@@ -200,8 +200,24 @@ feel.expect(film.settles("cook.cover", within: 1.0))
 **What a film can and cannot see.** XCUITest waits for the app to go idle after every tap, so a film started by a tap
 (`film(_:for:every:during:)`) sees what happens after the transition (late jumps, lingering chrome, ghost copies that stay),
 not the frames inside it. To film a transition itself, have the app start it a moment after the tap: a test-only
-launch argument that delays it, as the fixture's Play button does (`-autoplay 2`, two seconds after the tap). Timing it
-from launch is fragile: under load, launching took longer than the delay and the film began after the motion. A check
+launch argument that delays it. Timing it from launch is fragile: under load, launching took longer than the delay and
+the film began after the motion.
+
+**A film on the app's own clock.** A film timed by the runner's clock gets thinner as the machine gets busier: on
+hosted CI runners samples came over a second apart, and a motion due late (a jump 2 s after landing) fell past the
+film's end. When the app's motion can run on a clock the test controls, film it with
+`film(_:steps:tick:clock:advance:stall:during:)`: the app moves its timeline one `tick` each time `advance` runs (for
+example `FeelClock.darwinNotification("my.app.tick")`, which the app observes with
+`CFNotificationCenterGetDarwinNotifyCenter`) and shows its tick count in the element keyed `clock`. The film samples
+once per tick, after the app shows the new count, and stamps each sample with the app's time, so a slow machine films
+the same frames as a fast one. If the app stops answering for `stall` seconds (30 by default), the film ends there
+(`FeelFilm.stalledAt`) and every motion check on it says it could not be checked. The fixture's motion page works this
+way (`FixtureClock`).
+
+```swift
+let film = feel.film(["motion.card", "bar.full", "bar.compact"], steps: 35, tick: 0.1, clock: "motion.clock",
+                     advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+``` A check
 that sees no motion says "could not check"; it never passes. Nor does a double-draw check whose samples were ever
 further apart than `maxGap` (0.5 s by default) and saw no copy: a copy shown for less than the gap could be missed.
 

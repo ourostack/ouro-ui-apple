@@ -100,8 +100,8 @@ public enum FeelWayBack {
                                  measures: ["screens": Double(screens.count), "good": Double(good)], findings: findings)
     }
 
-    /// Whether a tap reached a new screen. A tap that left the navigation bars as they were (`barsBefore`, their
-    /// titles) and most of the screen's followable controls still in the tree (`stillThere` of `of`; covered counts) changed
+    /// Whether a tap reached a new screen. A tap that left the navigation bars as they were (`barsBefore`, by
+    /// ``barIdentity(key:backLabels:)``) and most of the screen's followable controls still in the tree (`stillThere` of `of`; covered counts) changed
     /// the screen in place (a menu opened, edit mode, a row expanded), so the walk does not ask it for a way back.
     public static func isNewScreen(barsBefore: [String], barsAfter: [String], stillThere: Int, of total: Int) -> Bool {
         if barsBefore.sorted() != barsAfter.sorted() { return true }
@@ -117,6 +117,13 @@ public enum FeelWayBack {
     }
 
     static let backMark = " ‹ "
+
+    /// Whether a navigation-bar button is the bar's way back to the last screen: the system back button (identifier
+    /// `BackButton`) or one whose identifier or label says back. Done, Cancel and Close are not: edit mode, selection
+    /// and a popover's own bar bring them without leaving the screen.
+    public static func isBackButton(identifier: String, label: String) -> Bool {
+        identifier == "BackButton" || (FeelSafety.words(identifier) + FeelSafety.words(label)).contains(" back ")
+    }
 
     /// Whether a tap replaced a navigation bar that was on screen (`barsBefore`, by ``barIdentity(key:backLabels:)``),
     /// or brought a bar with a back button: it went somewhere new, so it opened no overlay, whatever its content

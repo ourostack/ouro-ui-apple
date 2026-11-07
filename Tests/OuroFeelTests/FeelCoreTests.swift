@@ -654,6 +654,16 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(FeelWayBack.isNewScreen(barsBefore: [chefs], barsAfter: [profile], stillThere: 1, of: 1))
     }
 
+    /// Only the bar's way back names it: Done, Cancel and Close come with edit mode, selection and a popover's own bar.
+    @Test func onlyTheBackButtonNamesABar() {
+        #expect(FeelWayBack.isBackButton(identifier: "BackButton", label: "Kitchen"))
+        #expect(FeelWayBack.isBackButton(identifier: "", label: "Back"))
+        #expect(!FeelWayBack.isBackButton(identifier: "", label: "Done"))
+        #expect(!FeelWayBack.isBackButton(identifier: "Cancel", label: "Cancel"))
+        #expect(!FeelWayBack.isBackButton(identifier: "", label: "Close"))
+        #expect(!FeelWayBack.isBackButton(identifier: "", label: "Feedback"))
+    }
+
     /// A tap that replaced a bar that was on screen, or brought a bar with a back button, went somewhere new, so what it
     /// brought cannot float over the screen as an overlay: a pushed page's content under a tab bar that stayed is no
     /// menu. A tap that only added a bar with no way back (a popover with its own) or kept them all may still have

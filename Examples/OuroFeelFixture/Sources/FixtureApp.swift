@@ -319,9 +319,12 @@ struct PushPage: View {
     var body: some View {
         TabView {
             Tab("Kitchen", systemImage: "house") {
+                // Titled but showing no title, so Chefs' back button says "Kitchen" and the profile's says "Back".
                 NavigationStack {
                     NavigationLink("Chefs") { ChefsList() }
                         .accessibilityIdentifier("push.chefs")
+                        .navigationTitle("Kitchen")
+                        .toolbar(removing: .title)
                 }
             }
             Tab("Recipes", systemImage: "book") { Text("Recipes") }

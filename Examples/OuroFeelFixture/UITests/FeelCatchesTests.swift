@@ -17,6 +17,7 @@ final class FeelCatchesTests: XCTestCase {
     private func launch(_ page: String, bug: Bool, _ extra: [String] = []) -> (XCUIApplication, OuroFeel) {
         let app = XCUIApplication()
         app.launchArguments = ["-page", page, "-bug", bug ? "1" : "0"] + extra
+        app.launchEnvironment.merge(OuroFeel.recorderEnvironment) { _, new in new }
         app.launch()
         return (app, OuroFeel(app))
     }
@@ -36,6 +37,35 @@ final class FeelCatchesTests: XCTestCase {
     private func isBugBuild(_ app: XCUIApplication) -> Bool {
         guard let i = app.launchArguments.firstIndex(of: "-bug"), i + 1 < app.launchArguments.count else { return false }
         return app.launchArguments[i + 1] == "1"
+    }
+
+    /// A push filmed in the app, frame by frame: the fixed build's page slides in and settles; the bug build's page
+    /// appears in one frame, a snap. XCUITest's idle wait cannot hide the push, since the app records it.
+    func testAPushFilmedInTheApp() {
+        for bug in [false, true] {
+            let (app, feel) = launch("transition", bug: bug)
+            let open = app.buttons["transition.open"]
+            XCTAssertTrue(open.waitForExistence(timeout: 30))
+            let film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            XCTAssertNil(film.stalledAt, "the app recorded the push")
+            let xs = Set(film.track("transition.title").map { Int($0.frame.minX.rounded()) })
+            // The default gap: a move hidden in under 0.15 s reads as a snap whatever drew it. The bug build's push can
+            // take the app 0.1 s to lay out, so the page arrives across one long frame.
+            let snap = film.snaps(of: "transition.title", appearing: true)
+            let settle = film.settles("transition.title", within: 0.8, maxGap: 0.05)
+            if bug {
+                feel.record(snap, name: "snap-bug", film: film)
+                XCTAssertFalse(snap.detections.isEmpty, snap.text)
+                XCTAssertLessThanOrEqual(xs.count, 2, "the bug build's page did not travel: \(xs.sorted())")
+            } else {
+                feel.expect(snap)
+                feel.expect(settle)
+                XCTAssertGreaterThanOrEqual(xs.count, 8, "the push was filmed frame by frame: \(xs.sorted())")
+            }
+            let longest = zip(film.frames, film.frames.dropFirst()).map { $1.t - $0.t }.max() ?? 0
+            print("[ouro-feel] recorded push (bug \(bug)): \(film.frames.count) frames, \(xs.count) places of the title, cadence \(film.cadence), longest frame \(longest)")
+            app.terminate()
+        }
     }
 
     func testInsideTheWindow() {

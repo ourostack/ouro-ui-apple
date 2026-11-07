@@ -226,6 +226,39 @@ let film = feel.film(["motion.card", "bar.full", "bar.compact"], steps: 35, tick
                      advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
 ```
 
+**A film recorded inside the app.** Even on the app's clock, a film taken from the test cannot see a push, a sheet
+or any system transition: XCUITest's wait for an idle app holds the test, not the app, and those transitions run on
+Core Animation's media clock, which no test can step. So the app films itself. Link the `OuroFeelRecorder` product
+into the app (a debug or test configuration is enough) and call `OuroFeelRecorder.installIfRequested()` once at
+launch; it does nothing unless the test launched the app with `OuroFeel.recorderEnvironment`. Then:
+
+```swift
+app.launchEnvironment.merge(OuroFeel.recorderEnvironment) { $1 }
+app.launch()
+let film = feel.recordedFilm(["recipe.title"]) { app.buttons["Tomato Toast"].tap() }
+feel.expect(film.snaps(of: "recipe.title", appearing: true))
+feel.expect(film.settles("recipe.title", within: 0.8))
+```
+
+The test posts a Darwin notification; the app starts a `CADisplayLink` and, every frame it draws, writes down where
+each named element is drawn: its accessibility frame, moved by however far its view's presentation layer is from the
+view (a push moves the layer, not the view), and left out while hidden or transparent. The test taps, posts stop, and
+the app writes the film 30 frames later. Each sample is stamped with the display link's own time, and the report says
+so. In the fixture, a push filmed this way held 66 to 69 frames about 0.019 s apart with the title in 20 or more
+places, and a push with animations turned off showed the title in one place: the snap check caught it
+([fixture](../../Examples/OuroFeelFixture/UITests/FeelCatchesTests.swift), `testAPushFilmedInTheApp`).
+
+What it cannot do:
+
+- **It runs on the simulator only.** The test and the app share a folder under the test runner's temporary
+  directory, which a simulator app can reach and an app on a device cannot. On a device, `recordedFilm` waits
+  `timeout` seconds and returns a stalled film, so every check on it says it could not be checked; it never passes.
+- **Frames the app does not draw are not in the film.** While the app's main thread is busy (laying out a new page,
+  for example) the display link does not fire, so the film has a long frame. A page that arrives in full across a
+  frame shorter than `maxGap` (0.15 s by default) is a snap; a longer one cannot be judged and the check says so.
+- **Walking the accessibility tree costs time each frame.** Name only the elements you judge; a long recording of
+  many elements can slow the app it films (the recorder stops at 1,200 frames).
+
 What the samples show mid-transition (seen on the iOS 27.2 simulator): SwiftUI stretches an animating element's
 accessibility frame from where it is drawn to where it is going, so a sample at another size than the element's resting
 size is an in-between position. A snap is a big move between two samples at the resting size with the element still on
@@ -238,8 +271,8 @@ Each snapshot holds the app's main thread while it answers, so a film samples ev
 in one run with back-to-back sampling a 0.8 s ease measured 1.84 s (we infer the sampling slowed it). Settle times are
 timed on the test runner's clock and can run long under load, so leave margin in the limit. Settle fails when the
 element was never seen moving (a film started by a tap begins after the motion is over) or was still moving when the
-film ended. `jumps` counts moves after the first one, so start the film before the transition. Seeing every
-frame of a transition needs host video or an in-app probe (planned for v0.2).
+film ended. `jumps` counts moves after the first one, so start the film before the transition. To see every
+frame of a transition, record it inside the app (above).
 
 ### Place stability
 

@@ -25,10 +25,14 @@ public enum OuroFeelRecorder {
     public static let directoryVariable = FeelRecording.directoryVariable
 
     static var recorder: Recorder?
+    static let installedMarker = "OURO_FEEL_RECORDER_INSTALLED"
 
     /// Starts listening for the test's start and stop, if the test asked for a recorder.
     public static func installIfRequested(environment: [String: String] = ProcessInfo.processInfo.environment) {
-        guard recorder == nil, let path = environment[directoryVariable], !path.isEmpty else { return }
+        // One recorder per process: an app that links the recorder and also has the injectable one loaded carries two
+        // copies of this type, each with its own `recorder`, so the marker lives in the process's environment.
+        guard recorder == nil, getenv(installedMarker) == nil, let path = environment[directoryVariable], !path.isEmpty else { return }
+        setenv(installedMarker, "1", 1)
         recorder = Recorder(directory: URL(fileURLWithPath: path, isDirectory: true))
         let center = CFNotificationCenterGetDarwinNotifyCenter()
         CFNotificationCenterAddObserver(center, nil, recorderStarted, FeelRecording.startNotification as CFString, nil, .deliverImmediately)

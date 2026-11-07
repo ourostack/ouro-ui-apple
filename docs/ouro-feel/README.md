@@ -281,7 +281,8 @@ places (three runs), and a push with animations turned off showed the title in o
 included, so a linked recorder ships inert in the App Store build. To keep it out, link the
 `OuroFeelRecorderInjectable` product into the UI test target instead, drop the app's call, and launch with
 `OuroFeel.injectedRecorderEnvironment`. That loads the recorder into the app with `DYLD_INSERT_LIBRARIES`, on the
-simulator only, and it installs itself once the app runs. It is nil when the test bundle carries no such library;
+simulator only, and it installs itself once the app runs (if the app still calls `installIfRequested()`, only the
+first recorder installs). It is nil off the simulator or when the test bundle carries no such library;
 merge it in only when it is there, or the films stall and every check on them says it could not be checked:
 
 ```swift

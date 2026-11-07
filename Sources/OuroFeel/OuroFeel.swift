@@ -473,8 +473,12 @@ public struct OuroFeel {
 
     /// What to add to `launchEnvironment` so the app records without linking the recorder: the UI test bundle links
     /// the `OuroFeelRecorderInjectable` product, and this loads it into the app (simulator only). Nil when the test
-    /// bundle does not carry it; a film then stalls, and every check on it could not be checked.
+    /// bundle does not carry it, or off the simulator (a device or a Mac app ignores `DYLD_INSERT_LIBRARIES`); a film
+    /// then stalls, and every check on it could not be checked. Creates the directory films are written to.
     public static var injectedRecorderEnvironment: [String: String]? {
+        #if !targetEnvironment(simulator)
+        return nil
+        #else
         try? FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
         let bundles = [Bundle(for: FeelBundleMarker.self), Bundle.main] + Bundle.allBundles
         // Embedded in the test bundle or its runner, or, when the test runs from the build products, wherever the
@@ -483,6 +487,7 @@ public struct OuroFeel {
             + Bundle.allFrameworks.map { $0.bundleURL.deletingLastPathComponent() }
         guard let library = FeelRecording.injectableLibrary(in: dirs) else { return nil }
         return FeelRecording.injectionEnvironment(library: library, directory: recordDirectory.path)
+        #endif
     }
 
     /// A film the app records itself, one sample per display frame on the app's own display clock, so it holds the

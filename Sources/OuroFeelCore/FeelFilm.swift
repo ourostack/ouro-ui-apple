@@ -59,7 +59,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
 
     /// Why a stalled film cannot be judged, or nil.
     func stall() -> FeelFinding? {
-        stalledAt.map { .couldNotCheck("the app's clock stopped at \(FeelResult.number(round3($0))) s, so the rest of the film was never seen") }
+        stalledAt.map { .couldNotCheck("the film stopped at \(FeelResult.number(round3($0))) s (the app's clock stopped, or a recording reached its 20 s limit), so the rest was never seen") }
     }
 
     /// The film as JSON, to attach beside a report when a motion check needs explaining (frames, not pixels).
@@ -79,8 +79,10 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         s.frame.width > 0 && s.frame.height > 0 && s.frame.intersects(window)
     }
 
+    /// An identifier match first, then a label match: a button labelled like the page title it opens must not stand
+    /// in for that title.
     func find(_ key: String, in frame: FeelFrame) -> FeelSeen? {
-        frame.seen.first { ($0.key == key || $0.label == key) && visible($0) }
+        frame.seen.first { $0.key == key && visible($0) } ?? frame.seen.first { $0.label == key && visible($0) }
     }
 
     /// The element's frame in each sample where it is on screen.
@@ -88,7 +90,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         frames.compactMap { f in find(key, in: f).map { (f.t, $0.frame) } }
     }
 
-    static func distance(_ a: CGRect, _ b: CGRect) -> Double {
+    public static func distance(_ a: CGRect, _ b: CGRect) -> Double {
         Double(max(abs(a.minX - b.minX), abs(a.minY - b.minY), abs(a.width - b.width), abs(a.height - b.height)))
     }
 

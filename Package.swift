@@ -29,6 +29,7 @@ let package = Package(
         // Ouro Feel: deterministic checks of how an app feels, for UI tests. See docs/ouro-feel/README.md.
         .library(name: "OuroFeel", targets: ["OuroFeel"]),
         .library(name: "OuroFeelCore", targets: ["OuroFeelCore"]),
+        .library(name: "OuroFeelRecorder", targets: ["OuroFeelRecorder"]),
         // Ouro Reins: an app's screens as state plus actions, driven headless with `ls` and `do`. See docs/ouro-reins/README.md.
         .library(name: "OuroReins", targets: ["OuroReins"]),
     ],
@@ -75,6 +76,7 @@ let package = Package(
         // XCUITest and links into an app's UI test bundle.
         .target(name: "OuroFeelCore", swiftSettings: strict),
         .target(name: "OuroFeel", dependencies: ["OuroFeelCore"], swiftSettings: strict),
+        .target(name: "OuroFeelRecorder", dependencies: ["OuroFeelCore"], swiftSettings: strict),
         .testTarget(name: "OuroFeelTests", dependencies: ["OuroFeelCore"], swiftSettings: strict),
 
         // Ouro Reins. No SwiftUI and no XCTest, so an app's UI-free core links it, and so does a headless

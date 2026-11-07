@@ -542,7 +542,9 @@ extension OuroFeel {
         var outsideDismisses: Bool?
         if let p = outside {
             point(p.x, p.y).tap()
-            outsideDismisses = wait(3) { !showing() }
+            // The walk's own timeout, never a shorter fixed one: on a slow runner a popover's exit can outlast 3 s,
+            // and a slow dismissal is still a dismissal (#48).
+            outsideDismisses = wait(timeout) { !showing() }
             // A tap that went through the overlay to the screen behind (a row it opened) is no dismissal: the screen
             // it left is mostly gone. Say so, and let the walk recover.
             if outsideDismisses == true {
@@ -573,7 +575,7 @@ extension OuroFeel {
         // destructive has nothing to pick either, and the report says so rather than passing it quietly.
         guard let item = pickable(appeared) ?? pickable(appeared, orBack: true) else {
             // Leave it closed, as a person would, so the walk carries on without a relaunch.
-            if let p = outside, showing() { point(p.x, p.y).tap(); _ = wait(3) { !showing() } }
+            if let p = outside, showing() { point(p.x, p.y).tap(); _ = wait(timeout) { !showing() } }
             return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses,
                                     noPickBecause: parts.isEmpty ? "nothing in it is safe to pick (each item reads as destructive)"
                                         : "it holds only a stepper or slider, which it stays open to adjust")
@@ -582,7 +584,7 @@ extension OuroFeel {
         do {
             let f = item.value.frame
             point(f.midX, f.midY).tap()
-            pickDismisses = wait(3) { !showing() }
+            pickDismisses = wait(timeout) { !showing() }
             if pickDismisses == false {
                 let now = elements()
                 let new = now.filter { appeared[$0.key] == nil && before[$0.key] == nil }
@@ -594,7 +596,7 @@ extension OuroFeel {
                 let submenu = new.filter { !$0.value.frame.intersects(f) && $0.value.frame.intersects(reach) }
                 if opened, let inner = pickable(submenu) {
                     point(inner.value.frame.midX, inner.value.frame.midY).tap()
-                    pickDismisses = wait(3) { !showing() }
+                    pickDismisses = wait(timeout) { !showing() }
                 }
             }
         }
@@ -861,7 +863,7 @@ extension OuroFeel {
             if let back {
                 shown = back.label.isEmpty ? back.identifier : back.label
                 back.tap()
-                returns = wait(3) { signature(follow) == here }
+                returns = wait(timeout) { signature(follow) == here }
             }
             walk.screens.append(FeelDestination(path: name, affordance: shown, affordanceReturns: returns, gesture: gesture, diagnostic: diagnostic,
                                                 gestureArrived: gesture == nil ? arrived : nil))
@@ -890,7 +892,7 @@ extension OuroFeel {
             var outsideDismisses: Bool?
             if let p = outside {
                 point(p.x, p.y).tap()
-                outsideDismisses = wait(3) { !shown() }
+                outsideDismisses = wait(timeout) { !shown() }
             }
             var pickDismisses: Bool?
             if let pick = overlay.pick {
@@ -900,7 +902,7 @@ extension OuroFeel {
                     let item = element(pick)
                     if item.waitForExistence(timeout: timeout) {
                         item.tap()
-                        pickDismisses = wait(3) { !shown() }
+                        pickDismisses = wait(timeout) { !shown() }
                     } else {
                         pickDismisses = false
                     }

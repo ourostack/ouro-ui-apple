@@ -105,7 +105,7 @@ extension FeelPlaceStep {
     public static let noInput = FeelPlaceStep("no input") { _ in }
 
     /// Opens a sheet with `open`, waits for `sheet` (an identifier or label inside it) to show, then swipes it away
-    /// without choosing anything and waits for it to go, trying a slower swipe once (waits of `timeout` × 4 in all, so a
+    /// without choosing anything and waits for it to go, trying a slower swipe once (up to `timeout` × 4 to open and × 4 to close, so a
     /// loaded machine has time). A sheet that never opened or never
     /// closed makes the step one that could not be checked, never a pass.
     public static func sheetDismissed(_ name: String, sheet: String,

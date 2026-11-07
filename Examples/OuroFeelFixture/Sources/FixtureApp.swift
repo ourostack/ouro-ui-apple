@@ -656,32 +656,59 @@ struct StrayPage: View {
             }
         }
         .sheet(isPresented: $contents, onDismiss: { if bug { page = 1 } }) {
-            List(1...5, id: \.self) { Text("Chapter \($0)") }.accessibilityIdentifier("stray.sheet")
+            VStack {
+                Text("Contents").font(.headline).padding().accessibilityIdentifier("stray.sheet")
+                List(1...5, id: \.self) { Text("Chapter \($0)") }
+            }
         }
     }
 }
 
-/// Navigation that fights you, on the app's own clock (``FixtureClock``). Next turns the page; three ticks later a
-/// sync lands. Fixed: the sync agrees with where you are. The bug: the sync carries the place from before your move,
-/// so it pulls you back (a late restore).
+/// Navigation that fights you, on the app's own clock (``FixtureClock``). Next turns the page and a sync lands three
+/// ticks later; Contents jumps to page 30 behind a veil that lifts three ticks later, and a tap on the right edge turns
+/// the page. With `-cloud 1`, a cloud reply arrives three ticks after the page opens, with no input. Fixed: the sync
+/// agrees with where you are, a tap under the veil is swallowed, and the cloud reply is offered, not applied. The bugs,
+/// as in Gatefold build 20: the sync carries the place from before your move (a late restore), a tap under the veil is
+/// queued and turns the page as the jump lands, and the cloud reply moves the page you are reading.
 struct FightPage: View {
     private let clock = FixtureClock.shared
     @State private var page = 1
     @State private var pending: (at: Int, page: Int)?
+    @State private var veilUntil: Int?
+    @State private var queued = 0
+    @State private var cloudAt: Int?
+    @State private var offer: Int?
 
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Page \(page)").font(.title).accessibilityIdentifier("fight.page")
-            Button("Next") {
-                pending = (clock.ticks + 3, bug ? page : page + 1)
-                page += 1
+        ZStack {
+            GeometryReader { geo in
+                Color.white.opacity(0.001).contentShape(Rectangle())
+                    .onTapGesture { at in
+                        guard at.x > geo.size.width * 0.75 else { return }
+                        if veilUntil != nil { if bug { queued += 1 } } else { page += 1 }
+                    }
             }
-            .accessibilityIdentifier("fight.next")
-            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("fight.clock")
+            VStack(spacing: 24) {
+                if veilUntil != nil {
+                    Text("Opening").accessibilityIdentifier("fight.veil")
+                } else {
+                    Text("Page \(page)").font(.title).accessibilityIdentifier("fight.page")
+                }
+                Button("Next") {
+                    pending = (clock.ticks + 3, bug ? page : page + 1)
+                    page += 1
+                }
+                .accessibilityIdentifier("fight.next")
+                Button("Contents: page 30") { veilUntil = clock.ticks + 3 }.accessibilityIdentifier("fight.contents")
+                if let offer { Button("Go to page \(offer)") { page = offer; self.offer = nil }.accessibilityIdentifier("fight.offer") }
+                Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("fight.clock")
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { if UserDefaults.standard.bool(forKey: "cloud") { cloudAt = clock.ticks + 3 } }
         .onChange(of: clock.ticks) { _, now in
             if let p = pending, now >= p.at { page = p.page; pending = nil }
+            if let v = veilUntil, now >= v { page = 30 + queued; queued = 0; veilUntil = nil }
+            if let c = cloudAt, now >= c { if bug { page = 5 } else { offer = 5 }; cloudAt = nil }
         }
     }
 }

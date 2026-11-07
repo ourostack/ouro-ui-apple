@@ -96,6 +96,10 @@ private func page(_ label: String, y: Double = 100) -> FeelSeen {
         #expect(result.findings.contains { $0.what.contains("1.100 s apart") })
     }
 
+    @Test func aOneSampleFilmNeverPasses() {
+        #expect(!film([page("p1")]).flickers(of: ["page"], hold: 1).passed)
+    }
+
     @Test func aStalledFilmCouldNotBeChecked() {
         var f = film(Array(repeating: page("p1"), count: 6))
         f.stalledAt = 0.05
@@ -175,6 +179,56 @@ private func page(_ label: String, y: Double = 100) -> FeelSeen {
         #expect(result.detections[0].what.contains("late restore"))
     }
 
+    /// The reviewer's case: snapped back for one read, then forward again. Where you came from is never a page on the way.
+    @Test func aOneReadPullBackFails() {
+        let trail = FeelPlaceTrail([.read(a), .action("next page", deliberate: true), .read(b), .read(a), .read(b), .read(b), .read(b)])
+        let result = trail.fights()
+        #expect(!result.passed)
+        #expect(result.detections[0].what.contains("late restore"))
+    }
+
+    /// Gatefold build 20: a tap on the right edge while a Contents jump's veil was up landed a page past the chapter.
+    @Test func landingOffWhereYouChoseFails() {
+        let trail = FeelPlaceTrail([.read(a), .action("Contents to chapter 3", deliberate: true), .chose(b),
+                                    .read(FeelPlace.empty), .read(c), .read(c), .read(c)])
+        let result = trail.fights()
+        #expect(!result.passed)
+        #expect(result.detections[0].what.contains("not where you chose"))
+    }
+
+    @Test func landingWhereYouChosePasses() {
+        let trail = FeelPlaceTrail([.read(a), .action("Contents to chapter 3", deliberate: true), .chose(b),
+                                    .read(FeelPlace.empty), .read(b), .read(b), .read(b)])
+        #expect(trail.fights().passed)
+    }
+
+    @Test func aChosenMoveThatNeverLeftFails() {
+        let trail = FeelPlaceTrail([.read(a), .action("Contents to chapter 3", deliberate: true), .chose(b), .read(a), .read(a), .read(a)])
+        #expect(!trail.fights().passed)
+        #expect(!trail.fights().detections.isEmpty)
+    }
+
+    /// No input at all: a late cloud reply moves the place while you are idle.
+    @Test func aLateReplyWithNoInputFails() {
+        let trail = FeelPlaceTrail([.read(a), .action("no input", deliberate: false), .read(a), .read(a), .read(c), .read(c)])
+        let result = trail.strayInput()
+        #expect(!result.passed)
+        #expect(result.detections[0].what.hasPrefix("no input moved the place"))
+    }
+
+    @Test func aStepThatDidNotHappenCouldNotBeChecked() {
+        let trail = FeelPlaceTrail([.read(a), .action("Contents opened and swiped away", deliberate: false),
+                                    .unchecked("the sheet did not close"), .read(a), .read(a)])
+        let result = trail.strayInput()
+        #expect(!result.passed && result.detections.isEmpty)
+        #expect(result.summary.contains("the sheet did not close"))
+    }
+
+    @Test func holdIsAtLeastTwoReads() {
+        let trail = FeelPlaceTrail([.read(a), .action("next page", deliberate: true), .read(b)])
+        #expect(!trail.fights(hold: 1).passed)
+    }
+
     @Test func aMoveReadTooBrieflyCouldNotBeChecked() {
         let result = FeelPlaceTrail([.read(a), .action("next page", deliberate: true), .read(b)]).fights()
         #expect(!result.passed && result.detections.isEmpty)
@@ -191,7 +245,7 @@ private func page(_ label: String, y: Double = 100) -> FeelSeen {
     }
 
     @Test func aTrailRoundTripsThroughJSON() throws {
-        let trail = FeelPlaceTrail([.read(a), .action("stray tap", deliberate: false), .read(b)])
+        let trail = FeelPlaceTrail([.read(a), .action("jump", deliberate: true), .chose(b), .unchecked("why"), .read(b)])
         let data = try JSONEncoder().encode(trail)
         #expect(try JSONDecoder().decode(FeelPlaceTrail.self, from: data) == trail)
     }

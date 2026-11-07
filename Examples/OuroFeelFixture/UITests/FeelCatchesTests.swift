@@ -226,7 +226,7 @@ final class FeelCatchesTests: XCTestCase {
             let next = app.buttons["stray.next"]
             _ = next.waitForExistence(timeout: 10)
             next.tap(); next.tap()
-            let contents = FeelPlaceStep.sheetDismissed("Contents") { $0.buttons["stray.contents"].tap() }
+            let contents = FeelPlaceStep.sheetDismissed("Contents", sheet: "stray.sheet") { $0.buttons["stray.contents"].tap() }
             let result = feel.placeHeld(across: [.strayTap(), .edgeSwipe, contents, .background],
                                         read: { app.staticTexts["stray.page"].label })
             if isBugBuild(app) {
@@ -238,25 +238,63 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// One tick of the fixture's clock, then a wait for the app to show it, so each read is one tick later however slow
+    /// the runner.
+    private func tick(_ app: XCUIApplication) -> () -> Void {
+        let clock = app.staticTexts["fight.clock"]
+        let advance = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
+        return {
+            let before = clock.label
+            advance()
+            let deadline = Date().addingTimeInterval(30)
+            while clock.label == before && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+        }
+    }
+
+    /// The fight page's place: empty while the veil is up.
+    private func fightPlace(_ app: XCUIApplication) -> () -> String {
+        { app.staticTexts["fight.veil"].exists ? "" : app.staticTexts["fight.page"].label }
+    }
+
     /// Navigation that fights you, read once a tick on the app's own clock: the bug build's sync lands three ticks after
     /// Next and pulls the page back; the fixed build's sync agrees.
     func testNavigationThatFightsYou() {
         both("fight") { app, feel in
-            let next = app.buttons["fight.next"]
-            _ = next.waitForExistence(timeout: 10)
-            let clock = app.staticTexts["fight.clock"]
-            let advance = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
-            // One tick, then wait for the app to show it, so each read is one tick later however slow the runner.
-            let tick = {
-                let before = clock.label
-                advance()
-                let deadline = Date().addingTimeInterval(30)
-                while clock.label == before && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
-            }
+            _ = app.buttons["fight.next"].waitForExistence(timeout: 10)
             let turn = FeelPlaceStep("next page") { feel in feel.app.buttons["fight.next"].tap() }
-            let result = feel.placeFights([turn], reads: 6, between: tick, read: { app.staticTexts["fight.page"].label })
+            let result = feel.placeFights([turn], reads: 6, between: tick(app), read: fightPlace(app))
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("late restore") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// A tap on the right edge while a Contents jump's veil is up: the bug build queues it and lands a page past the one
+    /// chosen; the fixed build swallows it and lands on page 30.
+    func testATapWhileAJumpIsUnderWayLandsWhereYouChose() {
+        both("fight") { app, feel in
+            _ = app.buttons["fight.contents"].waitForExistence(timeout: 10)
+            let jump = FeelPlaceStep("Contents to page 30, with a tap on the right edge under the veil") { feel in
+                feel.app.buttons["fight.contents"].tap()
+                feel.app.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            }
+            let result = feel.placeFights([.move(jump, landsOn: "Page 30")], reads: 6, between: tick(app), read: fightPlace(app))
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("not where you chose") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// No input at all: the bug build's cloud reply, arriving three ticks after the page opens, moves the page; the
+    /// fixed build offers it instead.
+    func testALateCloudReplyNeverMovesThePlace() {
+        both("fight", ["-cloud", "1"]) { app, feel in
+            _ = app.buttons["fight.next"].waitForExistence(timeout: 10)
+            let result = feel.placeHeld(across: [.noInput], reads: 6, between: tick(app), read: fightPlace(app))
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("no input moved the place") }, result.text)
             }
             return (result, nil)
         }

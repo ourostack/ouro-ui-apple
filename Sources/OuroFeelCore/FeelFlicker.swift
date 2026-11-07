@@ -16,7 +16,14 @@ extension FeelFilm {
     ///   that same place again within `within` samples. A spring that overshoots never rests on its way, so it is not a
     ///   flicker.
     ///
-    /// One move, one change of words, or appearing once are what good looks like. It cannot be checked, and fails saying
+    /// One move, one change of words, or appearing once are what good looks like; a page that shows "Loading" between
+    /// two pages, or goes away while a spinner shows, changes twice, so put the place in a label that is steady while it
+    /// loads. The words are the element's accessibility label (what ``OuroFeel/seen(_:)`` and the in-app recorder
+    /// capture), not its value: a reader that keeps its page in the value should film an element labelled with it, or
+    /// judge the place with ``FeelPlaceTrail``. `within` is in samples, so its span in time follows the film's clock: 30
+    /// samples is half a second recorded in the app, 1.5 s on the runner's 0.05 s sampling and 3 s on a 0.1 s app
+    /// tick; a toast that shows for less than `within` samples reads as a blink, so lower `within` for such films.
+    /// It cannot be checked, and fails saying
     /// so, when the film stalled, when an element was never on screen, when an element was still changing in the film's
     /// last `hold` samples (film for longer), or when nothing flickered but samples were once more than `maxGap` seconds
     /// apart (a blink shorter than that could be missed). A film recorded in the app (``OuroFeel/recordedFilm``) samples
@@ -24,7 +31,7 @@ extension FeelFilm {
     public func flickers(of keys: [String], within: Int = 30, changes: Int = 1, distance: Double = 2, hold: Int = 3,
                          maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
         timed(flickersUntimed(of: keys, within: max(1, within), changes: max(0, changes), distance: distance,
-                              hold: max(1, hold), maxGap: maxGap, tolerance: tolerance))
+                              hold: max(2, hold), maxGap: maxGap, tolerance: tolerance))
     }
 
     private func flickersUntimed(of keys: [String], within: Int, changes: Int, distance: Double, hold: Int, maxGap: Double,

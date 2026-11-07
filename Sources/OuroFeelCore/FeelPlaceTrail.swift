@@ -125,10 +125,10 @@ public struct FeelPlaceTrail: Codable, Equatable, Sendable {
             while i < runs.count, runs[i].value == before { i += 1 }
             if i == runs.count {
                 // It never left `before`: a move that went nowhere is no fight, if it was read long enough to know.
-                if let chose = span.chose, chose != before {
-                    findings.append(FeelFinding(what: "\(span.name) never left \(before) for where you chose (\(chose)) in \(reads.count) reads"))
-                } else if reads.count < hold {
+                if reads.count < hold {
                     findings.append(.couldNotCheck("the place was read only \(reads.count) times after \(span.name) (at least \(hold) needed); read for longer"))
+                } else if let chose = span.chose, chose != before {
+                    findings.append(FeelFinding(what: "\(span.name) never left \(before) for where you chose (\(chose)) in \(reads.count) reads"))
                 } else {
                     findings.append(.note("\(span.name) did not move the place"))
                     held += 1

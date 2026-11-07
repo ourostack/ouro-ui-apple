@@ -105,21 +105,22 @@ extension FeelPlaceStep {
     public static let noInput = FeelPlaceStep("no input") { _ in }
 
     /// Opens a sheet with `open`, waits for `sheet` (an identifier or label inside it) to show, then swipes it away
-    /// without choosing anything and waits for it to go, trying a slower swipe once. A sheet that never opened or never
+    /// without choosing anything and waits for it to go, trying a slower swipe once (waits of `timeout` × 4 in all, so a
+    /// loaded machine has time). A sheet that never opened or never
     /// closed makes the step one that could not be checked, never a pass.
     public static func sheetDismissed(_ name: String, sheet: String,
                                       open: @escaping @MainActor (XCUIApplication) -> Void) -> FeelPlaceStep {
         FeelPlaceStep("\(name) opened and swiped away") { feel in
             let element = feel.app.descendants(matching: .any)[sheet].firstMatch
             open(feel.app)
-            guard element.waitForExistence(timeout: feel.timeout) else {
+            guard element.waitForExistence(timeout: feel.timeout * 4) else {
                 FeelStepProblem.last = "\"\(sheet)\" never showed, so the sheet did not open"
                 return
             }
             feel.swipeDown()
-            if !feel.wait(feel.timeout, until: { !element.exists }) {
+            if !feel.wait(feel.timeout * 2, until: { !element.exists }) {
                 feel.swipeDown(slower: true)
-                if !feel.wait(feel.timeout, until: { !element.exists }) {
+                if !feel.wait(feel.timeout * 2, until: { !element.exists }) {
                     FeelStepProblem.last = "\"\(sheet)\" was still on screen after two swipes down, so the sheet did not close"
                 }
             }

@@ -202,6 +202,13 @@ private func page(_ label: String, y: Double = 100) -> FeelSeen {
         #expect(trail.fights().passed)
     }
 
+    @Test func aChosenJumpStillLoadingCouldNotBeChecked() {
+        let trail = FeelPlaceTrail([.read(a), .action("Contents to chapter 3", deliberate: true), .chose(b),
+                                    .read(FeelPlace.empty), .read(FeelPlace.empty)])
+        let result = trail.fights()
+        #expect(!result.passed && result.detections.isEmpty)
+    }
+
     @Test func aChosenMoveThatNeverLeftFails() {
         let trail = FeelPlaceTrail([.read(a), .action("Contents to chapter 3", deliberate: true), .chose(b), .read(a), .read(a), .read(a)])
         #expect(!trail.fights().passed)
@@ -225,8 +232,9 @@ private func page(_ label: String, y: Double = 100) -> FeelSeen {
     }
 
     @Test func holdIsAtLeastTwoReads() {
-        let trail = FeelPlaceTrail([.read(a), .action("next page", deliberate: true), .read(b)])
-        #expect(!trail.fights(hold: 1).passed)
+        let trail = FeelPlaceTrail([.read(a), .action("next page", deliberate: true), .read(a)])
+        let result = trail.fights(hold: 1)
+        #expect(!result.passed && result.detections.isEmpty)
     }
 
     @Test func aMoveReadTooBrieflyCouldNotBeChecked() {

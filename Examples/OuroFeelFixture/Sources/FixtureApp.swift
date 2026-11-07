@@ -570,6 +570,8 @@ struct KitchenPage: View {
             }
         }
     }
+}
+
 /// A push filmed inside the app, frame by frame (`OuroFeelRecorder`). The bug: the recipe is pushed with animations
 /// off, so its page appears in one frame instead of sliding in.
 struct TransitionPage: View {

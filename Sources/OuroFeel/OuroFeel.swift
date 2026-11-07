@@ -416,6 +416,48 @@ public struct OuroFeel {
         return FeelFilm(window: window, frames: frames)
     }
 
+    /// A film on the app's own clock, which a busy machine cannot thin out. The app keeps a timeline that moves only
+    /// when told (`advance`, for example ``FeelClock/darwinNotification(_:)``), one `tick` of seconds at a time, and
+    /// shows how many ticks it has taken in the element keyed `clock` (its label, a whole number). The film runs
+    /// `action`, samples once, then `steps` times advances the clock and samples once the app shows the new count,
+    /// stamping each sample with the app's time. So every sample is exactly one tick apart however slow the machine:
+    /// what the app draws between ticks is never part of it, and the app's motion must be a function of its clock.
+    ///
+    /// Each sample waits for the app's answer, never a fixed time. Only if the app shows no new count for `stall`
+    /// seconds does the film end there, with ``FeelFilm/stalledAt`` set, and every motion check on it says it could
+    /// not be checked.
+    public func film(_ keys: [String], steps: Int, tick: TimeInterval, clock: String, advance: () -> Void,
+                     stall: TimeInterval = 30, during action: (() -> Void)? = nil) -> FeelFilm {
+        let wanted = Set(keys).union([clock])
+        func count(_ seen: [FeelSeen]) -> Int? { seen.first { $0.key == clock }.flatMap { Int($0.label) } }
+        // Snapshots until the app shows a count of at least `least`; nil if it shows none for `stall` seconds.
+        func sample(atLeast least: Int) -> (window: CGRect, seen: [FeelSeen], count: Int)? {
+            let deadline = Date().addingTimeInterval(stall)
+            repeat {
+                let (w, seen) = self.seen(wanted)
+                if let n = count(seen), n >= least { return (w, seen.filter { $0.key != clock }, n) }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+            } while Date() < deadline
+            return nil
+        }
+        action?()
+        guard let (w0, first, base) = sample(atLeast: .min) else {
+            return FeelFilm(window: .zero, frames: [], stalledAt: 0)
+        }
+        var window = w0
+        var frames = [FeelFrame(t: 0, seen: first)]
+        for step in 1...max(1, steps) {
+            advance()
+            guard let (w, seen, n) = sample(atLeast: base + step) else {
+                return FeelFilm(window: window, frames: frames, stalledAt: Double(step - 1) * tick)
+            }
+            if w != .zero { window = w }
+            // Stamped with the count the app shows, so a tick the app took on its own is never hidden.
+            frames.append(FeelFrame(t: Double(n - base) * tick, seen: seen))
+        }
+        return FeelFilm(window: window, frames: frames)
+    }
+
     #if !os(visionOS)
     /// Wraps `XCTHitchMetric` (iOS 26 and later) around `action`, `iterations` times. The figures go to the result
     /// bundle, not to a ``FeelResult``. Apple's simulator has reported no hitch figures for the signpost metrics in our

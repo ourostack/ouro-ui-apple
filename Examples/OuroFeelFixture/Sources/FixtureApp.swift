@@ -39,23 +39,20 @@ struct WindowPage: View {
     }
 }
 
-/// Tap landing. The bugs: an invisible strip over the switch's trailing end swallows taps, and the switch ignores
-/// taps for a quarter second after each change (taps while it animates are lost). Paced taps come 0.6 s apart, so
-/// only rapid taps meet the lock; a longer lock could swallow a paced tap on a slow runner and hide the rapid result.
+/// Tap landing. The bugs: an invisible strip over the control's trailing end swallows taps, and the control ignores a
+/// tap that comes within a quarter second of its last change (taps while it animates are lost). The quarter second is
+/// read from the touches' own timestamps, which keep XCUITest's spacing however late a busy app handles them: a double
+/// tap's two touches always meet the lock, and paced taps (0.6 s apart and more) never do. The control is a plain
+/// UIKit button, so the fixed build lands every tap and never leans on a system switch's animation timing (the iOS 26
+/// simulator's own switch drops rapid taps).
 struct TapsPage: View {
     @State private var on = false
-    @State private var lockedUntil = Date.distantPast
     var body: some View {
         HStack {
             Text("Page Numbers").accessibilityIdentifier("taps.title")
             Spacer()
-            Toggle("Page Numbers", isOn: Binding(get: { on }, set: { value in
-                if bug && Date() < lockedUntil { return }
-                on = value
-                lockedUntil = Date().addingTimeInterval(0.25)
-            }))
-                .labelsHidden()
-                .accessibilityIdentifier("taps.toggle")
+            TapsToggle(on: $on, locks: bug)
+                .frame(width: 51, height: 31)
                 .overlay(alignment: .trailing) {
                     if bug { Color.white.opacity(0.001).frame(width: 22).onTapGesture {} }
                 }
@@ -66,48 +63,114 @@ struct TapsPage: View {
     }
 }
 
-/// Settle, jumps, double draws, chrome and snaps. `-autoplay N` seconds (default 2) after Play is tapped the card travels
-/// down (so the motion runs while the test is free to sample). The bug: it snaps there with no transition, a ghost copy stays behind for a
-/// second, both bars show at once for a second, and the card jumps 40 points 2 s after it landed (so it also settles late).
-struct MotionPage: View {
-    @State private var down = false
-    @State private var nudge: CGFloat = 0
-    @State private var ghost = false
-    @State private var fullBar = true
-    @State private var compactBar = false
+/// A two-state control that flips on every tap; with `locks`, it ignores a tap within 0.45 s (by touch timestamp) of
+/// its last change.
+struct TapsToggle: UIViewRepresentable {
+    @Binding var on: Bool
+    let locks: Bool
 
-    var body: some View {
-        ZStack(alignment: .top) {
-            VStack(spacing: 0) {
-                if fullBar { bar("Kitchen", id: "bar.full", height: 96) }
-                if compactBar { bar("Kitchen", id: "bar.compact", height: 52) }
-                Spacer()
-            }
-            if ghost { card.offset(y: 200).accessibilityIdentifier("motion.ghost") }
-            card.offset(y: (down ? 520 : 200) + nudge).accessibilityIdentifier("motion.card")
-            Button("Play") { Task { await play() } }
-                .accessibilityIdentifier("motion.play")
-                .offset(y: 700)
-        }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .custom)
+        button.layer.cornerRadius = 15.5
+        button.accessibilityIdentifier = "taps.toggle"
+        button.accessibilityLabel = "Page Numbers"
+        button.accessibilityTraits = [.button, .toggleButton]
+        button.addTarget(context.coordinator, action: #selector(Coordinator.tapped(_:event:)), for: .touchUpInside)
+        return button
     }
 
-    /// Starts `-autoplay` seconds (default 2) after the Play tap, so the motion runs after XCUITest's idle wait for
-    /// the tap ends, however long launching took.
-    func play() async {
-            try? await Task.sleep(for: .seconds(UserDefaults.standard.double(forKey: "autoplay").nonZero ?? 2))
-            if bug {
-                ghost = true
-                down = true
-                compactBar = true
-                try? await Task.sleep(for: .seconds(1))
-                ghost = false
-                fullBar = false
-                try? await Task.sleep(for: .seconds(1))
-                nudge = 40
-            } else {
-                withAnimation(.easeInOut(duration: 0.8)) { down = true }
-                withAnimation(.easeInOut(duration: 0.15)) { fullBar = false; compactBar = true }
+    func updateUIView(_ button: UIButton, context: Context) {
+        context.coordinator.parent = self
+        button.backgroundColor = on ? .systemGreen : .systemGray4
+        button.accessibilityValue = on ? "1" : "0"
+    }
+
+    @MainActor final class Coordinator: NSObject {
+        var parent: TapsToggle
+        var lastChange: TimeInterval = -.infinity
+        init(_ parent: TapsToggle) { self.parent = parent }
+
+        @objc func tapped(_ sender: UIButton, event: UIEvent) {
+            let at = event.allTouches?.first?.timestamp ?? event.timestamp
+            if parent.locks && at - lastChange < 0.45 { return }
+            lastChange = at
+            parent.on.toggle()
+        }
+    }
+}
+
+/// The app's own clock for the motion page: it moves only when the UI test posts the Darwin notification `name`, one
+/// tick per post, and the page shows the count (`motion.clock`), so a film samples every tick however busy the machine.
+/// Not main-actor code: Darwin notifications may arrive on any thread, so the callback hops to the main queue itself.
+private let fixtureClockTicked: CFNotificationCallback = { _, _, _, _, _ in
+    DispatchQueue.main.async { MainActor.assumeIsolated { FixtureClock.shared.ticks += 1 } }
+}
+
+@MainActor @Observable final class FixtureClock {
+    static let shared = FixtureClock()
+    static let name = "bot.ouro.feel.fixture.tick"
+    /// Seconds per tick.
+    static let tick = 0.1
+    var ticks = 0
+
+    private init() {
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), Unmanaged.passUnretained(self).toOpaque(),
+                                        fixtureClockTicked,
+                                        Self.name as CFString, nil, .deliverImmediately)
+    }
+}
+
+/// Where everything on the motion page is, `elapsed` seconds of the app's clock after Play (negative before it). The
+/// motion starts half a second after Play. Fixed: the card eases down over 0.8 s and the full bar hands over to the
+/// compact one in a single tick. The bug: the card snaps down, a ghost copy stays behind for a second, both bars show at
+/// once for that second, and the card jumps 40 points 2 s after it landed (so it also settles late).
+struct MotionState: Equatable {
+    var cardY: Double, ghost: Bool, fullBar: Bool, compactBar: Bool
+
+    init(elapsed e: Double, bug: Bool) {
+        let start = 0.5
+        if bug {
+            let on = e >= start
+            cardY = on ? 520 + (e >= start + 2 ? 40 : 0) : 200
+            ghost = on && e < start + 1
+            fullBar = e < start + 1
+            compactBar = on
+        } else {
+            let p = min(1, max(0, (e - start) / 0.8))
+            let eased = p < 0.5 ? 2 * p * p : 1 - (2 - 2 * p) * (2 - 2 * p) / 2
+            cardY = 200 + 320 * eased
+            ghost = false
+            fullBar = e < start + 0.15
+            compactBar = e >= start + 0.15
+        }
+    }
+}
+
+/// Settle, jumps, double draws, chrome and snaps, on the app's own clock (``FixtureClock``): nothing moves until the
+/// test advances it, so a slow machine films the same frames.
+struct MotionPage: View {
+    private let clock = FixtureClock.shared
+    @State private var playedAt: Int?
+
+    var body: some View {
+        let elapsed = playedAt.map { Double(clock.ticks - $0) * FixtureClock.tick } ?? -1
+        let state = MotionState(elapsed: elapsed, bug: bug)
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                if state.fullBar { bar("Kitchen", id: "bar.full", height: 96) }
+                if state.compactBar { bar("Kitchen", id: "bar.compact", height: 52) }
+                Spacer()
             }
+            if state.ghost { card.offset(y: 200).accessibilityIdentifier("motion.ghost") }
+            card.offset(y: state.cardY).accessibilityIdentifier("motion.card")
+            Button("Play") { playedAt = clock.ticks }
+                .accessibilityIdentifier("motion.play")
+                .offset(y: 700)
+            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("motion.clock")
+                .offset(y: 760)
+        }
     }
 
     var card: some View {
@@ -121,10 +184,6 @@ struct MotionPage: View {
         Text(title).font(.headline).frame(maxWidth: .infinity, minHeight: height).background(.bar)
             .accessibilityElement(children: .combine).accessibilityIdentifier(id)
     }
-}
-
-extension Double {
-    var nonZero: Double? { self == 0 ? nil : self }
 }
 
 /// Place stability. The bug: the place lives only in memory, so a relaunch loses it.

@@ -15,7 +15,7 @@ final class FeelTests: XCTestCase {
     /// jumps are recorded, not judged.
     ///
     /// The demo and OuroHX's springs run on the app's own clock (`-clock 1`, ``OuroMotionClock``), which this test moves
-    /// one 0.05 s tick at a time, sampling after each. So the film holds the same frames however busy the runner is
+    /// one 0.05 s tick at a time, sampling after each. So it reaches the same verdicts however busy the runner is
     /// (#33); a wall-clock film here thinned out on loaded CI runners and its verdicts moved with the load. The checks
     /// read one play: from the first toast's arrival to just before the stack empties.
     func testAToastStackArrivesWithoutJumpsGhostsOrALongSettle() throws {

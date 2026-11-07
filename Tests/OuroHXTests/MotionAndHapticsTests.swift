@@ -1,4 +1,4 @@
-import OuroHX
+@_spi(OuroMotionClock) import OuroHX
 import SwiftUI
 import Testing
 
@@ -115,7 +115,7 @@ import Testing
         #expect(OuroMotion.clocked(nil, on: OuroMotionClock()) == nil)
     }
 
-    @Test func onAClockAnAnimationRunsOnThatClock() {
+    @Test func onAClockAnAnimationIsWrappedForThatClock() {
         let spring = Animation.spring(duration: 0.5, bounce: 0.3)
         let clock = OuroMotionClock()
         let clocked = OuroMotion.clocked(spring, on: clock)

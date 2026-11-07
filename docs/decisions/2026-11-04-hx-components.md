@@ -268,14 +268,19 @@ It compiled and used every component as documented. What it found, and what chan
   verdicts moved with the load (#28, which #32 fixed for Ouro Feel's own fixture).
 - **What.** `OuroMotionClock`: an app installs one as `OuroMotion.clock` for a test, and every animation OuroHX makes
   through `OuroMotion` (and the toast's words fade) runs on it. A SwiftUI `CustomAnimation` wraps the real one and
-  hands it the clock's time since it began, so the film shows the real springs, not a model of them. The gallery's
+  hands it the clock's time since it began, so the film shows the real springs, not a model of them (`OuroTokens.Spring
+  .animation`, a raw token, is not clocked). The gallery's
   `-clock 1` advances it, and runs the demo's steps, on Ouro Feel's Darwin tick, and the test films with Ouro Feel's
   stepped film: 72 ticks of 0.05 s, no wall-clock waits, no second film.
 - **Proof.** On iOS 26.5, the film on an idle Mac and under eight CPU-burning processes (load average 59) gave the same
   verdicts and the same measurements (settle 0.600 s, no jumps, no double draws); 56 of its 60 samples were identical
   and the other four, mid-arrival, differed by up to 15 points.
 - **Limits.** Wall-clock waits in the app (a toast's countdown, an animation's `delay`) stay on the wall clock, so the
-  demo's toasts wait to be dismissed. Install a clock only for a test: with nothing advancing it, motion never ends.
+  demo's toasts wait to be dismissed. A spring interrupted mid-flight adds to the new one rather than merging into it
+  (the wrapper cannot reach the spring inside the animation it interrupts), so a tuck's path differs from the screen's
+  while both stay continuous. Mid-motion samples can differ between runs, as above. The clock is SPI
+  (`@_spi(OuroMotionClock)`), so a shipping app cannot install it by accident: with nothing advancing it, motion never
+  ends.
 - **Prior art.** Borrowed: Ouro Feel's stepped film and `FeelClock` (#32), and SwiftUI's `CustomAnimation`, whose
   `animate(value:time:context:)` takes the time to show. Watched: Core Animation's `CALayer.speed` and `timeOffset`,
   the classic way to step layer animations, which do not reach SwiftUI's own animations.

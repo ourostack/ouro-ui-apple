@@ -1,4 +1,4 @@
-import OuroHX
+@_spi(OuroMotionClock) import OuroHX
 import SwiftUI
 
 /// Launch arguments pick what to show, so screenshots and UI tests need no taps: `-theme abyss -page pairs`,
@@ -46,11 +46,7 @@ struct GalleryScreen: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if FrameProbe.isOn { FrameProbeControls(probe: probe) }
             }
-            .overlay(alignment: .bottomLeading) {
-                if let clock = GalleryClock.shared {
-                    Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("gallery.clock")
-                }
-            }
+            .overlay(alignment: .bottomLeading) { if let clock = GalleryClock.shared { ClockCount(clock: clock) } }
             .ouroToaster()
             .ouroTheme(theme)
             .task {
@@ -286,7 +282,7 @@ struct TrailingIconLabel: LabelStyle {
 
 /// `-clock 1`: OuroHX's motion and the demos run on a clock the UI test moves one tick at a time, by posting the Darwin
 /// notification `name`, and the screen shows the count (`gallery.clock`). A Feel film then samples every tick, stamped
-/// with the app's time, so a busy runner films the same frames as an idle one (#33). Each tick moves OuroHX's
+/// with the app's time, so a busy runner reaches the same verdicts as an idle one (#33). Each tick moves OuroHX's
 /// ``OuroMotionClock`` and runs whatever the demo set for it in the same main-queue turn, so a change and the count
 /// that shows it reach the screen together.
 /// Not main-actor code: Darwin notifications may arrive on any thread, so the callback hops to the main queue itself.
@@ -300,6 +296,8 @@ private let galleryClockTicked: CFNotificationCallback = { _, _, _, _, _ in
     /// Seconds per tick.
     static let seconds = 0.05
     private(set) var ticks = 0
+    /// Whether a demo has set its steps: the count shows only then, so the test's first tick never comes before them.
+    private(set) var armed = false
     @ObservationIgnored private let motion = OuroMotionClock()
     @ObservationIgnored private var due: [(tick: Int, run: @MainActor () -> Void)] = []
 
@@ -312,6 +310,7 @@ private let galleryClockTicked: CFNotificationCallback = { _, _, _, _, _ in
     /// Runs `run` `seconds` of this clock from now.
     func after(_ seconds: Double, _ run: @escaping @MainActor () -> Void) {
         due.append((ticks + Int((seconds / Self.seconds).rounded()), run))
+        armed = true
     }
 
     fileprivate func tick() {
@@ -320,5 +319,13 @@ private let galleryClockTicked: CFNotificationCallback = { _, _, _, _, _ in
         let now = due.filter { $0.tick <= ticks }
         due.removeAll { $0.tick <= ticks }
         for item in now { item.run() }
+    }
+}
+
+/// The clock's count, in a view of its own so a tick redraws only it, shown once a demo is armed.
+private struct ClockCount: View {
+    let clock: GalleryClock
+    var body: some View {
+        if clock.armed { Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("gallery.clock") }
     }
 }

@@ -16,14 +16,21 @@ final class XrayProbeTests: XCTestCase {
         }
         // XCTest must launch the app: that is what gives AppIntentsTesting a runner service in it to talk to.
         let app = XCUIApplication(bundleIdentifier: plan.bundleIdentifier)
+        // A launch can fail inside XCTest (no process ID). Carry on past it to say so plainly, so the log and the
+        // script's retry tell "the probe could not reach the app" from the app failing a claim.
+        continueAfterFailure = true
+        defer { app.terminate() }
         app.launch()
-        _ = app.wait(for: .runningForeground, timeout: 30)
+        guard app.wait(for: .runningForeground, timeout: 30) else {
+            print("OURO-AX-PROBE-UNREACHED the app never reached the foreground (state \(app.state.rawValue)), so the probe could not reach it")
+            XCTFail("the probe could not reach the app: it never reached the foreground (state \(app.state.rawValue))")
+            return
+        }
         #if os(iOS)
         let platform = "iOS"
         #else
         let platform = "macOS"
         #endif
-        defer { app.terminate() }
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let ranOn = env["OURO_AX_RAN_ON"] ?? "\(platform) \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
         let result = await XrayProbe.run(plan, ranOn: ranOn, refusalsAllowed: env[XrayProbe.disposableVariable] == "1")

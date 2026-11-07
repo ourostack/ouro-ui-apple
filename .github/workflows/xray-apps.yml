@@ -83,8 +83,13 @@ jobs:
             sh scripts/xray-probe.sh --app "$app" --out .build/xray --platform ${{ matrix.platform }} --commit "$commit" \
               --name "${{ matrix.app }}" ${{ matrix.disposable }}
           fi
-      - if: always()
+      - id: upload1
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xray-${{ matrix.platform }}-${{ strategy.job-index }}
           path: .build/xray
+      - if: always() && steps.upload1.outcome == 'failure'
+        run: echo "::warning::The xray-${{ matrix.platform }}-${{ strategy.job-index }} artifact did not upload (see the step's log); the job's result stands, and the X-ray report is in the log above."

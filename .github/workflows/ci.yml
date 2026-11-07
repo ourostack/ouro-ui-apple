@@ -90,12 +90,17 @@ jobs:
         run: swift build --build-tests -Xswiftc -DOURO_REQUIRE_HINGE
       - name: swift test
         run: swift test -Xswiftc -DOURO_REQUIRE_HINGE
-      - if: always()
+      - id: upload1
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: snapshots-actual-xcode-27
           path: Tests/OuroHXTests/__Snapshots__/**/*.actual.png
           if-no-files-found: ignore
+      - if: always() && steps.upload1.outcome == 'failure'
+        run: echo "::warning::The snapshots-actual-xcode-27 artifact did not upload (see the step's log); the job's result stands without it."
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
@@ -157,12 +162,17 @@ jobs:
         id: snapshots
         continue-on-error: true
         run: OURO_SNAPSHOT_RECORD=never swift test --filter ComponentSnapshotTests
-      - if: always()
+      - id: upload2
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: snapshots-actual-macos-26
           path: Tests/OuroHXTests/__Snapshots__/**/*.actual.png
           if-no-files-found: ignore
+      - if: always() && steps.upload2.outcome == 'failure'
+        run: echo "::warning::The snapshots-actual-macos-26 artifact did not upload (see the step's log); the job's result stands without it."
       - name: The skills linter, as an agent runs it
         run: |
           set -u
@@ -207,10 +217,15 @@ jobs:
       # DocC file names hold colons, which upload-artifact refuses, so the archives go up as one tarball.
       - name: Pack DocC
         run: tar -czf .build/docc.tgz -C .build docc
-      - uses: actions/upload-artifact@v4
+      - id: upload3
+        # A copy of what the job built: a storage outage must not turn a passing job red (#35).
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
         with:
           name: docc
           path: .build/docc.tgz
+      - if: steps.upload3.outcome == 'failure'
+        run: echo "::warning::The docc artifact did not upload (see the step's log); the job's result stands without it."
       - name: Component snapshots matched
         if: steps.snapshots.outcome == 'failure'
         run: |
@@ -294,7 +309,10 @@ jobs:
           bundles="$(cd .build && ls -d gallery-ui*.xcresult gallery-ui*.log gallery-motion.xcresult 2>/dev/null || true)"
           test -n "$bundles" && tar -czf .build/gallery-ui.tgz -C .build $bundles || true
           test -d .build/gallery-motion.xcresult && tar -czf .build/gallery-motion.tgz -C .build gallery-motion.xcresult || true
-      - if: always()
+      - id: upload4
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: gallery-ui-xcresult
@@ -302,6 +320,8 @@ jobs:
             .build/gallery-ui.tgz
             .build/gallery-motion.tgz
           if-no-files-found: ignore
+      - if: always() && steps.upload4.outcome == 'failure'
+        run: echo "::warning::The gallery-ui-xcresult artifact did not upload (see the step's log); the job's result stands without it."
 
   xray:
     name: X-ray the fixture app (${{ matrix.name }})
@@ -369,11 +389,16 @@ jobs:
           refusal = n[("intent.error-names-fix", "intent OpenNoteIntent")]
           assert not refusal.startswith("the probe could not reach"), "the refusals reached the app: " + refusal
           PY
-      - if: always()
+      - id: upload5
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: xray-fixture-${{ matrix.platform }}-${{ matrix.xcode }}
           path: .build/xray
+      - if: always() && steps.upload5.outcome == 'failure'
+        run: echo "::warning::The xray-fixture-${{ matrix.platform }}-${{ matrix.xcode }} artifact did not upload (see the step's log); the job's result stands, and the X-ray report is in the log above."
 
   siri-ai-sdk:
     name: Siri AI parts (Xcode 27.3 beta, compile only)
@@ -436,9 +461,14 @@ jobs:
         run: |
           mkdir -p .build/feel-reports
           test -d .build/feel-fixture.xcresult && tar -czf .build/feel-reports/feel-fixture-xcresult.tgz -C .build feel-fixture.xcresult || true
-      - if: always()
+      - id: upload6
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ouro-feel-fixture-reports
           path: .build/feel-reports
           if-no-files-found: ignore
+      - if: always() && steps.upload6.outcome == 'failure'
+        run: echo "::warning::The ouro-feel-fixture-reports artifact did not upload (see the step's log); the job's result stands without it."

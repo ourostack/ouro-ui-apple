@@ -98,7 +98,8 @@ extension View {
     ///   size your own rows with `@Environment(\\.ouroTouchTarget)` to match.
     /// - The body scrolls when it is taller than the sheet; `footer` is the actions row, full width, primary last. At
     ///   the accessibility sizes the whole sheet scrolls, title and actions too, and while the keyboard is up its end
-    ///   (the field being typed in and the actions) stays in view.
+    ///   (the field and the actions) stays in view. That assumes the field sits last, just above the actions: at
+    ///   those sizes a field higher up scrolls away as the keyboard arrives.
     /// - Under Reduce Motion it appears without sliding up, and its content crossfades in.
     public func ouroSheet<Content: View, Footer: View>(
         isPresented: Binding<Bool>,

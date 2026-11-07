@@ -188,21 +188,28 @@ final class ComponentClaimTests: XCTestCase {
     }
 
     /// The lowest contrast of any line of ink in `rect`: rows that hold ink, split wherever a row holds none, each
-    /// measured on its own. So a near-white message can never carry a faint description under it past 5:1.
-    static func lineInkContrast(_ image: UIImage, in rect: CGRect) -> Double {
+    /// measured on its own. So a near-white message can never carry a faint description under it past 5:1. `lineHeight`
+    /// is the tallest line the words can have, in points: a band taller than 1.3 lines (two lines run together), or
+    /// fewer bands than the height holds lines (one too faint to count as ink), reads as 0.
+    static func lineInkContrast(_ image: UIImage, in rect: CGRect, lineHeight: CGFloat) -> Double {
         let rows = luminanceRows(image, in: rect)
         guard !rows.isEmpty else { return 0 }
         let all = rows.flatMap { $0 }.sorted()
         let paper = all[all.count / 2]
         func ratio(_ a: Double, _ b: Double) -> Double { (max(a, b) + 0.05) / (min(a, b) + 0.05) }
         let inked = rows.map { row in row.contains { ratio($0, paper) > 1.5 } }
-        var lines: [[Double]] = [], line: [Double] = [], height = 0
-        for (row, ink) in zip(rows, inked) {
+        var lines: [[Double]] = [], heights: [Int] = [], line: [Double] = [], height = 0
+        for (row, ink) in zip(rows + [[]], inked + [false]) {
             if ink { line += row; height += 1; continue }
-            if height >= 4 { lines.append(line) }
+            if height >= 4 { lines.append(line); heights.append(height) }
             line = []; height = 0
         }
-        if height >= 4 { lines.append(line) }
+        let tallest = lineHeight * image.scale
+        let expected = max(1, Int((rect.height * image.scale / tallest).rounded()))
+        guard lines.count >= expected, heights.allSatisfy({ CGFloat($0) <= 1.3 * tallest }) else {
+            print("toast words: \(lines.count) lines of ink, heights \(heights) px; expected \(expected) of at most \(tallest) px")
+            return 0
+        }
         return lines.map(contrast).min() ?? 0
     }
 
@@ -244,7 +251,11 @@ final class ComponentClaimTests: XCTestCase {
             let frame = element.frame
             let toasts = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.toastIdentifier).allElementsBoundByIndex.map(\.frame)
             guard !frame.isEmpty, toasts.contains(where: { $0.insetBy(dx: -1, dy: -1).contains(frame) }) else { return false }
-            let ratio = lineInkContrast(app.windows.firstMatch.screenshot().image, in: frame)
+            // The toast's message line (`.subheadline`) is its tallest, at the size the app runs at.
+            let size = app.launchArguments.firstIndex(of: "-UIPreferredContentSizeCategoryName")
+                .flatMap { app.launchArguments.indices.contains($0 + 1) ? UIContentSizeCategory(rawValue: app.launchArguments[$0 + 1]) : nil } ?? .large
+            let line = UIFont.preferredFont(forTextStyle: .subheadline, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)).lineHeight
+            let ratio = lineInkContrast(app.windows.firstMatch.screenshot().image, in: frame, lineHeight: line)
             print("toast words \"\(element.label)\" read at \(ratio):1 on screen")
             return ratio >= 5
         }

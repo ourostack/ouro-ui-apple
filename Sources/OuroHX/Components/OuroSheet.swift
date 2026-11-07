@@ -408,6 +408,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
             if phase == .interacting { followsKeyboard = false }
         }
         .onAppear { scrollHost.onTail = { keyboardTail = $0 } }
+        .onChange(of: followsKeyboard) { _, follows in scrollHost.follows = follows }
         #endif
     }
 
@@ -506,9 +507,12 @@ import UIKit
     weak var tailView: UIView?
     private var animates = true
 
+    /// Whether the sheet still follows the keyboard: once someone scrolls, it stays where they put it.
+    var follows = false
+
     /// The tail has been laid out at a new height: place the sheet now that the content holds it.
     func tailLaidOut() {
-        guard tail > 0 else { return }
+        guard tail > 0, follows else { return }
         DispatchQueue.main.async { [weak self] in self.map { $0.keepFocusedFieldInView(animated: $0.animates) } }
     }
 

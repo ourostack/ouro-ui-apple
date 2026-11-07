@@ -102,8 +102,9 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     // MARK: Settle
 
     /// Seconds from the film's start until the element reached the place it then kept to the end, within
-    /// `tolerance` points; nil if it never appeared.
+    /// `tolerance` points; nil if it never appeared, or if the film stalled (its end is not the motion's end).
     public func settleTime(of key: String, tolerance: Double = 0.5) -> Double? {
+        if stalledAt != nil { return nil }
         let track = track(key)
         guard let last = track.last else { return nil }
         var settled = last.t
@@ -114,7 +115,8 @@ public struct FeelFilm: Codable, Equatable, Sendable {
         return settled
     }
 
-    /// When the element first moved (or appeared after the film began): the time of the last sample before it.
+    /// When the element first moved (or appeared after the film began): the time of the last sample before it. On a
+    /// stalled film this still answers for the part that was seen.
     public func motionStart(of key: String, tolerance: Double = 0.5) -> Double? {
         let track = track(key)
         guard let first = track.first else { return nil }

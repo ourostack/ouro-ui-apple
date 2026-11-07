@@ -199,9 +199,11 @@ feel.expect(film.settles("cook.cover", within: 1.0))
 
 **What a film can and cannot see.** XCUITest waits for the app to go idle after every tap, so a film started by a tap
 (`film(_:for:every:during:)`) sees what happens after the transition (late jumps, lingering chrome, ghost copies that stay),
-not the frames inside it. To film a transition itself, have the app start it a moment after the tap: a test-only
-launch argument that delays it. Timing it from launch is fragile: under load, launching took longer than the delay and
-the film began after the motion.
+not the frames inside it. To film a transition itself, run it on the app's own clock
+(below), so the test decides when each frame happens. Timing it from launch is fragile: under load, launching took
+longer than the delay and the film began after the motion. A check
+that sees no motion says "could not check"; it never passes. Nor does a double-draw check whose samples were ever
+further apart than `maxGap` (0.5 s by default) and saw no copy: a copy shown for less than the gap could be missed.
 
 **A film on the app's own clock.** A film timed by the runner's clock gets thinner as the machine gets busier: on
 hosted CI runners samples came over a second apart, and a motion due late (a jump 2 s after landing) fell past the
@@ -217,9 +219,7 @@ way (`FixtureClock`).
 ```swift
 let film = feel.film(["motion.card", "bar.full", "bar.compact"], steps: 35, tick: 0.1, clock: "motion.clock",
                      advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
-``` A check
-that sees no motion says "could not check"; it never passes. Nor does a double-draw check whose samples were ever
-further apart than `maxGap` (0.5 s by default) and saw no copy: a copy shown for less than the gap could be missed.
+```
 
 What the samples show mid-transition (seen on the iOS 27.2 simulator): SwiftUI stretches an animating element's
 accessibility frame from where it is drawn to where it is going, so a sample at another size than the element's resting

@@ -63,7 +63,7 @@ struct TapsPage: View {
     }
 }
 
-/// A two-state control that flips on every tap; with `locks`, it ignores a tap within 0.25 s (by touch timestamp) of
+/// A two-state control that flips on every tap; with `locks`, it ignores a tap within 0.45 s (by touch timestamp) of
 /// its last change.
 struct TapsToggle: UIViewRepresentable {
     @Binding var on: Bool
@@ -94,7 +94,7 @@ struct TapsToggle: UIViewRepresentable {
 
         @objc func tapped(_ sender: UIButton, event: UIEvent) {
             let at = event.allTouches?.first?.timestamp ?? event.timestamp
-            if parent.locks && at - lastChange < 0.25 { return }
+            if parent.locks && at - lastChange < 0.45 { return }
             lastChange = at
             parent.on.toggle()
         }
@@ -103,6 +103,11 @@ struct TapsToggle: UIViewRepresentable {
 
 /// The app's own clock for the motion page: it moves only when the UI test posts the Darwin notification `name`, one
 /// tick per post, and the page shows the count (`motion.clock`), so a film samples every tick however busy the machine.
+/// Not main-actor code: Darwin notifications may arrive on any thread, so the callback hops to the main queue itself.
+private let fixtureClockTicked: CFNotificationCallback = { _, _, _, _, _ in
+    DispatchQueue.main.async { MainActor.assumeIsolated { FixtureClock.shared.ticks += 1 } }
+}
+
 @MainActor @Observable final class FixtureClock {
     static let shared = FixtureClock()
     static let name = "bot.ouro.feel.fixture.tick"
@@ -112,7 +117,7 @@ struct TapsToggle: UIViewRepresentable {
 
     private init() {
         CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), Unmanaged.passUnretained(self).toOpaque(),
-                                        { _, _, _, _, _ in DispatchQueue.main.async { MainActor.assumeIsolated { FixtureClock.shared.ticks += 1 } } },
+                                        fixtureClockTicked,
                                         Self.name as CFString, nil, .deliverImmediately)
     }
 }
@@ -163,7 +168,7 @@ struct MotionPage: View {
             Button("Play") { playedAt = clock.ticks }
                 .accessibilityIdentifier("motion.play")
                 .offset(y: 700)
-            Text("\(clock.ticks)").font(.caption2).accessibilityIdentifier("motion.clock")
+            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("motion.clock")
                 .offset(y: 760)
         }
     }

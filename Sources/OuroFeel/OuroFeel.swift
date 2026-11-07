@@ -448,11 +448,12 @@ public struct OuroFeel {
         var frames = [FeelFrame(t: 0, seen: first)]
         for step in 1...max(1, steps) {
             advance()
-            guard let (w, seen, _) = sample(atLeast: base + step) else {
+            guard let (w, seen, n) = sample(atLeast: base + step) else {
                 return FeelFilm(window: window, frames: frames, stalledAt: Double(step - 1) * tick)
             }
             if w != .zero { window = w }
-            frames.append(FeelFrame(t: Double(step) * tick, seen: seen))
+            // Stamped with the count the app shows, so a tick the app took on its own is never hidden.
+            frames.append(FeelFrame(t: Double(n - base) * tick, seen: seen))
         }
         return FeelFilm(window: window, frames: frames)
     }

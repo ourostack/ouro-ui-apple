@@ -367,6 +367,17 @@ struct ToastsPage: View {
             await play("toast", forth: { toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "demo") }, back: { toast.dismiss("demo") })
         }
         .task {
+            // On the gallery's clock (`-clock 1`), for the Feel film: half a second in, the same three toasts 0.6 s
+            // apart, and the stack empties 3 s after the first. They stay until then, as no wall-clock countdown fits
+            // a clock that only the test moves.
+            guard demo == "stack", let clock = GalleryClock.shared else { return }
+            clock.after(0.5) { toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "a") }
+            clock.after(1.1) { toast("Added to Weeknights", systemImage: "text.badge.plus", duration: .untilDismissed, id: "b") }
+            clock.after(1.7) { toast("Recipe deleted", systemImage: "trash", action: OuroToastAction("Undo") {}, duration: .untilDismissed, id: "c") }
+            clock.after(3.5) { toast.dismiss() }
+        }
+        .task {
+            guard GalleryClock.shared == nil else { return }
             await play("stack", hold: 3, forth: {
                 Task { @MainActor in
                     toast("Recipe saved", tone: .success, duration: .untilDismissed, id: "a")

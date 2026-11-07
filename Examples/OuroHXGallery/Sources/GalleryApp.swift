@@ -46,6 +46,11 @@ struct GalleryScreen: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if FrameProbe.isOn { FrameProbeControls(probe: probe) }
             }
+            .overlay(alignment: .bottomLeading) {
+                if let clock = GalleryClock.shared {
+                    Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("gallery.clock")
+                }
+            }
             .ouroToaster()
             .ouroTheme(theme)
             .task {
@@ -276,5 +281,44 @@ struct TrailingIconLabel: LabelStyle {
             configuration.title
             configuration.icon.imageScale(.small)
         }
+    }
+}
+
+/// `-clock 1`: OuroHX's motion and the demos run on a clock the UI test moves one tick at a time, by posting the Darwin
+/// notification `name`, and the screen shows the count (`gallery.clock`). A Feel film then samples every tick, stamped
+/// with the app's time, so a busy runner films the same frames as an idle one (#33). Each tick moves OuroHX's
+/// ``OuroMotionClock`` and runs whatever the demo set for it in the same main-queue turn, so a change and the count
+/// that shows it reach the screen together.
+/// Not main-actor code: Darwin notifications may arrive on any thread, so the callback hops to the main queue itself.
+private let galleryClockTicked: CFNotificationCallback = { _, _, _, _, _ in
+    DispatchQueue.main.async { MainActor.assumeIsolated { GalleryClock.shared?.tick() } }
+}
+
+@MainActor @Observable final class GalleryClock {
+    static let shared: GalleryClock? = UserDefaults.standard.bool(forKey: "clock") ? GalleryClock() : nil
+    static let name = "bot.ouro.hx.gallery.tick"
+    /// Seconds per tick.
+    static let seconds = 0.05
+    private(set) var ticks = 0
+    @ObservationIgnored private let motion = OuroMotionClock()
+    @ObservationIgnored private var due: [(tick: Int, run: @MainActor () -> Void)] = []
+
+    private init() {
+        OuroMotion.clock = motion
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), Unmanaged.passUnretained(self).toOpaque(),
+                                        galleryClockTicked, Self.name as CFString, nil, .deliverImmediately)
+    }
+
+    /// Runs `run` `seconds` of this clock from now.
+    func after(_ seconds: Double, _ run: @escaping @MainActor () -> Void) {
+        due.append((ticks + Int((seconds / Self.seconds).rounded()), run))
+    }
+
+    fileprivate func tick() {
+        ticks += 1
+        motion.advance(by: Self.seconds)
+        let now = due.filter { $0.tick <= ticks }
+        due.removeAll { $0.tick <= ticks }
+        for item in now { item.run() }
     }
 }

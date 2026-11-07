@@ -135,6 +135,15 @@ public enum FeelWayBack {
         return !before.isSubset(of: Set(barsAfter)) || barsAfter.contains { !before.contains($0) && $0.contains(backMark) }
     }
 
+    /// A height beside the page's middle for an edge swipe, with nothing at the leading edge that a missing pop would
+    /// turn the swipe into (a row's swipe action, a carousel): the first of a few heights near the middle that no
+    /// `blocked` frame touching the edge covers, or nil when none is free, so the swipe is better not sent.
+    public static func quietEdgeHeight(window w: CGRect, blocked: [CGRect]) -> CGFloat? {
+        let edge = w.minX + 1
+        return [0.5, 0.42, 0.58, 0.34, 0.66].map { w.minY + w.height * $0 }
+            .first { y in !blocked.contains { $0.minX <= edge + 30 && $0.maxX >= edge && $0.minY <= y && $0.maxY >= y } }
+    }
+
     /// Whether a tap left the screen by its content: under half of the screen's own texts and controls (`kept` of `of`,
     /// leaving out the tab and navigation bars every screen shares) are still there. A menu, edit mode or a row
     /// expanding keeps the content around it; a push replaces it, even when the bar and a shared control stay. Under

@@ -82,12 +82,20 @@ it hid the screen or floats over controls that stayed where they were (never whe
 (edit mode, a row expanding, "Show more"), which the report notes. A tap that swaps most of a screen's texts in place (paging, a filter row that rebuilds the
 list) reads as a new screen and is asked for a way back; follow such controls out of the walk with `prefixes`. If new elements appeared (a menu, a popover), the walk checks that overlay as the overlay
 genre does: a tap outside it, on nothing the screen behind would act on, must close it, and so must picking its
-topmost safe item; one that stays open fails the way back. An item that opens a submenu is picked through it (the
-submenu's own topmost item), and a popover of controls (a stepper or slider, which it stays open to adjust) is asked
-only for the tap outside, which the report notes. A tap that changes the selected tab ("See all" taking you to the
-Recipes tab) reached that tab's root, whose way back is its tab button: the report notes it and the walk returns by
-that button. The tab bar is never part of a screen's identity, since the system renames its buttons once a page has
-been pushed. If a pick leaves the screen, the walk relaunches back rather
+topmost safe item; one that stays open fails the way back. An item that opens a submenu is picked through it: only
+when its header takes the picked item's place (or the item goes) is the submenu's own topmost item picked, and only
+an item over the menu, never something new elsewhere (a toast's Undo), so a menu that stays open after a pick still
+fails. A popover that holds only a stepper or slider (which it stays open to adjust) is asked only for the tap
+outside; one that also has a button (Apply, Done) must close on it. An overlay with nothing safe to pick (each item
+reads as destructive or as a way back) is asked only for the tap outside too. The report notes both. A tap that
+changes the selected tab of a bottom tab bar ("See all" taking you to the Recipes tab) and lands on that tab's root
+(no back control, and tapping its tab button again leaves it as it is) has its tab button as its way back: the report
+notes it and the walk returns by the button for the tab it started on. One that also pushes a page there ("Open in
+Recipes") is checked like any other screen: a back control and an edge swipe that leave it. Tabs are told by their
+place in the bar, and the tab bar is never part of a screen's identity, since the system renames its buttons once a
+page has been pushed. The iPad sidebar, which lists tabs as cells, is not read as a tab bar. The fixture holds each
+of these shapes beside a near miss that is a real bug (`testWhatIsNotABrokenWayBack`,
+`testNearMissesOfWhatIsNotABrokenWayBack`). If a pick leaves the screen, the walk relaunches back rather
 than carrying on from there, and a control that is gone by the time the walk comes to it is reported as not checked.
 Two limits: a pushed screen with its bar hidden, or a cover with no Close button, that covers under 60% of the window
 is judged as an overlay, so it fails as "a tap outside did not dismiss it" rather than "no visible way back"; and a
@@ -101,7 +109,8 @@ summary line, so a PASS is never read as recovery-free. When buttons are followe
 that is safe to change and repeat. `depth:` (default 2), `limit:` (default 40 screens); each screen already seen costs a
 relaunch, so keep long lists out of the walk with `prefixes`. Its edge swipe starts at the navigation bar's height,
 above any list row, so a missing pop gesture never fires a row's swipe action. If that moves nothing, a second edge
-swipe goes beside the page's middle, at a height with no row at the edge: a zoom transition's pop does not start from
+swipe goes beside the page's middle, at a height where nothing reaches the edge (any cell, keyed or not, and any short
+scroll view, a carousel), and is not sent when every such height is taken: a zoom transition's pop does not start from
 the bar's height (seen on iOS 27.2).
 
 Before each gesture the walk waits for the screen to land (navigation bars and buttons holding still), since a push

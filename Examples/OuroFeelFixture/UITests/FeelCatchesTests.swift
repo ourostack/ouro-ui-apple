@@ -113,6 +113,25 @@ final class FeelCatchesTests: XCTestCase {
                       "the stepper's popover is asked only for a tap outside:\n\(result.text)")
         XCTAssertGreaterThanOrEqual(result.measures["good"] ?? 0, 1, "the zoomed recipe has a way back and a gesture back:\n\(result.text)")
         XCTAssertGreaterThanOrEqual(result.measures["overlays"] ?? 0, 2, "the popover and the menu were both checked:\n\(result.text)")
+        XCTAssertFalse(result.findings.contains { $0.what.contains("kitchen.openInRecipes") && $0.what.contains("switched to") },
+                       "Open in Recipes pushes a page, so it is checked as one, not noted as a tab switch:\n\(result.text)")
+        app.terminate()
+    }
+
+    /// Near misses of those shapes (``KitchenPage`` with `-bug 1`), each a real broken way back the walk must still
+    /// catch: a tab switch that pushes a page with its back button hidden, a popover whose Apply does not close it
+    /// (it also holds a slider), and a menu that stays open after a pick while an Undo toast shows elsewhere.
+    func testNearMissesOfWhatIsNotABrokenWayBack() {
+        let (app, feel) = launch("kitchen", bug: true)
+        XCTAssertTrue(app.buttons["kitchen.seeAll"].waitForExistence(timeout: 30))
+        let result = feel.record(feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1), name: "kitchen-bug")
+        XCTAssertFalse(result.passed, "each near miss is a broken way back:\n\(result.text)")
+        for key in ["kitchen.openInRecipes", "kitchen.heat", "kitchen.tidy"] {
+            XCTAssertTrue(result.detections.contains { $0.what.contains(key) }, "\(key) is named:\n\(result.text)")
+        }
+        for key in ["kitchen.seeAll", "kitchen.serves", "kitchen.recipe", "kitchen.more"] {
+            XCTAssertFalse(result.detections.contains { $0.what.contains(key) }, "\(key) is still no bug:\n\(result.text)")
+        }
         app.terminate()
     }
 

@@ -272,6 +272,35 @@ struct NavPage: View {
     }
 }
 
+/// Kitchen's Tidy menu. A tap outside closes it. The bug: picking Sort by aisle leaves it open and shows an Undo toast at
+/// the bottom of the screen, which is not the menu's and must not be taken for a submenu.
+struct TidyMenu: View {
+    @Binding var open: Bool
+    @Binding var undo: Bool
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.001).ignoresSafeArea().onTapGesture { open = false; undo = false }
+            VStack(spacing: 0) {
+                Button("Sort by aisle") { if bug { undo = true } else { open = false } }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityIdentifier("tidy.sort")
+            }
+            .frame(width: 220)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            if undo {
+                VStack {
+                    Spacer()
+                    Button("Undo") { undo = false; open = false }
+                        .padding()
+                        .background(.regularMaterial, in: Capsule())
+                        .accessibilityIdentifier("tidy.undo")
+                }
+                .padding(.bottom, 24)
+            }
+        }
+    }
+}
+
 /// A small custom menu over the page. `sticks` is the bug: it never closes, neither on a pick nor on a tap outside.
 struct PopMenu: View {
     let choices: [String]
@@ -443,6 +472,11 @@ struct KitchenPage: View {
     @State private var serves = 2
     @State private var adjusting = false
     @State private var scale = 1.0
+    @State private var recipes: [String] = []
+    @State private var tidying = false
+    @State private var undo = false
+    @State private var heating = false
+    @State private var heat = 0.5
     @Namespace private var zoom
     var body: some View {
         TabView(selection: $tab) {
@@ -464,6 +498,18 @@ struct KitchenPage: View {
                         }
                         .accessibilityIdentifier("kitchen.recipe")
                         Button("See all") { tab = "recipes" }.accessibilityIdentifier("kitchen.seeAll")
+                        Button("Open in Recipes") { tab = "recipes"; recipes = ["toast"] }.accessibilityIdentifier("kitchen.openInRecipes")
+                        Button("Heat") { heating = true }
+                            .accessibilityIdentifier("kitchen.heat")
+                            .popover(isPresented: $heating) {
+                                VStack {
+                                    Slider(value: $heat).accessibilityIdentifier("kitchen.heat.slider").frame(width: 200)
+                                    Button("Apply") { if !bug { heating = false } }.accessibilityIdentifier("kitchen.heat.apply")
+                                }
+                                .padding()
+                                .presentationCompactAdaptation(.popover)
+                            }
+                        Button("Tidy") { tidying = true }.accessibilityIdentifier("kitchen.tidy")
                         Button("Serves \(serves)") { adjusting = true }
                             .accessibilityIdentifier("kitchen.serves")
                             .popover(isPresented: $adjusting) {
@@ -491,8 +537,20 @@ struct KitchenPage: View {
                         }
                     }
                 }
+                // Over the whole stack, bar included, so a tap anywhere outside the menu closes it.
+                .overlay {
+                    if tidying { TidyMenu(open: $tidying, undo: $undo) }
+                }
             }
-            Tab("Recipes", systemImage: "book", value: "recipes") { Text("All recipes") }
+            Tab("Recipes", systemImage: "book", value: "recipes") {
+                NavigationStack(path: $recipes) {
+                    Text("All recipes")
+                        .navigationTitle("Recipes")
+                        .navigationDestination(for: String.self) { _ in
+                            Text("Tomato Toast recipe").navigationTitle("Tomato Toast").navigationBarBackButtonHidden(bug)
+                        }
+                }
+            }
         }
     }
 }

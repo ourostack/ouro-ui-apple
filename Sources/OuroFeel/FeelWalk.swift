@@ -215,23 +215,34 @@ extension OuroFeel {
     /// pop gesture never turns into a full swipe across a row and fires its swipe action.
     /// A swipe in from the leading edge. `slower` is the retry for a swipe that moved nothing: a longer press, a slow
     /// drag nearly across, and a hold before letting go, so a loaded machine has time to start the transition.
-    /// `lower` sends it beside the page's middle instead, at a height with no row at the edge: a zoom transition's
-    /// pop does not start from the navigation bar's height (seen on iOS 27.2).
-    func edgeSwipe(slower: Bool = false, lower: Bool = false) {
+    /// `lower` sends it beside the page's middle instead, at a height with nothing at the edge to catch it (every
+    /// cell, keyed or not, and any short scroll view, a carousel): a zoom transition's pop does not start from the
+    /// navigation bar's height (seen on iOS 27.2). When every such height is taken, it is not sent, and returns false.
+    @discardableResult
+    func edgeSwipe(slower: Bool = false, lower: Bool = false) -> Bool {
         let w = windowFrame
         let bar = app.navigationBars.firstMatch
         var y = bar.exists && w.contains(bar.frame) ? bar.frame.midY : w.minY + min(100, w.height * 0.12)
         if lower {
-            let rows = tree().onScreen.values.filter { $0.type == .cell }.map(\.frame)
-            let edge = w.minX + 1
-            y = [0.5, 0.42, 0.58, 0.34, 0.66].map { w.minY + w.height * $0 }
-                .first { y in !rows.contains { $0.minX <= edge + 30 && $0.maxX >= edge && $0.minY <= y && $0.maxY >= y } } ?? y
+            var blocked: [CGRect] = []
+            if let root = try? app.snapshot() {
+                func walk(_ node: any XCUIElementSnapshot) {
+                    if node.elementType == .cell || (node.elementType == .scrollView && node.frame.height < w.height * 0.5) {
+                        blocked.append(node.frame)
+                    }
+                    node.children.forEach(walk)
+                }
+                walk(root)
+            }
+            guard let quiet = FeelWayBack.quietEdgeHeight(window: w, blocked: blocked) else { return false }
+            y = quiet
         }
         if slower {
             point(w.minX + 1, y).press(forDuration: 0.3, thenDragTo: point(w.minX + w.width * 0.9, y), withVelocity: .slow, thenHoldForDuration: 0.3)
         } else {
             point(w.minX + 1, y).press(forDuration: 0.05, thenDragTo: point(w.minX + w.width * 0.7, y), withVelocity: .default, thenHoldForDuration: 0)
         }
+        return true
     }
 
     func swipeDown(slower: Bool = false) {
@@ -387,19 +398,36 @@ extension OuroFeel {
         var tabSwitches: [String] = []
     }
 
-    /// The label of the selected button in a tab bar, if the screen has one.
-    func selectedTab() -> String? {
+    /// The selected button of the screen's first tab bar (a bottom tab bar; the iPad sidebar lists tabs as cells and
+    /// is not read): its place in the bar, which no rename changes (the system renames a tab button's identifier once
+    /// a page is pushed), and its label, for the report.
+    func selectedTab() -> (index: Int, name: String)? {
         guard let root = try? app.snapshot() else { return nil }
-        var found: String?
-        func walk(_ node: any XCUIElementSnapshot, inBar: Bool) {
-            if found != nil { return }
-            let bar = inBar || node.elementType == .tabBar
-            // By label: the system renames a tab button's identifier, never its label.
-            if bar, node.elementType == .button, node.isSelected { found = node.label.isEmpty ? Self.key(node) : node.label; return }
-            node.children.forEach { walk($0, inBar: bar) }
+        var bar: (any XCUIElementSnapshot)?
+        func find(_ node: any XCUIElementSnapshot) {
+            if bar != nil { return }
+            if node.elementType == .tabBar { bar = node; return }
+            node.children.forEach(find)
         }
-        walk(root, inBar: false)
-        return found
+        find(root)
+        guard let bar else { return nil }
+        var buttons: [any XCUIElementSnapshot] = []
+        func collect(_ node: any XCUIElementSnapshot) {
+            if node.elementType == .button { buttons.append(node) }
+            node.children.forEach(collect)
+        }
+        collect(bar)
+        guard let i = buttons.firstIndex(where: \.isSelected) else { return nil }
+        let name = buttons[i].label.isEmpty ? "#\(i + 1)" : buttons[i].label
+        return (i, name)
+    }
+
+    /// Taps the tab button at `index` in the first tab bar; false when there is none there to tap.
+    func tapTab(_ index: Int) -> Bool {
+        let button = app.tabBars.firstMatch.buttons.element(boundBy: index)
+        guard button.exists else { return false }
+        button.tap()
+        return true
     }
 
     /// Every element on screen that has an identifier or label, of any type, with its frame and type. Unlike the
@@ -442,23 +470,30 @@ extension OuroFeel {
 
     /// An overlay a tap opened (`appeared` holds its elements): a tap outside it should close it, and so should
     /// picking an item in it, after `reopen` brings it back.
-    /// Why an overlay is a popover of controls rather than a menu, or nil: a stepper or slider in it.
-    static func holdsControls(_ appeared: [String: (frame: CGRect, type: XCUIElement.ElementType)]) -> String? {
-        if appeared.contains(where: { [.stepper, .slider].contains($0.value.type) || $0.key.hasSuffix("-Increment") || $0.key.hasSuffix("-Decrement") }) {
-            return "it holds a stepper or slider, which it stays open to adjust"
-        }
-        return nil
+    /// The parts of the steppers and sliders in an overlay: the controls themselves, their increment and decrement
+    /// buttons, and any button inside one. An overlay stays open while they are adjusted, so they are never its pick.
+    static func controlParts(_ appeared: [String: (frame: CGRect, type: XCUIElement.ElementType)]) -> Set<String> {
+        let controls = appeared.filter { [.stepper, .slider].contains($0.value.type) }
+        return Set(appeared.filter { k, v in
+            controls[k] != nil || k.hasSuffix("-Increment") || k.hasSuffix("-Decrement")
+                || controls.values.contains { $0.frame.insetBy(dx: -1, dy: -1).contains(v.frame) }
+        }.keys)
     }
 
     func checkOverlay(_ name: String, appeared: [String: (frame: CGRect, type: XCUIElement.ElementType)],
                       around before: [String: (frame: CGRect, type: XCUIElement.ElementType)], reopen: () -> Void) -> FeelOverlayTrial {
         func showing() -> Bool { let now = elements(); return appeared.keys.contains { now[$0] != nil } }
-        let area = appeared.values.map(\.frame).reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -8, dy: -8)
+        // Its items, with room for the chrome around them (a popover's padding and arrow), which has no element.
+        let area = appeared.values.map(\.frame).reduce(CGRect.null) { $0.union($1) }.insetBy(dx: -24, dy: -24)
         let w = windowFrame
-        // Outside it, and on nothing the screen behind would act on, so the tap can only dismiss.
+        // Outside it, and on nothing the screen behind would act on, so the tap can only dismiss: a few likely
+        // places first, then anywhere on a grid over the window (a long list covers the likely ones).
         let controls = before.values.filter { [.button, .cell, .link, .switch, .textField, .segmentedControl].contains($0.type) }.map(\.frame)
-        let outside = [CGPoint(x: w.midX, y: w.maxY - 40), CGPoint(x: w.minX + 20, y: w.midY), CGPoint(x: w.maxX - 20, y: w.midY),
-                       CGPoint(x: w.midX, y: w.midY), CGPoint(x: w.midX, y: w.minY + 70)]
+        let grid = stride(from: 0.15, through: 0.85, by: 0.1).flatMap { y in
+            [0.1, 0.3, 0.5, 0.7, 0.9].map { x in CGPoint(x: w.minX + w.width * x, y: w.minY + w.height * y) }
+        }
+        let outside = ([CGPoint(x: w.midX, y: w.maxY - 40), CGPoint(x: w.minX + 20, y: w.midY), CGPoint(x: w.maxX - 20, y: w.midY),
+                        CGPoint(x: w.midX, y: w.midY), CGPoint(x: w.midX, y: w.minY + 70)] + grid)
             .first { p in !area.contains(p) && !controls.contains { $0.insetBy(dx: -4, dy: -4).contains(p) } }
         var outsideDismisses: Bool?
         if let p = outside {
@@ -472,17 +507,23 @@ extension OuroFeel {
                 return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: nil)
             }
         }
-        // A popover of controls (a stepper, a slider) stays open while they are adjusted: no pick is asked of it.
-        if let why = Self.holdsControls(appeared) {
+        // The topmost item that is safe to pick, never a part of a stepper or slider. One that opens a submenu leaves
+        // the menu up with new items in it: the pick is then made in the submenu, once.
+        let parts = Self.controlParts(appeared)
+        func pickable(_ shown: [String: (frame: CGRect, type: XCUIElement.ElementType)]) -> (key: String, value: (frame: CGRect, type: XCUIElement.ElementType))? {
+            shown.filter { [.button, .menuItem, .cell].contains($0.value.type) && !parts.contains($0.key)
+                && !FeelSafety.isDangerous($0.key) && !FeelWayBack.saysBack($0.key) }
+                .min { $0.value.frame.minY < $1.value.frame.minY }
+        }
+        // A popover that holds only a stepper or slider stays open while they are adjusted: no pick is asked of it.
+        // One that also has a button (Apply, Done) is asked to close on it. An overlay whose every item reads as
+        // destructive or as a way back has nothing to pick either, and the report says so rather than passing it quietly.
+        if pickable(appeared) == nil {
             // Leave it closed, as a person would, so the walk carries on without a relaunch.
             if let p = outside, showing() { point(p.x, p.y).tap(); _ = wait(3) { !showing() } }
-            return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, noPickBecause: why)
-        }
-        // The topmost item that is safe to pick. One that opens a submenu leaves the menu up with new items in it:
-        // the pick is then made in the submenu, once.
-        func pickable(_ shown: [String: (frame: CGRect, type: XCUIElement.ElementType)]) -> (key: String, value: (frame: CGRect, type: XCUIElement.ElementType))? {
-            shown.filter { [.button, .menuItem, .cell].contains($0.value.type) && !FeelSafety.isDangerous($0.key) && !FeelWayBack.saysBack($0.key) }
-                .min { $0.value.frame.minY < $1.value.frame.minY }
+            return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses,
+                                    noPickBecause: parts.isEmpty ? "nothing in it is safe to pick (each item reads as destructive or as a way back)"
+                                        : "it holds only a stepper or slider, which it stays open to adjust")
         }
         var pickDismisses: Bool?
         if let item = pickable(appeared) {
@@ -491,9 +532,14 @@ extension OuroFeel {
             pickDismisses = wait(3) { !showing() }
             if pickDismisses == false {
                 let now = elements()
-                // What the submenu brought, leaving out its header, which takes the picked item's place (and goes back).
-                let submenu = now.filter { appeared[$0.key] == nil && before[$0.key] == nil && !$0.value.frame.intersects(f) }
-                if let inner = pickable(submenu) {
+                let new = now.filter { appeared[$0.key] == nil && before[$0.key] == nil }
+                // A submenu opens in the menu's place: its header takes the picked item's place (or the item goes),
+                // and its items lie over the menu. Anything new elsewhere (a toast's Undo, a banner) is not the menu's
+                // and is never tapped, so a menu that stays open after a pick fails.
+                let opened = now[item.key] == nil || new.values.contains { $0.frame.intersects(f) }
+                let reach = area.insetBy(dx: -40, dy: -40)
+                let submenu = new.filter { !$0.value.frame.intersects(f) && $0.value.frame.intersects(reach) }
+                if opened, let inner = pickable(submenu) {
                     point(inner.value.frame.midX, inner.value.frame.midY).tap()
                     pickDismisses = wait(3) { !showing() }
                 }
@@ -537,13 +583,59 @@ extension OuroFeel {
             pause(0.8)
             landed()
             let there = signature(follow)
-            // A control that switches tabs ("See all" taking you to the Recipes tab) leads to a tab's own root, whose
-            // way back is its tab button, not a back control: say so and return by that button.
-            if let from = tabBefore, let to = selectedTab(), to != from {
+            // A control that switches tabs ("See all" taking you to the Recipes tab) and lands on that tab's root has
+            // its tab button as its way back, not a back control: say so and return by that button. One that also
+            // pushes a page there ("Open in Recipes") lands on a page that needs a way back like any other.
+            if let from = tabBefore, let to = selectedTab(), to.index != from.index {
                 let label = ([entry.name] + path + [key]).joined(separator: " › ")
-                walk.tabSwitches.append("\(label): switched to the \(to) tab")
-                app.tabBars.buttons.matching(NSPredicate(format: "label == %@", from)).firstMatch.tap()
-                if !wait(3, until: { signature(follow) == here }) {
+                let landing = there
+                func onLanding() -> Bool { signature(follow) == landing }
+                func returned() -> Bool { tapTab(from.index) && wait(3, until: { signature(follow) == here }) }
+                // Lands again by the same tap, after a check took the walk off the page.
+                func reland() -> Bool {
+                    guard returned(), target.exists else { return false }
+                    target.tap()
+                    pause(0.8)
+                    landed()
+                    return onLanding()
+                }
+                // A tab's root has no back control, and its own tab button, tapped again, leaves it as it is; a page
+                // pushed on it pops back to the root.
+                var atRoot = backAffordance() == nil
+                if atRoot, tapTab(to.index) { atRoot = !wait(2, until: { !onLanding() }) }
+                if atRoot {
+                    walk.tabSwitches.append("\(label): switched to the \(to.name) tab")
+                } else {
+                    var gesture: String?
+                    var arrived = false
+                    if !onLanding(), !reland() {
+                        guard recover(entry, path, because: "to land again on what \(label) pushed on the \(to.name) tab", &walk) else { return }
+                        _ = reland()
+                    }
+                    if onLanding() {
+                        for (n, swipe) in [("edge swipe", { self.edgeSwipe() }), ("edge swipe lower", { self.edgeSwipe(lower: true) }),
+                                           ("slower edge swipe", { self.edgeSwipe(slower: true) })] as [(String, () -> Bool)] {
+                            var sent = false
+                            arrived = moves(.horizontal) { sent = swipe() } || arrived
+                            if sent, wait(3, until: { !onLanding() }) { gesture = n; break }
+                        }
+                        if gesture != nil, !reland() {
+                            guard recover(entry, path, because: "to land again on what \(label) pushed on the \(to.name) tab", &walk) else { return }
+                            _ = reland()
+                        }
+                    }
+                    var shown: String?
+                    var returns = false
+                    if onLanding(), let back = backAffordance() {
+                        shown = back.label.isEmpty ? back.identifier : back.label
+                        back.tap()
+                        returns = wait(3) { !onLanding() }
+                    }
+                    walk.screens.append(FeelDestination(path: [entry.name] + path + [key], affordance: shown, affordanceReturns: returns,
+                                                        gesture: gesture, diagnostic: "switched to the \(to.name) tab and pushed a page there",
+                                                        gestureArrived: gesture == nil ? arrived : nil))
+                }
+                if !returned() {
                     guard recover(entry, path, because: "to get back to \(place) after \(label) switched tabs", &walk) else { return }
                 }
                 here = signature(follow)

@@ -87,6 +87,25 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
 }
 
 @Suite struct MotionTests {
+    /// A film on the app's own clock that the app stopped answering ends where the clock stalled; every motion check on
+    /// it says it could not be checked, never passes on frames it never saw (a jump due later was not filmed).
+    @Test func aStalledClockCannotPass() {
+        var f = film([(0, [card(200), card(100, key: "bar.full", label: "Kitchen")]),
+                      (0.1, [card(200), card(100, key: "bar.full", label: "Kitchen")]),
+                      (0.2, [card(200), card(100, key: "bar.full", label: "Kitchen")])])
+        f.stalledAt = 0.2
+        let results = [f.jumps(of: "card"), f.settles("card", within: 1), f.doubleDraws(of: ["Card"]),
+                       f.snaps(of: "card"), f.chrome(from: "bar.full", to: "bar.compact")]
+        for r in results {
+            #expect(!r.passed, "\(r.check)")
+            #expect(r.findings.contains { $0.unchecked && $0.what.contains("stopped at 0.200 s") }, "\(r.check): \(r.findings)")
+        }
+        let decoded = try? JSONDecoder().decode(FeelFilm.self, from: f.json)
+        #expect(decoded?.stalledAt == 0.2)
+        let old = try? JSONDecoder().decode(FeelFilm.self, from: Data(#"{"window":[[0,0],[402,874]],"frames":[]}"#.utf8))
+        #expect(old != nil && old?.stalledAt == nil)
+    }
+
     @Test func settleTimeIsWhenTheElementLastMoved() {
         let f = film([(0, [card(900)]), (0.1, [card(600)]), (0.2, [card(420)]), (0.3, [card(400)]), (0.4, [card(400)]), (0.8, [card(400)])])
         #expect(f.settleTime(of: "card") == 0.3)

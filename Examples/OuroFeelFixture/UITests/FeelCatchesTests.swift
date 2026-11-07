@@ -46,12 +46,11 @@ final class FeelCatchesTests: XCTestCase {
         both("taps") { app, feel in
             // The OS rate is context only: the bar is absolute, and on the iOS 27.2 simulator UIKit's switch drops it.
             let os = feel.osBaseline(trials: 5, rapid: true)
-            let result = feel.tapLanding(on: app.switches["taps.toggle"], trials: 3, rapid: 5, rapidBaseline: os)
+            let result = feel.tapLanding(on: app.descendants(matching: .any)["taps.toggle"].firstMatch, trials: 3, rapid: 5, rapidBaseline: os)
             if isBugBuild(app) {
-                // The lock is named either way: as lost rapid taps, or (on a loaded machine that bunches paced taps
-                // into the lock) as a centre single tap that missed, which leaves the pairs unscored.
-                XCTAssertTrue(result.detections.contains { $0.what.contains("rapid taps") || $0.what.hasPrefix("centre:") },
-                              "taps lost while animating are named:\n\(result.text)")
+                // The lock reads touch timestamps, so a double tap always meets it and paced taps never do.
+                XCTAssertTrue(result.detections.contains { $0.what.contains("rapid taps") }, "taps lost while animating are named:\n\(result.text)")
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("trailing edge:") }, "the dead strip is named:\n\(result.text)")
             }
             return (result, nil)
         }
@@ -114,13 +113,15 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
-    /// The motion genres from one film each: the film taps Play, and the card's travel starts two seconds later, after
-    /// XCUITest's idle wait for the tap (a start timed from launch was missed when launching took longer under load).
+    /// The motion genres from one film each, on the fixture's own clock (``FixtureClock`` in the app): the film taps
+    /// Play, then advances the app a tick (0.1 s) at a time and samples each tick, so a busy runner films the same 36
+    /// frames as a quiet one, only more slowly. The motion starts half a second after Play.
     private func motion(_ judge: (FeelFilm) -> FeelResult) {
         both("motion") { app, feel in
             let play = app.buttons["motion.play"]
             _ = play.waitForExistence(timeout: 10)
-            let film = feel.film(["motion.card", "motion.ghost", "Pancakes", "bar.full", "bar.compact"], for: 7) { play.tap() }
+            let film = feel.film(["motion.card", "motion.ghost", "Pancakes", "bar.full", "bar.compact"], steps: 35, tick: 0.1,
+                                 clock: "motion.clock", advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
             return (judge(film), film)
         }
     }
@@ -129,18 +130,18 @@ final class FeelCatchesTests: XCTestCase {
     func testJumpAfterLanding() { motion { $0.jumps(of: "motion.card") } }
     func testDoubleDraw() { motion { $0.doubleDraws(of: ["Pancakes"]) } }
     func testLateOrLingeringChrome() { motion { $0.chrome(from: "bar.full", to: "bar.compact") } }
-    /// The fixed card eases for 0.8 s; snapshots and the runner's clock add up to a few tenths, so the limit is 1.25 s.
-    /// The bug's late nudge, 2 s after it landed, is well past it.
+    /// The fixed card eases for 0.8 s of the app's clock; the bug's late nudge, 2 s after it landed, is well past 1.25 s.
     func testSettleTime() { motion { $0.settles("motion.card", within: 1.25) } }
 
     /// Not a pass or fail: one `XCTHitchMetric` reading of the fixed motion page, so the result bundle shows what the
     /// simulator reports (a proxy; gate hitches on a device).
     func testHitchMetricReading() throws {
         guard #available(iOS 26.0, *) else { throw XCTSkip("XCTHitchMetric needs iOS 26") }
-        let (app, feel) = launch("motion", bug: false, ["-autoplay", "0.1"])
+        let (app, feel) = launch("motion", bug: false)
+        let advance = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
         feel.measureHitches(in: self, iterations: 1) {
             app.buttons["motion.play"].tap()
-            Thread.sleep(forTimeInterval: 1.5)
+            _ = feel.film(["motion.card"], steps: 15, tick: 0.1, clock: "motion.clock", advance: advance)
         }
     }
 }

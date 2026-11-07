@@ -82,6 +82,24 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// A push under a tab bar, from a screen whose only other control the pushed page shares, is a new screen: it is
+    /// asked for its way back (the bug build hides it) and is no overlay, in both builds.
+    func testAPushUnderATabBar() {
+        both("push") { app, feel in
+            let chefs = FeelEntry("Chefs") { app in
+                let link = app.buttons["push.chefs"].firstMatch
+                if link.waitForExistence(timeout: 10) { link.tap() }
+            }
+            let result = feel.wayBack(from: [chefs], follow: FeelFollow(types: [.button]), depth: 1)
+            XCTAssertEqual(result.measures["overlays"] ?? 0, 0, "a push is no overlay:\n\(result.text)")
+            XCTAssertGreaterThanOrEqual(result.measures["screens"] ?? 0, 1, "the pushed profile is a screen:\n\(result.text)")
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("push.chef") }, "the profile with no way back is named:\n\(result.text)")
+            }
+            return (result, nil)
+        }
+    }
+
     func testOverlayDismissal() {
         both("overlay") { _, feel in (feel.overlays([.button("overlay.open", overlay: "overlay.sidebar", pick: "overlay.saved")]), nil) }
     }

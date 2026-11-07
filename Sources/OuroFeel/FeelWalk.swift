@@ -131,12 +131,22 @@ extension OuroFeel {
         }
     }
 
-    /// The titles of the navigation bars on screen.
+    /// The navigation bars on screen, each by its title and back buttons (``FeelWayBack/barIdentity(key:backLabels:)``).
     func barTitles() -> [String] {
         guard let root = try? app.snapshot() else { return [] }
         var titles: [String] = []
+        // Only the system back button (or one that says back): Done, Cancel and Close come and go with edit mode,
+        // selection and a popover's own bar, which are no push.
+        func backLabels(_ node: any XCUIElementSnapshot) -> [String] {
+            node.children.flatMap { child in
+                child.elementType == .button && FeelWayBack.isBackButton(identifier: child.identifier, label: child.label)
+                    ? [child.label] : backLabels(child)
+            }
+        }
         func walk(_ node: any XCUIElementSnapshot) {
-            if node.elementType == .navigationBar { titles.append(Self.key(node)) }
+            if node.elementType == .navigationBar {
+                titles.append(FeelWayBack.barIdentity(key: Self.key(node), backLabels: backLabels(node)))
+            }
             node.children.forEach(walk)
         }
         walk(root)
@@ -367,20 +377,33 @@ extension OuroFeel {
     /// Every element on screen that has an identifier or label, of any type, with its frame and type. Unlike the
     /// signature, it includes menu items, so an open menu shows here.
     func elements() -> [String: (frame: CGRect, type: XCUIElement.ElementType)] {
-        guard let root = try? app.snapshot() else { return [:] }
+        tree().onScreen
+    }
+
+    /// One snapshot, read three ways: what is on screen (``elements()``), every key in the tree on screen or not
+    /// (content scrolled below the fold is still there), and the keys inside a tab bar, navigation bar or toolbar,
+    /// the chrome every screen shares rather than its content. A key both in chrome and in content counts as content.
+    func tree() -> (onScreen: [String: (frame: CGRect, type: XCUIElement.ElementType)], all: Set<String>, chrome: Set<String>) {
+        guard let root = try? app.snapshot() else { return ([:], [], []) }
         let window = Self.mainWindow(root)
-        var all: [String: (frame: CGRect, type: XCUIElement.ElementType)] = [:]
-        func walk(_ node: any XCUIElementSnapshot) {
+        var onScreen: [String: (frame: CGRect, type: XCUIElement.ElementType)] = [:]
+        var all = Set<String>(), chrome = Set<String>(), content = Set<String>()
+        func walk(_ node: any XCUIElementSnapshot, inChrome: Bool) {
             // A keyboard that a text field brought up floats over rows, but it is no overlay to dismiss.
             guard node.elementType != .keyboard else { return }
+            let isChrome = inChrome || [.tabBar, .navigationBar, .toolbar].contains(node.elementType)
             let key = Self.key(node)
-            if !key.isEmpty, node.frame.width > 0, node.frame.intersects(window), all[key] == nil {
-                all[key] = (node.frame, node.elementType)
+            if !key.isEmpty {
+                all.insert(key)
+                if isChrome { chrome.insert(key) } else { content.insert(key) }
+                if node.frame.width > 0, node.frame.intersects(window), onScreen[key] == nil {
+                    onScreen[key] = (node.frame, node.elementType)
+                }
             }
-            node.children.forEach(walk)
+            node.children.forEach { walk($0, inChrome: isChrome) }
         }
-        walk(root)
-        return all
+        walk(root, inChrome: false)
+        return (onScreen, all, chrome.subtracting(content))
     }
 
     /// Relaunches back to `path` to recover, and says so in the report.
@@ -453,13 +476,13 @@ extension OuroFeel {
                 walk.missing.append(([entry.name] + path + [key]).joined(separator: " › "))
                 continue
             }
-            let before = elements()
+            let (before, _, chrome) = tree()
             target.tap()
             lastTap = Date()
             pause(0.8)
             landed()
             let there = signature(follow)
-            let after = elements()
+            let (after, afterAll, _) = tree()
             // What the tap added; scroll bars and other plain containers are noise.
             let appeared = after.filter { before[$0.key] == nil && $0.value.type != .other }
             let label = ([entry.name] + path + [key]).joined(separator: " › ")
@@ -470,7 +493,10 @@ extension OuroFeel {
             let others = keys.filter { $0 != key }.prefix(8)
             let stillThere = others.filter { after[$0] != nil }.count
             let barsAfter = barTitles()
-            let gone = FeelWayBack.isNewScreen(barsBefore: bars, barsAfter: barsAfter, stillThere: stillThere, of: others.count)
+            // The screen's own content, leaving out the bars every screen shares: a push replaces most of it.
+            let content = before.filter { [.button, .link, .cell, .staticText].contains($0.value.type) && !chrome.contains($0.key) }
+            let leftContent = FeelWayBack.leftContent(kept: content.keys.filter { afterAll.contains($0) }.count, of: content.count)
+            let gone = leftContent || FeelWayBack.isNewScreen(barsBefore: bars, barsAfter: barsAfter, stillThere: stillThere, of: others.count)
             // Only a tap that hid the screen can have opened a hiding overlay (a system menu).
             let hides = gone && FeelWayBack.opensOverlay(barsBefore: bars, barsAfter: barsAfter, appeared: appeared.values.map(\.frame),
                                                  appearedSaysBack: appeared.contains { FeelWayBack.saysBack($0.key) }, window: windowFrame)
@@ -485,7 +511,9 @@ extension OuroFeel {
             // Only what can be read or acted on floats: a glyph that changed inside a control that stayed (a disclosure
             // chevron turning) is that control's own state.
             let floating = appeared.values.filter { [.button, .cell, .link, .menuItem, .staticText, .switch, .textField].contains($0.type) }
-            let overlay = hides || FeelWayBack.floatsOver(appeared: floating.map(\.frame), stayed: stayed)
+            // What replaced the bar or the content went somewhere new; it floats over nothing.
+            let overlay = hides || (!FeelWayBack.replacedBar(barsBefore: bars, barsAfter: barsAfter) && !leftContent
+                && FeelWayBack.floatsOver(appeared: floating.map(\.frame), stayed: stayed))
             if overlay || !gone {
                 if overlay {
                     // A menu or popover: it must go away with a tap outside and once an item is picked.
@@ -494,7 +522,7 @@ extension OuroFeel {
                     if elements().keys.contains(where: { appeared[$0] != nil }) {
                         guard recover(entry, path, because: "after \(label), whose overlay stayed open", &walk) else { return }
                     }
-                    if barTitles() != bars {
+                    if Set(barTitles()) != Set(bars) {
                         // Picking took the walk somewhere else: go back rather than adopt that screen as this one.
                         guard recover(entry, path, because: "after \(label), whose pick left the screen", &walk) else { return }
                     }

@@ -662,6 +662,53 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(FeelWayBack.isNewScreen(barsBefore: [], barsAfter: [], stillThere: 0, of: 0))
     }
 
+    /// A bar with no title is known by its back button too, so a push that keeps the bar's identifier (an untitled
+    /// SwiftUI bar) but brings a back button, or changes its title, is a new bar.
+    @Test func aBarIsKnownByItsBackButtonToo() {
+        let root = FeelWayBack.barIdentity(key: "NavigationStackHosting", backLabels: [])
+        let chefs = FeelWayBack.barIdentity(key: "NavigationStackHosting", backLabels: ["Kitchen"])
+        let profile = FeelWayBack.barIdentity(key: "NavigationStackHosting", backLabels: ["Back"])
+        #expect(root == "NavigationStackHosting")
+        #expect(root != chefs && chefs != profile)
+        #expect(FeelWayBack.isNewScreen(barsBefore: [chefs], barsAfter: [profile], stillThere: 1, of: 1))
+    }
+
+    /// Only the bar's way back names it: Done, Cancel and Close come with edit mode, selection and a popover's own bar.
+    @Test func onlyTheBackButtonNamesABar() {
+        #expect(FeelWayBack.isBackButton(identifier: "BackButton", label: "Kitchen"))
+        #expect(FeelWayBack.isBackButton(identifier: "", label: "Back"))
+        #expect(!FeelWayBack.isBackButton(identifier: "", label: "Done"))
+        #expect(!FeelWayBack.isBackButton(identifier: "Cancel", label: "Cancel"))
+        #expect(!FeelWayBack.isBackButton(identifier: "", label: "Close"))
+        #expect(!FeelWayBack.isBackButton(identifier: "", label: "Feedback"))
+        // A popover with its own Done bar adds a bar with no way back: it stays an overlay candidate.
+        #expect(!FeelWayBack.replacedBar(barsBefore: ["Recipes"], barsAfter: ["Recipes", FeelWayBack.barIdentity(key: "Filter", backLabels: [])]))
+    }
+
+    /// A tap that replaced a bar that was on screen, or brought a bar with a back button, went somewhere new, so what it
+    /// brought cannot float over the screen as an overlay: a pushed page's content under a tab bar that stayed is no
+    /// menu. A tap that only added a bar with no way back (a popover with its own) or kept them all may still have
+    /// opened one.
+    @Test func aReplacedBarRulesOutAnOverlay() {
+        #expect(FeelWayBack.replacedBar(barsBefore: ["Chefs ‹ Kitchen"], barsAfter: ["Chefs ‹ Back"]))
+        #expect(!FeelWayBack.replacedBar(barsBefore: ["Recipes"], barsAfter: ["Recipes"]))
+        #expect(!FeelWayBack.replacedBar(barsBefore: ["Recipes"], barsAfter: ["Recipes", "Filter"]))
+        #expect(!FeelWayBack.replacedBar(barsBefore: [], barsAfter: ["Settings"]))
+        // A bar that arrives with a back button is a push, even from a screen with no bar.
+        #expect(FeelWayBack.replacedBar(barsBefore: [], barsAfter: [FeelWayBack.barIdentity(key: "Hosting", backLabels: ["Back"])]))
+    }
+
+    /// A tap after which most of the screen's own content (its texts and controls, not the tab or navigation bars that
+    /// every screen shares) is gone left the screen, even when its bar and a shared control stayed. Too little content
+    /// to judge says nothing.
+    @Test func mostContentGoneLeftTheScreen() {
+        #expect(FeelWayBack.leftContent(kept: 2, of: 9))
+        #expect(FeelWayBack.leftContent(kept: 2, of: 5))
+        #expect(!FeelWayBack.leftContent(kept: 5, of: 9))
+        #expect(!FeelWayBack.leftContent(kept: 9, of: 9))
+        #expect(!FeelWayBack.leftContent(kept: 0, of: 3))
+    }
+
     @Test func emptyStartKeepsNothing() {
         let r = FeelPlace.compare(start: FeelPlace.empty, after: ["relaunch": FeelPlace.empty])
         #expect(!r.passed)

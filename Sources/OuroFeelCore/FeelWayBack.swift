@@ -100,13 +100,47 @@ public enum FeelWayBack {
                                  measures: ["screens": Double(screens.count), "good": Double(good)], findings: findings)
     }
 
-    /// Whether a tap reached a new screen. A tap that left the navigation bars as they were (`barsBefore`, their
-    /// titles) and most of the screen's followable controls still in the tree (`stillThere` of `of`; covered counts) changed
-    /// the screen in place (a menu opened, edit mode, a row expanded), so the walk does not ask it for a way back.
+    /// Whether a tap reached a new screen. A tap that left the navigation bars as they were (`barsBefore`, by
+    /// ``barIdentity(key:backLabels:)``) and most of the screen's followable controls still in the tree (`stillThere`
+    /// of `of`; covered counts) changed the screen in place (a menu opened, edit mode, a row expanded), so the walk
+    /// does not ask it for a way back.
     public static func isNewScreen(barsBefore: [String], barsAfter: [String], stillThere: Int, of total: Int) -> Bool {
         if barsBefore.sorted() != barsAfter.sorted() { return true }
         guard total > 0 else { return true }
         return Double(stillThere) / Double(total) < 0.5
+    }
+
+    /// A navigation bar's identity for the walk: its key (its title, or SwiftUI's identifier when it has none) and the
+    /// labels of its back buttons. An untitled bar keeps one identifier from screen to screen; its back button says
+    /// where it goes back to, so a push changes it.
+    public static func barIdentity(key: String, backLabels: [String]) -> String {
+        ([key] + backLabels).joined(separator: backMark)
+    }
+
+    static let backMark = " ‹ "
+
+    /// Whether a navigation-bar button is the bar's way back to the last screen: the system back button (identifier
+    /// `BackButton`) or one whose identifier or label says back. Done, Cancel and Close are not: edit mode, selection
+    /// and a popover's own bar bring them without leaving the screen.
+    public static func isBackButton(identifier: String, label: String) -> Bool {
+        identifier == "BackButton" || (FeelSafety.words(identifier) + FeelSafety.words(label)).contains(" back ")
+    }
+
+    /// Whether a tap replaced a navigation bar that was on screen (`barsBefore`, by ``barIdentity(key:backLabels:)``),
+    /// or brought a bar with a back button: it went somewhere new, so it opened no overlay, whatever its content
+    /// overlaps (a pushed page scrolling under a tab bar that stayed). Only adding a bar with no way back, as a
+    /// popover with its own does, leaves an overlay possible.
+    public static func replacedBar(barsBefore: [String], barsAfter: [String]) -> Bool {
+        let before = Set(barsBefore)
+        return !before.isSubset(of: Set(barsAfter)) || barsAfter.contains { !before.contains($0) && $0.contains(backMark) }
+    }
+
+    /// Whether a tap left the screen by its content: under half of the screen's own texts and controls (`kept` of `of`,
+    /// leaving out the tab and navigation bars every screen shares) are still there. A menu, edit mode or a row
+    /// expanding keeps the content around it; a push replaces it, even when the bar and a shared control stay. Under
+    /// four to compare says nothing.
+    public static func leftContent(kept: Int, of total: Int) -> Bool {
+        total >= 4 && Double(kept) / Double(total) < 0.5
     }
 
     /// Whether a tap that hid the screen's controls opened an overlay rather than a new screen. A system menu hides the

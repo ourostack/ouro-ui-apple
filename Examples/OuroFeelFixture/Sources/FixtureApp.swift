@@ -477,6 +477,7 @@ struct KitchenPage: View {
     @State private var undo = false
     @State private var heating = false
     @State private var heat = 0.5
+    @State private var filtering = false
     @Namespace private var zoom
     var body: some View {
         TabView(selection: $tab) {
@@ -547,7 +548,17 @@ struct KitchenPage: View {
                     Text("All recipes")
                         .navigationTitle("Recipes")
                         .navigationDestination(for: String.self) { _ in
+                            // The bug hides the back button and puts a leading Filter button where it was, which
+                            // changes the page when tapped but never leads back.
                             Text("Tomato Toast recipe").navigationTitle("Tomato Toast").navigationBarBackButtonHidden(bug)
+                                .toolbar {
+                                    if bug {
+                                        ToolbarItem(placement: .topBarLeading) {
+                                            Button("Filter") { filtering.toggle() }.accessibilityIdentifier("recipes.filter")
+                                        }
+                                    }
+                                }
+                                .overlay(alignment: .bottom) { if filtering { Text("Filtered").padding(.bottom, 120) } }
                         }
                 }
             }

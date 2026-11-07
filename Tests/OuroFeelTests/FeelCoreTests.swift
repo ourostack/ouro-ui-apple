@@ -483,6 +483,14 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(r.findings.contains { $0.note && $0.what.contains("only a tap outside") })
     }
 
+    @Test func aTapOutsideThatLandsOnTheScreenBehindIsNotCountedAsADismissal() {
+        let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "filter", appeared: true, outsideLandedBehind: true)])
+        #expect(!r.passed)
+        #expect(r.detections.isEmpty)
+        #expect(r.findings.contains { $0.unchecked && $0.what.contains("landed on the screen behind") })
+        #expect(!r.findings.contains { $0.what.contains("no place outside") })
+    }
+
     @Test func theLowerEdgeSwipeAvoidsEveryRowAtTheEdgeAndIsSkippedWhenNoHeightIsFree() {
         let window = CGRect(x: 0, y: 0, width: 400, height: 800)
         // Rows that share one identifier still each block their height.

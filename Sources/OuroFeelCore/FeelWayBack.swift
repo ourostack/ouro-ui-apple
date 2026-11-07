@@ -199,13 +199,18 @@ public struct FeelOverlayTrial: Codable, Equatable, Sendable {
     /// Why no pick was asked of it, when it is no menu: a popover of controls (a stepper, a slider) stays open while
     /// you adjust them and closes with a tap outside.
     public var noPickBecause: String?
+    /// True when the tap outside changed the screen behind (it went through the overlay to a row, say), so whether
+    /// the overlay dismisses was not seen. `outsideDismisses` is then nil.
+    public var outsideLandedBehind: Bool?
 
-    public init(name: String, appeared: Bool, outsideDismisses: Bool? = nil, pickDismisses: Bool? = nil, noPickBecause: String? = nil) {
+    public init(name: String, appeared: Bool, outsideDismisses: Bool? = nil, pickDismisses: Bool? = nil, noPickBecause: String? = nil,
+                outsideLandedBehind: Bool? = nil) {
         self.name = name
         self.appeared = appeared
         self.outsideDismisses = outsideDismisses
         self.pickDismisses = pickDismisses
         self.noPickBecause = noPickBecause
+        self.outsideLandedBehind = outsideLandedBehind
     }
 }
 
@@ -216,7 +221,11 @@ public enum FeelOverlays {
         for t in trials {
             if !t.appeared { findings.append(.couldNotCheck("\(t.name): never appeared")); continue }
             if t.outsideDismisses == false { findings.append(FeelFinding(what: "\(t.name): a tap outside it did not dismiss it")) }
-            if t.outsideDismisses == nil { findings.append(.couldNotCheck("\(t.name): there was no place outside it to tap, so a tap outside was not tried")) }
+            if t.outsideLandedBehind == true {
+                findings.append(.couldNotCheck("\(t.name): the tap outside landed on the screen behind (the screen changed), so whether it dismisses was not seen"))
+            } else if t.outsideDismisses == nil {
+                findings.append(.couldNotCheck("\(t.name): there was no place outside it to tap, so a tap outside was not tried"))
+            }
             if t.pickDismisses == false { findings.append(FeelFinding(what: "\(t.name): still on screen after picking an item")) }
             if let why = t.noPickBecause { findings.append(.note("\(t.name): \(why), so only a tap outside was asked of it")) }
         }

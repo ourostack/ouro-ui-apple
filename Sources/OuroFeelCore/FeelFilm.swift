@@ -290,6 +290,26 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             guard let r = places[i] else { return false }
             return "\(Int(r.width.rounded()))x\(Int(r.height.rounded()))" == restingSize
         }
+        // An arrival that holds for a sample or two (a busy first animation frame) and then travels on, without
+        // stopping, more than `distance` from where it arrived is a transition (#53). Counted in samples, not seconds,
+        // so a slow machine cannot change the answer; a later, separate move (a dismissal, say) does not count.
+        func travelsOnArrival(_ start: Int) -> Bool {
+            guard let arrival = places[start] else { return false }
+            var held = 0, travelling = false
+            for j in start..<(places.count - 1) {
+                guard let step = moved(j), let next = places[j + 1] else { return false }
+                if step > tolerance {
+                    travelling = true
+                } else if travelling {
+                    return false
+                } else {
+                    held += 1
+                    if held > 2 { return false }
+                }
+                if Self.distance(arrival, next) > distance { return true }
+            }
+            return false
+        }
         var findings: [FeelFinding] = []
         for i in 0..<max(0, frames.count - 1) {
             let gap = frames[i + 1].t - frames[i].t
@@ -298,10 +318,7 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             var what: String?
             if let m = moved(i), m > distance, quietBefore, quietAfter, atRest(i), atRest(i + 1) {
                 what = "\"\(key)\" moved \(FeelResult.number(round3(m))) pt between \(FeelResult.number(round3(frames[i].t))) s and \(FeelResult.number(round3(frames[i + 1].t))) s with nothing in between"
-            } else if appearing, places[i] == nil, let arrival = places[i + 1], quietAfter, i + 2 < places.count,
-                      // In full means where it stays: one that arrives, holds a sample (a busy first animation frame),
-                      // then travels was a transition (#53).
-                      !places[(i + 1)...].contains(where: { $0.map { Self.distance(arrival, $0) > distance } ?? false }) {
+            } else if appearing, places[i] == nil, places[i + 1] != nil, quietAfter, i + 2 < places.count, !travelsOnArrival(i + 1) {
                 what = "\"\(key)\" appeared in full at \(FeelResult.number(round3(frames[i + 1].t))) s with no transition"
             }
             guard let what else { continue }

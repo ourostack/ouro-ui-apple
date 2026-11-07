@@ -323,6 +323,17 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(f.snaps(of: "panel", appearing: true).passed)
     }
 
+    /// Only travel that follows the arrival clears it: a page that snaps in, rests, and later slides away for another
+    /// reason (a dismissal) still snapped in, and so does one that holds longer than two samples before moving.
+    @Test func aLaterSeparateMoveDoesNotClearASnapIn() {
+        func film(_ ys: [Double?]) -> FeelFilm {
+            FeelFilm(window: phone, frames: ys.enumerated().map { i, y in FeelFrame(t: Double(i) * 0.02, seen: y.map { [box($0)] } ?? []) })
+        }
+        #expect(!film([nil, 400, 400, 400, 400, 400, 500, 600, 700]).snaps(of: "panel", appearing: true).passed)
+        #expect(!film([nil, 800, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
+        #expect(film([nil, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
+    }
+
     /// Mid-animation, SwiftUI's accessibility frame stretches from where the element is drawn to where it is going
     /// (seen on the iOS 27.2 simulator), so a stretched sample is an in-between position, however big the step to it.
     @Test func aStretchedFrameIsAnInBetweenPositionNotASnap() {

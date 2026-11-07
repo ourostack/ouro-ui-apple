@@ -44,9 +44,25 @@ if [ "$platform" = "ios" ]; then
   xcrun simctl boot "$udid"
   xcrun simctl bootstatus "$udid" -b >/dev/null
   xcrun simctl install "$udid" "$app"
+  # Stops the app and waits for it to exit, so XCTest launches it from nothing: a copy still running when XCTest
+  # launches races XCTest's own terminate and relaunch, and the launch can fail with no process ID (#36).
+  stop_app() {
+    xcrun simctl terminate "$udid" "$bundle_id" >/dev/null 2>&1 || true
+    i=0
+    while xcrun simctl spawn "$udid" launchctl list 2>/dev/null \
+        | awk -v job="UIKitApplication:$bundle_id[" 'index($3, job) == 1 && $1 ~ /^[0-9]+$/ { found = 1 } END { exit !found }'; do
+      i=$((i + 1))
+      [ "$i" -ge 40 ] && { echo "xray-probe: $bundle_id was still running 20 s after it was told to stop" >&2; return 0; }
+      sleep 0.5
+    done
+  }
   # The first launch lets the app create its content and index it, as a person's first launch would.
-  xcrun simctl launch "$udid" "$bundle_id" >/dev/null
-  sleep 8
+  first_launch() {
+    xcrun simctl launch "$udid" "$bundle_id" >/dev/null
+    sleep 8
+    stop_app
+  }
+  first_launch
   plan="$("$xray" plan --app "$app" $disposable)"
   ios_probe() {
     TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE="$([ -n "$disposable" ] && echo 1 || echo 0)" TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
@@ -56,16 +72,18 @@ if [ "$platform" = "ios" ]; then
   set +e
   ios_probe "$out/probe.log"
   status=$?
-  # A test runner that crashes before any test starts ("never finished bootstrapping") ran nothing, and xcodebuild's own
-  # retry does not restart it. Reboot the simulator and run once more; the first log is kept beside the report.
-  if ! grep -q OURO-AX-PROBE-BEGIN "$out/probe.log" && grep -q "never finished bootstrapping" "$out/probe.log"; then
-    echo "xray-probe: the test runner crashed before the probe started (see probe-first-try.log); rebooting the simulator and trying once more"
+  # A probe that never reached the app ran nothing, and xcodebuild's own retry does not help: a test runner that crashed
+  # before any test started ("never finished bootstrapping"), or an app XCTest could not launch (no process ID, or it
+  # never reached the foreground; see XrayProbeTests). Reboot the simulator and run once more; the first log is kept
+  # beside the report.
+  if ! grep -q OURO-AX-PROBE-BEGIN "$out/probe.log" \
+      && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch|OURO-AX-PROBE-UNREACHED" "$out/probe.log"; then
+    echo "xray-probe: the probe never reached the app (see probe-first-try.log); rebooting the simulator and trying once more"
     mv "$out/probe.log" "$out/probe-first-try.log"
     xcrun simctl shutdown "$udid" >/dev/null 2>&1
     xcrun simctl boot "$udid"
     xcrun simctl bootstatus "$udid" -b >/dev/null
-    xcrun simctl launch "$udid" "$bundle_id" >/dev/null
-    sleep 8
+    first_launch
     ios_probe "$out/probe.log"
     status=$?
   fi

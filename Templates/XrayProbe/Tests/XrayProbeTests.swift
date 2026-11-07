@@ -19,6 +19,7 @@ final class XrayProbeTests: XCTestCase {
         // A launch can fail inside XCTest (no process ID). Carry on past it to say so plainly, so the log and the
         // script's retry tell "the probe could not reach the app" from the app failing a claim.
         continueAfterFailure = true
+        defer { app.terminate() }
         app.launch()
         guard app.wait(for: .runningForeground, timeout: 30) else {
             print("OURO-AX-PROBE-UNREACHED the app never reached the foreground (state \(app.state.rawValue)), so the probe could not reach it")
@@ -31,7 +32,6 @@ final class XrayProbeTests: XCTestCase {
         #else
         let platform = "macOS"
         #endif
-        defer { app.terminate() }
         let os = ProcessInfo.processInfo.operatingSystemVersion
         let ranOn = env["OURO_AX_RAN_ON"] ?? "\(platform) \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
         let result = await XrayProbe.run(plan, ranOn: ranOn, refusalsAllowed: env[XrayProbe.disposableVariable] == "1")

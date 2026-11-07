@@ -77,8 +77,9 @@ if [ "$platform" = "ios" ]; then
   # never reached the foreground; see XrayProbeTests). Reboot the simulator and run once more; the first log is kept
   # beside the report.
   if ! grep -q OURO-AX-PROBE-BEGIN "$out/probe.log" \
-      && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch|OURO-AX-PROBE-UNREACHED" "$out/probe.log"; then
+      && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch.*process ID|OURO-AX-PROBE-UNREACHED" "$out/probe.log"; then
     echo "xray-probe: the probe never reached the app (see probe-first-try.log); rebooting the simulator and trying once more"
+    [ -n "${GITHUB_ACTIONS:-}" ] && echo "::warning::xray-probe: the first probe run never reached the app; retried once (see probe-first-try.log)"
     mv "$out/probe.log" "$out/probe-first-try.log"
     xcrun simctl shutdown "$udid" >/dev/null 2>&1
     xcrun simctl boot "$udid"

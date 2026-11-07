@@ -92,4 +92,4 @@ jobs:
           name: xray-${{ matrix.platform }}-${{ strategy.job-index }}
           path: .build/xray
       - if: always() && steps.upload1.outcome == 'failure'
-        run: echo "::warning::The xray-${{ matrix.platform }}-${{ strategy.job-index }} artifact did not upload (GitHub's artifact store failed); the job's result stands, and the X-ray report is in the log above."
+        run: echo "::warning::The xray-${{ matrix.platform }}-${{ strategy.job-index }} artifact did not upload (see the step's log); the job's result stands, and the X-ray report is in the log above."

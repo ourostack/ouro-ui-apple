@@ -100,7 +100,7 @@ jobs:
           path: Tests/OuroHXTests/__Snapshots__/**/*.actual.png
           if-no-files-found: ignore
       - if: always() && steps.upload1.outcome == 'failure'
-        run: echo "::warning::The snapshots-actual-xcode-27 artifact did not upload (GitHub's artifact store failed); the job's result stands without it."
+        run: echo "::warning::The snapshots-actual-xcode-27 artifact did not upload (see the step's log); the job's result stands without it."
       - name: Build for iOS Simulator
         run: |
           set -o pipefail
@@ -172,7 +172,7 @@ jobs:
           path: Tests/OuroHXTests/__Snapshots__/**/*.actual.png
           if-no-files-found: ignore
       - if: always() && steps.upload2.outcome == 'failure'
-        run: echo "::warning::The snapshots-actual-macos-26 artifact did not upload (GitHub's artifact store failed); the job's result stands without it."
+        run: echo "::warning::The snapshots-actual-macos-26 artifact did not upload (see the step's log); the job's result stands without it."
       - name: The skills linter, as an agent runs it
         run: |
           set -u
@@ -225,7 +225,7 @@ jobs:
           name: docc
           path: .build/docc.tgz
       - if: steps.upload3.outcome == 'failure'
-        run: echo "::warning::The docc artifact did not upload (GitHub's artifact store failed); the job's result stands without it."
+        run: echo "::warning::The docc artifact did not upload (see the step's log); the job's result stands without it."
       - name: Component snapshots matched
         if: steps.snapshots.outcome == 'failure'
         run: |
@@ -321,7 +321,7 @@ jobs:
             .build/gallery-motion.tgz
           if-no-files-found: ignore
       - if: always() && steps.upload4.outcome == 'failure'
-        run: echo "::warning::The gallery-ui-xcresult artifact did not upload (GitHub's artifact store failed); the job's result stands without it."
+        run: echo "::warning::The gallery-ui-xcresult artifact did not upload (see the step's log); the job's result stands without it."
 
   xray:
     name: X-ray the fixture app (${{ matrix.name }})
@@ -398,7 +398,7 @@ jobs:
           name: xray-fixture-${{ matrix.platform }}-${{ matrix.xcode }}
           path: .build/xray
       - if: always() && steps.upload5.outcome == 'failure'
-        run: echo "::warning::The xray-fixture-${{ matrix.platform }}-${{ matrix.xcode }} artifact did not upload (GitHub's artifact store failed); the job's result stands, and the X-ray report is in the log above."
+        run: echo "::warning::The xray-fixture-${{ matrix.platform }}-${{ matrix.xcode }} artifact did not upload (see the step's log); the job's result stands, and the X-ray report is in the log above."
 
   siri-ai-sdk:
     name: Siri AI parts (Xcode 27.3 beta, compile only)
@@ -471,4 +471,4 @@ jobs:
           path: .build/feel-reports
           if-no-files-found: ignore
       - if: always() && steps.upload6.outcome == 'failure'
-        run: echo "::warning::The ouro-feel-fixture-reports artifact did not upload (GitHub's artifact store failed); the job's result stands without it."
+        run: echo "::warning::The ouro-feel-fixture-reports artifact did not upload (see the step's log); the job's result stands without it."

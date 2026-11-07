@@ -219,6 +219,8 @@ struct SheetsPage: View {
     // `-sheetKeyboard 1` opens the naming sheet at launch, its field focused, so the keyboard is up.
     @State private var naming = UserDefaults.standard.bool(forKey: "sheetKeyboard")
     @State private var name = ""
+    @State private var notes = ""
+    private static var withNotes: Bool { UserDefaults.standard.bool(forKey: "sheetNotes") }
     @State private var picked = "Weeknights"
     @Environment(\.ouroToast) private var toast
 
@@ -253,7 +255,12 @@ struct SheetsPage: View {
         // `-sheetDetent large` gives it a detent, so the keyboard covers its bottom rather than iOS lifting it.
         .ouroSheet(isPresented: $naming, title: "New cookbook", description: "Name it after what goes inside.",
                    detents: UserDefaults.standard.string(forKey: "sheetDetent") == "large" ? [.large] : nil, onDismiss: { name = "" }) {
-            NameField(text: $name)
+            VStack(alignment: .leading, spacing: 12) {
+                NameField(text: $name)
+                // `-sheetNotes 1` adds a second field under the focused one: the sheet scrolls only as far toward its
+                // actions as keeps the focused field in sight.
+                if Self.withNotes { NotesField(text: $notes) }
+            }
         } footer: {
             OuroButton("Create cookbook", fullWidth: true) { naming = false }
                 .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -290,6 +297,24 @@ private struct NameField: View {
             .accessibilityIdentifier("sheet.name")
             .focused($focused)
             .onAppear { focused = true }
+    }
+}
+
+/// A second, taller field under the name.
+private struct NotesField: View {
+    @Binding var text: String
+    @Environment(\.ouroTouchTarget) private var target
+    @Environment(\.ouroColors) private var colors
+
+    var body: some View {
+        TextField("Notes", text: $text, prompt: Text("What goes in it, and who it\u{2019}s for"), axis: .vertical)
+            .lineLimit(4, reservesSpace: true)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(minHeight: target)
+            .background(colors.card, in: .rect(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(colors.border))
+            .accessibilityIdentifier("sheet.notes")
     }
 }
 

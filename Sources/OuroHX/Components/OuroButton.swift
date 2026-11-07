@@ -155,6 +155,9 @@ public enum OuroButtonMetrics {
     /// points, so a label wrapped onto several lines becomes a rounded rectangle rather than an oval.
     public static func pillRadius(height: CGFloat) -> CGFloat { min(height / 2, 44) }
 
+    /// How much of the page tints a glass button on iOS 27, whose glass lifts what is under it toward white.
+    public static func glassPageTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.6 : 0.35 }
+
     /// How much of its tone a soft fill washes over the page: 14% in light, 26% in dark, where less reads as mud.
     public static func softTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.26 : 0.14 }
 
@@ -237,7 +240,8 @@ public struct OuroButtonStyle: ButtonStyle {
                 .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: visual)
                 .frame(minWidth: OuroInput.current == .touch ? max(touchTarget, OuroButtonSize.minimumTarget(on: .touch)) : OuroButtonSize.minimumTarget(on: .pointer))
                 .background { background(palette, shape: shape, pressed: pressed) }
-                .modifier(GlassIfNeeded(enabled: style.variant == .glass, interactive: isEnabled, shape: shape))
+                .modifier(GlassIfNeeded(enabled: style.variant == .glass, interactive: isEnabled, shape: shape,
+                                        page: Color(palette.surface), scheme: scheme))
                 .scaleEffect(OuroButtonMetrics.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
                 // Springs both ways: a quick one as the finger lands, a softer one as it lifts, which picks up from
                 // wherever the press had got to rather than restarting.
@@ -267,10 +271,17 @@ public struct OuroButtonStyle: ButtonStyle {
         let enabled: Bool
         let interactive: Bool
         let shape: AnyShape
+        /// The page the label is made readable on.
+        let page: Color
+        let scheme: ColorScheme
 
         func body(content: Content) -> some View {
             if !enabled {
                 content
+            } else if #available(iOS 27, macOS 27, visionOS 27, *) {
+                // iOS 27's glass lifts what is under it toward white, in dark too, so a label made readable on the
+                // page fell to 2.9:1 over a coloured field. Tinted with the page, the glass stays near it.
+                content.glassEffect(.regular.tint(page.opacity(OuroButtonMetrics.glassPageTint(scheme: scheme))).interactive(interactive), in: shape)
             } else if #available(iOS 26, macOS 26, visionOS 26, *) {
                 content.glassEffect(.regular.interactive(interactive), in: shape)
             } else {

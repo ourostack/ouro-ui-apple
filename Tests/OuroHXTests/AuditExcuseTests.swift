@@ -51,6 +51,20 @@ import Testing
         #expect(!OuroAuditExcuse.excuses("Contrast failed", element: CGRect(x: 60, y: 70, width: 200, height: 20), scaledSheets: [], toasts: [toasts], screen: screen))
     }
 
+    @Test func pageContentWhollyCoveredByAToastIsExcusedWhenTheToastsOwnWordsAreKnown() {
+        // At the largest sizes a toast can cover the page's title entirely; it is not one of the toast's own elements.
+        let title = CGRect(x: 60, y: 70, width: 140, height: 50)
+        let words = [CGRect(x: 70, y: 64, width: 200, height: 20)]
+        #expect(OuroAuditExcuse.excuses("Contrast failed", element: title, scaledSheets: [], toasts: [toasts], toastContents: words, screen: screen))
+    }
+
+    @Test func aToastsOwnWordsAreNotEvenWhenItsContentsAreKnown() {
+        let words = CGRect(x: 70, y: 64, width: 200, height: 20)
+        #expect(!OuroAuditExcuse.excuses("Contrast failed", element: words, scaledSheets: [], toasts: [toasts], toastContents: [words], screen: screen))
+        // A frame read a fraction of a point differently is still the toast's.
+        #expect(!OuroAuditExcuse.excuses("Contrast failed", element: words.offsetBy(dx: 0.3, dy: -0.2), scaledSheets: [], toasts: [toasts], toastContents: [words], screen: screen))
+    }
+
     @Test func contrastAwayFromToastsAndOnScreenIsNot() {
         #expect(!OuroAuditExcuse.excuses("Contrast failed", element: CGRect(x: 16, y: 300, width: 260, height: 20), scaledSheets: [], toasts: [toasts], screen: screen))
     }

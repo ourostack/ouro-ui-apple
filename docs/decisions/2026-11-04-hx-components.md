@@ -214,6 +214,46 @@ It compiled and used every component as documented. What it found, and what chan
   Known (#26): at the largest size with the keyboard up, iOS 26 still draws a few points of the scrolled-away title
   above the sheet's top edge; and at the accessibility sizes, dragging a sheet between `.medium` and `.large` may
   bring its end into view, which is unverified.
+
+## iOS 27 (#29, v0.3.2)
+
+- **Glass lifts toward white.** iOS 27's Liquid Glass lifts what is under it toward white, in dark too (a backdrop of
+  (80,48,35) reads (109,74,63)), so a glass button's words fell to 2.91:1 (Destructive, dark) and 4.90:1
+  (Success and Warning, light). From iOS 27, glass buttons tint their glass with the page
+  (`OuroButtonMetrics.glassPageTint`: 0.6 dark, 0.35 light; 0.5 in light read as solid white pills) and toasts tint
+  theirs with their surface (`OuroToastMetrics.glassSurfaceTint`, 0.6). The 5:1 claim stands, measured from the
+  screen's pixels.
+- **Toast words.** iOS 27's vibrant secondary style read faint on a toast, so there the description takes the theme's
+  colour, made readable on the surface, on glass too. Xcode 27's audit still reads the dark error toast's description
+  and the expanded stack's messages as failing contrast though the screen shows them at 5.7:1 and 15:1; the gallery
+  excuses that only for words inside a toast whose own pixels, measured as the audit runs, read at 5:1 or more.
+- **The page behind a sheet.** iOS 27's audit reads the presenting page behind a modal sheet, at the size its
+  text-size check sets. `accessibilityHidden` on the presenter's content did not take it out of XCUITest's tree, so the
+  keyboard test holds only the sheet's own elements to its clipping check. A medium-detent sheet also rose 33 points
+  during that check, so `ouroAccessibilityAudit` judges clipped text against where the sheets are when each issue
+  comes in, as well as where they were before.
+- **The keyboard keeps its place (#26).** iOS 26's `.defaultScrollAnchor(.bottom, for: .sizeChanges)` kept the end in
+  view as the keyboard arrived; iOS 27 keeps the offset instead, and the text-size check then left the sheet at its
+  top. The anchor is gone: as the keyboard arrives at the accessibility sizes, the sheet scrolls so the focused field
+  is in view, and the actions when they fit, never cut by the keyboard's edge (taste round 8; `OuroSheetMetrics.keyboardOffset`, found through UIKit's first
+  responder), and keeps doing so as sizes change until someone scrolls. This fixes #26's "scrolls to its end rather
+  than to the focused field" and the follow mid-spring. Neither edge of the room cuts through words or the actions
+  (taste round 8, lens B): the keyboard's edge never falls inside the actions row, and the top edge only between the
+  title's or description's lines (each text's height over its font's line height); where only an offset past the end
+  cuts nothing, the sheet adds room after the actions and scrolls once that room is laid out (a scroll begun first
+  was put back at the top). The audit reads the title, now stopped in sight, as clipped too, as it does the
+  description; the keyboard test excuses it only while wholly in sight. The gallery's `-sheetNotes 1` adds a second field, and
+  `testASheetKeepsTheFocusedFieldInSightRatherThanItsEnd` checks the first stays in sight with focus.
+- **A lifted sheet's keyboard inset.** iOS 27 lifts a fitted sheet clear of the keyboard yet still insets its scroll
+  by the keyboard's whole height (333 points over a 379-point sheet). Below the accessibility sizes the sheet sizes its
+  room from that inset, so with two fields the body was squeezed to nothing and the fields scrolled away (taste round 8
+  caught it). The sheet now measures what the keyboard really covers with UIKit's keyboard layout guide and caps the
+  inset there, for the fitted room and for the focused-field scroll alike. The focused-field test checks the default
+  size too: title, both fields and the action in sight.
+- **CI ruling.** The free `macos-26` image has Xcode 26.6 with iOS 26.5 as its newest runtime (gallery job of run
+  42324176443), and the `xcode-27` runner is billed and capped. So the iOS 27 claim suite runs locally as a required
+  release step (`scripts/ios27-claims.sh`, RELEASING.md), and its log is attached to each release. When the free image
+  ships Xcode 27, the step moves there.
 - **The toaster on the screen itself.** The fault for a dropped toast now says the toaster must be above the sending
   view, and the Components article says a toast sent from the same view's body is dropped.
 - **Themes, toggles.** The article now says what each theme looks like, and that a toggle titled with an icon `Label`

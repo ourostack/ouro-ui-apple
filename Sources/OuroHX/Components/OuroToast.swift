@@ -154,6 +154,14 @@ public struct OuroToastPalette: Sendable {
 
 /// Metrics and motion every toast shares, as data.
 public enum OuroToastMetrics {
+    /// How much of its own surface tints a toast's glass on iOS 27, whose glass lifts what is under it toward white.
+    public static let glassSurfaceTint = 0.6
+    /// Whether a toast's description on glass takes the theme's colour rather than the system's vibrant secondary
+    /// style: from iOS 27, where that style read below 5:1 on the toast's surface.
+    public static var themedDescriptionOnGlass: Bool {
+        if #available(iOS 27, macOS 27, visionOS 27, *) { return true }
+        return false
+    }
     /// How long a toast without an action stays: five seconds, as on web.
     public static let defaultSeconds = 5.0
     /// How many show at once: three, as on web, or one at the accessibility text sizes, where a toast can be a third
@@ -567,7 +575,10 @@ struct OuroToastView: View {
         // gallery's accessibility audit measures them in light and dark); solid, the theme's colours, made readable on
         // that surface. Theme colours inside the glass cost a dropped frame on every departure (W8 frame captures).
         let message: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.message)) : AnyShapeStyle(.primary)
-        let secondary: AnyShapeStyle = solid ? AnyShapeStyle(Color(p.description)) : AnyShapeStyle(.secondary)
+        // iOS 27's vibrant secondary style read below 5:1 on the toast's surface, so there the description takes the
+        // theme's own colour, made readable on that surface, on glass too.
+        let themedDescription = solid || OuroToastMetrics.themedDescriptionOnGlass
+        let secondary: AnyShapeStyle = themedDescription ? AnyShapeStyle(Color(p.description)) : AnyShapeStyle(.secondary)
         // A tucked toast draws only its surface: no words or buttons exist for VoiceOver, the audit or a stray tap to
         // find (hiding them still left them in iOS 26's accessibility tree, scaled below 44 points).
         // Tucking, the words fade out as the plate moves back rather than vanishing first, so no plate is ever blank.
@@ -735,7 +746,7 @@ private struct ToastSurface: ViewModifier {
             // and 85% the accessibility audit still measured the page through it). That fill also casts the shadow.
             // Solid (Increase Contrast, Reduce Transparency, tucked): no glass, and an edge.
             content
-                .glassEffect(solid ? .identity : .regular, in: shape)
+                .glassEffect(solid ? .identity : Self.glass(tint: Color(palette.surface)), in: shape)
                 .background(plate(shadow, s))
                 .overlay(outline(solid: solid))
         } else {
@@ -743,6 +754,14 @@ private struct ToastSurface: ViewModifier {
                 .background(plate(shadow, s))
                 .overlay(outline(solid: true))
         }
+    }
+
+    /// The regular glass; on iOS 27, whose glass lifts what is under it toward white (a dark toast's description fell
+    /// below 5:1), tinted with the toast's own surface so it stays near it.
+    @available(iOS 26, macOS 26, visionOS 26, *)
+    private static func glass(tint: Color) -> Glass {
+        if #available(iOS 27, macOS 27, visionOS 27, *) { return .regular.tint(tint.opacity(OuroToastMetrics.glassSurfaceTint)) }
+        return .regular
     }
 
     /// The opaque surface, shaded when tucked, casting the stack's shadow.

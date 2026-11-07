@@ -274,18 +274,21 @@ final class ComponentClaimTests: XCTestCase {
                 // spilled out. Two lines need at least twice a line's 44 points.
                 XCTAssertGreaterThanOrEqual(action.frame.height, 88, "\(name): the action's capsule is \(action.frame.height) tall for two lines")
                 // The audit reads the description and the action, scrolled to with the keyboard up, as "Text clipped",
-                // though both wrap in full; it also reads the clipping where the scroll's edge cuts the title. Excused, by where they are: the two labels only while wholly in
-                // sight (the action only while its capsule holds two lines); anything cut by the sheet's edge or outside
-                // the sheet. Everything else wholly in sight must pass.
+                // though both wrap in full; it also reads the clipping where the scroll's edge cuts the title. Excused,
+                // by where they are as the audit reads them: the two labels only while wholly in sight (the action
+                // only while its capsule holds two lines); anything cut by the sheet's edge or outside the sheet.
+                // Everything else wholly in sight must pass. Clipped text and Dynamic Type only, like the default size,
+                // for the audit's time limit on CI; contrast and targets are audited without the keyboard elsewhere.
                 let description = app.staticTexts["Name it after what goes inside."].firstMatch
                 XCTAssertTrue(inSight.contains(description.frame), "\(name): the description is out of sight at \(description.frame)")
-                let sheetFrame = sheet.frame
                 do {
-                    try app.ouroAccessibilityAudit(excuse: { issue in
+                    try app.ouroAccessibilityAudit(for: [.textClipped, .dynamicType], excuse: { issue in
                         if Self.keyboardsOwn(issue) { return true }
                         guard issue.compactDescription == "Text clipped", let element = issue.element else { return false }
-                        let frame = element.frame
-                        if !sheetFrame.contains(frame) || !inSight.contains(frame) { return true }
+                        let frame = element.frame, sheetNow = sheet.frame
+                        let sightNow = CGRect(x: screen.minX, y: sheetNow.minY, width: screen.width,
+                                              height: keyboard.frame.minY - sheetNow.minY + 1)
+                        if !sheetNow.contains(frame) || !sightNow.contains(frame) { return true }
                         switch element.label {
                         case "Name it after what goes inside.": return true
                         case "Create cookbook": return frame.height >= 88

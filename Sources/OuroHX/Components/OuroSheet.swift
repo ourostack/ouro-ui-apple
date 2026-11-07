@@ -294,13 +294,19 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
                 max(0, g.containerSize.height - g.contentInsets.top - g.contentInsets.bottom)
             } action: { _, h in shown = h }
             // iOS 27 keeps the offset as the keyboard's inset arrives and as the content's size changes, where iOS 26
-            // holds the end in view by the anchor above; so while the keyboard is up, the end is scrolled to whenever
-            // the room or the content changes size. Scrolling by hand changes neither, so it is left alone.
+            // holds the end in view by the anchor above. So the end is scrolled to as the keyboard arrives, and again
+            // when the room or content changes size (a taller keyboard, text wrapping) if the end was in view before:
+            // someone who scrolled up to read stays where they are.
             .onScrollGeometryChange(for: KeyboardRoom.self) { g in
-                KeyboardRoom(up: g.contentInsets.bottom > OuroSheetMetrics.keyboardInset,
-                             content: g.contentSize.height.rounded(), room: (g.containerSize.height - g.contentInsets.bottom).rounded())
-            } action: { _, now in
+                let room = g.containerSize.height - g.contentInsets.bottom
+                return KeyboardRoom(up: g.contentInsets.bottom > OuroSheetMetrics.keyboardInset,
+                                    content: g.contentSize.height.rounded(), room: room.rounded(),
+                                    atEnd: g.contentOffset.y + room >= g.contentSize.height - 1)
+            } action: { was, now in
                 guard now.up, wholeSheetScrolls else { return }
+                let arrived = !was.up
+                let resized = was.content != now.content || was.room != now.room
+                guard arrived || (resized && was.atEnd) else { return }
                 Task { @MainActor in
                     withAnimation(OuroMotion.animation(.smooth, reduceMotion: reduceMotion)) {
                         proxy.scrollTo(OuroSheetMetrics.endIdentifier, anchor: .bottom)
@@ -353,16 +359,18 @@ private struct CloseDisc: ViewModifier {
     }
 }
 
-/// The theme's surface behind the sheet, on iOS 26 too: the sheet's text and the components in it are made readable
-/// on that surface (`contrast.text`), and a theme's surface is not the system sheet's glass. iOS 26 still floats a
-/// partial sheet and rounds it.
 /// Whether the keyboard is up, and the heights a sheet's whole-sheet scroll view keeps its end in view across.
 private struct KeyboardRoom: Equatable {
     var up: Bool
     var content: CGFloat
     var room: CGFloat
+    /// Whether the end of the content is in view.
+    var atEnd: Bool
 }
 
+/// The theme's surface behind the sheet, on iOS 26 too: the sheet's text and the components in it are made readable
+/// on that surface (`contrast.text`), and a theme's surface is not the system sheet's glass. iOS 26 still floats a
+/// partial sheet and rounds it.
 private struct SheetBackground: ViewModifier {
     let surface: Color
     let rim: Color

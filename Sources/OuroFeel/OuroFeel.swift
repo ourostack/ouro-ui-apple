@@ -468,26 +468,27 @@ public struct OuroFeel {
     /// app on a device cannot (see the README's recorder section).
     public static var recorderEnvironment: [String: String] {
         try? FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
-        return ["OURO_FEEL_RECORD_DIR": recordDirectory.path]
+        return [FeelRecording.directoryVariable: recordDirectory.path]
     }
 
     /// A film the app records itself, one sample per display frame on the app's own display clock, so it holds the
     /// transition `action` starts frame by frame: the frames XCUITest's wait for an idle app hides from
     /// ``film(_:for:every:during:)``. The app must call `OuroFeelRecorder.installIfRequested()` at launch and be launched
-    /// with ``recorderEnvironment``. The recorder starts, `action` runs, and the recorder stops 30 display frames after
-    /// `action` returns, so the film holds the page at rest.
+    /// with ``recorderEnvironment``. The recorder starts, `action` runs, and the film ends once everything it watches has
+    /// held still for half a second after `action` returns (a tap can return while its transition still moves), or at
+    /// 20 s, when it is marked stalled.
     ///
     /// Waits only on the app's answers. If the app does not start recording, or writes no film, within `timeout`
     /// seconds, the film is empty and stalled (``FeelFilm/stalledAt``), so every motion check on it could not be checked.
     public func recordedFilm(_ keys: [String], timeout: TimeInterval = 30, during action: () -> Void) -> FeelFilm {
-        let timedBy = "the app's display (an in-app sample every frame, CADisplayLink)"
+        let timedBy = FeelRecording.timedBy
         let files = FileManager.default
         let dir = Self.recordDirectory
         try? files.createDirectory(at: dir, withIntermediateDirectories: true)
-        let recording = dir.appendingPathComponent("recording")
-        let filmURL = dir.appendingPathComponent("film.json")
-        for stale in [recording, filmURL] { try? files.removeItem(at: stale) }
-        try? JSONEncoder().encode(keys).write(to: dir.appendingPathComponent("keys.json"), options: .atomic)
+        let request = FeelRecording.Request(keys: keys)
+        let recording = dir.appendingPathComponent(FeelRecording.recordingFile(request.id))
+        let filmURL = dir.appendingPathComponent(FeelRecording.filmFile(request.id))
+        try? JSONEncoder().encode(request).write(to: dir.appendingPathComponent(FeelRecording.requestFile), options: .atomic)
         func waitFor(_ url: URL) -> Bool {
             let deadline = Date().addingTimeInterval(timeout)
             while !files.fileExists(atPath: url.path) {
@@ -496,10 +497,10 @@ public struct OuroFeel {
             }
             return true
         }
-        FeelClock.darwinNotification("bot.ouro.feel.record.start")()
+        FeelClock.darwinNotification(FeelRecording.startNotification)()
         guard waitFor(recording) else { return FeelFilm(window: .zero, frames: [], stalledAt: 0, timedBy: timedBy) }
         action()
-        FeelClock.darwinNotification("bot.ouro.feel.record.stop")()
+        FeelClock.darwinNotification(FeelRecording.stopNotification)()
         guard waitFor(filmURL), let data = try? Data(contentsOf: filmURL),
               let film = try? JSONDecoder().decode(FeelFilm.self, from: data) else {
             return FeelFilm(window: .zero, frames: [], stalledAt: 0, timedBy: timedBy)

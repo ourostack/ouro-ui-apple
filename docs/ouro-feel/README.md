@@ -241,9 +241,11 @@ feel.expect(film.settles("recipe.title", within: 0.8))
 ```
 
 The test posts a Darwin notification; the app starts a `CADisplayLink` and, every frame it draws, writes down where
-each named element is drawn: its accessibility frame, moved by however far its view's presentation layer is from the
-view (a push moves the layer, not the view), and left out while hidden or transparent. The test taps, posts stop, and
-the app writes the film 30 frames later. Each sample is stamped with the display link's own time, and the report says
+each named element is drawn: its accessibility frame carried from where its view is laid out to where the view's
+presentation layer draws it (a push, sheet or zoom moves and scales the layer, not the view), and left out while a
+layer above it is hidden or transparent. A key that shows twice in a frame (the same title on both pages of a push)
+is sampled once, from the frontmost. The test taps and posts stop; the app ends the film once everything it watches has held still for half a
+second, since a tap can return to the test while its transition is still moving. Each sample is stamped with the display link's own time, and the report says
 so. In the fixture, a push filmed this way held 66 to 69 frames about 0.019 s apart with the title in 20 or more
 places, and a push with animations turned off showed the title in one place: the snap check caught it
 ([fixture](../../Examples/OuroFeelFixture/UITests/FeelCatchesTests.swift), `testAPushFilmedInTheApp`).
@@ -256,8 +258,13 @@ What it cannot do:
 - **Frames the app does not draw are not in the film.** While the app's main thread is busy (laying out a new page,
   for example) the display link does not fire, so the film has a long frame. A page that arrives in full across a
   frame shorter than `maxGap` (0.15 s by default) is a snap; a longer one cannot be judged and the check says so.
+- **It sees UIKit-level motion, and SwiftUI's only through the accessibility frame.** Pushes, sheets, zooms and
+  `UIView` animations move layers the recorder reads. An `.offset`, `.scaleEffect` or `.opacity` that SwiftUI
+  applies inside its hosting view shows only as far as SwiftUI moves the element's accessibility frame, so put the
+  identifier on the view that moves.
 - **Walking the accessibility tree costs time each frame.** Name only the elements you judge; a long recording of
-  many elements can slow the app it films (the recorder stops at 1,200 frames).
+  many elements can slow the app it films. A film stops at 20 s and is then marked stalled, so no check passes on
+  what came after.
 
 What the samples show mid-transition (seen on the iOS 27.2 simulator): SwiftUI stretches an animating element's
 accessibility frame from where it is drawn to where it is going, so a sample at another size than the element's resting

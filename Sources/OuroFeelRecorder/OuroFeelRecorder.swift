@@ -11,23 +11,18 @@ import UIKit
 /// (`OuroFeel.recordedFilm(_:timeout:during:)` on the test side).
 ///
 /// Each sample is every accessibility element the test asked for (by identifier or label), at the place it is drawn
-/// in that frame: its accessibility frame moved by however far its view's presentation layer is from the view's
-/// model (an animating push moves the layer, not the view), and left out while its view is hidden or transparent.
+/// in that frame: its accessibility frame mapped from where its view is laid out to where the view's presentation
+/// layer draws it (an animating push or sheet moves and scales the layer, not the view), and left out while a layer
+/// above it is hidden or transparent. That covers UIKit-level motion: pushes, sheets, zooms, `UIView` animations.
+/// Effects SwiftUI applies inside its hosting view (`.offset`, `.scaleEffect`, `.opacity`) show only as far as SwiftUI
+/// moves the element's accessibility frame, so judge those with an identifier on the moving view itself.
 ///
 /// Call ``installIfRequested(environment:)`` once at launch. It does nothing unless the UI test launched the app with
 /// ``directoryVariable`` set, so a shipped app never records.
 @MainActor
 public enum OuroFeelRecorder {
-    /// The launch environment key that holds the folder the test and the app share.
-    public static let directoryVariable = "OURO_FEEL_RECORD_DIR"
-    /// The Darwin notifications that start and stop a film.
-    public static let startNotification = "bot.ouro.feel.record.start"
-    public static let stopNotification = "bot.ouro.feel.record.stop"
-    /// Files in the shared folder: the keys to watch (written by the test), the marker the app writes once it is
-    /// recording, and the film it writes when it stops.
-    public static let keysFile = "keys.json"
-    public static let recordingFile = "recording"
-    public static let filmFile = "film.json"
+    /// The names the test and the app share (``FeelRecording``).
+    public static let directoryVariable = FeelRecording.directoryVariable
 
     static var recorder: Recorder?
 
@@ -36,8 +31,8 @@ public enum OuroFeelRecorder {
         guard recorder == nil, let path = environment[directoryVariable], !path.isEmpty else { return }
         recorder = Recorder(directory: URL(fileURLWithPath: path, isDirectory: true))
         let center = CFNotificationCenterGetDarwinNotifyCenter()
-        CFNotificationCenterAddObserver(center, nil, recorderStarted, startNotification as CFString, nil, .deliverImmediately)
-        CFNotificationCenterAddObserver(center, nil, recorderStopped, stopNotification as CFString, nil, .deliverImmediately)
+        CFNotificationCenterAddObserver(center, nil, recorderStarted, FeelRecording.startNotification as CFString, nil, .deliverImmediately)
+        CFNotificationCenterAddObserver(center, nil, recorderStopped, FeelRecording.stopNotification as CFString, nil, .deliverImmediately)
     }
 }
 
@@ -52,13 +47,14 @@ private let recorderStopped: CFNotificationCallback = { _, _, _, _, _ in
 @MainActor
 final class Recorder: NSObject {
     let directory: URL
-    /// The longest film, in frames (20 s at 60 Hz), so a test that never says stop cannot fill the disk.
-    let cap = 1200
+    /// The longest film, in seconds, so a test that never says stop cannot fill the disk. A film cut here is marked
+    /// stalled at its last frame, so no check passes on what came after.
+    let cap: CFTimeInterval = 20
     private var link: CADisplayLink?
     private var wanted: Set<String> = []
+    private var id = ""
     private var frames: [FeelFrame] = []
     private var start: CFTimeInterval?
-    private var tail: Int?
 
     init(directory: URL) {
         self.directory = directory
@@ -68,42 +64,53 @@ final class Recorder: NSObject {
         link?.invalidate()
         frames = []
         start = nil
-        tail = nil
-        let keys = (try? Data(contentsOf: directory.appendingPathComponent(OuroFeelRecorder.keysFile)))
-            .flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? []
-        wanted = Set(keys)
+        stopAt = nil
+        stillSince = nil
+        // No readable request, no film: recording every element every frame would slow the app it films.
+        guard let request = (try? Data(contentsOf: directory.appendingPathComponent(FeelRecording.requestFile)))
+            .flatMap({ try? JSONDecoder().decode(FeelRecording.Request.self, from: $0) }) else { return }
+        id = request.id
+        wanted = Set(request.keys)
         let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
         link.add(to: .main, forMode: .common)
         self.link = link
-        try? Data().write(to: directory.appendingPathComponent(OuroFeelRecorder.recordingFile))
+        try? Data().write(to: directory.appendingPathComponent(FeelRecording.recordingFile(id)))
     }
 
-    /// Stops after `after` more frames, so the film holds the page coming to rest after the test's last step.
-    func end(after: Int = 30) {
-        guard link != nil else { return }
-        tail = after
+    /// How long everything filmed must hold still after the test says stop before the film ends: a tap can return
+    /// to the test while its transition is still moving, so the film waits for the page to come to rest.
+    let restAfterStop: CFTimeInterval = 0.5
+    private var stopAt: CFTimeInterval?
+    private var stillSince: CFTimeInterval?
+
+    /// Ends the film once what it watches has held still for ``restAfterStop`` (or the cap is reached).
+    func end() {
+        guard let link else { return }
+        stopAt = link.timestamp
     }
 
     @objc private func tick(_ link: CADisplayLink) {
         let now = link.timestamp
         let t0 = start ?? now
         start = t0
-        frames.append(FeelFrame(t: now - t0, seen: sample()))
-        if let left = tail {
-            tail = left - 1
-            if left <= 1 { finish() }
-        } else if frames.count >= cap {
+        let seen = sample()
+        if frames.last?.seen != seen { stillSince = now }
+        frames.append(FeelFrame(t: now - t0, seen: seen))
+        if now - t0 >= cap {
+            finish(stalledAt: now - t0)
+        } else if let stopAt, now - max(stopAt, stillSince ?? t0) >= restAfterStop {
             finish()
         }
     }
 
-    private func finish() {
+    private func finish(stalledAt: Double? = nil) {
         link?.invalidate()
         link = nil
-        let window = windows.first.map { $0.convert($0.bounds, to: nil) } ?? .zero
-        let film = FeelFilm(window: window, frames: frames,
-                            timedBy: "the app's display (an in-app sample every frame, CADisplayLink)")
-        let url = directory.appendingPathComponent(OuroFeelRecorder.filmFile)
+        // In screen coordinates, as accessibility frames are.
+        let window = windows.first.map { $0.convert($0.bounds, to: $0.screen.coordinateSpace) } ?? .zero
+        let film = FeelFilm(window: window, frames: frames, stalledAt: stalledAt,
+                            timedBy: FeelRecording.timedBy)
+        let url = directory.appendingPathComponent(FeelRecording.filmFile(id))
         try? film.json.write(to: url, options: .atomic)
         frames = []
     }
@@ -113,20 +120,27 @@ final class Recorder: NSObject {
             .flatMap(\.windows).filter { !$0.isHidden }
     }
 
-    /// Where each view is drawn this frame, against where it is laid out: the offset of its presentation layer, and
-    /// how opaque it is, both through all its ancestors. Nil when it is hidden.
-    private var placements: [ObjectIdentifier: (dx: CGFloat, dy: CGFloat, opacity: Float)?] = [:]
+    /// How opaque each view is drawn this frame, through all its ancestors' presentation layers; nil when hidden.
+    private var opacities: [ObjectIdentifier: Float?] = [:]
 
+    /// One sample per key: where a key shows twice (the same title on both pages of a push), the frontmost, which the
+    /// walk reaches last.
     private func sample() -> [FeelSeen] {
-        placements = [:]
+        opacities = [:]
         var seen: [FeelSeen] = []
         for window in windows { visit(window, depth: 0, into: &seen) }
-        return seen
+        var last: [String: Int] = [:]
+        for (i, s) in seen.enumerated() { last[s.key] = i }
+        return seen.enumerated().filter { last[$0.element.key] == $0.offset }.map(\.element)
     }
 
     private func visit(_ object: NSObject, depth: Int, into seen: inout [FeelSeen]) {
         guard depth < 80 else { return }
-        if let view = object as? UIView, view.isHidden || view.alpha < 0.01 { return }
+        // The presentation layer, not the model: a view fading out has its model alpha at 0 while it is still drawn.
+        if let view = object as? UIView {
+            let shown = view.layer.presentation() ?? view.layer
+            if shown.isHidden || shown.opacity < 0.01 { return }
+        }
         let identifier = identifier(of: object)
         let label = object.accessibilityLabel ?? ""
         if object.isAccessibilityElement || !identifier.isEmpty {
@@ -137,6 +151,11 @@ final class Recorder: NSObject {
         }
         if let elements = object.accessibilityElements as? [NSObject] {
             for element in elements { visit(element, depth: depth + 1, into: &seen) }
+        } else if case let count = object.accessibilityElementCount(), count > 0, count != NSNotFound {
+            // A container that lists its children only by count and index.
+            for i in 0..<count {
+                if let element = object.accessibilityElement(at: i) as? NSObject { visit(element, depth: depth + 1, into: &seen) }
+            }
         } else if let view = object as? UIView {
             for sub in view.subviews { visit(sub, depth: depth + 1, into: &seen) }
         }
@@ -151,13 +170,18 @@ final class Recorder: NSObject {
         return object.perform(getter)?.takeUnretainedValue() as? String ?? ""
     }
 
-    /// The element's frame on screen as drawn this frame, or nil while it is invisible.
+    /// The element's frame on screen as drawn this frame, or nil while it is invisible: its accessibility frame (in
+    /// screen coordinates, where the view is laid out) carried through the presentation layers to where it is drawn,
+    /// so a scale or zoom moves and sizes it as well as a slide.
     private func drawn(_ object: NSObject) -> CGRect? {
         let frame = object.accessibilityFrame
-        guard frame.width > 0, frame.height > 0, let host = hostView(of: object) else { return nil }
-        guard let placed = placement(of: host) else { return nil }
-        guard placed.opacity >= 0.02 else { return nil }
-        return frame.offsetBy(dx: placed.dx, dy: placed.dy)
+        guard frame.width > 0, frame.height > 0, let host = hostView(of: object), let window = host.window else { return nil }
+        guard let opacity = opacity(of: host), opacity >= 0.02 else { return nil }
+        let screen = window.screen.coordinateSpace
+        let local = host.convert(window.convert(frame, from: screen), from: window)
+        let shown = host.layer.presentation() ?? host.layer
+        let windowShown = window.layer.presentation() ?? window.layer
+        return window.convert(shown.convert(local, to: windowShown), to: screen)
     }
 
     private func hostView(of object: NSObject) -> UIView? {
@@ -173,30 +197,18 @@ final class Recorder: NSObject {
         return nil
     }
 
-    private func placement(of view: UIView) -> (dx: CGFloat, dy: CGFloat, opacity: Float)? {
+    private func opacity(of view: UIView) -> Float? {
         let id = ObjectIdentifier(view)
-        if let cached = placements[id] { return cached }
-        var result: (dx: CGFloat, dy: CGFloat, opacity: Float)?
-        if let window = view.window {
-            var opacity: Float = 1
-            var hidden = false
-            var layer: CALayer? = view.layer
-            while let model = layer {
-                let shown = model.presentation() ?? model
-                if shown.isHidden { hidden = true; break }
-                opacity *= shown.opacity
-                layer = model.superlayer
-            }
-            if !hidden {
-                let laidOut = view.convert(view.bounds, to: window)
-                let shown = view.layer.presentation() ?? view.layer
-                let windowShown = window.layer.presentation() ?? window.layer
-                let drawn = shown.convert(shown.bounds, to: windowShown)
-                result = (drawn.minX - laidOut.minX, drawn.minY - laidOut.minY, opacity)
-            }
+        if let cached = opacities[id] { return cached }
+        var opacity: Float? = 1
+        var layer: CALayer? = view.layer
+        while let model = layer, let so_far = opacity {
+            let shown = model.presentation() ?? model
+            opacity = shown.isHidden ? nil : so_far * shown.opacity
+            layer = model.superlayer
         }
-        placements[id] = result
-        return result
+        opacities[id] = opacity
+        return opacity
     }
 }
 #endif

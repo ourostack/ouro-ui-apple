@@ -53,7 +53,8 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 - Siri AI Developer Preview code (tool intents, SiriEvaluations) sits behind `#if canImport(SiriEvaluations)` or `#if OURO_SIRI_AI_SDK || canImport(AppIntents, _version: 301.2)`, so the package builds with Xcode 27.2. CI's `siri-ai-sdk` lane compiles it when the runner image has Xcode 27.3 or later.
 - Before you push: `swift build --build-tests`, `swift test`, and `sh scripts/docc.sh`. Keep DerivedData inside `.build/` (`-derivedDataPath .build/...`).
 - Never switch `xcode-select` on a shared Mac; use `DEVELOPER_DIR=... <command>`. `scripts/select-xcode.sh` is for CI only.
-- Every change goes through a pull request, merged when CI is green. Releases are tags `vX.Y.Z`.
+- Every change goes through a pull request, merged when CI is green. Releases are tags `vX.Y.Z`, made as
+  [RELEASING.md](RELEASING.md) says, which includes the component claims run locally on iOS 27.
 - CI runs on GitHub's free hosted runners (`ubuntu-latest`, `macos-26`) for everything Xcode 26 can build; fence iOS 27 and Xcode 27 code on the SDK, with `#if canImport(Module, _version: X)` against the framework version that first declares it, and `#available`, so it does. Never fence an SDK API on `#if compiler(...)`: Xcode 27.0 and 27.1 have Swift 6.4 with older SDKs (#6). The `oldest-xcode-27` lane builds with them and prints each SDK's SwiftUICore version. The billed `xcode-27` runner is capped by a $15-a-month budget on this repository and runs only Xcode 27 and iOS 27 checks, only on pushes to `main` and on releases, never on pull requests. It is removed once the free image ships Xcode 27: move its jobs to `macos-26` and delete their `if:` gates. Never add a self-hosted runner.
 - Other agents adopt this package in their apps (Gatefold, Spoonjoy, Ouro MD). Never edit their repositories from here; offer a PR through their own process.
 

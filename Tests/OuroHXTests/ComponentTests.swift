@@ -690,3 +690,98 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroButtonStyle(.solid, tone: .secondary).resolvedTone(for: .destructive) == .secondary)
     }
 }
+
+/// Where a whole-sheet scroll goes as the keyboard comes up at the accessibility sizes: as far toward its end (the
+/// actions) as keeps the focused field wholly in view, its top first when it can't all fit.
+@Suite struct SheetKeyboardScrollTests {
+    // 1,000 points of content in a 600-point view, 300 of it under the keyboard: the end is offset 700.
+    let room = (content: 1000.0, viewport: 600.0, top: 0.0, bottom: 300.0)
+
+    func offset(_ field: CGRect?) -> CGFloat {
+        OuroSheetMetrics.keyboardOffset(field: field, contentHeight: room.content, viewport: room.viewport,
+                                        topInset: room.top, bottomInset: room.bottom)
+    }
+
+    @Test func withNoFieldItGoesToTheEnd() {
+        #expect(offset(nil) == 700)
+    }
+
+    @Test func aFieldJustAboveTheActionsAlsoGoesToTheEnd() {
+        #expect(offset(CGRect(x: 0, y: 800, width: 300, height: 60)) == 700)
+    }
+
+    @Test func aFieldNearTheTopStaysInViewRatherThanTheEnd() {
+        // The field's top, less the margin, is the top of the view: the actions wait below.
+        #expect(offset(CGRect(x: 0, y: 200, width: 300, height: 60)) == 200 - OuroSheetMetrics.keyboardFieldMargin)
+    }
+
+    @Test func aFieldAtTheVeryTopNeverScrollsPastTheStart() {
+        #expect(offset(CGRect(x: 0, y: 4, width: 300, height: 60)) == 0)
+    }
+
+    @Test func aFieldTallerThanTheRoomKeepsItsTop() {
+        #expect(offset(CGRect(x: 0, y: 300, width: 300, height: 500)) == 300 - OuroSheetMetrics.keyboardFieldMargin)
+    }
+
+    @Test func contentThatFitsDoesNotScroll() {
+        #expect(OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 100, width: 300, height: 60), contentHeight: 250,
+                                                viewport: 600, topInset: 0, bottomInset: 300) == 0)
+    }
+
+    @Test func theKeyboardEdgeNeverCutsThroughTheActions() {
+        // The field near the top would leave the visible room ending at 484, through actions at 450 to 550: the sheet
+        // scrolls back until the actions start at the keyboard's edge, the field still in view.
+        let y = OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 200, width: 300, height: 60), actions: 450...550,
+                                                contentHeight: 1000, viewport: 600, topInset: 0, bottomInset: 300)
+        #expect(y == 150)
+    }
+
+    @Test func actionsWhollyUnderTheKeyboardStayThere() {
+        let y = OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 200, width: 300, height: 60), actions: 600...700,
+                                                contentHeight: 1000, viewport: 600, topInset: 0, bottomInset: 300)
+        #expect(y == 200 - OuroSheetMetrics.keyboardFieldMargin)
+    }
+
+    @Test func actionsWhollyInViewStayThere() {
+        let y = OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 800, width: 300, height: 60), actions: 880...1000,
+                                                contentHeight: 1000, viewport: 600, topInset: 0, bottomInset: 300)
+        #expect(y == 700)
+    }
+
+    // A header of two title lines and three description lines at the largest size: its words run 20 to 392, and the
+    // top edge may fall only between lines.
+    let header: ClosedRange<CGFloat> = 20...392
+    let stops: [CGFloat] = [20, 105, 190, 194, 260, 326, 392]
+
+    @Test func theTopEdgeNeverCutsThroughTheTitle() {
+        // One field: the end (220) would slice the description; the nearest line gap that keeps the field and the
+        // actions whole is 260, past the end, which the sheet pads to reach.
+        let y = OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 420, width: 300, height: 100), actions: 530...690,
+                                                header: header, stops: stops, contentHeight: 700, viewport: 780,
+                                                topInset: 0, bottomInset: 300)
+        #expect(y == 260)
+    }
+
+    @Test func stoppingShortOfTheActionsNeverCutsTheDescription() {
+        // Two fields: the field's place (404) would cut the actions, and stopping short of them (380) the description;
+        // the line gap at 326 does neither.
+        let y = OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 420, width: 300, height: 100), actions: 860...1020,
+                                                header: header, stops: stops, contentHeight: 1030, viewport: 780,
+                                                topInset: 0, bottomInset: 300)
+        #expect(y == 326)
+    }
+
+    @Test func anEdgeBetweenRowsStaysPut() {
+        let y = OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 420, width: 300, height: 100), actions: 920...1080,
+                                                header: header, stops: stops, contentHeight: 1090, viewport: 780,
+                                                topInset: 0, bottomInset: 300)
+        #expect(y == 404)
+    }
+
+    @Test func aTopInsetIsHonoured() {
+        // Offsets run from -top: the field's top sits just under the inset.
+        #expect(OuroSheetMetrics.keyboardOffset(field: CGRect(x: 0, y: 200, width: 300, height: 60), contentHeight: 1000,
+                                                viewport: 600, topInset: 20, bottomInset: 300)
+                == 200 - OuroSheetMetrics.keyboardFieldMargin - 20)
+    }
+}

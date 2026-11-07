@@ -102,7 +102,8 @@ What the components don't do for you, and how to match them:
   body is dropped, with a fault in the log. Put the content in a child view and send from there. A toaster inside
   another one takes over for the views inside it.
 - **A sheet with a field.** At the accessibility sizes the whole sheet scrolls, title and actions too; while the
-  keyboard is up, its end (the field being typed in and the actions) stays in view. Below those sizes the title and
+  keyboard is up, the field being typed in stays in view wherever it sits, and the actions under it when they fit,
+  never cut by the keyboard's edge; once someone scrolls, it stays where they put it. Below those sizes the title and
   actions stay put above the keyboard and the body scrolls between them. The gallery checks this for a fitted
   sheet and for one at the `.large` detent. Use `TextField(_:text:prompt:axis: .vertical)` so long
   words wrap instead of running out of the field.

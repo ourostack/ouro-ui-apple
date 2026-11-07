@@ -41,7 +41,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -62,7 +62,7 @@ final class ComponentClaimTests: XCTestCase {
                         // Expanded, as VoiceOver users always see the stack: every toast's own words are measured.
                         expandToasts(app)
                         XCTContext.runActivity(named: "\(name) expanded") { _ in
-                            do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: Self.expandedStackMisreadings) } catch { XCTFail("\(name) expanded: \(error)") }
+                            do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: { Self.expandedStackMisreadings($0) || Self.toastGlassMisreadings(app)($0) }) } catch { XCTFail("\(name) expanded: \(error)") }
                         }
                         // What those excuses could hide: every toast's buttons are full targets, reachable.
                         for button in app.buttons.matching(NSPredicate(format: "label IN %@", ["Dismiss", "Undo"])).allElementsBoundByIndex {
@@ -202,6 +202,22 @@ final class ComponentClaimTests: XCTestCase {
         return (hi + 0.05) / (lo + 0.05)
     }
 
+    /// iOS 27's audit reads a toast's words on glass as failing contrast though the screen shows them above 5:1 (the
+    /// dark error toast's description, 5.65:1 measured from a screenshot; the message, near white, 14.9:1). Excused
+    /// only for words inside a toast, and only when their own pixels, measured from the screen as the audit runs,
+    /// read at 5:1 or more: the claim itself, held another way.
+    static func toastGlassMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
+        { issue in
+            guard issue.auditType == .contrast, let element = issue.element, element.exists else { return false }
+            let frame = element.frame
+            let toasts = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.toastIdentifier).allElementsBoundByIndex.map(\.frame)
+            guard !frame.isEmpty, toasts.contains(where: { $0.insetBy(dx: -1, dy: -1).contains(frame) }) else { return false }
+            let ratio = inkContrast(app.windows.firstMatch.screenshot().image, in: frame)
+            print("toast words \"\(element.label)\" read at \(ratio):1 on screen")
+            return ratio >= 5
+        }
+    }
+
     static let expandedStackMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         switch issue.auditType {
         case .contrast: issue.element?.label == "Undo"
@@ -239,6 +255,41 @@ final class ComponentClaimTests: XCTestCase {
         app.terminate()
     }
 
+    /// Claim text.reflows in a sheet with two fields, the upper one focused, at the largest size: as the keyboard comes
+    /// up the whole sheet scrolls only as far toward its actions as keeps the field being typed in wholly in sight.
+    /// At the default size the fitted sheet, which iOS lifts clear of the keyboard, shows everything: its title, both
+    /// fields and its action (iOS 27 still insets it by the keyboard's whole height, which once squeezed its body to
+    /// nothing and scrolled the fields away).
+    func testASheetKeepsTheFocusedFieldInSightRatherThanItsEnd() throws {
+        for size in [nil, Self.largest] as [String?] {
+            for scheme in ["light", "dark"] {
+                let name = "\(size ?? "default") \(scheme)"
+                let app = launch("sheet", open: false, size: size, scheme: scheme, extra: ["-sheetKeyboard", "1", "-sheetNotes", "1"])
+                let keyboard = app.keyboards.firstMatch
+                XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "\(name): the keyboard is not up")
+                let field = app.descendants(matching: .any).matching(identifier: "sheet.name").firstMatch
+                XCTAssertTrue(field.waitForExistence(timeout: 5), "\(name): no name field")
+                var last = CGRect.null
+                for _ in 0..<10 where field.frame != last { last = field.frame; Thread.sleep(forTimeInterval: 0.3) }
+                let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
+                let screen = app.windows.firstMatch.frame
+                let inSight = CGRect(x: screen.minX, y: sheet.frame.minY, width: screen.width, height: keyboard.frame.minY - sheet.frame.minY + 1)
+                XCTAssertTrue(inSight.contains(field.frame), "\(name): the focused field is out of sight at \(field.frame), keyboard at \(keyboard.frame.minY)")
+                // It is the name field that has the keyboard, not the notes below it.
+                XCTAssertEqual(field.value(forKey: "hasKeyboardFocus") as? Bool, true, "\(name): the name field is not focused")
+                if size == nil {
+                    let notes = app.descendants(matching: .any).matching(identifier: "sheet.notes").firstMatch
+                    let title = app.staticTexts["New cookbook"].firstMatch
+                    let action = app.buttons["Create cookbook"].firstMatch
+                    for (what, element) in [("title", title), ("notes", notes), ("action", action)] {
+                        XCTAssertTrue(element.exists && inSight.contains(element.frame), "\(name): the \(what) is out of sight at \(element.frame), keyboard at \(keyboard.frame.minY)")
+                    }
+                }
+                app.terminate()
+            }
+        }
+    }
+
     /// Claim text.reflows in a sheet with the keyboard up, at the default and the largest size: the field being typed in
     /// and the action under it stay in sight above the keyboard and nothing runs up under the status bar. At the
     /// largest size the whole sheet scrolls to keep them there, and the action's capsule grows to hold its two lines.
@@ -252,9 +303,14 @@ final class ComponentClaimTests: XCTestCase {
                 XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "\(name): the keyboard is not up")
                 let action = app.buttons["Create cookbook"].firstMatch
                 XCTAssertTrue(action.waitForExistence(timeout: 5), "\(name): no Create cookbook")
-                // Settled: the action stops moving once the keyboard has arrived.
-                var last = CGRect.null
-                for _ in 0..<10 where action.frame != last { last = action.frame; Thread.sleep(forTimeInterval: 0.3) }
+                // Settled: the action stops moving once the keyboard has arrived (unmoved over two looks).
+                var last = CGRect.null, still = 0
+                for _ in 0..<16 where still < 2 {
+                    let now = action.frame
+                    still = now == last ? still + 1 : 0
+                    last = now
+                    Thread.sleep(forTimeInterval: 0.3)
+                }
                 let screen = app.windows.firstMatch.frame
                 let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
                 XCTAssertGreaterThanOrEqual(sheet.frame.minY, screen.minY + 40, "\(name): the sheet runs up under the status bar at \(sheet.frame)")
@@ -273,10 +329,11 @@ final class ComponentClaimTests: XCTestCase {
                 // "Create cookbook" wraps onto two lines here; squeezed, its capsule stayed one line tall and the words
                 // spilled out. Two lines need at least twice a line's 44 points.
                 XCTAssertGreaterThanOrEqual(action.frame.height, 88, "\(name): the action's capsule is \(action.frame.height) tall for two lines")
-                // The audit reads the description and the action, scrolled to with the keyboard up, as "Text clipped",
+                // The audit reads the title, the description and the action, scrolled to with the keyboard up, as "Text clipped",
                 // though both wrap in full; it also reads the clipping where the scroll's edge cuts the title. Excused,
                 // by where they are as the audit reads them: the two labels only while wholly in sight (the action
-                // only while its capsule holds two lines); anything cut by the sheet's edge or outside the sheet.
+                // only while its capsule holds two lines); anything cut by the sheet's edge, outside the sheet or not
+                // the sheet's own.
                 // Everything else wholly in sight must pass. Clipped text and Dynamic Type only, like the default size,
                 // for the audit's time limit on CI; contrast and targets are audited without the keyboard elsewhere.
                 let description = app.staticTexts["Name it after what goes inside."].firstMatch
@@ -289,8 +346,15 @@ final class ComponentClaimTests: XCTestCase {
                         let sightNow = CGRect(x: screen.minX, y: sheetNow.minY, width: screen.width,
                                               height: keyboard.frame.minY - sheetNow.minY + 1)
                         if !sheetNow.contains(frame) || !sightNow.contains(frame) { return true }
+                        // The page behind the modal sheet, which iOS 27's audit reads (at the size its text-size check
+                        // sets) though it is not the sheet's: only the sheet's own elements are held to this.
+                        let own = sheet.descendants(matching: .any).matching(NSPredicate(format: "label == %@", element.label))
+                            .allElementsBoundByIndex.map(\.frame)
+                        if !own.contains(where: { abs($0.minX - frame.minX) < 1 && abs($0.minY - frame.minY) < 1 && abs($0.height - frame.height) < 1 }) { return true }
                         switch element.label {
-                        case "Name it after what goes inside.": return true
+                        // The title too, now that the sheet stops with it in sight (where its top edge falls
+                        // between lines): it wraps in full (taste round 8's largest-size captures).
+                        case "Name it after what goes inside.", "New cookbook": return true
                         case "Create cookbook": return frame.height >= 88
                         default: return false
                         }

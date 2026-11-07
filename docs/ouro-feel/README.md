@@ -94,7 +94,10 @@ changes the selected tab of a bottom tab bar ("See all" taking you to the Recipe
 has its tab button as its way back: the report notes it and the walk returns by the button for the tab it started on.
 The walk learns each tab's root once, from a fresh launch (up to two relaunches per tab, listed in the report). One that lands
 anywhere else on that tab ("Open in Recipes" pushing a page) is checked like any other screen: a back control and an
-edge swipe must each reach that tab's root. Tabs are told by their
+edge swipe must each reach that tab's root. A root is told by its navigation bar titles (by the whole screen when it has none), so it holds
+while the root's content loads or is filtered; a page pushed there under the root's own title with its back button
+hidden would be noted as a tab switch rather than failed. A pager taller than half the window at the leading edge is
+not kept clear of the lower edge swipe. Tabs are told by their
 place in the bar, and the tab bar is never part of a screen's identity, since the system renames its buttons once a
 page has been pushed. The iPad sidebar, which lists tabs as cells, is not read as a tab bar. The fixture holds each
 of these shapes beside a near miss that is a real bug (`testWhatIsNotABrokenWayBack`,

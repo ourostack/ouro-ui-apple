@@ -962,3 +962,25 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(r.summary.contains("1 relaunch"))
     }
 }
+
+@Suite struct RecordingTests {
+    @Test("each recording request names its own marker and film, so a late film is never read as the next one's")
+    func requestsAreNamedApart() throws {
+        let first = FeelRecording.Request(keys: ["recipe.title"])
+        let second = FeelRecording.Request(keys: ["recipe.title"])
+        #expect(first.id != second.id)
+        #expect(FeelRecording.filmFile(first.id) != FeelRecording.filmFile(second.id))
+        #expect(FeelRecording.recordingFile(first.id) != FeelRecording.recordingFile(second.id))
+        let decoded = try JSONDecoder().decode(FeelRecording.Request.self, from: JSONEncoder().encode(first))
+        #expect(decoded == first)
+    }
+
+    @Test("a film cut at the recorder's cap reads as stalled, so no motion check passes on what came after")
+    func aCappedFilmIsNotJudged() {
+        let frames = (0..<10).map { FeelFrame(t: Double($0) * 0.016, seen: [FeelSeen(key: "card", frame: CGRect(x: Double($0) * 10, y: 0, width: 50, height: 50))]) }
+        let film = FeelFilm(window: CGRect(x: 0, y: 0, width: 400, height: 800), frames: frames, stalledAt: 0.144, timedBy: FeelRecording.timedBy)
+        let settle = film.settles("card", within: 1)
+        #expect(!settle.passed)
+        #expect(settle.text.contains(FeelRecording.timedBy))
+    }
+}

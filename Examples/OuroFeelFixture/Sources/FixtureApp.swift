@@ -1,9 +1,14 @@
+import OuroFeelRecorder
 import SwiftUI
 
 /// One page per genre of jank. `-page <name>` picks it; `-bug 1` turns on its known bug. The UI tests prove each
 /// Ouro Feel check fails with the bug and passes without it.
 @main
 struct FixtureApp: App {
+    init() {
+        OuroFeelRecorder.installIfRequested()
+    }
+
     var body: some Scene {
         WindowGroup {
             switch UserDefaults.standard.string(forKey: "page") ?? "nav" {
@@ -14,6 +19,7 @@ struct FixtureApp: App {
             case "overlay": OverlayPage()
             case "push": PushPage()
             case "kitchen": KitchenPage()
+            case "transition": TransitionPage()
             default: NavPage()
             }
         }
@@ -562,6 +568,40 @@ struct KitchenPage: View {
                         }
                 }
             }
+        }
+    }
+/// A push filmed inside the app, frame by frame (`OuroFeelRecorder`). The bug: the recipe is pushed with animations
+/// off, so its page appears in one frame instead of sliding in.
+struct TransitionPage: View {
+    @State private var path: [String] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            List {
+                Button("Tomato Toast") { open("Tomato Toast") }.accessibilityIdentifier("transition.open")
+            }
+            .navigationTitle("Recipes")
+            .navigationDestination(for: String.self) { name in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Serves two, in ten minutes").accessibilityIdentifier("transition.title")
+                        ForEach(1...6, id: \.self) { Text("Step \($0)") }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                }
+                .navigationTitle(name)
+            }
+        }
+    }
+
+    private func open(_ name: String) {
+        if bug {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { path.append(name) }
+        } else {
+            path.append(name)
         }
     }
 }

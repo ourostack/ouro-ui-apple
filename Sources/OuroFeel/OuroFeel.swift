@@ -459,6 +459,55 @@ public struct OuroFeel {
         return FeelFilm(window: window, frames: frames, timedBy: timedBy)
     }
 
+    /// The folder this test process shares with the app's recorder (`OuroFeelRecorder`): the app writes its films here.
+    public static let recordDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ouro-feel-record-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+
+    /// What to add to `launchEnvironment` before launching an app that calls `OuroFeelRecorder.installIfRequested()`,
+    /// so its recorder listens. The recorder writes into ``recordDirectory``, which a simulator app can reach and an
+    /// app on a device cannot (see the README's recorder section).
+    public static var recorderEnvironment: [String: String] {
+        try? FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
+        return [FeelRecording.directoryVariable: recordDirectory.path]
+    }
+
+    /// A film the app records itself, one sample per display frame on the app's own display clock, so it holds the
+    /// transition `action` starts frame by frame: the frames XCUITest's wait for an idle app hides from
+    /// ``film(_:for:every:during:)``. The app must call `OuroFeelRecorder.installIfRequested()` at launch and be launched
+    /// with ``recorderEnvironment``. The recorder starts, `action` runs, and the film ends once everything it watches has
+    /// held still for half a second after `action` returns (a tap can return while its transition still moves), or at
+    /// 20 s, when it is marked stalled.
+    ///
+    /// Waits only on the app's answers. If the app does not start recording, or writes no film, within `timeout`
+    /// seconds, the film is empty and stalled (``FeelFilm/stalledAt``), so every motion check on it could not be checked.
+    public func recordedFilm(_ keys: [String], timeout: TimeInterval = 30, during action: () -> Void) -> FeelFilm {
+        let timedBy = FeelRecording.timedBy
+        let files = FileManager.default
+        let dir = Self.recordDirectory
+        try? files.createDirectory(at: dir, withIntermediateDirectories: true)
+        let request = FeelRecording.Request(keys: keys)
+        let recording = dir.appendingPathComponent(FeelRecording.recordingFile(request.id))
+        let filmURL = dir.appendingPathComponent(FeelRecording.filmFile(request.id))
+        try? JSONEncoder().encode(request).write(to: dir.appendingPathComponent(FeelRecording.requestFile), options: .atomic)
+        func waitFor(_ url: URL) -> Bool {
+            let deadline = Date().addingTimeInterval(timeout)
+            while !files.fileExists(atPath: url.path) {
+                if Date() >= deadline { return false }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+            }
+            return true
+        }
+        FeelClock.darwinNotification(FeelRecording.startNotification)()
+        guard waitFor(recording) else { return FeelFilm(window: .zero, frames: [], stalledAt: 0, timedBy: timedBy) }
+        action()
+        FeelClock.darwinNotification(FeelRecording.stopNotification)()
+        guard waitFor(filmURL), let data = try? Data(contentsOf: filmURL),
+              let film = try? JSONDecoder().decode(FeelFilm.self, from: data) else {
+            return FeelFilm(window: .zero, frames: [], stalledAt: 0, timedBy: timedBy)
+        }
+        return film
+    }
+
     #if !os(visionOS)
     /// Wraps `XCTHitchMetric` (iOS 26 and later) around `action`, `iterations` times. The figures go to the result
     /// bundle, not to a ``FeelResult``. Apple's simulator has reported no hitch figures for the signpost metrics in our

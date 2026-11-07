@@ -246,8 +246,8 @@ presentation layer draws it (a push, sheet or zoom moves and scales the layer, n
 layer above it is hidden or transparent. A key that shows twice in a frame (the same title on both pages of a push)
 is sampled once, from the frontmost. The test taps and posts stop; the app ends the film once everything it watches has held still for half a
 second, since a tap can return to the test while its transition is still moving. Each sample is stamped with the display link's own time, and the report says
-so. In the fixture, a push filmed this way held 66 to 69 frames about 0.019 s apart with the title in 20 or more
-places, and a push with animations turned off showed the title in one place: the snap check caught it
+so. In the fixture, a push filmed this way held 67 frames about 0.019 s apart with the title in 21
+places (three runs), and a push with animations turned off showed the title in one place: the snap check caught it
 ([fixture](../../Examples/OuroFeelFixture/UITests/FeelCatchesTests.swift), `testAPushFilmedInTheApp`).
 
 What it cannot do:

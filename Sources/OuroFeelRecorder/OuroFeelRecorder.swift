@@ -94,13 +94,24 @@ final class Recorder: NSObject {
         let t0 = start ?? now
         start = t0
         let seen = sample()
-        if frames.last?.seen != seen { stillSince = now }
+        if !Self.holdsStill(from: frames.last?.seen, to: seen) { stillSince = now }
         frames.append(FeelFrame(t: now - t0, seen: seen))
         if now - t0 >= cap {
             finish(stalledAt: now - t0)
-        } else if let stopAt, now - max(stopAt, stillSince ?? t0) >= restAfterStop {
+        } else if let stopAt, now - max(stopAt, stillSince ?? t0) >= restAfterStop || now - stopAt >= tailAfterStop {
+            // At rest, or something watched never rests (a spinner, a ticking label): the film ends unstalled, and a
+            // check on an element still moving says so.
             finish()
         }
+    }
+
+    /// The longest a film runs on after the test says stop.
+    let tailAfterStop: CFTimeInterval = 3
+
+    /// The same elements, none moved more than the half point the checks allow.
+    static func holdsStill(from a: [FeelSeen]?, to b: [FeelSeen]) -> Bool {
+        guard let a, a.count == b.count else { return false }
+        return zip(a, b).allSatisfy { $0.key == $1.key && FeelFilm.distance($0.frame, $1.frame) <= 0.5 }
     }
 
     private func finish(stalledAt: Double? = nil) {
@@ -123,8 +134,9 @@ final class Recorder: NSObject {
     /// How opaque each view is drawn this frame, through all its ancestors' presentation layers; nil when hidden.
     private var opacities: [ObjectIdentifier: Float?] = [:]
 
-    /// One sample per key: where a key shows twice (the same title on both pages of a push), the frontmost, which the
-    /// walk reaches last.
+    /// One sample per key: where a key shows twice (the same title on both pages of a push), the one the walk reaches
+    /// last, which is the frontmost among sibling views (not always across windows or a custom reading order). Track by
+    /// identifier where a label can repeat.
     private func sample() -> [FeelSeen] {
         opacities = [:]
         var seen: [FeelSeen] = []
@@ -151,7 +163,8 @@ final class Recorder: NSObject {
         }
         if let elements = object.accessibilityElements as? [NSObject] {
             for element in elements { visit(element, depth: depth + 1, into: &seen) }
-        } else if case let count = object.accessibilityElementCount(), count > 0, count != NSNotFound {
+        } else if !(object is UIView) || (object as? UIView)?.subviews.isEmpty == true,
+                  case let count = object.accessibilityElementCount(), count > 0, count != NSNotFound {
             // A container that lists its children only by count and index.
             for i in 0..<count {
                 if let element = object.accessibilityElement(at: i) as? NSObject { visit(element, depth: depth + 1, into: &seen) }

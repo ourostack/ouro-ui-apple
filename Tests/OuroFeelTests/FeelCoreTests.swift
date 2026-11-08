@@ -157,6 +157,18 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(result.findings.count == 1)
     }
 
+    @Test("with every copy filmed, one key twice in one place is one drawing; the same key in two places is a ghost")
+    func copiesOfOneKey() {
+        let same = film([(0, [card(100, key: "title", label: "Pancakes"), card(100, key: "title", label: "Pancakes")]),
+                         (0.02, [card(100, key: "title", label: "Pancakes"), card(100, key: "title", label: "Pancakes")])])
+        #expect(same.doubleDraws(of: ["Pancakes"]).passed)
+        let ghost = film([(0, [card(100, key: "title", label: "Pancakes")]),
+                          (0.02, [card(100, key: "title", label: "Pancakes"), card(500, key: "title", label: "Pancakes")])])
+        let r = ghost.doubleDraws(of: ["Pancakes"])
+        #expect(!r.passed)
+        #expect(r.detections.count == 1)
+    }
+
     @Test func aCopyOffScreenIsNotADoubleDraw() {
         let f = film([(0, [card(100, label: "Pancakes"), card(2000, key: "b", label: "Pancakes")])])
         #expect(f.doubleDraws(of: ["Pancakes"]).passed)
@@ -313,6 +325,26 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(!f.snaps(of: "panel", appearing: true).passed)
         // Without `appearing`, arriving is not motion, so a film of it cannot judge a snap.
         #expect(f.snaps(of: "panel").summary.hasPrefix("could not check"))
+    }
+
+    /// On a busy runner a push's first animation frame can repeat its start position, so the page arrives, holds for
+    /// a sample, and then travels: a transition, not an arrival in full (#53).
+    @Test func arrivingThenHoldingThenTravellingIsATransition() {
+        let ys: [Double?] = [nil, 800, 800, 700, 600, 500, 400, 400, 400]
+        let f = FeelFilm(window: phone, frames: ys.enumerated().map { i, y in FeelFrame(t: Double(i) * 0.02, seen: y.map { [box($0)] } ?? []) })
+        #expect(f.snaps(of: "panel", appearing: true).passed)
+    }
+
+    /// Only travel that follows the arrival clears it: a page that snaps in, rests, and later slides away for another
+    /// reason (a dismissal) still snapped in, and so does one that holds longer than two samples before moving.
+    @Test func aLaterSeparateMoveDoesNotClearASnapIn() {
+        func film(_ ys: [Double?]) -> FeelFilm {
+            FeelFilm(window: phone, frames: ys.enumerated().map { i, y in FeelFrame(t: Double(i) * 0.02, seen: y.map { [box($0)] } ?? []) })
+        }
+        #expect(!film([nil, 400, 400, 400, 400, 400, 500, 600, 700]).snaps(of: "panel", appearing: true).passed)
+        #expect(!film([nil, 800, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
+        #expect(film([nil, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
+        #expect(film([nil, 800, 770, 770, 740, 710, 680, 650, 650]).snaps(of: "panel", appearing: true).passed)
     }
 
     /// Mid-animation, SwiftUI's accessibility frame stretches from where the element is drawn to where it is going
@@ -973,6 +1005,26 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(FeelRecording.recordingFile(first.id) != FeelRecording.recordingFile(second.id))
         let decoded = try JSONDecoder().decode(FeelRecording.Request.self, from: JSONEncoder().encode(first))
         #expect(decoded == first)
+    }
+
+    @Test("a request can ask for every copy of a key, for double draws counted frame by frame; an older one cannot")
+    func requestsAskForCopies() throws {
+        let copies = FeelRecording.Request(keys: ["recipe.title"], copies: true)
+        #expect(copies.copies)
+        #expect(try JSONDecoder().decode(FeelRecording.Request.self, from: JSONEncoder().encode(copies)) == copies)
+        #expect(!FeelRecording.Request(keys: ["recipe.title"]).copies)
+        let older = try JSONDecoder().decode(FeelRecording.Request.self, from: Data(#"{"id":"a","keys":["k"]}"#.utf8))
+        #expect(!older.copies)
+    }
+
+    @Test("the injectable recorder is found in the first frameworks folder that holds it, and loaded with the folder")
+    func injectableRecorder() {
+        let dirs = [URL(fileURLWithPath: "/runner/Frameworks"), URL(fileURLWithPath: "/runner/PlugIns/UITests.xctest/Frameworks")]
+        let path = "/runner/PlugIns/UITests.xctest/Frameworks/OuroFeelRecorderInjectable.framework/OuroFeelRecorderInjectable"
+        #expect(FeelRecording.injectableLibrary(in: dirs) { $0 == path } == path)
+        #expect(FeelRecording.injectableLibrary(in: dirs) { _ in false } == nil)
+        let env = FeelRecording.injectionEnvironment(library: path, directory: "/tmp/films")
+        #expect(env == ["DYLD_INSERT_LIBRARIES": path, FeelRecording.directoryVariable: "/tmp/films"])
     }
 
     @Test("a film cut at the recorder's cap reads as stalled, so no motion check passes on what came after")

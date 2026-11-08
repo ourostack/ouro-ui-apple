@@ -25,15 +25,26 @@ public enum OuroFeelRecorder {
     public static let directoryVariable = FeelRecording.directoryVariable
 
     static var recorder: Recorder?
+    static let installedMarker = "OURO_FEEL_RECORDER_INSTALLED"
 
     /// Starts listening for the test's start and stop, if the test asked for a recorder.
     public static func installIfRequested(environment: [String: String] = ProcessInfo.processInfo.environment) {
-        guard recorder == nil, let path = environment[directoryVariable], !path.isEmpty else { return }
+        // One recorder per process: an app that links the recorder and also has the injectable one loaded carries two
+        // copies of this type, each with its own `recorder`, so the marker lives in the process's environment.
+        guard recorder == nil, getenv(installedMarker) == nil, let path = environment[directoryVariable], !path.isEmpty else { return }
+        setenv(installedMarker, "1", 1)
         recorder = Recorder(directory: URL(fileURLWithPath: path, isDirectory: true))
         let center = CFNotificationCenterGetDarwinNotifyCenter()
         CFNotificationCenterAddObserver(center, nil, recorderStarted, FeelRecording.startNotification as CFString, nil, .deliverImmediately)
         CFNotificationCenterAddObserver(center, nil, recorderStopped, FeelRecording.stopNotification as CFString, nil, .deliverImmediately)
     }
+}
+
+/// Called when the injectable recorder library is loaded into an app (`OuroFeelRecorderInjectable`, see
+/// `OuroFeel.injectedRecorderEnvironment`): installs the recorder on the main queue once the app is running.
+@_cdecl("ouro_feel_recorder_install_when_launched")
+public func ouroFeelRecorderInstallWhenLaunched() {
+    DispatchQueue.main.async { MainActor.assumeIsolated { OuroFeelRecorder.installIfRequested() } }
 }
 
 // Not main-actor code: Darwin notifications may arrive on any thread, so the callbacks hop to the main queue themselves.
@@ -52,6 +63,7 @@ final class Recorder: NSObject {
     let cap: CFTimeInterval = 20
     private var link: CADisplayLink?
     private var wanted: Set<String> = []
+    private var copies = false
     private var id = ""
     private var frames: [FeelFrame] = []
     private var start: CFTimeInterval?
@@ -71,6 +83,7 @@ final class Recorder: NSObject {
             .flatMap({ try? JSONDecoder().decode(FeelRecording.Request.self, from: $0) }) else { return }
         id = request.id
         wanted = Set(request.keys)
+        copies = request.copies
         let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
         link.add(to: .main, forMode: .common)
         self.link = link
@@ -134,13 +147,14 @@ final class Recorder: NSObject {
     /// How opaque each view is drawn this frame, through all its ancestors' presentation layers; nil when hidden.
     private var opacities: [ObjectIdentifier: Float?] = [:]
 
-    /// One sample per key: where a key shows twice (the same title on both pages of a push), the one the walk reaches
+    /// One sample per key, unless the request asks for every copy: where a key shows twice (the same title on both pages of a push), the one the walk reaches
     /// last, which is the frontmost among sibling views (not always across windows or a custom reading order). Track by
     /// identifier where a label can repeat.
     private func sample() -> [FeelSeen] {
         opacities = [:]
         var seen: [FeelSeen] = []
         for window in windows { visit(window, depth: 0, into: &seen) }
+        if copies { return seen }  // Every copy, for double draws.
         var last: [String: Int] = [:]
         for (i, s) in seen.enumerated() { last[s.key] = i }
         return seen.enumerated().filter { last[$0.element.key] == $0.offset }.map(\.element)

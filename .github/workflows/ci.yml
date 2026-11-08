@@ -691,8 +691,11 @@ jobs:
           status=0
           # shellcheck disable=SC2086
           xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
-            -resultBundlePath .build/feel-fixture.xcresult $only > .build/feel-fixture.log 2>&1 || status=$?
-          grep -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" .build/feel-fixture.log | tail -200
+            -resultBundlePath .build/feel-fixture.xcresult $only 2>&1 | tee .build/feel-fixture.log |
+            { grep --line-buffered -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" || true; }
+          # Shown as it runs, so a hung run still shows how far it got; the full log is uploaded below. The status is
+          # xcodebuild's own, not the filter's.
+          status="${PIPESTATUS[0]}"
           # A shard that ran nothing would pass on nothing: what ran must be the plan.
           if [ "$status" -eq 0 ]; then python3 -I scripts/ui-shards.py feel ran "$SHARD" .build/feel-fixture.xcresult || status=1; fi
           exit "$status"

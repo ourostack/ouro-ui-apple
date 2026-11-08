@@ -40,7 +40,7 @@ SUITES = {
         "target": "OuroHXGalleryUITests",
         "skipped_classes": {"MotionTests"},  # the main-only hitch probe
         "audit": {"test": "ComponentClaimTests/testEveryComponentPagePassesTheAccessibilityAudit",
-                  "env": "OURO_AUDIT_PAGES", "pages_in": r"static let pages\s*=\s*\[([^\]]*)\]"},
+                  "pages_in": r"static let pages\s*=\s*\[([^\]]*)\]"},  # filtered by OURO_AUDIT_PAGES
         # Seconds from #61's run 42432765989. The keyboard-sheet test (272 s) is the floor, so shard 1 holds it and
         # little else, and runs no audit pages.
         "shards": {
@@ -254,7 +254,7 @@ def check_ran(suite, shard, bundle):
 
 def selftest():
     import tempfile
-    audit = {"test": "A/testAudit", "env": "PAGES", "pages_in": r"static let pages\s*=\s*\[([^\]]*)\]"}
+    audit = {"test": "A/testAudit", "pages_in": r"static let pages\s*=\s*\[([^\]]*)\]"}
     tests = {"A/test1", "A/test2", "A/testAudit"}
     good = {"target": "T", "skipped_classes": {"M"}, "audit": audit,
             "shards": {1: {"tests": {"A/test1": 1}, "pages": {"p": 1}}, 2: {"tests": {"A/test2": 1}, "pages": {"q": 1}}}}

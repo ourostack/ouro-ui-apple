@@ -8,7 +8,7 @@
 # earlier attempt's build of the same commit and Xcode, which is the same build. It stops at once if the build job
 # failed, was cancelled or was skipped, and fails if the build succeeded without uploading what this shard needs
 # (its Xcode differs from the build's). Needs GH_TOKEN with actions: read.
-set -u
+set -eu
 PREFIX="$1"; JOB="$2"
 names() {
   gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \

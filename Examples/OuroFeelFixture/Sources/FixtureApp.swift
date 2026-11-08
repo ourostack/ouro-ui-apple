@@ -182,6 +182,8 @@ struct MotionPage: View {
                 .offset(y: 700)
             Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("motion.clock")
                 .offset(y: 760)
+            // Marks that Play took, so the test knows the film starts on a playing page (#65).
+            if playedAt != nil { Text(verbatim: "playing").font(.caption2).accessibilityIdentifier("motion.played").offset(y: 780) }
         }
     }
 

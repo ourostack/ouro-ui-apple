@@ -46,3 +46,28 @@ public struct FeelHitches: Codable, Equatable, Sendable {
                           findings: findings)
     }
 }
+
+extension FeelFilm {
+    /// Hitches in a film the app filmed on its own display, one sample per frame (``FeelRecording``): a gap between
+    /// samples is the app's main thread stalled, so the motion checks can be right about how something moved while the
+    /// app froze for half a second around it (ouro-ui-apple#98). The longest stall is named with its length and where it
+    /// fell. A film timed any other way (XCUITest's snapshots) is not one sample per frame and could not be checked.
+    public func hitches(refresh: Double, limit: Double = 5, worstFramesLimit: Double = 2) -> FeelResult {
+        guard timedBy == FeelRecording.timedBy else {
+            return timed(FeelResult(check: FeelGenre.hitches.rawValue, passed: false, summary: "could not check: no hitch reading",
+                                    findings: [.couldNotCheck("the film was not sampled every frame on the app's display, so its gaps are not the app's frames")]))
+        }
+        let stamps = frames.map(\.t)
+        var result = FeelHitches.analyze(timestamps: stamps, refresh: refresh).result(limit: limit, worstFramesLimit: worstFramesLimit)
+        if let (a, b) = zip(stamps, stamps.dropFirst()).max(by: { $0.1 - $0.0 < $1.1 - $1.0 }), (b - a) - refresh > refresh * worstFramesLimit {
+            let refreshes = Int(((b - a) / refresh).rounded())
+            result.findings.insert(FeelFinding(what: "the app stalled \(FeelResult.number(round3(b - a))) s (\(refreshes) refreshes) at "
+                + "\(FeelResult.number(round3(a))) s"), at: 0)
+        }
+        if let stall = stall() {
+            result.findings.insert(stall, at: 0)
+            result.passed = false
+        }
+        return timed(result)
+    }
+}

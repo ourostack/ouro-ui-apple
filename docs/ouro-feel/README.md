@@ -57,7 +57,7 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
 | place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
-| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. | `film.flickers(of:within:changes:)` |
+| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)` |
 | place kept through stray input | A stray tap, an edge swipe that goes nowhere, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)` |
 | navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:between:read:)` |
 | hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `feel.measureHitches(in:)` |
@@ -353,6 +353,22 @@ the app's own clock.
 ```swift
 let film = feel.recordedFilm(["reader.location"]) { app.swipeLeft() }
 feel.expect(film.flickers(of: ["reader.location"]))
+```
+
+**The whole screen, from pixels.** Content no element names (a web view's page, a canvas) can still flicker: the
+screen shows A, then B, then A again where no label ever changes. `feel.screenFilm(steps:tick:clock:advance:)` takes
+one screenshot per tick of the app's own clock, shrinks each to a 160-pixel grayscale thumbnail, and blanks the status
+bar, the clock's label and any rect in `ignoring` (a slip the app means to show and take away). `flickers(within:states:)`
+cuts the film into rests (at least 2 samples, each under 0.6 mean absolute difference from the one before), gives rests
+under 1.5 apart one label, and fails when a label comes back after another within `within` samples (default 90), or when
+the action rests in more than `states` different states (default 2; a contents jump that shows a veil, then the page,
+declares 3). A fade belongs to no rest, so a cross-fade is one change. It cannot be checked when the clock stalled, when
+the pictures differ in size, or when the screen was still changing at the end.
+
+```swift
+let film = feel.screenFilm(steps: 12, tick: 0.1, clock: "reader.clock",
+                           advance: FeelClock.darwinNotification("app.tick")) { app.swipeLeft() }
+feel.expect(film.flickers())
 ```
 
 ### Place kept through stray input, and navigation that fights you

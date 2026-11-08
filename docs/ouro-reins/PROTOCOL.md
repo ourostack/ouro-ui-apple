@@ -62,21 +62,21 @@ One JSON line per request:
 ```
 
 - `ok` is required. `screen` is the screen **after** the request. A refused request leaves the screen as it was and returns it, so the valid actions are always in the reply and an agent rarely needs another `ls`.
-- `error` is an Ouro AX problem: `code` (a stable slug to branch on), `exit`, `thing`, `problem`, `fix` (the exact thing to do instead, or null) and `message` (`<thing>: <problem>. Fix: <fix>.`). A code MAY add its own fields (§4).
+- `error` is an Ouro AX problem: `code` (a stable slug to branch on), `exit`, `thing`, `problem`, `fix` (the exact thing to do instead, or null) and `message`: `<thing>: <problem>.`, followed by ` Fix: <fix>.` when `fix` isn't null, with trailing periods and spaces trimmed from each part. A driver MAY add fields to it (§4); OuroReins sends exactly these six.
 - `help` replies `ok`, the screen and `help`: the protocol in a few lines, so an agent that finds a socket can learn it from the socket.
 
 ## 4. Refusals and failures
 
 A driver MUST check an action against `actions` and its input against the schema **before** anything runs. The codes:
 
-| Code | Exit | When | Extra fields |
+| Code | Exit | When | Where the detail is |
 | --- | --- | --- | --- |
-| `action-unavailable` | 2 | The action isn't offered on this screen. | `available`: the names that are. |
-| `input-invalid` | 2 | The input doesn't match the schema. | `path`: the JSON path that's wrong (`$.id`). |
+| `action-unavailable` | 2 | The action isn't offered on this screen. | `fix` lists the actions that are (`use one of: …`). A driver MAY also send them as `available`, an array. |
+| `input-invalid` | 2 | The input doesn't match the schema. | `problem` starts with the JSON path that's wrong (`$.id: …`). A driver MAY also send it as `path`. |
 | `input-unexpected` | 2 | Input was sent to an action that takes none. | |
 | `bad-request` | 2 | The line isn't a request. | |
-| `action-failed` | 1 | The action ran and failed. This is a finding, not something to retry. | |
-| `network-attempted` | 3 | Something tried to reach the network under a guard that forbids it (OuroReins' `ReinsNetworkGuard`). | the requests |
+| `action-failed` | 1 | The action ran and failed. This is a finding, not something to retry. `fix` is usually null. | |
+| `network-attempted` | 3 | Something tried to reach the network under a guard that forbids it (OuroReins' `ReinsNetworkGuard`). | Not a reply: reported when the process exits (the requests on stderr) or thrown by the guard's `check()` in a test. |
 
 Drivers that act on a real screen add these:
 

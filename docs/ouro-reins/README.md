@@ -150,7 +150,7 @@ the guard that checks them.
 
 ## Reins for any Mac app
 
-The same `ls` and `do`, for every app on a Mac, not only Ouro UI apps: an agent drives Finder, System Settings or a vendor's app as state and actions, with no model in the loop and no clicking by coordinates. It's the first driver built from [PROTOCOL.md](PROTOCOL.md) alone, for Ari's own Macs; the code isn't public yet.
+The same `ls` and `do`, for every app on a Mac, not only Ouro UI apps: an agent drives Finder, System Settings or a vendor's app as state and actions, with no model in the loop and no clicking by coordinates. It's a second driver, for Ari's own Macs, that now speaks [PROTOCOL.md](PROTOCOL.md) (it also sends `available` and `path` as fields); the code isn't public yet.
 
 - **The accessibility layer.** A resident engine reads the front app's accessibility tree (or a named app's) and prunes it to what a person can act on: each element has a role, a label, its value, whether it's enabled or focused, and its frame. Blocking alerts come first. Actions are narrowed to the screen: `click`'s `element` is an `enum` of the elements that can be clicked, `menu`'s `item` of the menu-bar items that are enabled (`File > New Finder Window`), `open_app`'s `app` of the installed apps. The others are `set_value`, `type_text`, `press_key` (`cmd+w`), `scroll`, `perform` (any other accessibility action) and `activate`.
 - **Stable addresses.** Each element has `#12`, its index on this screen, and a ref like `button[Back]` or `toolbar > button[Back]`: the shortest role-and-label path that's unique on the screen. An editable field is never named by its own value. A recorded journey keeps refs; on replay, a ref that no longer matches exactly matches by a unique suffix of the element's full path.

@@ -255,7 +255,7 @@ jobs:
 
   gallery-build:
     name: Gallery build for testing (free macos-26, Xcode 26)
-    # Builds the gallery and its UI tests once; the three shards below test that build on their own simulators. Pull
+    # Builds the gallery and its UI tests once; the four shards below test that build on their own simulators. Pull
     # requests run it only when they change what the gallery links (the `paths` job).
     needs: paths
     if: needs.paths.outputs.gallery == 'true'
@@ -339,9 +339,9 @@ jobs:
         run: echo "::warning::The gallery-motion-xcresult artifact did not upload (see the step's log); the job's result stands without it."
 
   gallery-shard:
-    name: Gallery UI shard ${{ matrix.shard }} of 3 (free macos-26, Xcode 26)
+    name: Gallery UI shard ${{ matrix.shard }} of 4 (free macos-26, Xcode 26)
     # performAccessibilityAudit on every component page at the default and the largest text size, in light and dark,
-    # plus 44-point targets, VoiceOver names, close controls and the waiting action toast, split three ways by measured
+    # plus 44-point targets, VoiceOver names, close controls and the waiting action toast, split four ways by measured
     # time (scripts/gallery-shards.py). Each shard starts with the build, boots its simulator while the build runs, then
     # tests the build's products. Pull requests run them only when they change what the gallery links.
     needs: paths
@@ -354,7 +354,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - name: A simulator for this shard, booting while the build runs
@@ -517,7 +517,7 @@ jobs:
           echo "paths=$PATHS gallery=$GALLERY build=$BUILD shards=$SHARDS"
           if [ "$PATHS" != success ]; then echo "::error::The paths job ended $PATHS"; exit 1; fi
           if [ "$GALLERY" = false ]; then echo "This change doesn't touch what the gallery links."; exit 0; fi
-          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and all three shards passed."; exit 0; fi
+          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and all four shards passed."; exit 0; fi
           echo "::error::Build $BUILD, shards $SHARDS"; exit 1
 
   xray:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI only: which gallery UI tests each shard runs, so three simulators share one build.
+"""CI only: which gallery UI tests each shard runs, so four simulators share one build.
 
     python3 -I scripts/gallery-shards.py check                       # the plan matches the test sources
     python3 -I scripts/gallery-shards.py args <shard>                # that shard's xcodebuild test selection
@@ -9,15 +9,16 @@
     python3 -I scripts/gallery-shards.py plan                        # each shard's measured seconds, to rebalance by
 
 The audit test (testEveryComponentPagePassesTheAccessibilityAudit) is the longest at 406 s, so it is split by page
-through its own OURO_AUDIT_PAGES filter: every shard runs it with only its own pages, and together they cover every
+through its own OURO_AUDIT_PAGES filter: each shard with pages runs it with only those pages, and together they cover every
 page. The last shard is the catch-all: it runs the whole UI test target except the other shards' tests and
 MotionTests (the main-only hitch probe), so a test no shard names still runs there. `check` reads the test sources
 and fails the `paths` job when a test is named twice, a named test no longer exists, or an audit page is in no shard
 or in two. `ran` reads each shard's result bundle and fails when the shard ran other tests than its plan or audited
 other pages, so a shard can never pass by running nothing.
 
-Seconds are from #54's run 42416382709 (attempt 2, macos-26, Xcode 26). Rebalance when a shard runs much longer than
-the others: move tests so each shard's total is close to a third of the whole. A new test lands in the catch-all
+Seconds are from #61's run 42432765989 (macos-26, Xcode 26), read from each shard's result bundle. The keyboard-sheet
+test alone (272 s) is the floor, so shard 1 holds it and little else. Rebalance when a shard runs much longer than the
+others: move tests so the other shards' totals stay close to each other. A new test lands in the catch-all
 shard until it is moved.
 """
 import json
@@ -37,24 +38,27 @@ SKIPPED_CLASSES = {"MotionTests"}
 # catch-all; its "tests" are the ones it is known to run, for the plan's totals and for `ran`.
 SHARDS = {
     1: {
-        "tests": {"ComponentClaimTests/testASheetWithTheKeyboardUpKeepsItsFieldAndActionInSight": 178.7,
-                  "ComponentClaimTests/testAnEmptyStatesSymbolSitsAboveItsTitle": 13.5},
-        "pages": {"sheet": 125.0},
+        "tests": {"ComponentClaimTests/testASheetWithTheKeyboardUpKeepsItsFieldAndActionInSight": 272.5,
+                  "ComponentClaimTests/testAnEmptyStatesSymbolSitsAboveItsTitle": 24.8},
+        "pages": {},
     },
     2: {
-        "tests": {"ComponentClaimTests/testASheetKeepsTheFocusedFieldInSightRatherThanItsEnd": 99.4,
-                  "ComponentClaimTests/testAnEmptyStatesActionSpansTheWidthAtAccessibilitySizes": 22.1,
-                  "FeelTests/testAToastStackArrivesWithoutJumpsGhostsOrALongSettle": 9.0},
-        "pages": {"toasts": 109.0, "buttons": 72.0},
+        "tests": {"ComponentClaimTests/testASheetKeepsTheFocusedFieldInSightRatherThanItsEnd": 90.6,
+                  "ComponentClaimTests/testAnEmptyStatesActionSpansTheWidthAtAccessibilitySizes": 45.5},
+        "pages": {"sheet": 119.3},
     },
     3: {
-        "tests": {"ComponentClaimTests/testEveryControlIs44Points": 45.4,
-                  "ComponentClaimTests/testCloseControlsClose": 42.3,
-                  "ComponentClaimTests/testVoiceOverLabels": 41.8,
-                  "ComponentClaimTests/testAToastWithAnActionWaits": 41.6,
-                  "ComponentClaimTests/testAToastShowsAboveASheet": 32.4,
-                  "ComponentClaimTests/testATallSheetOpensAtItsTopAtTheLargestSize": 24.3},
-        "pages": {"empty": 50.0, "banners": 50.0},
+        "tests": {"ComponentClaimTests/testEveryControlIs44Points": 38.5},
+        "pages": {"toasts": 94.6, "buttons": 78.8},
+    },
+    4: {
+        "tests": {"ComponentClaimTests/testVoiceOverLabels": 36.6,
+                  "ComponentClaimTests/testCloseControlsClose": 27.8,
+                  "ComponentClaimTests/testAToastShowsAboveASheet": 20.3,
+                  "ComponentClaimTests/testATallSheetOpensAtItsTopAtTheLargestSize": 17.5,
+                  "ComponentClaimTests/testAToastWithAnActionWaits": 16.6,
+                  "FeelTests/testAToastStackArrivesWithoutJumpsGhostsOrALongSettle": 11.0},
+        "pages": {"empty": 39.2, "banners": 35.0},
     },
 }
 CATCH_ALL = max(SHARDS)

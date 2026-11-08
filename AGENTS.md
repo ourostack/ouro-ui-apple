@@ -47,6 +47,10 @@ Meerkat mode: look around first. Before you design or build something new (a com
   (README, "The gallery"), and adds its page to the gallery.
 - Spacing follows web's metrics until core has spacing tokens. Decisions: `docs/decisions/2026-11-04-hx-components.md`.
 
+## Shipping an app to the App Store
+
+An app built on this package that offers a third-party login (Google, GitHub and so on) shows Sign in with Apple first, full width, before those buttons and any password form, on every platform. App Review rejected Spoonjoy for Mac 1.0 under Guideline 4.8 when it sat last. Follow [App Store submission](https://github.com/ourostack/.github/blob/main/agents/app-store-submission.md) and run `apple-distribution-kit review login-services --root .` in the app's CI ([the kit manual's CI step](https://github.com/ourostack/apple-distribution-kit/blob/main/docs/manual.md#pre-submission-guideline-48-login-services)).
+
 ## Claims
 
 A factual sentence is a claim on every surface: Markdown, DocC, code comments, a pull request's title and body. Give each its primary source (a file, a test, a command's output or a link) and, where one exists, the check that proves it. Credit the app a piece came from (Spoonjoy, Gatefold) in its DocC article.

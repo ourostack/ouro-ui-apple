@@ -108,3 +108,25 @@ struct Probe: View {
         #expect(OuroColor.contrastRatio(colors.background.resolve(in: light), OuroTokens.abyss.light.background.resolve(in: light)) < 1.01, "\(colors.background.resolve(in: light)) vs \(OuroTokens.abyss.light.background.resolve(in: light))")
     }
 }
+
+@Suite struct ThemeExtrasTests {
+    /// A colour as web's 8-bit hex: core writes 4 decimal places, which round back to the same byte.
+    private func hex(_ color: Color) -> Int {
+        let c = resolved(color)
+        func byte(_ v: Float) -> Int { Int((v * 255).rounded()) }
+        return byte(c.red) << 16 | byte(c.green) << 8 | byte(c.blue)
+    }
+
+    @Test func cookbookExtrasMatchCore() throws {
+        let extras = OuroTokens.theme(.cookbook).extras
+        // core v0.4.0 tokens/themes/cookbook.tokens.json: sj-brass #9b6834 (light), sj-action #b9854b (dark).
+        #expect(hex(try #require(extras.color(.sjBrass, .light))) == 0x9B6834)
+        #expect(hex(try #require(extras.color(.sjAction, .dark))) == 0xB9854B)
+    }
+
+    @Test func pearlHasNoExtrasSoLookupsAnswerNil() {
+        let extras = OuroTokens.theme(.pearl).extras
+        #expect(extras.color(.sjBrass, .light) == nil)
+        #expect(extras.type.isEmpty && extras.fonts.isEmpty)
+    }
+}

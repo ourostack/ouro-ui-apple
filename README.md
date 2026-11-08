@@ -112,8 +112,8 @@ The linter exits 0 when all is well, 1 when it trips over itself, 2 for a usage 
 ## Ouro Feel: how it feels, measured
 
 Jank comes in genres, and each one now has a check that never gets tired: the way back, overlay dismissal, inside the
-window, tap landing, double-draw, jump after landing, late or lingering chrome, snap with no transition, settle time
-and place stability. Link `OuroFeel` into your UI tests, walk every screen your entry points reach, and leave only real taste to the humans.
+window, tap landing, double-draw, jump after landing, late or lingering chrome, snap with no transition, settle time,
+place stability, flicker, place kept through stray input and navigation that fights you. Link `OuroFeel` into your UI tests, walk every screen your entry points reach, and leave only real taste to the humans.
 
 ```swift
 let feel = OuroFeel(app)

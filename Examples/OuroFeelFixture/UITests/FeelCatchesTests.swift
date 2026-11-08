@@ -216,6 +216,121 @@ final class FeelCatchesTests: XCTestCase {
     /// The fixed card eases for 0.8 s of the app's clock; the bug's late nudge, 2 s after it landed, is well past 1.25 s.
     func testSettleTime() { motion { $0.settles("motion.card", within: 1.25) } }
 
+    /// Flicker on the app's own clock: the bug's words turn, turn back and turn again, and its badge blinks on for one
+    /// tick; the fixed page turns once and its badge appears once.
+    func testFlicker() {
+        both("flicker") { app, feel in
+            let play = app.buttons["flicker.play"]
+            _ = play.waitForExistence(timeout: 10)
+            let film = feel.film(["flicker.words", "flicker.badge"], steps: 12, tick: 0.1, clock: "flicker.clock",
+                                 advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+            let result = film.flickers(of: ["flicker.words", "flicker.badge"])
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("flicker.words") && $0.what.contains("taken back") }, result.text)
+                XCTAssertTrue(result.detections.contains { $0.what.contains("flicker.badge") && $0.what.contains("blinked on") }, result.text)
+            }
+            return (result, film)
+        }
+    }
+
+    /// Flicker of the whole screen, judged from screenshots on the app's own clock: no element names the page. The bug's
+    /// page turns, goes back for three ticks and turns again; the fixed page turns once.
+    func testScreenFlicker() {
+        both("screen-flicker") { app, feel in
+            let play = app.buttons["screenflicker.play"]
+            _ = play.waitForExistence(timeout: 10)
+            let film = feel.screenFilm(steps: 14, tick: 0.1, clock: "screenflicker.clock",
+                                       advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+            XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
+            let result = film.flickers()
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("came back to it") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Place kept through stray input: a tap in the middle, an edge swipe, the Contents sheet swiped away and a trip
+    /// to the Home Screen, after reading on to page 3. The bug build's middle tap turns the page and its sheet resets it.
+    func testPlaceKeptThroughStrayInput() {
+        both("stray") { app, feel in
+            let next = app.buttons["stray.next"]
+            _ = next.waitForExistence(timeout: 10)
+            next.tap(); next.tap()
+            let contents = FeelPlaceStep.sheetDismissed("Contents", sheet: "stray.sheet") { $0.buttons["stray.contents"].tap() }
+            let result = feel.placeHeld(across: [.strayTap(), .edgeSwipe, contents, .background],
+                                        read: { app.staticTexts["stray.page"].label })
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("stray tap") }, result.text)
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("Contents opened and swiped away") }, result.text)
+                XCTAssertFalse(result.detections.contains { $0.what.hasPrefix("edge swipe") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// One tick of the fixture's clock, then a wait for the app to show it, so each read is one tick later however slow
+    /// the runner.
+    private func tick(_ app: XCUIApplication) -> () -> Void {
+        let clock = app.staticTexts["fight.clock"]
+        let advance = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
+        return {
+            let before = clock.label
+            advance()
+            let deadline = Date().addingTimeInterval(30)
+            while clock.label == before && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.02)) }
+        }
+    }
+
+    /// The fight page's place: empty while the veil is up.
+    private func fightPlace(_ app: XCUIApplication) -> () -> String {
+        { app.staticTexts["fight.veil"].exists ? "" : app.staticTexts["fight.page"].label }
+    }
+
+    /// Navigation that fights you, read once a tick on the app's own clock: the bug build's sync lands three ticks after
+    /// Next and pulls the page back; the fixed build's sync agrees.
+    func testNavigationThatFightsYou() {
+        both("fight") { app, feel in
+            _ = app.buttons["fight.next"].waitForExistence(timeout: 10)
+            let turn = FeelPlaceStep("next page") { feel in feel.app.buttons["fight.next"].tap() }
+            let result = feel.placeFights([turn], reads: 6, between: tick(app), read: fightPlace(app))
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("late restore") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// A tap on the right edge while a Contents jump's veil is up: the bug build queues it and lands a page past the one
+    /// chosen; the fixed build swallows it and lands on page 30.
+    func testATapWhileAJumpIsUnderWayLandsWhereYouChose() {
+        both("fight") { app, feel in
+            _ = app.buttons["fight.contents"].waitForExistence(timeout: 10)
+            let jump = FeelPlaceStep("Contents to page 30, with a tap on the right edge under the veil") { feel in
+                feel.app.buttons["fight.contents"].tap()
+                feel.app.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+            }
+            let result = feel.placeFights([.move(jump, landsOn: "Page 30")], reads: 6, between: tick(app), read: fightPlace(app))
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("not where you chose") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// No input at all: the bug build's cloud reply, arriving three ticks after the page opens, moves the page; the
+    /// fixed build offers it instead.
+    func testALateCloudReplyNeverMovesThePlace() {
+        both("fight", ["-cloud", "1"]) { app, feel in
+            _ = app.buttons["fight.next"].waitForExistence(timeout: 10)
+            let result = feel.placeHeld(across: [.noInput], reads: 6, between: tick(app), read: fightPlace(app))
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("no input moved the place") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
     /// Not a pass or fail: one `XCTHitchMetric` reading of the fixed motion page, so the result bundle shows what the
     /// simulator reports (a proxy; gate hitches on a device).
     func testHitchMetricReading() throws {

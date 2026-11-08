@@ -20,6 +20,10 @@ struct FixtureApp: App {
             case "push": PushPage()
             case "kitchen": KitchenPage()
             case "transition": TransitionPage()
+            case "flicker": FlickerPage()
+            case "screen-flicker": ScreenFlickerPage()
+            case "stray": StrayPage()
+            case "fight": FightPage()
             default: NavPage()
             }
         }
@@ -606,6 +610,133 @@ struct TransitionPage: View {
             withTransaction(transaction) { path.append(name) }
         } else {
             path.append(name)
+        }
+    }
+}
+
+/// Flicker, on the app's own clock (``FixtureClock``). Three ticks after Play the page turns and a Saved badge shows.
+/// Fixed: the words change once and the badge appears once. The bug, as Gatefold build 20 spazzed: the words turn,
+/// turn back for a tick, then turn again, and the badge blinks on for one tick only.
+struct FlickerPage: View {
+    private let clock = FixtureClock.shared
+    @State private var playedAt: Int?
+
+    var body: some View {
+        let k = playedAt.map { clock.ticks - $0 } ?? -1
+        let page = bug ? (k == 3 || k >= 5 ? 2 : 1) : (k >= 3 ? 2 : 1)
+        let badge = bug ? k == 4 : k >= 4
+        VStack(spacing: 24) {
+            if badge { Text("Saved").accessibilityIdentifier("flicker.badge") }
+            Text("Page \(page)").font(.title).accessibilityIdentifier("flicker.words")
+            Button("Play") { playedAt = clock.ticks }.accessibilityIdentifier("flicker.play")
+            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("flicker.clock")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Flicker of the whole screen, on the app's own clock (``FixtureClock``), with nothing named: the page is a picture no
+/// element labels, as a web view's page is. Three ticks after Play it turns. Fixed: it turns once. The bug, as Gatefold
+/// build 20's slip came and went on a folded Duo: it turns, goes back for three ticks, then turns again (three, so a
+/// screenshot a tick late still sees each state rest).
+struct ScreenFlickerPage: View {
+    private let clock = FixtureClock.shared
+    @State private var playedAt: Int?
+
+    var body: some View {
+        let k = playedAt.map { clock.ticks - $0 } ?? -1
+        let turned = bug ? ((3...5).contains(k) || k >= 9) : k >= 3
+        VStack(spacing: 24) {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(turned ? Color.indigo : Color.orange)
+                .overlay(Text(turned ? "2" : "1").font(.system(size: 120, weight: .bold)).foregroundStyle(.white))
+                .frame(height: 360)
+                .padding(.horizontal, 24)
+                .accessibilityHidden(true)
+            Button("Play") { playedAt = clock.ticks }.accessibilityIdentifier("screenflicker.play")
+            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("screenflicker.clock")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Place kept through stray input. A page you read, a Next button, and a Contents sheet. Fixed: a tap in the middle
+/// shows or hides a top bar, and swiping the sheet away keeps the page. The bugs: a tap in the middle turns the page,
+/// and swiping the sheet away goes back to page 1, as a stray touch moved Ari's place in Gatefold build 20.
+struct StrayPage: View {
+    @State private var page = 1
+    @State private var bar = false
+    @State private var contents = false
+
+    var body: some View {
+        ZStack {
+            Color.white.opacity(0.001).contentShape(Rectangle())
+                .onTapGesture { if bug { page += 1 } else { bar.toggle() } }
+            Text("Page \(page)").font(.title).accessibilityIdentifier("stray.page").allowsHitTesting(false)
+            VStack {
+                if bar { Text("Reading").font(.headline).padding().accessibilityIdentifier("stray.bar") }
+                Spacer()
+                HStack(spacing: 40) {
+                    Button("Contents") { contents = true }.accessibilityIdentifier("stray.contents")
+                    Button("Next") { page += 1 }.accessibilityIdentifier("stray.next")
+                }
+                .padding(.bottom, 40)
+            }
+        }
+        .sheet(isPresented: $contents, onDismiss: { if bug { page = 1 } }) {
+            VStack {
+                Text("Contents").font(.headline).padding().accessibilityIdentifier("stray.sheet")
+                List(1...5, id: \.self) { Text("Chapter \($0)") }
+            }
+        }
+    }
+}
+
+/// Navigation that fights you, on the app's own clock (``FixtureClock``). Next turns the page and a sync lands three
+/// ticks later; Contents jumps to page 30 behind a veil that lifts three ticks later, and a tap on the right edge turns
+/// the page. With `-cloud 1`, a cloud reply arrives three ticks after the page opens, with no input. Fixed: the sync
+/// agrees with where you are, a tap under the veil is swallowed, and the cloud reply is offered, not applied. The bugs,
+/// as in Gatefold build 20: the sync carries the place from before your move (a late restore), a tap under the veil is
+/// queued and turns the page as the jump lands, and the cloud reply moves the page you are reading.
+struct FightPage: View {
+    private let clock = FixtureClock.shared
+    @State private var page = 1
+    @State private var pending: (at: Int, page: Int)?
+    @State private var veilUntil: Int?
+    @State private var queued = 0
+    @State private var cloudAt: Int?
+    @State private var offer: Int?
+
+    var body: some View {
+        ZStack {
+            GeometryReader { geo in
+                Color.white.opacity(0.001).contentShape(Rectangle())
+                    .onTapGesture { at in
+                        guard at.x > geo.size.width * 0.75 else { return }
+                        if veilUntil != nil { if bug { queued += 1 } } else { page += 1 }
+                    }
+            }
+            VStack(spacing: 24) {
+                if veilUntil != nil {
+                    Text("Opening").accessibilityIdentifier("fight.veil")
+                } else {
+                    Text("Page \(page)").font(.title).accessibilityIdentifier("fight.page")
+                }
+                Button("Next") {
+                    pending = (clock.ticks + 3, bug ? page : page + 1)
+                    page += 1
+                }
+                .accessibilityIdentifier("fight.next")
+                Button("Contents: page 30") { veilUntil = clock.ticks + 3 }.accessibilityIdentifier("fight.contents")
+                if let offer { Button("Go to page \(offer)") { page = offer; self.offer = nil }.accessibilityIdentifier("fight.offer") }
+                Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("fight.clock")
+            }
+        }
+        .onAppear { if UserDefaults.standard.bool(forKey: "cloud") { cloudAt = clock.ticks + 3 } }
+        .onChange(of: clock.ticks) { _, now in
+            if let p = pending, now >= p.at { page = p.page; pending = nil }
+            if let v = veilUntil, now >= v { page = 30 + queued; queued = 0; veilUntil = nil }
+            if let c = cloudAt, now >= c { if bug { page = 5 } else { offer = 5 }; cloudAt = nil }
         }
     }
 }

@@ -57,6 +57,9 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
 | place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
+| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)` |
+| place kept through stray input | A stray tap, an edge swipe that goes nowhere, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)` |
+| navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:between:read:)` |
 | hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `feel.measureHitches(in:)` |
 
 ### The way back
@@ -333,6 +336,79 @@ feel.expect(feel.place(read: { app.otherElements["reader.page"].value as? String
 ```
 
 `.relaunch` reuses `app.launchArguments`, so drop any reset arguments before calling it.
+
+### Flicker
+
+Proves: each named element changes once on its way to where it ends. It fails when an element blinks (shown, hidden,
+shown, or the reverse, with the middle run at most `within` samples), when its words are taken back (A, B, A) or change
+more than `changes` times within `within` samples, or when it leaves a resting place by more than `distance` points (seen
+in at least one sample) and rests there again within `within` samples. A spring that overshoots never rests on its way,
+so it is no flicker. Everything is counted in samples, never seconds, so `within`'s span in time follows the film's
+clock: the default 30 is half a second recorded in the app and 3 s on a 0.1 s app tick (lower it for a film with a
+short toast). The words are the accessibility label, not the value, and a page that shows "Loading" between two pages
+changes twice. It could not be checked when an element was still changing in the film's last `hold` samples, or when
+nothing flickered but samples were once more than `maxGap` (0.15 s) apart, so film it in the app (`recordedFilm`) or on
+the app's own clock.
+
+```swift
+let film = feel.recordedFilm(["reader.location"]) { app.swipeLeft() }
+feel.expect(film.flickers(of: ["reader.location"]))
+```
+
+**The whole screen, from pixels.** Content no element names (a web view's page, a canvas) can still flicker: the
+screen shows A, then B, then A again where no label ever changes. `feel.screenFilm(steps:tick:clock:advance:)` takes
+one screenshot per tick of the app's own clock, shrinks each to a 160-pixel grayscale thumbnail, and blanks the status
+bar, the clock's label and any rect in `ignoring` (a slip the app means to show and take away). `flickers(within:states:)`
+cuts the film into rests (at least 2 samples, each under 0.6 mean absolute difference from the rest's first), labels
+each by its settled picture (rests under 1.5 apart share a label), and fails when:
+
+- a label comes back after another within `within` samples (default 90, counted in ticks; the element check's 30 counts
+  frames);
+- the screen flashes away from a rest and back in samples too short to rest (one tick is plain to see), or reaches the
+  next rest for a moment, goes back, then on again;
+- the action rests in more than `states` different states (default 2, which covers a toggle; a contents jump that shows
+  a veil, then the page, declares 3).
+
+Frames between two different rests are otherwise not judged: a slide or scroll of real content is as far from both rests
+as they are from each other, so pages spun through on the way to a new page are not caught here; judge such a page's
+place with the element check. It cannot be checked when the clock stalled, when a sample came more than twice the usual gap after the last (a skipped
+tick could hide a flash), when the pictures differ in size, or when the screen was still changing at the end. Only motion
+that follows the app's clock is filmed deterministically: a web view's CSS or WebKit's own fades run on wall time, so
+film those from a recording. The screenshot follows the accessibility tree's tick and can lag it by a frame on a slow
+runner, so give each state a few ticks.
+
+```swift
+let film = feel.screenFilm(steps: 12, tick: 0.1, clock: "reader.clock",
+                           advance: FeelClock.darwinNotification("app.tick")) { app.swipeLeft() }
+feel.expect(film.flickers())
+```
+
+### Place kept through stray input, and navigation that fights you
+
+Both read the place after every action and keep only fingerprints (`FeelPlaceTrail`), judged in reads, never seconds.
+`read` names the place and nothing else (a location, a page number, the page's words) and returns an empty string while
+the place loads; reading every text on screen would count the controls a stray tap shows as a moved place.
+
+`feel.placeHeld(across:read:)` runs actions that must keep the place and fails if any read after one shows another
+place, even if it later came back. The default steps are `.strayTap()` (the middle of the window, where a reader shows
+or hides its controls; pass `at:` where the middle is a deliberate control), `.edgeSwipe` (the way back's own gesture,
+for a screen where it is not a way back) and `.background`. Add `.noInput` to catch a late reply that moves the place
+while you are idle, and `.sheetDismissed("Contents", sheet: "contents.title") { app in … }` for a sheet opened and
+swiped away (a sheet that never opened or closed could not be checked).
+
+`feel.placeFights(_:reads:hold:read:)` runs your own moves. After each one the place must land (the first place two
+reads in a row agree on, so a page that shows a place for one read on its way is fine), where you chose when the move
+says (`.move(step, landsOn: "Chapter 3")`), and hold for at least `hold` reads. Going back to where you were, even for
+one read, is a late restore; moving on after landing is a re-sent or late jump; landing elsewhere than you chose is an
+input queued during a jump. Give it enough `reads` to outlast your app's restore or sync, and `between:` to advance an
+app on its own clock between reads.
+
+```swift
+let place = { app.otherElements["reader.page"].value as? String ?? "" }
+let turn = FeelPlaceStep("next page") { feel in feel.app.swipeLeft() }
+feel.expect(feel.placeHeld(across: FeelPlaceStep.stray + [.noInput], read: place))
+feel.expect(feel.placeFights([turn, turn], read: place))
+```
 
 ### Hitches
 

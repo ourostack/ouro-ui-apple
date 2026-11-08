@@ -133,7 +133,10 @@ struct SocketTests {
             _ = out.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
             while !pending.contains(UInt8(ascii: "\n")) {
                 let n = read(fd, &buffer, buffer.count)
-                guard n > 0 else { throw POSIXError(.ECONNRESET) }
+                // A read a signal interrupts is retried, not a failure (#102); anything else reports what really happened.
+                if n < 0, errno == EINTR || errno == EAGAIN { continue }
+                if n < 0 { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+                if n == 0 { throw POSIXError(.ENOTCONN, userInfo: [NSLocalizedDescriptionKey: "the server closed the connection before replying to `\(line)`"]) }
                 pending.append(contentsOf: buffer[0..<n])
             }
             let newline = pending.firstIndex(of: UInt8(ascii: "\n"))!

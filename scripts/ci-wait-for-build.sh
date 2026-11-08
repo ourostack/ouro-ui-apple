@@ -5,7 +5,9 @@
 #
 # The build uploads `<prefix><run attempt>`. This prints `name=<artifact>` to $GITHUB_OUTPUT once this attempt's build
 # is uploaded. When this attempt didn't rerun the build ("re-run failed jobs" carries it over), it takes the newest
-# earlier attempt's build of the same commit and Xcode, which is the same build. It stops at once if the build job
+# earlier attempt's build of the same commit and Xcode, which is the same build. The job's `run_attempt` can't tell a
+# carried-over build from a rebuild (GitHub lists both under this attempt, #79), so a build that succeeded without an
+# upload from this attempt also falls back. It stops at once if the build job
 # failed, was cancelled or was skipped, and fails if the build succeeded without uploading what this shard needs
 # (its Xcode differs from the build's). Needs GH_TOKEN with actions: read.
 set -eu
@@ -36,8 +38,8 @@ while :; do
       sleep "${WAIT_RECHECK:-10}"; name="$(pick current)"
       # GitHub lists a build that "re-run failed jobs" carried over under this attempt's number (#79), so the check
       # above can't tell it from a rebuild. An earlier attempt's upload of this prefix is the same commit and Xcode.
-      [ -n "$name" ] || name="$(pick any)"
-      test -n "$name" || { echo "::error::$JOB succeeded without uploading $PREFIX$GITHUB_RUN_ATTEMPT: this shard's Xcode differs from the build's"; exit 1; }
+      [ -n "$name" ] || { name="$(pick any)"; [ -z "$name" ] || echo "::notice::No upload from attempt $GITHUB_RUN_ATTEMPT; testing $name, the same commit and Xcode"; }
+      test -n "$name" || { echo "::error::$JOB succeeded, but no unexpired upload starts $PREFIX: this shard's Xcode differs from the build's, or the build expired (kept 2 days; re-run all jobs)"; exit 1; }
     fi
   fi
   if [ -n "$name" ]; then echo "Testing $name"; echo "name=$name" >> "$GITHUB_OUTPUT"; exit 0; fi

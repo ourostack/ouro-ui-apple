@@ -106,6 +106,7 @@ A journey is a flow worth keeping, as data:
 ```
 
 - A step is `{action?, input?, until?, timeout_ms?}`. `until` maps dotted paths into the screen to expected JSON values; a number expected at an array compares its length. A driver MAY define more step fields for its own addressing (Reins for any Mac app adds `app`).
+- A driver whose screens list elements MAY also accept `until` keys that name an element by its address rather than its index, which moves as a screen fills in: `@<address>.<field>` is that element's field (`"@statictext[Edit field].value": "42"`), and `@<address>` alone is `true` while the element is on the screen and `false` once it's gone. The address is whatever the driver's `element` input accepts.
 - A driver runs a step's action, then polls until `until` holds or `timeout_ms` passes (default 2000; OuroReins polls every 5 ms). A step with only `until` just waits.
 - A journey stops at the first refusal, failure or unmet `until`, and reports what it waited for, the last screen, and the `do` lines that replay it up to that point.
 
@@ -144,3 +145,4 @@ The same lines and replies travel over:
 ## Changes
 
 - **1** (2026-11-08): first published, from OuroReins as built and the first driver for whole Macs ([#76](https://github.com/ourostack/ouro-ui-apple/issues/76)). Adds `person-active`, `app-protected`, `permission-missing`, `until-not-met`, batches and diffs.
+  - Later the same day, from the first live runs: optional `@<address>` keys in `until` (§6), so a condition survives indexes moving. Optional, so still version 1.

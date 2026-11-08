@@ -60,7 +60,7 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)` |
 | place kept through stray input | A stray tap, an edge swipe that goes nowhere, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)` |
 | navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:between:read:)` |
-| hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `film.hitches(refresh:)`, `feel.measureHitches(in:)` |
+| hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `film.hitches()`, `feel.measureHitches(in:)` |
 
 ### The way back
 
@@ -439,9 +439,10 @@ hitches with XCTest"). `feel.measureHitches(in: self) { … }` wraps `XCTHitchMe
 to the result bundle. On the simulator these numbers are a proxy that depends on the Mac; gate on a device.
 
 A film the app made on its own display (`FeelRecording`, one sample per frame) carries its own timestamps:
-`film.hitches(refresh:)` reads them, and names the longest stall with its length and where it fell ("the app stalled
-0.567 s (34 refreshes) at 1.133 s"). Use it beside the motion checks, which judge how something moved and so can pass
-while the app froze around it. A film sampled by XCUITest is not one sample per frame, so it could not be checked.
+`film.hitches()` reads them, at the film's own pace unless you pass `refresh:`, and names the longest stall in one
+finding ("the app stalled 0.567 s at 1.133 s, 33 refreshes late (limit 2)"). Use it beside the motion checks, which
+judge how something moved and so can pass while the app froze around it. A film not made by the in-app recorder is not
+one sample per frame, so it could not be checked.
 
 ## Cold starts
 

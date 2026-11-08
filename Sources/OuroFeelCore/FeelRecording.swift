@@ -13,6 +13,7 @@ public enum FeelRecording {
     /// id, so a film that a timed-out request finishes late is never read as the next request's.
     public static func recordingFile(_ id: String) -> String { "recording-\(id)" }
     public static func filmFile(_ id: String) -> String { "film-\(id).json" }
+    /// Also how a film is known to be one sample per frame: `FeelFilm.hitches` reads only films with exactly this.
     public static let timedBy = "the app's display (an in-app sample every frame, CADisplayLink)"
 
     /// The injectable recorder's binary inside its framework (the `OuroFeelRecorderInjectable` product).

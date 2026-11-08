@@ -50,22 +50,39 @@ public struct FeelHitches: Codable, Equatable, Sendable {
 extension FeelFilm {
     /// Hitches in a film the app filmed on its own display, one sample per frame (``FeelRecording``): a gap between
     /// samples is the app's main thread stalled, so the motion checks can be right about how something moved while the
-    /// app froze for half a second around it (ouro-ui-apple#98). The longest stall is named with its length and where it
-    /// fell. A film timed any other way (XCUITest's snapshots) is not one sample per frame and could not be checked.
-    public func hitches(refresh: Double, limit: Double = 5, worstFramesLimit: Double = 2) -> FeelResult {
+    /// app froze for half a second around it (ouro-ui-apple#98). The longest stall is named with its length, where it
+    /// fell and how late it was, in one finding.
+    ///
+    /// `refresh` defaults to the film's own pace (its median gap), since the film does not record the display's rate; a
+    /// `refresh` more than 25% off that pace (60 Hz filmed, 120 Hz assumed) could not be checked, rather than every frame
+    /// counting as late. A film made any other way (XCUITest's snapshots, a film on the app's clock) is not one sample per
+    /// frame and could not be checked either.
+    public func hitches(refresh: Double? = nil, limit: Double = 5, worstFramesLimit: Double = 2) -> FeelResult {
+        func unchecked(_ why: String) -> FeelResult {
+            timed(FeelResult(check: FeelGenre.hitches.rawValue, passed: false, summary: "could not check: no hitch reading",
+                             findings: [.couldNotCheck(why)]))
+        }
         guard timedBy == FeelRecording.timedBy else {
-            return timed(FeelResult(check: FeelGenre.hitches.rawValue, passed: false, summary: "could not check: no hitch reading",
-                                    findings: [.couldNotCheck("the film was not sampled every frame on the app's display, so its gaps are not the app's frames")]))
+            return unchecked("the film was not made by the in-app recorder, one sample per frame, so its gaps are not the app's frames")
+        }
+        let pace = typicalGap
+        let refresh = refresh ?? (pace.isFinite ? pace : 1.0 / 60)
+        if pace.isFinite, abs(pace - refresh) > refresh * 0.25 {
+            return unchecked("the film's frames came every \(FeelResult.number(round3(pace * 1000))) ms, not every "
+                + "\(FeelResult.number(round3(refresh * 1000))) ms as given, so lateness could not be measured")
         }
         let stamps = frames.map(\.t)
         var result = FeelHitches.analyze(timestamps: stamps, refresh: refresh).result(limit: limit, worstFramesLimit: worstFramesLimit)
-        if let (a, b) = zip(stamps, stamps.dropFirst()).max(by: { $0.1 - $0.0 < $1.1 - $1.0 }), (b - a) - refresh > refresh * worstFramesLimit {
-            let refreshes = Int(((b - a) / refresh).rounded())
-            result.findings.insert(FeelFinding(what: "the app stalled \(FeelResult.number(round3(b - a))) s (\(refreshes) refreshes) at "
-                + "\(FeelResult.number(round3(a))) s"), at: 0)
+        if (result.measures["worstFrames"] ?? 0) > worstFramesLimit,
+           let (a, b) = zip(stamps, stamps.dropFirst()).max(by: { $0.1 - $0.0 < $1.1 - $1.0 }) {
+            // One finding for the one stall: its length, where it fell, and its lateness against the limit.
+            result.findings.removeAll { $0.what.hasPrefix("one frame came") }
+            result.findings.insert(FeelFinding(what: "the app stalled \(FeelResult.number(round3(b - a))) s at \(FeelResult.number(round3(a))) s, "
+                + "\(FeelResult.number(result.measures["worstFrames"] ?? 0)) refreshes late (limit \(FeelResult.number(worstFramesLimit)))"), at: 0)
         }
         if let stall = stall() {
-            result.findings.insert(stall, at: 0)
+            // What was filmed still counts; the cut-off film says so after it.
+            result.findings.append(stall)
             result.passed = false
         }
         return timed(result)

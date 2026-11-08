@@ -52,7 +52,7 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | inside the window | Every control sits wholly inside the window, in every orientation and after turning the device and back. | `feel.insideWindow(poses:)`; also on every screen `wayBack` reaches |
 | tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
 | double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
-| jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)` |
+| jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)`; at an open, from pixels, `feel.screenFilm(...).revealHolds(until:)` |
 | late or lingering chrome | Bars and controls hand over in one beat: never two states at once, never a blank between them. | `film.chrome(from:to:grace:)` |
 | snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
@@ -381,6 +381,22 @@ runner, so give each state a few ticks.
 let film = feel.screenFilm(steps: 12, tick: 0.1, clock: "reader.clock",
                            advance: FeelClock.darwinNotification("app.tick")) { app.swipeLeft() }
 feel.expect(film.flickers())
+```
+
+### The first page shown after an open holds
+
+`film.revealHolds(until:)` is jump after landing at an open, judged from the same screen film as whole-screen flicker.
+The film starts on the cover (a launch screen, a placeholder, a picture of the page). The first thing the screen rests on
+once the cover goes must be what it rests on up to sample `until` (the next scripted mark; the film's end by default):
+another rest after it, the cover coming back, or a flash away and back fails. It catches a wrong first page even when
+the app's own report of the place is right, as on Gatefold build 20's relaunch, which showed another page for about
+10 s and then jumped to his. Counted in samples; it cannot be checked when the screen never rests on anything but the
+cover, or is still changing at `until`.
+
+```swift
+let film = feel.screenFilm(steps: 40, tick: 0.1, clock: "reader.clock",
+                           advance: FeelClock.darwinNotification("app.tick")) { app.buttons["Open"].tap() }
+feel.expect(film.revealHolds())
 ```
 
 ### Place kept through stray input, and navigation that fights you

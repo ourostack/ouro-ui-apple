@@ -50,42 +50,44 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
         return Double(sum) / Double(a.gray.count)
     }
 
-    /// The states the screen rested in, in order: runs of at least `run` samples, each under `stable` from the one
-    /// before. A state takes the label of the first earlier state whose first picture is under `merge` from its own.
-    /// Samples in between (on their way) belong to no state.
+    /// The states the screen rested in, in order: runs of at least `run` samples, each under `stable` from the run's
+    /// first sample (so a slow drift never chains into one rest). A state is labelled by its last, settled picture, and
+    /// shares the label of the first earlier state whose settled picture is under `merge` from it. Samples in between
+    /// (on their way, or flashing) belong to no state; ``flickers(within:states:stable:merge:run:)`` judges them.
     public func states(stable: Double = 0.6, merge: Double = 1.5, run: Int = 2) -> [State] {
         var out: [State] = []
-        var reps: [Int] = []  // the first sample of each label
+        var reps: [Int] = []  // the settled sample of each label
         var i = 0
         while i < frames.count {
             var j = i
-            while j + 1 < frames.count, let d = Self.difference(frames[j], frames[j + 1]), d < stable { j += 1 }
+            while j + 1 < frames.count, let d = Self.difference(frames[i], frames[j + 1]), d < stable { j += 1 }
             if j - i + 1 >= max(1, run) {
-                let label = reps.firstIndex { r in Self.difference(frames[r], frames[i]).map { $0 < merge } ?? false } ?? {
-                    reps.append(i)
+                let label = reps.firstIndex { r in Self.difference(frames[r], frames[j]).map { $0 < merge } ?? false } ?? {
+                    reps.append(j)
                     return reps.count - 1
                 }()
-                if let last = out.last, last.label == label {
-                    out[out.count - 1].end = j
-                } else {
-                    out.append(State(label: label, start: i, end: j))
-                }
+                out.append(State(label: label, start: i, end: j))
             }
             i = j + 1
         }
         return out
     }
 
-    /// Flicker of the whole screen within one action, judged in samples, never seconds. It fails when the screen comes
-    /// back to a state it left (A, B, A) within `within` samples, and when it rests in more than `states` different
-    /// states (a contents jump that shows a veil, then the page, declares 3: where it was, the veil, the page). Overlays
-    /// the action itself toggles, and slips the app means to show, are declared by raising `states`; a slip that shows
-    /// and goes again is still A, B, A, so blank its region when filming if it is meant to come and go.
+    /// Flicker of the whole screen within one action, judged in samples, never seconds. It fails when:
     ///
-    /// The pictures are compared as small grayscale thumbnails: two samples under `stable` (mean absolute difference, 0
-    /// to 255) apart are the same moment of a rest; a rest is at least `run` samples; two rests under `merge` apart are
-    /// the same state. It cannot be checked when the film stalled, when its pictures differ in size, or when the screen
-    /// was still changing in its last `run` samples (film for longer).
+    /// - the screen comes back to a state it left (A, B, A) within `within` samples;
+    /// - it leaves a rest for samples too short to be a rest of their own and comes back (a one-tick flash);
+    /// - between two rests it shows something that is neither, nor on the way from one to the other (pages spun
+    ///   through a tick each before it settled); a fade or a slide between them is on the way, so it is one change;
+    /// - it rests in more than `states` different states. A toggle (A to B) is the default 2; a contents jump that shows a
+    ///   veil, then the page, declares 3. A slip meant to come and go is still A, B, A, so blank its region when filming.
+    ///
+    /// The pictures are compared as small grayscale thumbnails by mean absolute difference (0 to 255): a rest is at least
+    /// `run` samples, each under `stable` from its first; two rests under `merge` apart are the same state. `within` is in
+    /// samples (90 here, where a screen film is one sample a tick; `FeelFilm.flickers` defaults to 30 for films sampled
+    /// every frame). It cannot be checked when the film stalled, when its pictures differ in size, when a sample came
+    /// more than twice the film's usual gap after the one before (the app's clock skipped a tick, which could hide a
+    /// flash), or when the screen was still changing in its last samples (film for longer).
     public func flickers(within: Int = 90, states allowed: Int = 2, stable: Double = 0.6, merge: Double = 1.5,
                          run: Int = 2) -> FeelResult {
         let run = max(2, run)
@@ -100,15 +102,48 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
         if frames.count < run {
             findings.append(.couldNotCheck("the film had \(frames.count) samples, fewer than the \(run) a rest needs; film for longer"))
         }
-        let found = sizes.count > 1 ? [] : states(stable: stable, merge: merge, run: run)
+        let gaps = zip(frames, frames.dropFirst()).map { $1.t - $0.t }
+        if let usual = gaps.sorted().dropFirst(gaps.count / 2).first, usual > 0,
+           let (n, gap) = gaps.enumerated().max(by: { $0.element < $1.element }).map({ ($0.offset, $0.element) }), gap > usual * 2 {
+            findings.append(.couldNotCheck("samples were once \(FeelResult.number(Self.round3(gap))) s apart (from \(FeelResult.number(Self.round3(frames[n].t))) s), more than twice the usual \(FeelResult.number(Self.round3(usual))) s, so a flash there could be missed"))
+        }
+        let judgeable = sizes.count <= 1 && frames.count >= run
+        let found = judgeable ? states(stable: stable, merge: merge, run: run) : []
         var flips = 0
-        if sizes.count <= 1, frames.count >= run {
-            for (n, state) in found.enumerated() where n >= 2 {
+        func d(_ a: Int, _ b: Int) -> Double { Self.difference(frames[a], frames[b]) ?? 0 }
+        func at(_ i: Int) -> String { FeelResult.number(Self.round3(frames[i].t)) }
+        if judgeable {
+            // Between each pair of rests: a flash away and back, or something that is neither and not on the way.
+            for (a, b) in zip(found, found.dropFirst()) where b.start > a.end + 1 {
+                let between = (a.end + 1)..<b.start
+                let from = a.end, to = b.end
+                if a.label == b.label {
+                    if let far = between.first(where: { d($0, from) >= merge }) {
+                        flips += 1
+                        findings.append(FeelFinding(what: "the screen flashed away from a state at \(at(far)) s for \(between.count) \(between.count == 1 ? "sample" : "samples") and came back"))
+                    }
+                } else {
+                    // On the way, each sample lies between the two (a blend or a slide): its distances to them add up to
+                    // about theirs. Something else adds up to far more.
+                    let apart = d(from, to)
+                    // Reached the new state for a moment, went back to the old one, then on again.
+                    if let reached = between.first(where: { d($0, to) < merge }),
+                       let back = between.first(where: { $0 > reached && d($0, from) < merge }) {
+                        flips += 1
+                        findings.append(FeelFinding(what: "the screen reached a new state at \(at(reached)) s, went back to the old one at \(at(back)) s, then on again"))
+                    } else if let stray = between.first(where: { d($0, from) >= merge && d($0, to) >= merge && d($0, from) + d($0, to) > apart * 1.25 + merge }) {
+                        flips += 1
+                        findings.append(FeelFinding(what: "between two rests the screen showed something that was neither, nor on the way, at \(at(stray)) s"))
+                    }
+                }
+            }
+            // A, B, A: a state comes back after another, within `within` samples.
+            for (n, state) in found.enumerated() where n >= 2 && found[n - 1].label != state.label {
                 guard let earlier = found[..<(n - 1)].last(where: { $0.label == state.label }) else { continue }
                 let gap = state.start - earlier.end
                 guard gap <= within else { continue }
                 flips += 1
-                findings.append(FeelFinding(what: "the screen left a state at \(FeelResult.number(Self.round3(frames[earlier.end].t))) s and came back to it \(gap) samples later, at \(FeelResult.number(Self.round3(frames[state.start].t))) s"))
+                findings.append(FeelFinding(what: "the screen left a state at \(at(earlier.end)) s and came back to it \(gap) samples later, at \(at(state.start)) s"))
             }
             let distinct = Set(found.map(\.label)).count
             if distinct > allowed {

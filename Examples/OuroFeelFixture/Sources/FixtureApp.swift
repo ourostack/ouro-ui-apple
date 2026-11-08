@@ -635,14 +635,15 @@ struct FlickerPage: View {
 
 /// Flicker of the whole screen, on the app's own clock (``FixtureClock``), with nothing named: the page is a picture no
 /// element labels, as a web view's page is. Three ticks after Play it turns. Fixed: it turns once. The bug, as Gatefold
-/// build 20's slip came and went on a folded Duo: it turns, goes back for two ticks, then turns again.
+/// build 20's slip came and went on a folded Duo: it turns, goes back for three ticks, then turns again (three, so a
+/// screenshot a tick late still sees each state rest).
 struct ScreenFlickerPage: View {
     private let clock = FixtureClock.shared
     @State private var playedAt: Int?
 
     var body: some View {
         let k = playedAt.map { clock.ticks - $0 } ?? -1
-        let turned = bug ? ((3...4).contains(k) || k >= 7) : k >= 3
+        let turned = bug ? ((3...5).contains(k) || k >= 9) : k >= 3
         VStack(spacing: 24) {
             RoundedRectangle(cornerRadius: 12)
                 .fill(turned ? Color.indigo : Color.orange)

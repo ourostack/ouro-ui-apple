@@ -13,6 +13,11 @@ extension OuroFeel {
     /// The clock's own label changes every tick, so its frame is blanked, along with the top `statusBand` points (the
     /// status bar's time and battery) and every rect in `ignoring` (in the window's points: a slip the app means to show
     /// and take away again).
+    ///
+    /// Only what follows the app's clock is filmed deterministically. Motion on wall time (a web view's CSS or WebKit's
+    /// own fades) is caught at whatever point each screenshot lands; film such content from a recording instead.
+    /// A screenshot is taken once the accessibility tree shows the tick, which on a slow runner can be a frame before
+    /// the screen shows it, so give a fixture's states a few ticks each.
     public func screenFilm(steps: Int, tick: TimeInterval, clock: String, advance: () -> Void, width: Int = 160,
                            statusBand: CGFloat = 60, ignoring: [CGRect] = [], stall: TimeInterval = 30,
                            during action: (() -> Void)? = nil) -> FeelScreenFilm {
@@ -35,7 +40,7 @@ extension OuroFeel {
             let shot = XCUIScreen.main.screenshot().image
             let points = shot.size
             let blank = [CGRect(x: 0, y: 0, width: points.width, height: statusBand), clockFrame.insetBy(dx: -4, dy: -4)] + ignoring
-            guard let cg = shot.cgImage, let frame = Self.thumbnail(cg, points: points, width: width, blank: blank, t: t) else { return false }
+            guard let frame = Self.thumbnail(shot, width: width, blank: blank, t: t) else { return false }
             frames.append(frame)
             return true
         }
@@ -49,8 +54,10 @@ extension OuroFeel {
         return FeelScreenFilm(frames: frames, timedBy: timedBy)
     }
 
-    /// A screenshot as a `width`-pixel grayscale thumbnail, with each rect of `blank` (in points) painted black.
-    static func thumbnail(_ image: CGImage, points: CGSize, width: Int, blank: [CGRect], t: Double) -> FeelScreenFrame? {
+    /// A screenshot as a `width`-pixel grayscale thumbnail, with each rect of `blank` (in points, top down) painted
+    /// black. Drawn through UIKit, so a landscape screenshot's orientation is honoured and the rects land where they are.
+    static func thumbnail(_ image: UIImage, width: Int, blank: [CGRect], t: Double) -> FeelScreenFrame? {
+        let points = image.size
         guard points.width > 0, points.height > 0, width > 0 else { return nil }
         let height = max(1, Int((Double(width) * points.height / points.width).rounded()))
         var gray = [UInt8](repeating: 0, count: width * height)
@@ -59,13 +66,15 @@ extension OuroFeel {
                                           bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
                                           bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
             context.interpolationQuality = .medium
-            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-            // Points run down from the top; the context's y runs up from the bottom.
+            // Top down, as UIKit draws: row 0 of the buffer is the top of the screen.
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.scaleBy(x: 1, y: -1)
+            UIGraphicsPushContext(context)
+            image.draw(in: CGRect(x: 0, y: 0, width: width, height: height))
+            UIGraphicsPopContext()
             let sx = CGFloat(width) / points.width, sy = CGFloat(height) / points.height
             context.setFillColor(gray: 0, alpha: 1)
-            for r in blank {
-                context.fill(CGRect(x: r.minX * sx, y: CGFloat(height) - r.maxY * sy, width: r.width * sx, height: r.height * sy))
-            }
+            for r in blank { context.fill(CGRect(x: r.minX * sx, y: r.minY * sy, width: r.width * sx, height: r.height * sy)) }
             return true
         }
         return drawn ? FeelScreenFrame(t: t, width: width, height: height, gray: gray) : nil

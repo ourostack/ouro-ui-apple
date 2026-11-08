@@ -359,11 +359,22 @@ feel.expect(film.flickers(of: ["reader.location"]))
 screen shows A, then B, then A again where no label ever changes. `feel.screenFilm(steps:tick:clock:advance:)` takes
 one screenshot per tick of the app's own clock, shrinks each to a 160-pixel grayscale thumbnail, and blanks the status
 bar, the clock's label and any rect in `ignoring` (a slip the app means to show and take away). `flickers(within:states:)`
-cuts the film into rests (at least 2 samples, each under 0.6 mean absolute difference from the one before), gives rests
-under 1.5 apart one label, and fails when a label comes back after another within `within` samples (default 90), or when
-the action rests in more than `states` different states (default 2; a contents jump that shows a veil, then the page,
-declares 3). A fade belongs to no rest, so a cross-fade is one change. It cannot be checked when the clock stalled, when
-the pictures differ in size, or when the screen was still changing at the end.
+cuts the film into rests (at least 2 samples, each under 0.6 mean absolute difference from the rest's first), labels
+each by its settled picture (rests under 1.5 apart share a label), and fails when:
+
+- a label comes back after another within `within` samples (default 90, counted in ticks; the element check's 30 counts
+  frames);
+- the screen flashes away from a rest and back in samples too short to rest (one tick is plain to see);
+- between two rests it shows something that is neither, nor on the way (pages spun through before it settled); a fade
+  or a slide is on the way, so it is one change;
+- the action rests in more than `states` different states (default 2, which covers a toggle; a contents jump that shows
+  a veil, then the page, declares 3).
+
+It cannot be checked when the clock stalled, when a sample came more than twice the usual gap after the last (a skipped
+tick could hide a flash), when the pictures differ in size, or when the screen was still changing at the end. Only motion
+that follows the app's clock is filmed deterministically: a web view's CSS or WebKit's own fades run on wall time, so
+film those from a recording. The screenshot follows the accessibility tree's tick and can lag it by a frame on a slow
+runner, so give each state a few ticks.
 
 ```swift
 let film = feel.screenFilm(steps: 12, tick: 0.1, clock: "reader.clock",

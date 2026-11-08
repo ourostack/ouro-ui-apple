@@ -52,6 +52,38 @@ private func film(_ shades: [UInt8]) -> FeelScreenFilm {
         #expect(f.states().count == 1)
     }
 
+    /// One tick of something else is 100 ms on a 0.1 s clock: plain to see, though too short to be a rest.
+    @Test func aOneSampleFlashFails() {
+        let result = film([10, 10, 200, 10, 10]).flickers()
+        #expect(!result.passed)
+        #expect(result.detections.contains { $0.what.contains("flashed away") }, "\(result.text)")
+        #expect(!film([10, 10, 200, 10, 200, 200]).flickers().passed, "A, B, A for one tick, then B")
+    }
+
+    /// Gatefold build 20 spun through pages a tick each before it settled back.
+    @Test func spinningThroughPagesFails() {
+        #expect(!film([10, 10, 50, 90, 130, 10, 10]).flickers().passed)
+        // Through pages that are neither the first nor the last, on the way to a new one: not a fade.
+        let pages: [[UInt8]] = [[10, 10, 10, 10], [10, 10, 10, 10], [200, 0, 200, 0], [0, 200, 0, 200], [10, 200, 10, 200], [10, 200, 10, 200]]
+        let spun = FeelScreenFilm(frames: pages.enumerated().map { i, p in
+            FeelScreenFrame(t: Double(i) / 10, width: 4, height: 4, gray: Array(repeating: p, count: 4).flatMap { $0 })
+        })
+        #expect(spun.flickers().detections.contains { $0.what.contains("neither") }, "\(spun.flickers().text)")
+    }
+
+    /// A slow drift never chains into one rest: each sample is judged against the rest's first.
+    @Test func aSlowDriftAwayAndBackIsNotOneRest() {
+        let drift: [UInt8] = [10, 10, 10, 10, 10, 10] + (1...10).map { 10 + UInt8($0) / 2 * 1 } + [200, 200, 10, 10]
+        #expect(!film(drift).flickers().passed)
+    }
+
+    @Test func aSkippedTickCannotBeChecked() {
+        var f = film([10, 10, 10, 200, 200, 200])
+        f.frames[4].t = 1.0
+        f.frames[5].t = 1.1
+        #expect(f.flickers().findings.contains { $0.unchecked && $0.what.contains("twice the usual") }, "\(f.flickers().text)")
+    }
+
     @Test func stillChangingAtTheEndCannotBeChecked() {
         let result = film([10, 10, 200, 200, 90]).flickers()
         #expect(!result.passed)

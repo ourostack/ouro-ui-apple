@@ -225,12 +225,12 @@ final class FeelCatchesTests: XCTestCase {
     }
 
     /// Flicker of the whole screen, judged from screenshots on the app's own clock: no element names the page. The bug's
-    /// page turns, goes back for two ticks and turns again; the fixed page turns once.
+    /// page turns, goes back for three ticks and turns again; the fixed page turns once.
     func testScreenFlicker() {
         both("screen-flicker") { app, feel in
             let play = app.buttons["screenflicker.play"]
             _ = play.waitForExistence(timeout: 10)
-            let film = feel.screenFilm(steps: 12, tick: 0.1, clock: "screenflicker.clock",
+            let film = feel.screenFilm(steps: 14, tick: 0.1, clock: "screenflicker.clock",
                                        advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
             XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
             let result = film.flickers()

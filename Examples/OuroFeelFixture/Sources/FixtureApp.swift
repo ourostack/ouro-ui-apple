@@ -633,6 +633,8 @@ struct FlickerPage: View {
             Text("Page \(page)").font(.title).accessibilityIdentifier("flicker.words")
             Button("Play") { playedAt = clock.ticks }.accessibilityIdentifier("flicker.play")
             Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("flicker.clock")
+            // Marks that Play took, so the test knows the film starts on a playing page (#86).
+            if playedAt != nil { Text(verbatim: "playing").font(.caption2).accessibilityIdentifier("flicker.played") }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -722,6 +724,8 @@ struct FightPage: View {
             VStack(spacing: 24) {
                 if veilUntil != nil {
                     Text("Opening").accessibilityIdentifier("fight.veil")
+                    // Marks that the bug build queued a tap under the veil, so the test knows its edge tap took (#86).
+                    if queued > 0 { Text(verbatim: "queued").font(.caption2).accessibilityIdentifier("fight.queued") }
                 } else {
                     Text("Page \(page)").font(.title).accessibilityIdentifier("fight.page")
                 }

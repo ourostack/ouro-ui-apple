@@ -52,7 +52,7 @@ jobs:
           git diff --name-only "$BASE...$HEAD" > changed.txt
           shared='|\.github/workflows/|scripts/ci-simulator\.py$|Package\.(swift|resolved)$'
           # The gallery links OuroHX, OuroHXTesting (with OuroDeviceHub) and OuroFeel (Examples/OuroHXGallery/project.yml).
-          if grep -E "^(Sources/(OuroHX|OuroHXTesting|OuroDeviceHub|OuroFeel[^/]*)/|Examples/OuroHXGallery/$shared)" changed.txt; then
+          if grep -E "^(Sources/(OuroHX|OuroHXTesting|OuroDeviceHub|OuroFeel[^/]*)/|Examples/OuroHXGallery/|scripts/gallery-shards\.py\$$shared)" changed.txt; then
             echo "gallery=true" >> "$GITHUB_OUTPUT"
           else
             echo "gallery=false" >> "$GITHUB_OUTPUT"
@@ -68,6 +68,8 @@ jobs:
           else
             echo "xray=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Every gallery UI test and audit page is in exactly one shard
+        run: python3 -I scripts/gallery-shards.py check
 
   provenance:
     name: Core provenance
@@ -251,45 +253,197 @@ jobs:
           echo "::error::A component snapshot is missing or changed. Record it from the snapshots-actual-macos-26 artifact into Tests/OuroHXTests/__Snapshots__/macOS-26."
           exit 1
 
-  gallery-ui:
-    name: Gallery UI tests, the component claims (free macos-26, Xcode 26)
-    # performAccessibilityAudit on every component page at the default and the largest text size, in light and dark,
-    # plus 44-point targets, VoiceOver names, close controls and the waiting action toast; then, on main and releases,
-    # MotionTests' hitch probe. Pull requests run it only when they change what the gallery links (the `paths` job).
+  gallery-build:
+    name: Gallery build for testing (free macos-26, Xcode 26)
+    # Builds the gallery and its UI tests once; the three shards below test that build on their own simulators. Pull
+    # requests run it only when they change what the gallery links (the `paths` job).
     needs: paths
     if: needs.paths.outputs.gallery == 'true'
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: A simulator for this job, booting while the build runs
-        id: simulator
+      - id: key
+        name: The build's name, by commit, Xcode and run attempt
         run: |
           set -eu
-          python3 -I scripts/ci-simulator.py --selftest
-          python3 -I scripts/ci-simulator.py start ouro-hx-ui
+          xcode="$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//; s/^Xcode-//; s/-Build-version-/-/')"
+          echo "artifact=gallery-tests-$GITHUB_SHA-xcode-$xcode-attempt-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - name: Build the gallery and its UI tests once
         run: |
           set -o pipefail
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           (cd Examples/OuroHXGallery && xcodegen generate)
           xcodebuild build-for-testing -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
-            -destination "id=$UDID" -derivedDataPath .build/gallery CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+            -destination 'generic/platform=iOS Simulator' ARCHS="$(uname -m)" \
+            -derivedDataPath .build/gallery CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+          ls .build/gallery/Build/Products/*.xctestrun
+          # Uncompressed: the upload compresses it, and a single-threaded gzip here would hold the shards up.
+          tar -cf .build/gallery-products.tar -C .build/gallery/Build Products
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.key.outputs.artifact }}
+          path: .build/gallery-products.tar
+          retention-days: 2
+          compression-level: 1
+          if-no-files-found: error
+
+  gallery-motion:
+    name: Gallery hitch probe (main and releases, report only)
+    # MotionTests in a Release build, as people run it: a Debug SwiftUI build hitches where the shipped one does not.
+    # Reported, not gated, on this hosted VM: it has no GPU, and its frame timing swings run to run. On one commit
+    # (a41b0ae vs 8c02d4e's identical components), sheet, toast and stack passed in one run and failed all three tries in
+    # the next (#25). The 5 ms/s limit is unchanged and gates on a Mac's simulator and on device; a failure here leaves a
+    # warning and the result bundle. Not on pull requests: its Release build cost each one 9 minutes. The Gallery UI
+    # check does not wait for it.
+    needs: paths
+    if: github.event_name != 'pull_request' && needs.paths.outputs.gallery == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: A simulator, booting while the build runs
+        run: python3 -I scripts/ci-simulator.py start ouro-hx-motion
+      - name: Build the gallery for Release
+        run: |
+          set -o pipefail
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          (cd Examples/OuroHXGallery && xcodegen generate)
+          xcodebuild build-for-testing -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
+            -destination "id=$UDID" -derivedDataPath .build/gallery-release CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+      - name: The simulator finished booting
+        timeout-minutes: 16
+        run: python3 -I scripts/ci-simulator.py wait ouro-hx-motion 240
+      - name: Every transition is smooth (hitch probe, Release build)
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
+            -destination "id=$UDID" -derivedDataPath .build/gallery-release -resultBundlePath .build/gallery-motion.xcresult \
+            -only-testing:OuroHXGalleryUITests/MotionTests \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error|failed|passed|skipped|Executed|TEST" | tail -60 \
+            || { echo "::warning title=Motion over the limit on the hosted VM::See the MotionTests results above and gallery-motion.xcresult (#25)."; exit 1; }
+      - if: always()
+        name: Pack the result bundle
+        run: test -d .build/gallery-motion.xcresult && tar -czf .build/gallery-motion.tgz -C .build gallery-motion.xcresult || true
+      - id: upload4
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery-motion-xcresult
+          path: .build/gallery-motion.tgz
+          if-no-files-found: ignore
+      - if: always() && steps.upload4.outcome == 'failure'
+        run: echo "::warning::The gallery-motion-xcresult artifact did not upload (see the step's log); the job's result stands without it."
+
+  gallery-shard:
+    name: Gallery UI shard ${{ matrix.shard }} of 3 (free macos-26, Xcode 26)
+    # performAccessibilityAudit on every component page at the default and the largest text size, in light and dark,
+    # plus 44-point targets, VoiceOver names, close controls and the waiting action toast, split three ways by measured
+    # time (scripts/gallery-shards.py). Each shard starts with the build, boots its simulator while the build runs, then
+    # tests the build's products. Pull requests run them only when they change what the gallery links.
+    needs: paths
+    if: needs.paths.outputs.gallery == 'true'
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: A simulator for this shard, booting while the build runs
+        run: |
+          set -eu
+          python3 -I scripts/ci-simulator.py --selftest
+          python3 -I scripts/ci-simulator.py start ouro-hx-ui
+      - id: key
+        name: The build this shard tests, by commit and Xcode
+        run: |
+          set -eu
+          xcode="$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//; s/^Xcode-//; s/-Build-version-/-/')"
+          echo "prefix=gallery-tests-$GITHUB_SHA-xcode-$xcode-attempt-" >> "$GITHUB_OUTPUT"
+      - id: artifact
+        name: The build is ready
+        # The shard starts with the build rather than after it, so its simulator boots while the build runs. It waits
+        # here for this attempt's build. When "re-run failed jobs" did not rerun the build, it takes the newest earlier
+        # attempt's build of the same commit and Xcode. It stops at once if the build job failed or was cancelled.
+        timeout-minutes: 30
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFIX: ${{ steps.key.outputs.prefix }}
+        run: |
+          set -u
+          names() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
+              --jq '.artifacts[] | select(.expired | not) | .name' 2>/dev/null | grep -F "$PREFIX" || true
+          }
+          # `current`: this attempt's build. `any`: the newest attempt's build of this commit and Xcode.
+          pick() {
+            if [ "$1" = current ]; then names | grep -xF "$PREFIX$GITHUB_RUN_ATTEMPT" || true
+            else names | sed "s/^.*-attempt-//" | sort -n | tail -1 | sed "s/^/$PREFIX/" | grep -F "$PREFIX" || true; fi
+          }
+          # "<attempt the build job ran in> <its conclusion>", or "0 " when this attempt lists no build job.
+          build_state() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name | startswith("Gallery build for testing"))][0] // {} | "\(.run_attempt // 0) \(.conclusion // "")"' \
+              2>/dev/null || echo "0 "
+          }
+          while :; do
+            name="$(pick current)"
+            if [ -z "$name" ]; then
+              # shellcheck disable=SC2046
+              set -- $(build_state); built_in="${1:-0}"; conclusion="${2:-}"
+              case "$conclusion" in failure|cancelled|skipped|timed_out) echo "::error::The build job ended $conclusion; nothing to test"; exit 1 ;; esac
+              # Not built in this attempt (carried over by "re-run failed jobs"): the newest earlier build is the same build.
+              if [ "$built_in" != "$GITHUB_RUN_ATTEMPT" ]; then name="$(pick any)"; fi
+              if [ -z "$name" ] && [ "$conclusion" = success ]; then
+                sleep 10; name="$(pick current)"
+                test -n "$name" || { echo "::error::The build job succeeded without uploading $PREFIX$GITHUB_RUN_ATTEMPT: this shard's Xcode differs from the build's"; exit 1; }
+              fi
+            fi
+            if [ -n "$name" ]; then echo "Testing $name"; echo "name=$name" >> "$GITHUB_OUTPUT"; exit 0; fi
+            sleep 15
+          done
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: .build
+      - name: Unpack the build
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          set -eu
+          mkdir -p .build/gallery/Build
+          tar -xf .build/gallery-products.tar -C .build/gallery/Build
+          set -- .build/gallery/Build/Products/*.xctestrun
+          xctestrun="$1"; test -f "$xctestrun"
+          echo "XCTESTRUN=$PWD/$xctestrun" >> "$GITHUB_ENV"
+          # The audit's page filter goes into the test run's own environment, not through xcodebuild's TEST_RUNNER_.
+          python3 -I scripts/gallery-shards.py env "$xctestrun" "$(python3 -I scripts/gallery-shards.py pages "$SHARD")"
       # Booted and settled before the tests start, as the X-ray probe does: a cold boot under the first test was where
       # the runner lost testmanagerd (main, run 42166414006). A boot that hangs or aborts gets one fresh device.
       - name: The simulator finished booting
-        id: booted
         timeout-minutes: 16
         run: python3 -I scripts/ci-simulator.py wait ouro-hx-ui 240
-      - name: Gallery UI tests
+      - name: Gallery UI tests, shard ${{ matrix.shard }}
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
           set -u
           mkdir -p .build
+          only="$(python3 -I scripts/gallery-shards.py args "$SHARD")"
+          pages="$(python3 -I scripts/gallery-shards.py pages "$SHARD")"
+          echo "Shard $SHARD runs:"; echo "$only"; test -n "$pages" && echo "Audit pages: $pages"
           gallery() {
-            xcodebuild test-without-building -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
-              -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath ".build/$1.xcresult" \
-              -skip-testing:OuroHXGalleryUITests/MotionTests \
-              CODE_SIGNING_ALLOWED=NO > ".build/$1.log" 2>&1
+            # shellcheck disable=SC2086
+            xcodebuild test-without-building -xctestrun "$XCTESTRUN" \
+              -destination "id=$UDID" -resultBundlePath ".build/$1.xcresult" $only > ".build/$1.log" 2>&1
           }
           # A runner that loses testmanagerd, never bootstraps or can't find the simulator it just booted (#42) ran
           # nothing wrong in the app: that is the machine, so it gets one more run on a rebooted simulator, reported as an
@@ -303,57 +457,68 @@ jobs:
             if [ "$timeouts" -gt 0 ] && [ "$timeouts" -eq "$failures" ]; then echo "Timed out while requesting screenshot"; return 0; fi
             return 1
           }
-          status=0; gallery gallery-ui || status=$?
-          grep -E "error|failed|passed|Executed|TEST" .build/gallery-ui.log | tail -80
-          if [ "$status" -ne 0 ] && cause="$(infra gallery-ui)"; then
-            echo "::warning title=Infrastructure retry::Gallery UI tests: \"$cause\". Rebooting the simulator and running them once more; the first attempt's log, and its result bundle where one was written, are kept as gallery-ui-attempt-1."
+          name="gallery-ui-$SHARD"
+          status=0; gallery "$name" || status=$?
+          grep -E "error|failed|passed|Executed|TEST" ".build/$name.log" | tail -80
+          if [ "$status" -ne 0 ] && cause="$(infra "$name")"; then
+            echo "::warning title=Infrastructure retry::Gallery UI shard $SHARD: \"$cause\". Rebooting the simulator and running it once more; the first attempt's log, and its result bundle where one was written, are kept as $name-attempt-1."
             # A runner that never bootstrapped may have left no bundle; one that did must move it, or xcodebuild
             # refuses to write the next.
-            if [ -e .build/gallery-ui.xcresult ]; then mv .build/gallery-ui.xcresult .build/gallery-ui-attempt-1.xcresult; fi
-            mv .build/gallery-ui.log .build/gallery-ui-attempt-1.log
+            if [ -e ".build/$name.xcresult" ]; then mv ".build/$name.xcresult" ".build/$name-attempt-1.xcresult"; fi
+            mv ".build/$name.log" ".build/$name-attempt-1.log"
             xcrun simctl shutdown "$UDID" || true
             xcrun simctl boot "$UDID"
             xcrun simctl bootstatus "$UDID" -b >/dev/null
-            status=0; gallery gallery-ui || status=$?
-            grep -E "error|failed|passed|Executed|TEST" .build/gallery-ui.log | tail -80
+            status=0; gallery "$name" || status=$?
+            grep -E "error|failed|passed|Executed|TEST" ".build/$name.log" | tail -80
+          fi
+          if [ "$status" -eq 0 ]; then
+            # A shard that ran nothing, or an audit that ran no page, would pass on nothing: what ran must be the plan.
+            python3 -I scripts/gallery-shards.py ran "$SHARD" ".build/$name.xcresult" || status=1
           fi
           exit "$status"
-      - name: Every transition is smooth (hitch probe, Release build)
-        # Runs whether or not the claims passed, so one run reports both; not without a simulator. Main and releases
-        # only: it reports and never gates here (below), and its Release build cost every pull request 9 minutes.
-        if: (success() || failure()) && steps.booted.outcome == 'success' && github.event_name != 'pull_request'
-        # Reported, not gated, on this hosted VM: it has no GPU, and its frame timing swings run to run. On one
-        # commit (a41b0ae vs 8c02d4e's identical components), sheet, toast and stack passed in one run and failed all
-        # three tries in the next (#25). The 5 ms/s limit is unchanged and gates on a Mac's simulator and on device;
-        # a failure here leaves a warning and the result bundle.
-        continue-on-error: true
-        # Release, as people run it: a Debug SwiftUI build hitches where the shipped one does not.
-        run: |
-          set -o pipefail
-          xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
-            -destination "id=$UDID" -derivedDataPath .build/gallery -resultBundlePath .build/gallery-motion.xcresult \
-            -only-testing:OuroHXGalleryUITests/MotionTests \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error|failed|passed|skipped|Executed|TEST" | tail -60 \
-            || { echo "::warning title=Motion over the limit on the hosted VM::See the MotionTests results above and gallery-motion.xcresult (#25)."; exit 1; }
       - if: always()
         name: Pack the result bundle
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
-          bundles="$(cd .build && ls -d gallery-ui*.xcresult gallery-ui*.log gallery-motion.xcresult 2>/dev/null || true)"
-          test -n "$bundles" && tar -czf .build/gallery-ui.tgz -C .build $bundles || true
-          test -d .build/gallery-motion.xcresult && tar -czf .build/gallery-motion.tgz -C .build gallery-motion.xcresult || true
+          bundles="$(cd .build && ls -d gallery-ui-"$SHARD"*.xcresult gallery-ui-"$SHARD"*.log 2>/dev/null || true)"
+          test -n "$bundles" && tar -czf ".build/gallery-ui-$SHARD.tgz" -C .build $bundles || true
       - id: upload4
         # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
         continue-on-error: true
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gallery-ui-xcresult
-          path: |
-            .build/gallery-ui.tgz
-            .build/gallery-motion.tgz
+          name: gallery-ui-xcresult-${{ matrix.shard }}
+          path: .build/gallery-ui-${{ matrix.shard }}.tgz
           if-no-files-found: ignore
       - if: always() && steps.upload4.outcome == 'failure'
-        run: echo "::warning::The gallery-ui-xcresult artifact did not upload (see the step's log); the job's result stands without it."
+        run: echo "::warning::The gallery-ui-xcresult-${{ matrix.shard }} artifact did not upload (see the step's log); the job's result stands without it."
+
+  gallery-ui:
+    name: Gallery UI tests, the component claims (free macos-26, Xcode 26)
+    # The required check. It passes only when the build and every shard passed, or when the change does not touch the
+    # gallery. It runs even when they fail or the run is cancelled (`always()`), so a red or cancelled shard can never
+    # leave this check skipped, which GitHub counts as a pass.
+    needs: [paths, gallery-build, gallery-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard passed
+        env:
+          PATHS: ${{ needs.paths.result }}
+          GALLERY: ${{ needs.paths.outputs.gallery }}
+          BUILD: ${{ needs.gallery-build.result }}
+          SHARDS: ${{ needs.gallery-shard.result }}
+        run: |
+          set -eu
+          echo "paths=$PATHS gallery=$GALLERY build=$BUILD shards=$SHARDS"
+          if [ "$PATHS" != success ]; then echo "::error::The paths job ended $PATHS"; exit 1; fi
+          if [ "$GALLERY" = false ]; then echo "This change doesn't touch what the gallery links."; exit 0; fi
+          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and all three shards passed."; exit 0; fi
+          echo "::error::Build $BUILD, shards $SHARDS"; exit 1
 
   xray:
     name: X-ray the fixture app (${{ matrix.name }})

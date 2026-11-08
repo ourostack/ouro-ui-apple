@@ -1,7 +1,7 @@
 {
-  "coreTag": "v0.3.0",
+  "coreTag": "v0.4.0",
   "files": {
-    "Sources/OuroHX/Tokens/OuroTokens.swift": "0b1bc618c7ef7780ac4c9f1d41e9dfe0271241ab5898f97e174502c91b08324b",
+    "Sources/OuroHX/Tokens/OuroTokens.swift": "137b131097c2d75ae7fe0d9ad270cb8f117dd5c11cac391964f2e0717fcaf2b2",
     "Sources/OuroAXTesting/Resources/apple.claims.json": "4216bfdce2983fb95a722b208cdb944315e87d5b8b5b7d0056b8edcb2208254d",
     "Sources/OuroHXTesting/Resources/components.claims.json": "0da8e34c5044add8e120d4e1265e6bfac0b53941ad9b8a9b5c5bcb4a19e1d31e"
   }

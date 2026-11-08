@@ -35,11 +35,20 @@ while :; do
     case "$conclusion" in failure|cancelled|skipped|timed_out) echo "::error::$JOB ended $conclusion; nothing to test"; exit 1 ;; esac
     if [ "$built_in" != "$GITHUB_RUN_ATTEMPT" ]; then name="$(pick any)"; fi
     if [ -z "$name" ] && [ "$conclusion" = success ]; then
-      sleep "${WAIT_RECHECK:-10}"; name="$(pick current)"
-      # GitHub lists a build that "re-run failed jobs" carried over under this attempt's number (#79), so the check
-      # above can't tell it from a rebuild. An earlier attempt's upload of this prefix is the same commit and Xcode.
-      [ -n "$name" ] || { name="$(pick any)"; [ -z "$name" ] || echo "::notice::No upload from attempt $GITHUB_RUN_ATTEMPT; testing $name, the same commit and Xcode"; }
-      test -n "$name" || { echo "::error::$JOB succeeded, but no unexpired upload starts $PREFIX: this shard's Xcode differs from the build's, or the build expired (kept 2 days; re-run all jobs)"; exit 1; }
+      # The artifacts API can take a minute or more to list a fresh upload: on main's run 42447094866 one shard,
+      # 6 s after the upload, failed here while the two beside it found it. So a succeeded build's upload gets
+      # WAIT_LISTED_CHECKS more looks, WAIT_RECHECK seconds apart, before this fails. On a rerun an earlier attempt's
+      # upload is already listed, so a shard may take it during the delay; it is the same commit and Xcode.
+      checks=0
+      while :; do
+        name="$(pick current)"
+        # GitHub lists a build that "re-run failed jobs" carried over under this attempt's number (#79), so the check
+        # above can't tell it from a rebuild. An earlier attempt's upload of this prefix is the same commit and Xcode.
+        [ -n "$name" ] || { name="$(pick any)"; [ -z "$name" ] || echo "::notice::No upload from attempt $GITHUB_RUN_ATTEMPT; testing $name, the same commit and Xcode"; }
+        [ -z "$name" ] && [ "$checks" -lt "${WAIT_LISTED_CHECKS:-24}" ] || break
+        sleep "${WAIT_RECHECK:-10}"; checks=$((checks + 1))
+      done
+      test -n "$name" || { echo "::error::$JOB succeeded, but after $checks more looks no unexpired upload starts $PREFIX: this shard's Xcode differs from the build's, or the build expired (kept 2 days; re-run all jobs)"; exit 1; }
     fi
   fi
   if [ -n "$name" ]; then echo "Testing $name"; echo "name=$name" >> "$GITHUB_OUTPUT"; exit 0; fi

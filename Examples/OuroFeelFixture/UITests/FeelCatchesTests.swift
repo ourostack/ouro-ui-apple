@@ -44,10 +44,22 @@ final class FeelCatchesTests: XCTestCase {
     /// appears in one frame, a snap. XCUITest's idle wait cannot hide the push, since the app records it.
     func testAPushFilmedInTheApp() {
         for bug in [false, true] {
-            let (app, feel) = launch("transition", bug: bug)
+            // The first tap on Open is ignored on purpose: a tap that doesn't take must be noticed and retried, never
+            // judged as a page that was never on screen (#84).
+            let (app, feel) = launch("transition", bug: bug, ["-missTaps", "1"])
             let open = app.buttons["transition.open"]
             XCTAssertTrue(open.waitForExistence(timeout: 30))
-            let film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            let title = app.staticTexts["transition.title"]
+            var film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            // A tap that didn't take films a list with no page: the title is in no frame and not on screen after. One
+            // that took late is on screen now, and isn't retried, since the push it filmed is already gone. A stalled
+            // recording is never retried, so the recorder's own failures still fail.
+            for _ in 0..<2 where film.stalledAt == nil && film.track("transition.title").isEmpty && !title.exists {
+                film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            }
+            XCTAssertFalse(film.track("transition.title").isEmpty, title.exists
+                ? "the push landed after the film ended, so it was not filmed"
+                : "Open never took, so no push was filmed")
             XCTAssertNil(film.stalledAt, "the app recorded the push")
             let xs = Set(film.track("transition.title").map { Int($0.frame.minX.rounded()) })
             // The default gap: a move hidden in under 0.15 s reads as a snap whatever drew it. The bug build's push can
@@ -222,8 +234,15 @@ final class FeelCatchesTests: XCTestCase {
         both("flicker") { app, feel in
             let play = app.buttons["flicker.play"]
             _ = play.waitForExistence(timeout: 10)
+            // Play before the film, as the motion page does (#65): nothing changes until the test advances the app's
+            // clock, and a Play that did not take would film a still page with no badge (#86).
+            let played = app.staticTexts["flicker.played"]
+            guard tapUntil(play, { played.exists }) else {
+                XCTFail("the flicker page never started playing, so its film was not judged")
+                return (FeelResult(check: FeelGenre.flicker.rawValue, passed: false, summary: "could not check: Play never took"), nil)
+            }
             let film = feel.film(["flicker.words", "flicker.badge"], steps: 12, tick: 0.1, clock: "flicker.clock",
-                                 advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+                                 advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick"))
             let result = film.flickers(of: ["flicker.words", "flicker.badge"])
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("flicker.words") && $0.what.contains("taken back") }, result.text)
@@ -309,12 +328,27 @@ final class FeelCatchesTests: XCTestCase {
         { app.staticTexts["fight.veil"].exists ? "" : app.staticTexts["fight.page"].label }
     }
 
+    /// Taps until `took` holds, up to three times. A loaded simulator can drop a tap, and a move that never happened
+    /// would be judged as a place that held (#86); with nothing on the app's clock advancing, a second tap is safe.
+    private func tapUntil(_ target: XCUIElement, _ took: () -> Bool) -> Bool {
+        for _ in 0..<3 where !took() {
+            target.tap()
+            let deadline = Date().addingTimeInterval(5)
+            while !took() && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+        }
+        return took()
+    }
+
     /// Navigation that fights you, read once a tick on the app's own clock: the bug build's sync lands three ticks after
     /// Next and pulls the page back; the fixed build's sync agrees.
     func testNavigationThatFightsYou() {
         both("fight") { app, feel in
             _ = app.buttons["fight.next"].waitForExistence(timeout: 10)
-            let turn = FeelPlaceStep("next page") { feel in feel.app.buttons["fight.next"].tap() }
+            // Both builds show page 2 at once; the bug's sync pulls it back only once the clock advances.
+            let turn = FeelPlaceStep("next page") { feel in
+                let page = feel.app.staticTexts["fight.page"]
+                XCTAssertTrue(self.tapUntil(feel.app.buttons["fight.next"]) { page.exists && page.label == "Page 2" }, "Next never took")
+            }
             let result = feel.placeFights([turn], reads: 6, between: tick(app), read: fightPlace(app))
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("late restore") }, result.text)
@@ -329,8 +363,17 @@ final class FeelCatchesTests: XCTestCase {
         both("fight") { app, feel in
             _ = app.buttons["fight.contents"].waitForExistence(timeout: 10)
             let jump = FeelPlaceStep("Contents to page 30, with a tap on the right edge under the veil") { feel in
-                feel.app.buttons["fight.contents"].tap()
-                feel.app.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
+                let veil = feel.app.staticTexts["fight.veil"]
+                XCTAssertTrue(self.tapUntil(feel.app.buttons["fight.contents"]) { veil.exists }, "Contents never took")
+                let edge = feel.app.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5))
+                if self.isBugBuild(feel.app) {
+                    // The bug build queues the tap and marks it; a dropped one would land on page 30 and pass it.
+                    let queued = feel.app.staticTexts["fight.queued"]
+                    for _ in 0..<3 where !queued.exists { edge.tap(); _ = queued.waitForExistence(timeout: 5) }
+                    XCTAssertTrue(queued.exists, "the edge tap under the veil never took")
+                } else {
+                    edge.tap()
+                }
             }
             let result = feel.placeFights([.move(jump, landsOn: "Page 30")], reads: 6, between: tick(app), read: fightPlace(app))
             if isBugBuild(app) {

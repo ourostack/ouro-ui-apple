@@ -25,4 +25,10 @@ A text role becomes a font with ``SwiftUI/Font/ouro(_:in:registered:)``: the fir
 the app has registered (``OuroFont/isRegistered(_:)``), scaled with Dynamic Type relative to the role's text style. A
 generic family in the stack (`serif`, `system-ui`) picks the system font's design, so with no bundled fonts a serif
 role is New York. `.ouroType(_:)` also sets the role's letter spacing and line height, both scaled with text size, so an
-eyebrow keeps its tracked look at every size. Spoonjoy's cookbook roles come from its web stylesheet (credit: Spoonjoy).
+eyebrow keeps its tracked look at every size. The line height is the role's CSS line height: `lineSpacing` adds only
+what the font's own line (``OuroFont/naturalLineHeight(_:in:registered:)``) lacks. `Font.ouro` alone sets the font, not
+the spacing.
+
+A registered family renders the face with the role's weight, by PostScript name (``OuroFont/face(family:weight:)``), so a
+missing weight never quietly renders regular; a debug build logs a fault. Assert an app's bundled fonts load with
+``OuroFont/isAvailable(family:weights:)``. Spoonjoy's cookbook roles come from its web stylesheet (credit: Spoonjoy).

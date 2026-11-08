@@ -50,7 +50,7 @@ jobs:
           # Pushes and releases run every simulator job; these outputs only narrow pull requests.
           if [ "$EVENT" != pull_request ]; then printf 'xray=false\ngallery=true\nfeel=true\n' >> "$GITHUB_OUTPUT"; exit 0; fi
           git diff --name-only "$BASE...$HEAD" > changed.txt
-          shared='|\.github/workflows/|scripts/(ci-simulator\.py|ui-shards\.py|ci-wait-for-build\.sh)$|Package\.(swift|resolved)$'
+          shared='|\.github/workflows/|scripts/(ci-simulator\.py|ui-shards\.py|ci-wait-for-build\.sh|ci-ui-infra\.sh)$|Package\.(swift|resolved)$'
           # The gallery links OuroHX, OuroHXTesting (with OuroDeviceHub) and OuroFeel (Examples/OuroHXGallery/project.yml).
           if grep -E "^(Sources/(OuroHX|OuroHXTesting|OuroDeviceHub|OuroFeel[^/]*)/|Examples/OuroHXGallery/$shared)" changed.txt; then
             echo "gallery=true" >> "$GITHUB_OUTPUT"
@@ -96,6 +96,8 @@ jobs:
           test "$status" -eq 3
       - name: Shards find their build, including after "re-run failed jobs"
         run: sh scripts/test-ci-wait-for-build.sh
+      - name: UI shards retry the machine's failures, never the app's
+        run: sh scripts/test-ci-ui-infra.sh
 
   xcode-27:
     name: Build and test with Xcode 27 (main and releases only)
@@ -416,16 +418,10 @@ jobs:
           }
           # A runner that loses testmanagerd, never bootstraps or can't find the simulator it just booted (#42) ran
           # nothing wrong in the app: that is the machine, so it gets one more run on a rebooted simulator, reported as an
-          # infrastructure retry. So does a run whose only failures are screenshot requests the simulator never answered
-          # (#43); a real assertion failure next to one still fails. Any other failure fails.
-          infra() {
-            { cat ".build/$1.log"; xcrun xcresulttool get test-results summary --path ".build/$1.xcresult" 2>/dev/null; } |
-              grep -m1 -oE "Lost connection to testmanagerd|never finished bootstrapping|Test runner exited before starting test execution|Failed to establish communication with the test runner|Unable to find a device matching the provided destination specifier" && return 0
-            failures="$(grep -c ': error: -\[' ".build/$1.log" || true)"
-            timeouts="$(grep -c ': error: -\[.*Failed to get screenshot: Timed out while requesting screenshot' ".build/$1.log" || true)"
-            if [ "$timeouts" -gt 0 ] && [ "$timeouts" -eq "$failures" ]; then echo "Timed out while requesting screenshot"; return 0; fi
-            return 1
-          }
+          # infrastructure retry. So does a run that lost the simulator's accessibility (#84), and one whose only failures
+          # are screenshot requests the simulator never answered (#43); a real assertion failure next to one still fails.
+          # Any other failure fails. The check is scripts/ci-ui-infra.sh, shared with the Ouro Feel shards.
+          infra() { sh scripts/ci-ui-infra.sh ".build/$1.log" ".build/$1.xcresult"; }
           name="gallery-ui-$SHARD"
           status=0; gallery "$name" || status=$?
           grep -E "error|failed|passed|Executed|TEST" ".build/$name.log" | tail -80
@@ -692,14 +688,29 @@ jobs:
           set -u
           only="$(python3 -I scripts/ui-shards.py feel args "$SHARD")"
           echo "Shard $SHARD runs:"; echo "$only"
-          status=0
-          # shellcheck disable=SC2086
-          xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
-            -resultBundlePath .build/feel-fixture.xcresult $only 2>&1 | tee .build/feel-fixture.log |
-            { grep --line-buffered -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" || true; }
-          # Shown as it runs, so a hung run still shows how far it got; the full log is uploaded below. The status is
-          # xcodebuild's own, not the filter's.
-          status="${PIPESTATUS[0]}"
+          fixture() {
+            # shellcheck disable=SC2086
+            xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
+              -resultBundlePath .build/feel-fixture.xcresult $only 2>&1 | tee .build/feel-fixture.log |
+              { grep --line-buffered -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" || true; }
+            # Shown as it runs, so a hung run still shows how far it got; the full log is uploaded below. The status is
+            # xcodebuild's own, not the filter's.
+            return "${PIPESTATUS[0]}"
+          }
+          status=0; fixture || status=$?
+          # The machine, not the app (scripts/ci-ui-infra.sh, #84): one more run on a rebooted simulator, as the
+          # gallery's shards get. The retry reruns the whole shard, so a real failure still fails.
+          if [ "$status" -ne 0 ] && cause="$(sh scripts/ci-ui-infra.sh .build/feel-fixture.log .build/feel-fixture.xcresult)"; then
+            echo "::warning title=Infrastructure retry::Ouro Feel shard $SHARD: \"$cause\". Rebooting the simulator and running it once more; the first attempt's log and result bundle are kept as feel-fixture-attempt-1."
+            if [ -e .build/feel-fixture.xcresult ]; then mv .build/feel-fixture.xcresult .build/feel-fixture-attempt-1.xcresult; fi
+            mv .build/feel-fixture.log .build/feel-fixture-attempt-1.log
+            # The second run's reports start empty; the first run's go up beside them, as attempt-1.
+            mv .build/feel-reports .build/feel-reports-attempt-1; mkdir -p .build/feel-reports
+            xcrun simctl shutdown "$UDID" || true
+            xcrun simctl boot "$UDID"
+            xcrun simctl bootstatus "$UDID" -b >/dev/null
+            status=0; fixture || status=$?
+          fi
           # A shard that ran nothing would pass on nothing: what ran must be the plan.
           if [ "$status" -eq 0 ]; then python3 -I scripts/ui-shards.py feel ran "$SHARD" .build/feel-fixture.xcresult || status=1; fi
           exit "$status"
@@ -707,8 +718,10 @@ jobs:
         name: Pack the reports and result bundle
         run: |
           mkdir -p .build/feel-reports
-          test -d .build/feel-fixture.xcresult && tar -czf .build/feel-reports/feel-fixture-xcresult.tgz -C .build feel-fixture.xcresult || true
-          test -f .build/feel-fixture.log && cp .build/feel-fixture.log .build/feel-reports/ || true
+          if [ -d .build/feel-reports-attempt-1 ]; then mv .build/feel-reports-attempt-1 .build/feel-reports/attempt-1; fi
+          bundles="$(cd .build && ls -d feel-fixture*.xcresult 2>/dev/null || true)"
+          test -n "$bundles" && tar -czf .build/feel-reports/feel-fixture-xcresult.tgz -C .build $bundles || true
+          cp .build/feel-fixture*.log .build/feel-reports/ 2>/dev/null || true
       - id: upload6
         # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
         continue-on-error: true

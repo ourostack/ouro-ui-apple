@@ -580,9 +580,11 @@ struct KitchenPage: View {
 }
 
 /// A push filmed inside the app, frame by frame (`OuroFeelRecorder`). The bug: the recipe is pushed with animations
-/// off, so its page appears in one frame instead of sliding in.
+/// off, so its page appears in one frame instead of sliding in. `-missTaps N` ignores the first N taps on Open, a tap
+/// that doesn't take, so the test proves it notices one and taps again (#84).
 struct TransitionPage: View {
     @State private var path: [String] = []
+    @State private var missed = 0
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -605,6 +607,7 @@ struct TransitionPage: View {
     }
 
     private func open(_ name: String) {
+        if missed < UserDefaults.standard.integer(forKey: "missTaps") { missed += 1; return }
         if bug {
             var transaction = Transaction()
             transaction.disablesAnimations = true
@@ -631,6 +634,8 @@ struct FlickerPage: View {
             Text("Page \(page)").font(.title).accessibilityIdentifier("flicker.words")
             Button("Play") { playedAt = clock.ticks }.accessibilityIdentifier("flicker.play")
             Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("flicker.clock")
+            // Marks that Play took, so the test knows the film starts on a playing page (#86).
+            if playedAt != nil { Text(verbatim: "playing").font(.caption2).accessibilityIdentifier("flicker.played") }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -745,6 +750,8 @@ struct FightPage: View {
             VStack(spacing: 24) {
                 if veilUntil != nil {
                     Text("Opening").accessibilityIdentifier("fight.veil")
+                    // Marks that the bug build queued a tap under the veil, so the test knows its edge tap took (#86).
+                    if queued > 0 { Text(verbatim: "queued").font(.caption2).accessibilityIdentifier("fight.queued") }
                 } else {
                     Text("Page \(page)").font(.title).accessibilityIdentifier("fight.page")
                 }

@@ -111,5 +111,6 @@ decision: `docs/decisions/2026-11-05-ouro-reins.md`.
 - `OuroReins` never imports SwiftUI or XCTest; it must link into an app's UI-free core.
 - `ReinsSocketServer` stays under `#if DEBUG`; `scripts/check-reins-release.sh` (CI) proves the release build has none
   of it.
+- The wire contract is [docs/ouro-reins/PROTOCOL.md](docs/ouro-reins/PROTOCOL.md). A change to what crosses the wire (a field, a refusal code, an exit) updates it and its Changes list in the same pull request.
 - A behaviour journey runs under `ReinsNetworkGuard`. A failure there means a missing fixture: inject it through the
   type's constructor; never loosen the guard.

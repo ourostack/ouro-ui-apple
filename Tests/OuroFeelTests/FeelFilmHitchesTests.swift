@@ -36,6 +36,12 @@ import Testing
         #expect(result.findings.first?.what.hasPrefix("the app stalled 0.567 s at 1.133 s") == true, "\(result.findings.map(\.what))")
     }
 
+    @Test func aShortFilmMostlyStallIsStillAStall() {
+        // Two gaps, one of them the stall: the film's median pace would be the stall itself.
+        let short = FeelFilm(window: window, frames: [0, 0.016, 0.516].map { FeelFrame(t: $0, seen: []) }, timedBy: FeelRecording.timedBy)
+        #expect(!short.hitches().passed)
+    }
+
     @Test func aRefreshTheFilmDidNotRunAtCannotBeChecked() {
         // A 60 Hz film read as 120 Hz would count every frame late.
         let result = film().hitches(refresh: 1.0 / 120)

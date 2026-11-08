@@ -32,11 +32,16 @@ public struct FeelHitches: Codable, Equatable, Sendable {
 
     /// Passes at or under `limit` ms/s and `worstFrames` refreshes late.
     public func result(limit: Double = 5, worstFramesLimit: Double = 2) -> FeelResult {
+        result(limit: limit, worstFramesLimit: worstFramesLimit, namingWorstFrame: true)
+    }
+
+    /// `namingWorstFrame` off: the caller names the worst frame itself (a film names it as a stall).
+    func result(limit: Double, worstFramesLimit: Double, namingWorstFrame: Bool) -> FeelResult {
         var findings: [FeelFinding] = []
         if frames < 2 { findings.append(.couldNotCheck("fewer than two frame timestamps, so there was no hitch reading")) }
         let ok = findings.isEmpty && ratio <= limit && worstFrames <= worstFramesLimit
         if ratio > limit { findings.append(FeelFinding(what: "hitch ratio \(FeelResult.number(ratio)) ms/s is over \(FeelResult.number(limit))")) }
-        if worstFrames > worstFramesLimit {
+        if namingWorstFrame, worstFrames > worstFramesLimit {
             findings.append(FeelFinding(what: "one frame came \(FeelResult.number(worstFrames)) refreshes late (limit \(FeelResult.number(worstFramesLimit)))"))
         }
         let summary = frames < 2 ? "could not check: no hitch reading" : "\(count) hitches in \(frames) frames over \(FeelResult.number(seconds)) s"
@@ -66,17 +71,19 @@ extension FeelFilm {
             return unchecked("the film was not made by the in-app recorder, one sample per frame, so its gaps are not the app's frames")
         }
         let pace = typicalGap
-        let refresh = refresh ?? (pace.isFinite ? pace : 1.0 / 60)
+        // The nearest display rate to the film's pace: a stall that is most of a short film's gaps can't become the rate.
+        let rates = [1.0 / 120, 1.0 / 60, 1.0 / 30]
+        let refresh = refresh ?? (pace.isFinite ? rates.min { abs($0 - pace) < abs($1 - pace) }! : 1.0 / 60)
         if pace.isFinite, abs(pace - refresh) > refresh * 0.25 {
             return unchecked("the film's frames came every \(FeelResult.number(round3(pace * 1000))) ms, not every "
                 + "\(FeelResult.number(round3(refresh * 1000))) ms as given, so lateness could not be measured")
         }
         let stamps = frames.map(\.t)
-        var result = FeelHitches.analyze(timestamps: stamps, refresh: refresh).result(limit: limit, worstFramesLimit: worstFramesLimit)
+        var result = FeelHitches.analyze(timestamps: stamps, refresh: refresh)
+            .result(limit: limit, worstFramesLimit: worstFramesLimit, namingWorstFrame: false)
         if (result.measures["worstFrames"] ?? 0) > worstFramesLimit,
            let (a, b) = zip(stamps, stamps.dropFirst()).max(by: { $0.1 - $0.0 < $1.1 - $1.0 }) {
             // One finding for the one stall: its length, where it fell, and its lateness against the limit.
-            result.findings.removeAll { $0.what.hasPrefix("one frame came") }
             result.findings.insert(FeelFinding(what: "the app stalled \(FeelResult.number(round3(b - a))) s at \(FeelResult.number(round3(a))) s, "
                 + "\(FeelResult.number(result.measures["worstFrames"] ?? 0)) refreshes late (limit \(FeelResult.number(worstFramesLimit)))"), at: 0)
         }

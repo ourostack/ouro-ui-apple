@@ -285,7 +285,7 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
 
 @Suite struct GenreTests {
     @Test func everyGenreSaysWhatGoodFeelsLike() {
-        #expect(FeelGenre.allCases.count == 11)
+        #expect(FeelGenre.allCases.count == 14)
         for genre in FeelGenre.allCases { #expect(!genre.good.isEmpty) }
         #expect(FeelGenre.wayBack.rawValue == "the way back")
     }

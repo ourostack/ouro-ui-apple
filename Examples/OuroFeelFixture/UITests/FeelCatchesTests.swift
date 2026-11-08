@@ -44,10 +44,22 @@ final class FeelCatchesTests: XCTestCase {
     /// appears in one frame, a snap. XCUITest's idle wait cannot hide the push, since the app records it.
     func testAPushFilmedInTheApp() {
         for bug in [false, true] {
-            let (app, feel) = launch("transition", bug: bug)
+            // The first tap on Open is ignored on purpose: a tap that doesn't take must be noticed and retried, never
+            // judged as a page that was never on screen (#84).
+            let (app, feel) = launch("transition", bug: bug, ["-missTaps", "1"])
             let open = app.buttons["transition.open"]
             XCTAssertTrue(open.waitForExistence(timeout: 30))
-            let film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            let title = app.staticTexts["transition.title"]
+            var film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            // A tap that didn't take films a list with no page: the title is in no frame and not on screen after. One
+            // that took late is on screen now, and isn't retried, since the push it filmed is already gone. A stalled
+            // recording is never retried, so the recorder's own failures still fail.
+            for _ in 0..<2 where film.stalledAt == nil && film.track("transition.title").isEmpty && !title.exists {
+                film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            }
+            XCTAssertFalse(film.track("transition.title").isEmpty, title.exists
+                ? "the push landed after the film ended, so it was not filmed"
+                : "Open never took, so no push was filmed")
             XCTAssertNil(film.stalledAt, "the app recorded the push")
             let xs = Set(film.track("transition.title").map { Int($0.frame.minX.rounded()) })
             // The default gap: a move hidden in under 0.15 s reads as a snap whatever drew it. The bug build's push can

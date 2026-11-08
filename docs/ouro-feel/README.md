@@ -266,11 +266,30 @@ The test posts a Darwin notification; the app starts a `CADisplayLink` and, ever
 each named element is drawn: its accessibility frame carried from where its view is laid out to where the view's
 presentation layer draws it (a push, sheet or zoom moves and scales the layer, not the view), and left out while a
 layer above it is hidden or transparent. A key that shows twice in a frame (the same title on both pages of a push)
-is sampled once, from the frontmost. The test taps and posts stop; the app ends the film once everything it watches has held still for half a
+is sampled once, from the frontmost, unless the test asks for every copy
+(`recordedFilm(keys, copies: true)`, ouro-ui-apple 0.3.5 or later in both the test and the app; an older recorder
+films one copy, and a pass on it proves nothing). Then `doubleDraws` counts copies on every frame the app draws,
+stamped by its display clock rather than wall-clock snapshots; a frame the app drops is still a gap, and a gap
+longer than `maxGap` still cannot be judged. Copies that overlap by half or more read as one drawing, so a keyed
+container that only partly covers its keyed view reads as a second copy: key one of them. The test taps and posts stop; the app ends the film once everything it watches has held still for half a
 second, since a tap can return to the test while its transition is still moving. Each sample is stamped with the display link's own time, and the report says
 so. In the fixture, a push filmed this way held 67 frames about 0.019 s apart with the title in 21
 places (three runs), and a push with animations turned off showed the title in one place: the snap check caught it
 ([fixture](../../Examples/OuroFeelFixture/UITests/FeelCatchesTests.swift), `testAPushFilmedInTheApp`).
+
+**Without linking it into the app.** Xcode links a package product into every configuration of an app, Release
+included, so a linked recorder ships inert in the App Store build. To keep it out, link the
+`OuroFeelRecorderInjectable` product into the UI test target instead, drop the app's call, and launch with
+`OuroFeel.injectedRecorderEnvironment`. That loads the recorder into the app with `DYLD_INSERT_LIBRARIES`, on the
+simulator only, and it installs itself once the app runs (if the app still calls `installIfRequested()`, only the
+first recorder installs). It is nil off the simulator or when the test bundle carries no such library;
+merge it in only when it is there, or the films stall and every check on them says it could not be checked:
+
+```swift
+if let recorder = OuroFeel.injectedRecorderEnvironment {
+    app.launchEnvironment.merge(recorder) { $1 }
+}
+```
 
 What it cannot do:
 

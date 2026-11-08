@@ -471,6 +471,25 @@ public struct OuroFeel {
         return [FeelRecording.directoryVariable: recordDirectory.path]
     }
 
+    /// What to add to `launchEnvironment` so the app records without linking the recorder: the UI test bundle links
+    /// the `OuroFeelRecorderInjectable` product, and this loads it into the app (simulator only). Nil when the test
+    /// bundle does not carry it, or off the simulator (a device or a Mac app ignores `DYLD_INSERT_LIBRARIES`); a film
+    /// then stalls, and every check on it could not be checked. Creates the directory films are written to.
+    public static var injectedRecorderEnvironment: [String: String]? {
+        #if !targetEnvironment(simulator)
+        return nil
+        #else
+        try? FileManager.default.createDirectory(at: recordDirectory, withIntermediateDirectories: true)
+        let bundles = [Bundle(for: FeelBundleMarker.self), Bundle.main] + Bundle.allBundles
+        // Embedded in the test bundle or its runner, or, when the test runs from the build products, wherever the
+        // loaded frameworks sit (the test bundle links it, so it is loaded).
+        let dirs = bundles.flatMap { [$0.privateFrameworksURL, $0.bundleURL.appendingPathComponent("Frameworks")].compactMap { $0 } }
+            + Bundle.allFrameworks.map { $0.bundleURL.deletingLastPathComponent() }
+        guard let library = FeelRecording.injectableLibrary(in: dirs) else { return nil }
+        return FeelRecording.injectionEnvironment(library: library, directory: recordDirectory.path)
+        #endif
+    }
+
     /// A film the app records itself, one sample per display frame on the app's own display clock, so it holds the
     /// transition `action` starts frame by frame: the frames XCUITest's wait for an idle app hides from
     /// ``film(_:for:every:during:)``. The app must call `OuroFeelRecorder.installIfRequested()` at launch and be launched
@@ -480,12 +499,15 @@ public struct OuroFeel {
     ///
     /// Waits only on the app's answers. If the app does not start recording, or writes no film, within `timeout`
     /// seconds, the film is empty and stalled (``FeelFilm/stalledAt``), so every motion check on it could not be checked.
-    public func recordedFilm(_ keys: [String], timeout: TimeInterval = 30, during action: () -> Void) -> FeelFilm {
+    /// With `copies`, the film holds every copy of each key on screen, not only the frontmost, so
+    /// ``FeelFilm/doubleDraws(of:maxGap:)`` counts them frame by frame rather than on wall-clock snapshots.
+    public func recordedFilm(_ keys: [String], copies: Bool = false, timeout: TimeInterval = 30,
+                             during action: () -> Void) -> FeelFilm {
         let timedBy = FeelRecording.timedBy
         let files = FileManager.default
         let dir = Self.recordDirectory
         try? files.createDirectory(at: dir, withIntermediateDirectories: true)
-        let request = FeelRecording.Request(keys: keys)
+        let request = FeelRecording.Request(keys: keys, copies: copies)
         let recording = dir.appendingPathComponent(FeelRecording.recordingFile(request.id))
         let filmURL = dir.appendingPathComponent(FeelRecording.filmFile(request.id))
         try? JSONEncoder().encode(request).write(to: dir.appendingPathComponent(FeelRecording.requestFile), options: .atomic)
@@ -618,4 +640,6 @@ public struct FeelPlaceStep {
     public static let standard = [relaunch]
     #endif
 }
+/// A class in this module, so `Bundle(for:)` finds the bundle OuroFeel is linked into.
+private final class FeelBundleMarker {}
 #endif

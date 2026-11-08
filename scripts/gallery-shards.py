@@ -9,7 +9,7 @@
     python3 -I scripts/gallery-shards.py plan                        # each shard's measured seconds, to rebalance by
 
 The audit test (testEveryComponentPagePassesTheAccessibilityAudit) is the longest at 406 s, so it is split by page
-through its own OURO_AUDIT_PAGES filter: every shard runs it with only its own pages, and together they cover every
+through its own OURO_AUDIT_PAGES filter: each shard with pages runs it with only those pages, and together they cover every
 page. The last shard is the catch-all: it runs the whole UI test target except the other shards' tests and
 MotionTests (the main-only hitch probe), so a test no shard names still runs there. `check` reads the test sources
 and fails the `paths` job when a test is named twice, a named test no longer exists, or an audit page is in no shard

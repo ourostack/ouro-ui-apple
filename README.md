@@ -6,7 +6,7 @@
 
 # Ouro UI for Apple
 
-**Ouro HX for people and Ouro AX for agents, in Swift.** The same colours, motion and manners as
+**SwiftUI components for people and App Intents for agents.** Ouro HX and Ouro AX, in Swift: the same colours, motion and manners as
 [ui.ouroboros.bot](https://ui.ouroboros.bot/), now on iPhone, iPad and Mac, plus the bits that make an app pleasant for Siri and
 every other agent that comes knocking.
 

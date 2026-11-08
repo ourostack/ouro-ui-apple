@@ -12,17 +12,21 @@ every other agent that comes knocking.
 
 [ui.ouroboros.bot](https://ui.ouroboros.bot/) · [Releases](https://github.com/ourostack/ouro-ui-apple/releases) · [Ouro UI core](https://github.com/ourostack/ouro-ui-core) · [Ouro Reins](docs/ouro-reins/README.md) · [More from Ouro](https://github.com/ourostack)
 
-Meets core [v0.3.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.3.0): the tokens and the claim sets (AX's
-`apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
-
 ## Install
 
 ```swift
-.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "0.3.0")
+// Package.swift
+.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "0.3.0"),
+
+// your target
+.product(name: "OuroHX", package: "ouro-ui-apple"),
 ```
 
-iOS 18 and macOS 15 or later, Swift 6. Newer things (the iPhone Duo's hinge, Siri AI) switch on by themselves where the
+iOS 18 and macOS 15 or later, Swift 6.1 (Xcode 16.3 or later). Newer things (the iPhone Duo's hinge, Siri AI) switch on by themselves where the
 OS has them.
+
+**Status:** pre-1.0, on v0.3.x; see [Releases](https://github.com/ourostack/ouro-ui-apple/releases). Meets core [v0.3.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.3.0): the tokens and the claim sets (AX's
+`apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
 
 ## What's in the box
 
@@ -36,6 +40,8 @@ OS has them.
 | `OuroAXTestingProbe` | the X-ray's test plan | runs the X-ray's behaviour stage with AppIntentsTesting ([Templates/XrayProbe](Templates/XrayProbe)) |
 | `ouro-ax-skills` | you and CI | lints `Skills.skillsbundle` for Siri: `swift run ouro-ax-skills lint path/to/Skills.skillsbundle` |
 | `OuroAXSkillsLintPlugin` | your build | the same lint at build time, with errors pinned to the line |
+| `OuroFeel` | your UI tests | checks how the app feels, one per genre of jank: the way back, overlay dismissal, inside the window, tap landing, double-draw, jumps, chrome, snaps, settle and place ([Ouro Feel](#ouro-feel-how-it-feels-measured)) |
+| `OuroFeelCore`, `OuroFeelRecorder`, `OuroFeelRecorderInjectable` | Ouro Feel's internals | the measurements, the in-app recorder, and the same recorder as a library a UI test loads into a simulator app so the app never links it |
 | `OuroReins` | your app's UI-free core, its tests and agents | every screen as state and actions, driven with `ls` and `do` headless or over a debug-only socket; journeys; a network guard that fails any request ([docs/ouro-reins/README.md](docs/ouro-reins/README.md)) |
 | `ouro-devicehub` | a Mac CI job | presses Device Hub's buttons: `dump`, `press "Partially Open"`, `serve <dir>` |
 

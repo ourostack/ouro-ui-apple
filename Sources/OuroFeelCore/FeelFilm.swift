@@ -30,7 +30,8 @@ public struct FeelFrame: Codable, Equatable, Sendable {
 /// In a UI test each sample is one accessibility snapshot, timed by the test runner's clock (or by the app's own clock,
 /// for a film made with ``OuroFeel/film(_:steps:tick:clock:advance:stall:during:)``), so a film sees
 /// positions every few tens of milliseconds, not every frame: it catches settling, jumps, double draws and chrome
-/// hand-overs, never a single dropped frame (use ``FeelHitches`` for that).
+/// hand-overs, never a single dropped frame (use ``FeelHitches`` for that). A film the in-app recorder made
+/// (``FeelRecording``) is one sample per frame, so ``hitches(refresh:limit:worstFramesLimit:)`` reads its stalls.
 public struct FeelFilm: Codable, Equatable, Sendable {
     public var window: CGRect
     public var frames: [FeelFrame]

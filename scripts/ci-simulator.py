@@ -14,8 +14,9 @@ returns at once, so `xcodebuild build-for-testing` runs while the simulator boot
 limit (spoonjoy-apple#218: create hung 6 min; bootstatus exited 134 and 142) is the machine, not the app: it deletes
 that device, creates a fresh one, boots it with the same limit and writes the new UDID, as a warning titled
 "Infrastructure retry". A second failure fails the step. `simctl create` has its own 90 s limit and cleanup calls 30 s,
-for the same reason. `simctl list runtimes` gets 3 tries of 60 s with CoreSimulator restarted between them (#74).
-Worst case for `wait <name> 240`: 240 + 60 + 180 + 270 + 240 s, inside a 16-minute step limit.
+for the same reason. `simctl list runtimes` gets 3 tries of 30 s with CoreSimulator restarted (20 s limit) between them (#74).
+Worst case for `wait <name> 240`: boot 240 + cleanup 60 + list 130 + create 270 + boot 240 = 940 s, inside a
+16-minute step limit.
 """
 import json
 import os
@@ -27,8 +28,9 @@ from pathlib import Path
 
 DEVICES = ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 16"]
 CREATE_LIMIT = 90
-LIST_LIMIT = 60
+LIST_LIMIT = 30  # it answers in seconds when CoreSimulator is healthy
 LIST_TRIES = 3
+KICK_LIMIT = 20
 
 
 def state_dir():
@@ -63,19 +65,26 @@ def quietly(*args):
 
 def kick_coresimulator():
     """Restart a wedged CoreSimulator service; launchd starts a fresh one on the next simctl call."""
-    subprocess.run(["killall", "-9", "com.apple.CoreSimulator.CoreSimulatorService"], capture_output=True, timeout=30)
+    try:
+        subprocess.run(["killall", "-9", "com.apple.CoreSimulator.CoreSimulatorService"], capture_output=True,
+                       timeout=KICK_LIMIT)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        print(f"::warning::Restarting CoreSimulator failed ({e}); trying simctl again anyway.")
 
 
 def list_runtimes(run=simctl, kick=kick_coresimulator, tries=LIST_TRIES):
     """`simctl list runtimes`, with a CoreSimulator restart between tries: it can hang on a fresh runner (#74)."""
+    why = "was not tried"
     for attempt in range(1, tries + 1):
         try:
             out = run("list", "runtimes", "-j", timeout=LIST_LIMIT)
             if out.returncode == 0:
                 return json.loads(out.stdout)["runtimes"]
-            why = f"exited {out.returncode}"
+            why = f"exited {out.returncode}: {out.stderr.strip()[-300:]}"
         except subprocess.TimeoutExpired:
             why = f"hung past {LIST_LIMIT} s"
+        except (ValueError, KeyError, TypeError):
+            why = "answered with output that isn't a runtime list"
         if attempt < tries:
             print(f"::warning title=Infrastructure retry::simctl list runtimes {why}; restarting CoreSimulator (#74).")
             kick()
@@ -203,11 +212,20 @@ def selftest():
 
     def hung(*args, timeout):
         raise subprocess.TimeoutExpired(args, timeout)
+    kicks.clear()
     try:
-        list_runtimes(hung, lambda: None)
+        list_runtimes(hung, lambda: kicks.append(1))
         raise AssertionError("three hangs must fail")
     except SystemExit as e:
-        assert "could not start" in str(e)
+        assert "could not start" in str(e) and len(kicks) == 2, "no restart after the last try"
+    answers = iter([subprocess.CompletedProcess([], 0, "", ""), subprocess.CompletedProcess([], 1, "", "boom"), ok])
+    assert list_runtimes(lambda *a, timeout: next(answers), lambda: None) == runtimes, \
+        "empty output and a failed exit are retried too"
+    try:
+        list_runtimes(lambda *a, timeout: subprocess.CompletedProcess([], 1, "", "service gone"), lambda: None)
+        raise AssertionError("three failures must fail")
+    except SystemExit as e:
+        assert "service gone" in str(e), "the error carries simctl's own words"
     print("ci-simulator: selftest passed")
     return 0
 

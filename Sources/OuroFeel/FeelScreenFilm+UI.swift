@@ -54,6 +54,17 @@ extension OuroFeel {
         return FeelScreenFilm(frames: frames, timedBy: timedBy)
     }
 
+    /// One picture of the screen now, shrunk and blanked as ``screenFilm(steps:tick:clock:advance:width:statusBand:ignoring:stall:during:)``
+    /// does (the status band, the clock's label, `ignoring`), to compare a film with: the cover for
+    /// ``FeelScreenFilm/revealHolds(cover:until:stable:merge:run:)``, taken while it is surely up. Nil when there is no
+    /// screenshot to take.
+    public func screenPicture(clock: String, width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelScreenFrame? {
+        let clockFrame = self.seen([clock]).seen.first { $0.key == clock }?.frame ?? .zero
+        let shot = XCUIScreen.main.screenshot().image
+        let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockFrame.insetBy(dx: -4, dy: -4)] + ignoring
+        return Self.thumbnail(shot, width: width, blank: blank, t: 0)
+    }
+
     /// A screenshot as a `width`-pixel grayscale thumbnail, with each rect of `blank` (in points, top down) painted
     /// black. Drawn through UIKit, so a landscape screenshot's orientation is honoured and the rects land where they are.
     static func thumbnail(_ image: UIImage, width: Int, blank: [CGRect], t: Double) -> FeelScreenFrame? {

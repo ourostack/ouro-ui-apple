@@ -94,22 +94,8 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
     public func flickers(within: Int = 90, states allowed: Int = 2, stable: Double = 0.6, merge: Double = 1.5,
                          run: Int = 2) -> FeelResult {
         let run = max(2, run)
-        var findings: [FeelFinding] = []
-        if let at = stalledAt {
-            findings.append(.couldNotCheck("the film stopped at \(FeelResult.number(Self.round3(at))) s (the app's clock stopped), so the rest was never seen"))
-        }
+        var findings = unjudgeable(run: run)
         let sizes = Set(frames.map { "\($0.width)x\($0.height)" })
-        if sizes.count > 1 {
-            findings.append(.couldNotCheck("the film's pictures were not all one size (\(sizes.sorted().joined(separator: ", "))), so they cannot be compared"))
-        }
-        if frames.count < run {
-            findings.append(.couldNotCheck("the film had \(frames.count) samples, fewer than the \(run) a rest needs; film for longer"))
-        }
-        let gaps = zip(frames, frames.dropFirst()).map { $1.t - $0.t }
-        if let usual = gaps.sorted().dropFirst(gaps.count / 2).first, usual > 0,
-           let (n, gap) = gaps.enumerated().max(by: { $0.element < $1.element }).map({ ($0.offset, $0.element) }), gap > usual * 2 {
-            findings.append(.couldNotCheck("samples were once \(FeelResult.number(Self.round3(gap))) s apart (from \(FeelResult.number(Self.round3(frames[n].t))) s), more than twice the usual \(FeelResult.number(Self.round3(usual))) s, so a flash there could be missed"))
-        }
         let judgeable = sizes.count <= 1 && frames.count >= run
         let found = judgeable ? states(stable: stable, merge: merge, run: run) : []
         var flips = 0
@@ -161,6 +147,28 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
         var stamped = result
         stamped.environment = FeelEnvironment.current(clock: timedBy)
         return stamped
+    }
+
+    /// Why the film can't be judged, or not all of it: it stalled, its pictures differ in size, it is shorter than a
+    /// rest, or a sample came more than twice the usual gap after the one before.
+    func unjudgeable(run: Int) -> [FeelFinding] {
+        var findings: [FeelFinding] = []
+        if let at = stalledAt {
+            findings.append(.couldNotCheck("the film stopped at \(FeelResult.number(Self.round3(at))) s (the app's clock stopped), so the rest was never seen"))
+        }
+        let sizes = Set(frames.map { "\($0.width)x\($0.height)" })
+        if sizes.count > 1 {
+            findings.append(.couldNotCheck("the film's pictures were not all one size (\(sizes.sorted().joined(separator: ", "))), so they cannot be compared"))
+        }
+        if frames.count < run {
+            findings.append(.couldNotCheck("the film had \(frames.count) samples, fewer than the \(run) a rest needs; film for longer"))
+        }
+        let gaps = zip(frames, frames.dropFirst()).map { $1.t - $0.t }
+        if let usual = gaps.sorted().dropFirst(gaps.count / 2).first, usual > 0,
+           let (n, gap) = gaps.enumerated().max(by: { $0.element < $1.element }).map({ ($0.offset, $0.element) }), gap > usual * 2 {
+            findings.append(.couldNotCheck("samples were once \(FeelResult.number(Self.round3(gap))) s apart (from \(FeelResult.number(Self.round3(frames[n].t))) s), more than twice the usual \(FeelResult.number(Self.round3(usual))) s, so a flash there could be missed"))
+        }
+        return findings
     }
 
     static func round3(_ x: Double) -> Double { (x * 1000).rounded() / 1000 }

@@ -22,6 +22,7 @@ struct FixtureApp: App {
             case "transition": TransitionPage()
             case "flicker": FlickerPage()
             case "screen-flicker": ScreenFlickerPage()
+            case "reveal": RevealPage()
             case "stray": StrayPage()
             case "fight": FightPage()
             default: NavPage()
@@ -660,6 +661,31 @@ struct ScreenFlickerPage: View {
                 .accessibilityHidden(true)
             Button("Play") { playedAt = clock.ticks }.accessibilityIdentifier("screenflicker.play")
             Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("screenflicker.clock")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// The first page shown after an open is the one that stays, on the app's own clock (``FixtureClock``), judged from
+/// pixels: the page is a picture no element labels. Open starts the open; the cover stays until the page shows. Fixed:
+/// the cover holds until his page is placed, then shows it. The bug, as Gatefold build 20 relaunched on an iPad: the
+/// cover goes at once onto another page, which four ticks later jumps to his.
+struct RevealPage: View {
+    private let clock = FixtureClock.shared
+    @State private var openedAt: Int?
+
+    var body: some View {
+        let k = openedAt.map { clock.ticks - $0 } ?? -1
+        let shown: Int? = k < 0 ? nil : (bug ? (k < 3 ? nil : (k < 7 ? 1 : 2)) : (k < 7 ? nil : 2))
+        VStack(spacing: 24) {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(shown == nil ? Color.black : (shown == 1 ? Color.teal : Color.purple))
+                .overlay(Text(shown.map { "Page \($0)" } ?? "").font(.system(size: 60, weight: .bold)).foregroundStyle(.white))
+                .frame(height: 360)
+                .padding(.horizontal, 24)
+                .accessibilityHidden(true)
+            Button("Open") { openedAt = clock.ticks }.accessibilityIdentifier("reveal.open")
+            Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("reveal.clock")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

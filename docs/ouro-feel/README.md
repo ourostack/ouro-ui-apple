@@ -52,7 +52,7 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | inside the window | Every control sits wholly inside the window, in every orientation and after turning the device and back. | `feel.insideWindow(poses:)`; also on every screen `wayBack` reaches |
 | tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
 | double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
-| jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)`; at an open, from pixels, `feel.screenFilm(...).revealHolds(until:)` |
+| jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)`; at an open, from pixels, `feel.screenFilm(...).revealHolds(cover:until:)` |
 | late or lingering chrome | Bars and controls hand over in one beat: never two states at once, never a blank between them. | `film.chrome(from:to:grace:)` |
 | snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
@@ -385,18 +385,23 @@ feel.expect(film.flickers())
 
 ### The first page shown after an open holds
 
-`film.revealHolds(until:)` is jump after landing at an open, judged from the same screen film as whole-screen flicker.
-The film starts on the cover (a launch screen, a placeholder, a picture of the page). The first thing the screen rests on
-once the cover goes must be what it rests on up to sample `until` (the next scripted mark; the film's end by default):
-another rest after it, the cover coming back, or a flash away and back fails. It catches a wrong first page even when
-the app's own report of the place is right, as on Gatefold build 20's relaunch, which showed another page for about
-10 s and then jumped to his. Counted in samples; it cannot be checked when the screen never rests on anything but the
-cover, or is still changing at `until`.
+`film.revealHolds(cover:until:)` is jump after landing at an open, judged from the same screen film as whole-screen
+flicker. `cover` is a picture of the cover (a launch screen, a placeholder, a picture of the page) taken while it is
+surely up, with `feel.screenPicture(clock:)`: the judge never guesses which rest is the cover, since a film that started
+after the cover had gone would take the wrong first page for it and pass the very jump this is for. The first thing the
+screen rests on after the cover must be what it rests on up to sample `until` (the next scripted mark, not itself
+included; the film's end by default): another rest after it, the cover coming back, or a flash away and back fails. It
+catches a wrong first page even when the app's own report of the place is right, as on Gatefold build 20's relaunch,
+which showed another page for about 10 s and then jumped to his. Counted in samples. It cannot be checked when no rest
+looks like the cover (start the film while it is up), when nothing but the cover rests, or when the screen is still
+changing at `until`. Only what follows the app's clock is filmed deterministically; a relaunch's wall-time wait needs a
+clock the app keeps through it.
 
 ```swift
+let cover = feel.screenPicture(clock: "reader.clock")!
 let film = feel.screenFilm(steps: 40, tick: 0.1, clock: "reader.clock",
                            advance: FeelClock.darwinNotification("app.tick")) { app.buttons["Open"].tap() }
-feel.expect(film.revealHolds())
+feel.expect(film.revealHolds(cover: cover))
 ```
 
 ### Place kept through stray input, and navigation that fights you

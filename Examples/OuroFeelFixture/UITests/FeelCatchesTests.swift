@@ -194,8 +194,17 @@ final class FeelCatchesTests: XCTestCase {
         both("motion") { app, feel in
             let play = app.buttons["motion.play"]
             _ = play.waitForExistence(timeout: 10)
+            // Play before the film: nothing moves until the test advances the app's clock, and a Play that did not take
+            // would leave a still card that no motion check can fail (#65). Tapped again if it did not take.
+            let played = app.staticTexts["motion.played"]
+            for _ in 0..<3 where !played.exists {
+                play.tap()
+                _ = played.waitForExistence(timeout: 10)
+            }
+            XCTAssertTrue(played.exists, "the motion page never started playing, so its film was not judged")
+            guard played.exists else { return (FeelResult(check: "motion", passed: false, summary: "could not check: Play never took"), nil) }
             let film = feel.film(["motion.card", "motion.ghost", "Pancakes", "bar.full", "bar.compact"], steps: 35, tick: 0.1,
-                                 clock: "motion.clock", advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+                                 clock: "motion.clock", advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick"))
             return (judge(film), film)
         }
     }

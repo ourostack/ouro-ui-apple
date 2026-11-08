@@ -19,9 +19,9 @@ running nothing.
 The gallery's accessibility audit (406 s) is split by page through its OURO_AUDIT_PAGES filter: each shard with pages runs it
 with only its own pages, and together they cover every page.
 
-Seconds are from #54's run 42416382709 (attempt 2, macos-26, Xcode 26). Rebalance when a shard runs much longer than
-the others: move tests so each shard's total is close to a third of the whole. A new test lands in the catch-all
-shard until it is moved.
+Seconds come from result bundles of a real CI run, named beside each suite's plan; a test's time varies by up to
+half again between runs on hosted runners, so rebalance only when a shard runs much longer than the others across
+runs. A new test lands in the catch-all shard until it is moved.
 """
 import json
 import plistlib

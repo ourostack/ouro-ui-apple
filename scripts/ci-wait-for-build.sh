@@ -1,5 +1,5 @@
 #!/bin/sh
-# CI only: wait for a build job's test products, for a shard that started alongside the build.
+# CI only: find a build job's test products for a shard, including after "re-run failed jobs".
 #
 #   sh scripts/ci-wait-for-build.sh <artifact prefix> <build job name prefix>
 #

@@ -50,9 +50,9 @@ jobs:
           # Pushes and releases run every simulator job; these outputs only narrow pull requests.
           if [ "$EVENT" != pull_request ]; then printf 'xray=false\ngallery=true\nfeel=true\n' >> "$GITHUB_OUTPUT"; exit 0; fi
           git diff --name-only "$BASE...$HEAD" > changed.txt
-          shared='|\.github/workflows/|scripts/ci-simulator\.py$|Package\.(swift|resolved)$'
+          shared='|\.github/workflows/|scripts/(ci-simulator\.py|ui-shards\.py|ci-wait-for-build\.sh)$|Package\.(swift|resolved)$'
           # The gallery links OuroHX, OuroHXTesting (with OuroDeviceHub) and OuroFeel (Examples/OuroHXGallery/project.yml).
-          if grep -E "^(Sources/(OuroHX|OuroHXTesting|OuroDeviceHub|OuroFeel[^/]*)/|Examples/OuroHXGallery/|scripts/gallery-shards\.py\$$shared)" changed.txt; then
+          if grep -E "^(Sources/(OuroHX|OuroHXTesting|OuroDeviceHub|OuroFeel[^/]*)/|Examples/OuroHXGallery/$shared)" changed.txt; then
             echo "gallery=true" >> "$GITHUB_OUTPUT"
           else
             echo "gallery=false" >> "$GITHUB_OUTPUT"
@@ -68,8 +68,8 @@ jobs:
           else
             echo "xray=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Every gallery UI test and audit page is in exactly one shard
-        run: python3 -I scripts/gallery-shards.py check
+      - name: The gallery's and Ouro Feel's shard plans match their UI tests
+        run: python3 -I scripts/ui-shards.py check
 
   provenance:
     name: Core provenance
@@ -342,7 +342,7 @@ jobs:
     name: Gallery UI shard ${{ matrix.shard }} of 4 (free macos-26, Xcode 26)
     # performAccessibilityAudit on every component page at the default and the largest text size, in light and dark,
     # plus 44-point targets, VoiceOver names, close controls and the waiting action toast, split four ways by measured
-    # time (scripts/gallery-shards.py). Each shard starts with the build, boots its simulator while the build runs, then
+    # time (scripts/ui-shards.py). Each shard starts with the build, boots its simulator while the build runs, then
     # tests the build's products. Pull requests run them only when they change what the gallery links.
     needs: paths
     if: needs.paths.outputs.gallery == 'true'
@@ -370,46 +370,11 @@ jobs:
           echo "prefix=gallery-tests-$GITHUB_SHA-xcode-$xcode-attempt-" >> "$GITHUB_OUTPUT"
       - id: artifact
         name: The build is ready
-        # The shard starts with the build rather than after it, so its simulator boots while the build runs. It waits
-        # here for this attempt's build. When "re-run failed jobs" did not rerun the build, it takes the newest earlier
-        # attempt's build of the same commit and Xcode. It stops at once if the build job failed or was cancelled.
+        # The shard starts with the build rather than after it, so its simulator boots while the build runs.
         timeout-minutes: 30
         env:
           GH_TOKEN: ${{ github.token }}
-          PREFIX: ${{ steps.key.outputs.prefix }}
-        run: |
-          set -u
-          names() {
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?per_page=100" \
-              --jq '.artifacts[] | select(.expired | not) | .name' 2>/dev/null | grep -F "$PREFIX" || true
-          }
-          # `current`: this attempt's build. `any`: the newest attempt's build of this commit and Xcode.
-          pick() {
-            if [ "$1" = current ]; then names | grep -xF "$PREFIX$GITHUB_RUN_ATTEMPT" || true
-            else names | sed "s/^.*-attempt-//" | sort -n | tail -1 | sed "s/^/$PREFIX/" | grep -F "$PREFIX" || true; fi
-          }
-          # "<attempt the build job ran in> <its conclusion>", or "0 " when this attempt lists no build job.
-          build_state() {
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
-              --jq '[.jobs[] | select(.name | startswith("Gallery build for testing"))][0] // {} | "\(.run_attempt // 0) \(.conclusion // "")"' \
-              2>/dev/null || echo "0 "
-          }
-          while :; do
-            name="$(pick current)"
-            if [ -z "$name" ]; then
-              # shellcheck disable=SC2046
-              set -- $(build_state); built_in="${1:-0}"; conclusion="${2:-}"
-              case "$conclusion" in failure|cancelled|skipped|timed_out) echo "::error::The build job ended $conclusion; nothing to test"; exit 1 ;; esac
-              # Not built in this attempt (carried over by "re-run failed jobs"): the newest earlier build is the same build.
-              if [ "$built_in" != "$GITHUB_RUN_ATTEMPT" ]; then name="$(pick any)"; fi
-              if [ -z "$name" ] && [ "$conclusion" = success ]; then
-                sleep 10; name="$(pick current)"
-                test -n "$name" || { echo "::error::The build job succeeded without uploading $PREFIX$GITHUB_RUN_ATTEMPT: this shard's Xcode differs from the build's"; exit 1; }
-              fi
-            fi
-            if [ -n "$name" ]; then echo "Testing $name"; echo "name=$name" >> "$GITHUB_OUTPUT"; exit 0; fi
-            sleep 15
-          done
+        run: sh scripts/ci-wait-for-build.sh "${{ steps.key.outputs.prefix }}" "Gallery build for testing"
       - uses: actions/download-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.name }}
@@ -425,7 +390,7 @@ jobs:
           xctestrun="$1"; test -f "$xctestrun"
           echo "XCTESTRUN=$PWD/$xctestrun" >> "$GITHUB_ENV"
           # The audit's page filter goes into the test run's own environment, not through xcodebuild's TEST_RUNNER_.
-          python3 -I scripts/gallery-shards.py env "$xctestrun" "$(python3 -I scripts/gallery-shards.py pages "$SHARD")"
+          python3 -I scripts/ui-shards.py gallery env "$xctestrun" "OURO_AUDIT_PAGES=$(python3 -I scripts/ui-shards.py gallery pages "$SHARD")"
       # Booted and settled before the tests start, as the X-ray probe does: a cold boot under the first test was where
       # the runner lost testmanagerd (main, run 42166414006). A boot that hangs or aborts gets one fresh device.
       - name: The simulator finished booting
@@ -437,8 +402,8 @@ jobs:
         run: |
           set -u
           mkdir -p .build
-          only="$(python3 -I scripts/gallery-shards.py args "$SHARD")"
-          pages="$(python3 -I scripts/gallery-shards.py pages "$SHARD")"
+          only="$(python3 -I scripts/ui-shards.py gallery args "$SHARD")"
+          pages="$(python3 -I scripts/ui-shards.py gallery pages "$SHARD")"
           echo "Shard $SHARD runs:"; echo "$only"; test -n "$pages" && echo "Audit pages: $pages"
           gallery() {
             # shellcheck disable=SC2086
@@ -474,7 +439,7 @@ jobs:
           fi
           if [ "$status" -eq 0 ]; then
             # A shard that ran nothing, or an audit that ran no page, would pass on nothing: what ran must be the plan.
-            python3 -I scripts/gallery-shards.py ran "$SHARD" ".build/$name.xcresult" || status=1
+            python3 -I scripts/ui-shards.py gallery ran "$SHARD" ".build/$name.xcresult" || status=1
           fi
           exit "$status"
       - if: always()
@@ -626,54 +591,149 @@ jobs:
             -derivedDataPath .build/xcode-beta CODE_SIGNING_ALLOWED=NO \
             OTHER_SWIFT_FLAGS='$(inherited) -DOURO_SIRI_AI_SDK' 2>&1 | tail -40
 
-  feel-fixture:
-    name: Ouro Feel catches every genre's bug (free macos-26, Xcode 26)
+  feel-build:
+    name: Ouro Feel fixture build for testing (free macos-26, Xcode 26)
     # Examples/OuroFeelFixture has one page per genre of jank with a known bug behind `-bug 1`; FeelCatchesTests proves
-    # each check fails on the bug and passes without it. Reports go up as an artifact. Pull requests run it only when
-    # they change Ouro Feel, the fixture or what they share (the `paths` job); main and releases always do.
+    # each check fails on the bug and passes without it. Built once here; the three shards below test that build on
+    # their own simulators. Pull requests run it only when they change Ouro Feel, the fixture or what they share (the
+    # `paths` job); main and releases always do.
     needs: paths
     if: needs.paths.outputs.feel == 'true'
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: A fresh simulator for this job, booting while the build runs
+      - id: key
+        name: The build's name, by commit, Xcode and run attempt
         run: |
           set -eu
-          python3 -I scripts/ci-simulator.py start ouro-feel-ci
+          xcode="$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//; s/^Xcode-//; s/-Build-version-/-/')"
+          echo "artifact=feel-tests-$GITHUB_SHA-xcode-$xcode-attempt-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - name: Build the fixture and its UI tests once
         run: |
           set -o pipefail
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           (cd Examples/OuroFeelFixture && xcodegen generate)
           xcodebuild build-for-testing -project Examples/OuroFeelFixture/OuroFeelFixture.xcodeproj -scheme OuroFeelFixture \
-            -destination "id=$UDID" -derivedDataPath .build/feel-fixture CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+            -destination 'generic/platform=iOS Simulator' ARCHS="$(uname -m)" \
+            -derivedDataPath .build/feel-fixture CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+          ls .build/feel-fixture/Build/Products/*.xctestrun
+          # Uncompressed: the upload compresses it, and a single-threaded gzip here would hold the shards up.
+          tar -cf .build/feel-products.tar -C .build/feel-fixture/Build Products
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.key.outputs.artifact }}
+          path: .build/feel-products.tar
+          retention-days: 2
+          compression-level: 1
+          if-no-files-found: error
+
+  feel-shard:
+    name: Ouro Feel shard ${{ matrix.shard }} of 3 (free macos-26, Xcode 26)
+    # FeelCatchesTests split three ways by measured time (scripts/ui-shards.py); each test launches its own app, so
+    # order does not matter. Each shard starts with the build, boots its simulator while the build runs, then tests
+    # the build's products.
+    needs: paths
+    if: needs.paths.outputs.feel == 'true'
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - name: A fresh simulator for this shard, booting while the build runs
+        run: |
+          set -eu
+          python3 -I scripts/ci-simulator.py start ouro-feel-ci
+      - id: key
+        name: The build this shard tests, by commit and Xcode
+        run: |
+          set -eu
+          xcode="$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//; s/^Xcode-//; s/-Build-version-/-/')"
+          echo "prefix=feel-tests-$GITHUB_SHA-xcode-$xcode-attempt-" >> "$GITHUB_OUTPUT"
+      - id: artifact
+        name: The build is ready
+        timeout-minutes: 30
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh scripts/ci-wait-for-build.sh "${{ steps.key.outputs.prefix }}" "Ouro Feel fixture build for testing"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: .build
+      - name: Unpack the build
+        run: |
+          set -eu
+          mkdir -p .build/feel-fixture/Build .build/feel-reports
+          tar -xf .build/feel-products.tar -C .build/feel-fixture/Build
+          set -- .build/feel-fixture/Build/Products/*.xctestrun
+          xctestrun="$1"; test -f "$xctestrun"
+          echo "XCTESTRUN=$PWD/$xctestrun" >> "$GITHUB_ENV"
+          # Where OuroFeel writes its reports, in the test run's own environment.
+          python3 -I scripts/ui-shards.py feel env "$xctestrun" "OURO_FEEL_REPORT_DIR=$PWD/.build/feel-reports"
       # Booted and settled before the tests: left to xcodebuild, the first test's setUp can reach a simulator whose
       # accessibility is not up yet ("Failed to get list of active applications", kAXError -25218).
       - name: The simulator finished booting
-        id: booted
         timeout-minutes: 16
         run: python3 -I scripts/ci-simulator.py wait ouro-feel-ci 240
-      - name: Fixture UI tests (a fresh simulator; only the first test starts cold, so reports say "not labelled")
+      - name: Fixture UI tests, shard ${{ matrix.shard }} (a fresh simulator; only its first test starts cold, so reports say "not labelled")
+        env:
+          SHARD: ${{ matrix.shard }}
         run: |
-          set -o pipefail
-          TEST_RUNNER_OURO_FEEL_REPORT_DIR="$PWD/.build/feel-reports" \
-          xcodebuild test-without-building -project Examples/OuroFeelFixture/OuroFeelFixture.xcodeproj -scheme OuroFeelFixture \
-            -destination "id=$UDID" -derivedDataPath .build/feel-fixture -resultBundlePath .build/feel-fixture.xcresult \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" | tail -200
+          set -u
+          only="$(python3 -I scripts/ui-shards.py feel args "$SHARD")"
+          echo "Shard $SHARD runs:"; echo "$only"
+          status=0
+          # shellcheck disable=SC2086
+          xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
+            -resultBundlePath .build/feel-fixture.xcresult $only > .build/feel-fixture.log 2>&1 || status=$?
+          grep -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" .build/feel-fixture.log | tail -200
+          # A shard that ran nothing would pass on nothing: what ran must be the plan.
+          if [ "$status" -eq 0 ]; then python3 -I scripts/ui-shards.py feel ran "$SHARD" .build/feel-fixture.xcresult || status=1; fi
+          exit "$status"
       - if: always()
         name: Pack the reports and result bundle
         run: |
           mkdir -p .build/feel-reports
           test -d .build/feel-fixture.xcresult && tar -czf .build/feel-reports/feel-fixture-xcresult.tgz -C .build feel-fixture.xcresult || true
+          test -f .build/feel-fixture.log && cp .build/feel-fixture.log .build/feel-reports/ || true
       - id: upload6
         # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
         continue-on-error: true
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ouro-feel-fixture-reports
+          name: ouro-feel-fixture-reports-${{ matrix.shard }}
           path: .build/feel-reports
           if-no-files-found: ignore
       - if: always() && steps.upload6.outcome == 'failure'
-        run: echo "::warning::The ouro-feel-fixture-reports artifact did not upload (see the step's log); the job's result stands without it."
+        run: echo "::warning::The ouro-feel-fixture-reports-${{ matrix.shard }} artifact did not upload (see the step's log); the job's result stands without it."
+
+  feel-fixture:
+    name: Ouro Feel catches every genre's bug (free macos-26, Xcode 26)
+    # The required check. It passes only when the build and every shard passed, or when the change does not touch Ouro
+    # Feel or its fixture. It runs even when they fail or the run is cancelled (`always()`), so a red or cancelled
+    # shard can never leave this check skipped, which GitHub counts as a pass.
+    needs: [paths, feel-build, feel-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard passed
+        env:
+          PATHS: ${{ needs.paths.result }}
+          FEEL: ${{ needs.paths.outputs.feel }}
+          BUILD: ${{ needs.feel-build.result }}
+          SHARDS: ${{ needs.feel-shard.result }}
+        run: |
+          set -eu
+          echo "paths=$PATHS feel=$FEEL build=$BUILD shards=$SHARDS"
+          if [ "$PATHS" != success ]; then echo "::error::The paths job ended $PATHS"; exit 1; fi
+          if [ "$FEEL" = false ]; then echo "This change doesn't touch Ouro Feel or its fixture."; exit 0; fi
+          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and all three shards passed."; exit 0; fi
+          echo "::error::Build $BUILD, shards $SHARDS"; exit 1

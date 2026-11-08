@@ -34,6 +34,9 @@ while :; do
     if [ "$built_in" != "$GITHUB_RUN_ATTEMPT" ]; then name="$(pick any)"; fi
     if [ -z "$name" ] && [ "$conclusion" = success ]; then
       sleep "${WAIT_RECHECK:-10}"; name="$(pick current)"
+      # GitHub lists a build that "re-run failed jobs" carried over under this attempt's number (#79), so the check
+      # above can't tell it from a rebuild. An earlier attempt's upload of this prefix is the same commit and Xcode.
+      [ -n "$name" ] || name="$(pick any)"
       test -n "$name" || { echo "::error::$JOB succeeded without uploading $PREFIX$GITHUB_RUN_ATTEMPT: this shard's Xcode differs from the build's"; exit 1; }
     fi
   fi

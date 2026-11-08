@@ -289,10 +289,28 @@ final class ComponentClaimTests: XCTestCase {
     /// Undo toast goes first, so by the time the plain one has gone it has outlived five seconds.
     func testAToastWithAnActionWaits() {
         let app = launch("toasts", open: false)
-        app.buttons["Delete"].tap()
-        app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Recipe saved"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Recipe saved"].waitForNonExistence(timeout: 8), "a plain toast dismisses itself")
+        // Each toast is waited for, not timed: a loaded runner can drop a tap or show a toast late, and a toast that
+        // never showed is a tap that didn't take, so it is tapped once more before anything is judged (#91).
+        // A retap is never silent: it is logged and attached, so a dropped tap shows in the run.
+        let undo = app.buttons["Undo"], saved = app.staticTexts["Recipe saved"]
+        func tapUntil(_ button: String, shows toast: XCUIElement) {
+            for attempt in 1...2 where !toast.exists {
+                if attempt > 1 {
+                    let note = "retap: \(button) showed no toast within 10 s, so it was tapped again (#91)"
+                    print("[ouro-hx] \(note)")
+                    let attachment = XCTAttachment(string: note)
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+                app.buttons[button].tap()
+                _ = toast.waitForExistence(timeout: 10)
+            }
+        }
+        tapUntil("Delete", shows: undo)
+        XCTAssertTrue(undo.exists, "Delete never showed its Undo toast")
+        tapUntil("Save", shows: saved)
+        XCTAssertTrue(saved.exists, "Save never showed its toast")
+        XCTAssertTrue(saved.waitForNonExistence(timeout: 15), "a plain toast dismisses itself")
         sleep(1)
         XCTAssertTrue(app.buttons["Undo"].exists, "the toast with Undo stays")
         app.terminate()

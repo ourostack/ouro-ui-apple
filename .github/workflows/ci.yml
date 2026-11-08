@@ -50,7 +50,7 @@ jobs:
           # Pushes and releases run every simulator job; these outputs only narrow pull requests.
           if [ "$EVENT" != pull_request ]; then printf 'xray=false\ngallery=true\nfeel=true\n' >> "$GITHUB_OUTPUT"; exit 0; fi
           git diff --name-only "$BASE...$HEAD" > changed.txt
-          shared='|\.github/workflows/|scripts/(ci-simulator\.py|ui-shards\.py|ci-wait-for-build\.sh)$|Package\.(swift|resolved)$'
+          shared='|\.github/workflows/|scripts/(ci-simulator\.py|ui-shards\.py|ci-wait-for-build\.sh|ci-ui-infra\.sh)$|Package\.(swift|resolved)$'
           # The gallery links OuroHX, OuroHXTesting (with OuroDeviceHub) and OuroFeel (Examples/OuroHXGallery/project.yml).
           if grep -E "^(Sources/(OuroHX|OuroHXTesting|OuroDeviceHub|OuroFeel[^/]*)/|Examples/OuroHXGallery/$shared)" changed.txt; then
             echo "gallery=true" >> "$GITHUB_OUTPUT"
@@ -420,8 +420,7 @@ jobs:
           # nothing wrong in the app: that is the machine, so it gets one more run on a rebooted simulator, reported as an
           # infrastructure retry. So does a run that lost the simulator's accessibility (#84), and one whose only failures
           # are screenshot requests the simulator never answered (#43); a real assertion failure next to one still fails.
-          # Any other failure fails.
-          # The machine, not the app (scripts/ci-ui-infra.sh): one more run on a rebooted simulator.
+          # Any other failure fails. The check is scripts/ci-ui-infra.sh, shared with the Ouro Feel shards.
           infra() { sh scripts/ci-ui-infra.sh ".build/$1.log" ".build/$1.xcresult"; }
           name="gallery-ui-$SHARD"
           status=0; gallery "$name" || status=$?
@@ -705,6 +704,8 @@ jobs:
             echo "::warning title=Infrastructure retry::Ouro Feel shard $SHARD: \"$cause\". Rebooting the simulator and running it once more; the first attempt's log and result bundle are kept as feel-fixture-attempt-1."
             if [ -e .build/feel-fixture.xcresult ]; then mv .build/feel-fixture.xcresult .build/feel-fixture-attempt-1.xcresult; fi
             mv .build/feel-fixture.log .build/feel-fixture-attempt-1.log
+            # The second run's reports start empty; the first run's go up beside them, as attempt-1.
+            mv .build/feel-reports .build/feel-reports-attempt-1; mkdir -p .build/feel-reports
             xcrun simctl shutdown "$UDID" || true
             xcrun simctl boot "$UDID"
             xcrun simctl bootstatus "$UDID" -b >/dev/null
@@ -717,6 +718,7 @@ jobs:
         name: Pack the reports and result bundle
         run: |
           mkdir -p .build/feel-reports
+          if [ -d .build/feel-reports-attempt-1 ]; then mv .build/feel-reports-attempt-1 .build/feel-reports/attempt-1; fi
           bundles="$(cd .build && ls -d feel-fixture*.xcresult 2>/dev/null || true)"
           test -n "$bundles" && tar -czf .build/feel-reports/feel-fixture-xcresult.tgz -C .build $bundles || true
           cp .build/feel-fixture*.log .build/feel-reports/ 2>/dev/null || true

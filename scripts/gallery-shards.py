@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """CI only: which gallery UI tests each shard runs, so three simulators share one build.
 
-    python3 -I scripts/gallery-shards.py check          # every gallery test and audit page is in exactly one shard
-    python3 -I scripts/gallery-shards.py args <shard>   # that shard's -only-testing arguments, one per line
-    python3 -I scripts/gallery-shards.py pages <shard>  # its accessibility-audit pages (OURO_AUDIT_PAGES), or nothing
-    python3 -I scripts/gallery-shards.py plan           # each shard's measured seconds, to rebalance by
-    python3 -I scripts/gallery-shards.py env <file.xctestrun> <pages>   # set OURO_AUDIT_PAGES in the UI test target
-    python3 -I scripts/gallery-shards.py audited <shard> <bundle.xcresult>  # the audit ran exactly that shard's pages
+    python3 -I scripts/gallery-shards.py check                       # the plan matches the test sources
+    python3 -I scripts/gallery-shards.py args <shard>                # that shard's xcodebuild test selection
+    python3 -I scripts/gallery-shards.py pages <shard>               # its accessibility-audit pages (OURO_AUDIT_PAGES)
+    python3 -I scripts/gallery-shards.py env <file.xctestrun> <pages>    # set OURO_AUDIT_PAGES for the UI test target
+    python3 -I scripts/gallery-shards.py ran <shard> <bundle.xcresult>   # it ran its tests and audited its pages
+    python3 -I scripts/gallery-shards.py plan                        # each shard's measured seconds, to rebalance by
 
 The audit test (testEveryComponentPagePassesTheAccessibilityAudit) is the longest at 406 s, so it is split by page
-through its own OURO_AUDIT_PAGES filter. Every shard that lists audit pages runs it with only those pages, and
-together they cover every page. `check` reads the test sources, so a new test or page that no shard runs fails the
-`paths` job before any simulator starts. MotionTests is not here: it is the main-only hitch probe.
+through its own OURO_AUDIT_PAGES filter: every shard runs it with only its own pages, and together they cover every
+page. The last shard is the catch-all: it runs the whole UI test target except the other shards' tests and
+MotionTests (the main-only hitch probe), so a test no shard names still runs there. `check` reads the test sources
+and fails the `paths` job when a test is named twice, a named test no longer exists, or an audit page is in no shard
+or in two. `ran` reads each shard's result bundle and fails when the shard ran other tests than its plan or audited
+other pages, so a shard can never pass by running nothing.
 
 Seconds are from #54's run 42416382709 (attempt 2, macos-26, Xcode 26). Rebalance when a shard runs much longer than
-the others: move tests so each shard's total is close to a third of the whole.
+the others: move tests so each shard's total is close to a third of the whole. A new test lands in the catch-all
+shard until it is moved.
 """
 import json
 import plistlib
@@ -29,7 +33,8 @@ TARGET = "OuroHXGalleryUITests"
 AUDIT = "ComponentClaimTests/testEveryComponentPagePassesTheAccessibilityAudit"
 SKIPPED_CLASSES = {"MotionTests"}
 
-# Seconds each test (and each audit page, both sheet detents counted under "sheet") took.
+# Seconds each test (and each audit page, both sheet detents counted under "sheet") took. The last shard is the
+# catch-all; its "tests" are the ones it is known to run, for the plan's totals and for `ran`.
 SHARDS = {
     1: {
         "tests": {"ComponentClaimTests/testASheetWithTheKeyboardUpKeepsItsFieldAndActionInSight": 178.7,
@@ -52,19 +57,24 @@ SHARDS = {
         "pages": {"empty": 50.0, "banners": 50.0},
     },
 }
+CATCH_ALL = max(SHARDS)
+
+ATTRS = r"(?:@[\w.]+(?:\([^)]*\))?\s+)*"
+CLASS = re.compile(rf"^\s*{ATTRS}(?:(?:final|public|open|internal|private|fileprivate)\s+)*class\s+(\w+)\b")
+FUNC = re.compile(rf"^\s*{ATTRS}(?:(?:override|public|open|internal|final|nonisolated)\s+)*func\s+(test\w+)\s*\(")
 
 
-def source_tests():
-    """Every `Class/testName` in the gallery UI test target, and the audit's pages."""
+def source_tests(root=TESTS):
+    """Every `Class/testName` in the gallery UI test target (any depth, attributes allowed), and the audit's pages."""
     tests, pages = set(), None
-    for path in sorted(TESTS.glob("*.swift")):
+    for path in sorted(root.rglob("*.swift")):
         text = path.read_text()
         cls = None
         for line in text.splitlines():
-            m = re.match(r"\s*(?:final\s+)?class\s+(\w+)\s*:\s*XCTestCase", line)
+            m = CLASS.match(line)
             if m:
                 cls = m.group(1)
-            m = re.match(r"\s*func\s+(test\w+)\s*\(", line)
+            m = FUNC.match(line)
             if m and cls and cls not in SKIPPED_CLASSES:
                 tests.add(f"{cls}/{m.group(1)}")
         m = re.search(r"static let pages\s*=\s*\[([^\]]*)\]", text)
@@ -80,10 +90,8 @@ def problems(shards, tests, pages):
     for name in sorted(set(assigned)):
         if assigned.count(name) > 1:
             out.append(f"{name} is in more than one shard")
-    for name in sorted(tests - set(assigned) - {AUDIT}):
-        out.append(f"{name} is in no shard: add it to the lightest one in scripts/gallery-shards.py")
     for name in sorted(set(assigned) - tests):
-        out.append(f"{name} is in a shard but not in the tests")
+        out.append(f"{name} is in a shard but not in the tests: remove or rename it in scripts/gallery-shards.py")
     if AUDIT in assigned:
         out.append(f"{AUDIT} is split by page: list its pages, not the test")
     if pages is None:
@@ -100,8 +108,17 @@ def problems(shards, tests, pages):
     return out
 
 
-def args(shard):
-    spec = SHARDS[shard]
+def others(shards, shard):
+    return sorted(t for n, s in shards.items() if n != shard for t in s["tests"])
+
+
+def args(shard, shards=None):
+    shards = shards or SHARDS
+    spec = shards[shard]
+    if shard == max(shards):
+        # The catch-all: the whole target, less the other shards' tests and the hitch probe.
+        return ([f"-only-testing:{TARGET}"] + [f"-skip-testing:{TARGET}/{t}" for t in others(shards, shard)]
+                + [f"-skip-testing:{TARGET}/{c}" for c in sorted(SKIPPED_CLASSES)])
     lines = [f"-only-testing:{TARGET}/{t}" for t in spec["tests"]]
     if spec["pages"]:
         lines.append(f"-only-testing:{TARGET}/{AUDIT}")
@@ -121,7 +138,7 @@ def set_env(xctestrun, pages):
         raise SystemExit(f"::error::{xctestrun} has no {TARGET} target")
     for target in ui:
         # The UI test runner reads EnvironmentVariables; TestingEnvironmentVariables reaches the bundle in a hosted run.
-        # `audited` checks after the run that the filter took effect.
+        # `ran` checks after the run that the filter took effect.
         for key in ("EnvironmentVariables", "TestingEnvironmentVariables"):
             target.setdefault(key, {})["OURO_AUDIT_PAGES"] = pages
     with open(xctestrun, "wb") as f:
@@ -137,42 +154,104 @@ def pages_in(titles):
     return [m.group(1) for m in map(AUDIT_RUN.match, titles) if m]
 
 
-def audited(shard, bundle):
-    want = set(SHARDS[shard]["pages"])
-    if not want:
-        return 0
-    out = subprocess.run(["xcrun", "xcresulttool", "get", "test-results", "activities", "--path", bundle,
-                          "--test-id", f"{AUDIT.split('/')[0]}/{AUDIT.split('/')[1]}()", "--compact"],
+def tests_in(nodes):
+    """`Class/testName` of every test case in xcresulttool's `tests` tree."""
+    out = []
+
+    def walk(node, cls):
+        kind = node.get("nodeType")
+        if kind == "Test Case":
+            out.append(f"{cls}/{node['name'].removesuffix('()')}")
+            return
+        for child in node.get("children", []):
+            walk(child, node["name"] if kind == "Test Suite" else cls)
+
+    for node in nodes:
+        walk(node, None)
+    return out
+
+
+def ran_problems(shard, ran, pages_ran, shards=None):
+    shards = shards or SHARDS
+    spec = shards[shard]
+    want = set(spec["tests"]) | ({AUDIT} if spec["pages"] else set())
+    out = []
+    if shard == max(shards):
+        if missing := sorted(want - set(ran)):
+            out.append(f"shard {shard} did not run {missing}")
+        if extra := sorted(set(ran) & set(others(shards, shard))):
+            out.append(f"shard {shard} ran other shards' tests {extra}")
+        if probe := sorted(t for t in ran if t.split("/")[0] in SKIPPED_CLASSES):
+            out.append(f"shard {shard} ran the hitch probe {probe}")
+    elif set(ran) != want:
+        out.append(f"shard {shard} should run {sorted(want)}; it ran {sorted(set(ran))}")
+    if spec["pages"] and (set(pages_ran) != set(spec["pages"]) or len(pages_ran) < 4 * len(spec["pages"])):
+        out.append(f"shard {shard} should audit {sorted(spec['pages'])} at both sizes in light and dark; "
+                   f"it audited {sorted(set(pages_ran))} in {len(pages_ran)} runs")
+    return out
+
+
+def xcresult(bundle, *what):
+    out = subprocess.run(["xcrun", "xcresulttool", "get", "test-results", *what, "--path", bundle, "--compact"],
                          capture_output=True, text=True, timeout=120)
     if out.returncode != 0:
-        print(f"::error title=Gallery shards::no audit activities in {bundle}: {out.stderr.strip()[:300]}")
-        return 1
-    titles = [a.get("title", "") for run in json.loads(out.stdout).get("testRuns", []) for a in run.get("activities", [])]
-    ran = pages_in(titles)
-    if set(ran) != want or len(ran) < 4 * len(want):
-        print(f"::error title=Gallery shards::shard {shard} should audit {sorted(want)} at both sizes in light and dark; "
-              f"it audited {sorted(set(ran))} in {len(ran)} runs")
-        return 1
-    print(f"Shard {shard} audited {sorted(want)} in {len(ran)} runs")
-    return 0
+        raise SystemExit(f"::error title=Gallery shards::xcresulttool {' '.join(what)} on {bundle}: {out.stderr.strip()[:300]}")
+    return json.loads(out.stdout)
+
+
+def check_ran(shard, bundle):
+    ran = tests_in(xcresult(bundle, "tests").get("testNodes", []))
+    pages_ran = []
+    if SHARDS[shard]["pages"]:
+        acts = xcresult(bundle, "activities", "--test-id", f"{AUDIT}()")
+        pages_ran = pages_in([a.get("title", "") for run in acts.get("testRuns", []) for a in run.get("activities", [])])
+    found = ran_problems(shard, ran, pages_ran)
+    for line in found:
+        print(f"::error title=Gallery shards::{line}")
+    if not found:
+        print(f"Shard {shard} ran {len(ran)} tests and audited {sorted(set(pages_ran))} in {len(pages_ran)} runs")
+    return 1 if found else 0
 
 
 def selftest():
+    import tempfile
     tests = {"A/test1", "A/test2", AUDIT}
     good = {1: {"tests": {"A/test1": 1}, "pages": {"p": 1}}, 2: {"tests": {"A/test2": 1}, "pages": {"q": 1}}}
     assert problems(good, tests, ["p", "q"]) == [], problems(good, tests, ["p", "q"])
-    missing = {1: {"tests": {"A/test1": 1}, "pages": {"p": 1}}}
-    found = problems(missing, tests, ["p", "q"])
-    assert any("A/test2 is in no shard" in p for p in found) and any("page q is in no shard" in p for p in found), found
-    twice = {1: {"tests": {"A/test1": 1, "A/test2": 1}, "pages": {"p": 1, "q": 1}}, 2: {"tests": {"A/test1": 1}, "pages": {"p": 1}}}
-    found = problems(twice, tests, ["p", "q"])
-    assert any("A/test1 is in more than one" in p for p in found) and any("page p is in more than one" in p for p in found), found
-    whole = {1: {"tests": {"A/test1": 1, "A/test2": 1, AUDIT: 1}, "pages": {}}}
-    assert any("split by page" in p for p in problems(whole, tests, ["p", "q"]))
-    assert args(1)[-1].endswith(AUDIT) and all(a.startswith(f"-only-testing:{TARGET}/") for a in args(3))
+    found = problems({1: {"tests": {"A/test1": 1}, "pages": {"p": 1}}, 2: {"tests": {}, "pages": {}}}, tests, ["p", "q"])
+    assert any("page q is in no shard" in p for p in found), found
+    found = problems({1: {"tests": {"A/test1": 1, "A/gone": 1}, "pages": {"p": 1, "q": 1}},
+                      2: {"tests": {"A/test1": 1}, "pages": {"p": 1}}}, tests, ["p", "q"])
+    assert any("A/test1 is in more than one" in p for p in found) and any("page p is in more than one" in p for p in found)
+    assert any("A/gone is in a shard but not in the tests" in p for p in found), found
+    assert any("split by page" in p for p in problems({1: {"tests": {AUDIT: 1}, "pages": {}}}, tests, ["p", "q"]))
+    # The catch-all selects the whole target less the others and the probe; the rest name theirs.
+    assert args(1, good) == [f"-only-testing:{TARGET}/A/test1", f"-only-testing:{TARGET}/{AUDIT}"], args(1, good)
+    assert args(2, good) == [f"-only-testing:{TARGET}", f"-skip-testing:{TARGET}/A/test1", f"-skip-testing:{TARGET}/MotionTests"]
+    # `ran`: exact for a named shard, a superset for the catch-all, and never a pass on nothing.
+    assert ran_problems(1, ["A/test1", AUDIT], ["p"] * 4, good) == []
+    assert ran_problems(1, ["A/test1"], [], good)
+    assert ran_problems(1, [], [], good)
+    assert ran_problems(2, ["A/test2", AUDIT, "B/new"], ["q"] * 4, good) == []
+    assert ran_problems(2, ["A/test2", AUDIT, "A/test1"], ["q"] * 4, good)
+    assert ran_problems(2, ["A/test2", AUDIT, "MotionTests/testX"], ["q"] * 4, good)
+    assert ran_problems(2, ["A/test2", AUDIT], ["p", "q", "q", "q", "q"], good)
     titles = ["Set Up", "sheet default light", "sheet large UICTContentSizeCategoryAccessibilityXXXL dark",
               "toasts default light expanded", "Find the \"Save\" Button", "buttons UICTContentSizeCategoryAccessibilityXXXL light"]
     assert pages_in(titles) == ["sheet", "sheet", "buttons"], pages_in(titles)
+    nodes = [{"nodeType": "Test Plan", "name": "P", "children": [{"nodeType": "Unit test bundle", "name": TARGET, "children": [
+        {"nodeType": "Test Suite", "name": "A", "children": [{"nodeType": "Test Case", "name": "test1()"}]}]}]}]
+    assert tests_in(nodes) == ["A/test1"], tests_in(nodes)
+    # The source scan sees attributed classes and tests, in subfolders too.
+    with tempfile.TemporaryDirectory() as d:
+        sub = Path(d) / "sub"
+        sub.mkdir()
+        (sub / "X.swift").write_text('@MainActor\nfinal class X: XCTestCase {\n  @MainActor func testOne() {}\n'
+                                     '  override func testTwo() async throws {}\n  func helper() {}\n}\n'
+                                     '@MainActor final class Y: Base {\n  func testThree() {}\n  static let pages = ["a", "b"]\n}\n')
+        found_tests, found_pages = source_tests(Path(d))
+        assert found_tests == {"X/testOne", "X/testTwo", "Y/testThree"}, found_tests
+        assert found_pages == ["a", "b"], found_pages
 
 
 def main(argv):
@@ -183,7 +262,12 @@ def main(argv):
         for line in found:
             print(f"::error title=Gallery shards::{line}")
         if not found:
-            print(f"{len(tests)} gallery tests and {len(pages)} audit pages, each in exactly one of {len(SHARDS)} shards")
+            named = {t for s in SHARDS.values() for t in s["tests"]}
+            unnamed = sorted(tests - named - {AUDIT})
+            print(f"{len(tests)} gallery tests and {len(pages)} audit pages in {len(SHARDS)} shards")
+            for name in unnamed:
+                print(f"::notice title=Gallery shards::{name} runs in the catch-all shard {CATCH_ALL}; give it a measured "
+                      "time and a shard in scripts/gallery-shards.py")
         return 1 if found else 0
     if len(argv) == 2 and argv[0] in ("args", "pages") and argv[1].isdigit() and int(argv[1]) in SHARDS:
         shard = int(argv[1])
@@ -192,8 +276,8 @@ def main(argv):
     if len(argv) == 3 and argv[0] == "env":
         set_env(argv[1], argv[2])
         return 0
-    if len(argv) == 3 and argv[0] == "audited" and argv[1].isdigit() and int(argv[1]) in SHARDS:
-        return audited(int(argv[1]), argv[2])
+    if len(argv) == 3 and argv[0] == "ran" and argv[1].isdigit() and int(argv[1]) in SHARDS:
+        return check_ran(int(argv[1]), argv[2])
     if argv[:1] == ["plan"]:
         for shard, spec in SHARDS.items():
             print(f"shard {shard}: {sum(spec['tests'].values()) + sum(spec['pages'].values()):.0f} s")

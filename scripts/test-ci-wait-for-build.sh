@@ -8,7 +8,10 @@ mkdir -p "$work/bin"
 cat > "$work/bin/gh" <<'GH'
 #!/bin/sh
 case "$*" in
-  *"/artifacts"*) printf '%s\n' $FAKE_ARTIFACTS ;;
+  # FAKE_LISTED_AFTER: the upload is listed only from that call on, as the real API does a while after an upload.
+  *"/artifacts"*)
+    n=$(( $(cat "$FAKE_CALLS" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$FAKE_CALLS"
+    [ "$n" -ge "${FAKE_LISTED_AFTER:-1}" ] && printf '%s\n' $FAKE_ARTIFACTS ;;
   *"/jobs"*) echo "$FAKE_BUILD" ;;
 esac
 GH
@@ -17,9 +20,9 @@ P=gallery-tests-abc-xcode-26.6-17F113-attempt-
 failures=0
 # check <what> <attempt> <artifacts> <build state> <expected name, or "fail">
 check() {
-  out="$work/out.$$"; : > "$out"
+  out="$work/out.$$"; : > "$out"; : > "$work/calls"
   PATH="$work/bin:$PATH" GITHUB_REPOSITORY=o/r GITHUB_RUN_ID=1 GITHUB_RUN_ATTEMPT="$2" GITHUB_OUTPUT="$out" \
-    FAKE_ARTIFACTS="$3" FAKE_BUILD="$4" WAIT_RECHECK=0 WAIT_POLL=0 \
+    FAKE_ARTIFACTS="$3" FAKE_BUILD="$4" FAKE_CALLS="$work/calls" WAIT_RECHECK=0 WAIT_POLL=0 WAIT_LISTED_CHECKS=3 \
     sh "$here/ci-wait-for-build.sh" "$P" "Gallery build for testing" > "$work/log" 2>&1 && status=0 || status=$?
   got="$(sed -n 's/^name=//p' "$out")"
   if [ "$5" = fail ]; then
@@ -33,5 +36,7 @@ check "re-run failed jobs, listed with the attempt it ran in" 3 "${P}1" "1 succe
 check "the newest earlier build" 3 "${P}1 ${P}2" "3 success" "${P}2"
 check "a rebuilt attempt uses its own build" 2 "${P}1 ${P}2" "2 success" "${P}2"
 check "the build failed" 2 "" "2 failure" fail
+FAKE_LISTED_AFTER=4 check "an upload the API lists only a few looks after the build succeeded" 1 "${P}1" "1 success" "${P}1"
+FAKE_LISTED_AFTER=99 check "an upload never listed fails after its looks" 1 "${P}1" "1 success" fail
 check "the build succeeded for another Xcode" 1 "gallery-tests-abc-xcode-27.0-1A1-attempt-1" "1 success" fail
 test "$failures" -eq 0

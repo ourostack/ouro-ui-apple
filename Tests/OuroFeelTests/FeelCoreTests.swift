@@ -327,6 +327,26 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(f.snaps(of: "panel").summary.hasPrefix("could not check"))
     }
 
+    /// On a busy runner a push's first animation frame can repeat its start position, so the page arrives, holds for
+    /// a sample, and then travels: a transition, not an arrival in full (#53).
+    @Test func arrivingThenHoldingThenTravellingIsATransition() {
+        let ys: [Double?] = [nil, 800, 800, 700, 600, 500, 400, 400, 400]
+        let f = FeelFilm(window: phone, frames: ys.enumerated().map { i, y in FeelFrame(t: Double(i) * 0.02, seen: y.map { [box($0)] } ?? []) })
+        #expect(f.snaps(of: "panel", appearing: true).passed)
+    }
+
+    /// Only travel that follows the arrival clears it: a page that snaps in, rests, and later slides away for another
+    /// reason (a dismissal) still snapped in, and so does one that holds longer than two samples before moving.
+    @Test func aLaterSeparateMoveDoesNotClearASnapIn() {
+        func film(_ ys: [Double?]) -> FeelFilm {
+            FeelFilm(window: phone, frames: ys.enumerated().map { i, y in FeelFrame(t: Double(i) * 0.02, seen: y.map { [box($0)] } ?? []) })
+        }
+        #expect(!film([nil, 400, 400, 400, 400, 400, 500, 600, 700]).snaps(of: "panel", appearing: true).passed)
+        #expect(!film([nil, 800, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
+        #expect(film([nil, 800, 800, 800, 700, 600, 500, 400, 400]).snaps(of: "panel", appearing: true).passed)
+        #expect(film([nil, 800, 770, 770, 740, 710, 680, 650, 650]).snaps(of: "panel", appearing: true).passed)
+    }
+
     /// Mid-animation, SwiftUI's accessibility frame stretches from where the element is drawn to where it is going
     /// (seen on the iOS 27.2 simulator), so a stretched sample is an in-between position, however big the step to it.
     @Test func aStretchedFrameIsAnInBetweenPositionNotASnap() {

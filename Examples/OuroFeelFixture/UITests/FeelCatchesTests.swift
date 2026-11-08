@@ -22,10 +22,11 @@ final class FeelCatchesTests: XCTestCase {
         return (app, OuroFeel(app))
     }
 
-    /// Runs `check` with and without the bug: it must fail with it and pass without it.
-    private func both(_ page: String, _ extra: [String] = [], file: StaticString = #filePath, line: UInt = #line,
+    /// Runs `check` with and without the bug: it must fail with it and pass without it. `builds` narrows it to one
+    /// build, for a check long enough that each build is its own test (and its own CI shard).
+    private func both(_ page: String, _ extra: [String] = [], builds: [Bool] = [true, false], file: StaticString = #filePath, line: UInt = #line,
                       _ check: (XCUIApplication, OuroFeel) -> (FeelResult, FeelFilm?)) {
-        for bug in [true, false] {
+        for bug in builds {
             let (app, feel) = launch(page, bug: bug, extra)
             let (raw, film) = check(app, feel)
             let result = feel.record(raw, name: "\(page)-\(bug ? "bug" : "fixed")", film: film)
@@ -93,8 +94,12 @@ final class FeelCatchesTests: XCTestCase {
     /// Following every button. The segmented picker and the menus are not screens; the walk checks that the menus it
     /// opens close. The Filter menu never closes in the bug build; the Tags menu always closes, so it must pass in
     /// both builds. (Whether a tap opens the system Sort menu varies by iOS version, so the counts allow it either way.)
-    func testTheWayBack() {
-        both("nav") { app, feel in
+    /// The walk takes minutes per build, so each build is its own test: CI can run them side by side.
+    func testTheWayBackBugBuild() { theWayBack(bug: true) }
+    func testTheWayBackFixedBuild() { theWayBack(bug: false) }
+
+    private func theWayBack(bug only: Bool) {
+        both("nav", builds: [only]) { app, feel in
             let result = feel.wayBack(follow: FeelFollow(types: [.button]), depth: 1)
             let bug = isBugBuild(app)
             if bug {

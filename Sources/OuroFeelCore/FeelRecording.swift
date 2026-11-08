@@ -15,13 +15,38 @@ public enum FeelRecording {
     public static func filmFile(_ id: String) -> String { "film-\(id).json" }
     public static let timedBy = "the app's display (an in-app sample every frame, CADisplayLink)"
 
+    /// The injectable recorder's binary inside its framework (the `OuroFeelRecorderInjectable` product).
+    public static let injectableBinary = "OuroFeelRecorderInjectable.framework/OuroFeelRecorderInjectable"
+
+    /// The injectable recorder in the first of `frameworkDirectories` that holds it: a UI test bundle that links the
+    /// product carries it in its own Frameworks folder, or in its runner's.
+    public static func injectableLibrary(in frameworkDirectories: [URL],
+                                         exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> String? {
+        frameworkDirectories.map { $0.appendingPathComponent(injectableBinary).path }.first(where: exists)
+    }
+
+    /// What loads the injectable recorder into the app and points it at the shared folder.
+    public static func injectionEnvironment(library: String, directory: String) -> [String: String] {
+        ["DYLD_INSERT_LIBRARIES": library, directoryVariable: directory]
+    }
+
     /// What the test asks the app to film.
     public struct Request: Codable, Equatable, Sendable {
         public var id: String
         public var keys: [String]
-        public init(id: String = UUID().uuidString, keys: [String]) {
+        /// Every copy of each key on screen, not only the frontmost: for counting double draws frame by frame.
+        public var copies: Bool
+        public init(id: String = UUID().uuidString, keys: [String], copies: Bool = false) {
             self.id = id
             self.keys = keys
+            self.copies = copies
+        }
+        public init(from decoder: any Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            keys = try c.decode([String].self, forKey: .keys)
+            // A request from before copies existed asks for one copy per key.
+            copies = try c.decodeIfPresent(Bool.self, forKey: .copies) ?? false
         }
     }
 }

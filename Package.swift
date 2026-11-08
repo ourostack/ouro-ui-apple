@@ -30,6 +30,8 @@ let package = Package(
         .library(name: "OuroFeel", targets: ["OuroFeel"]),
         .library(name: "OuroFeelCore", targets: ["OuroFeelCore"]),
         .library(name: "OuroFeelRecorder", targets: ["OuroFeelRecorder"]),
+        // The same recorder as a library a UI test loads into the app (simulator only), so the app never links it.
+        .library(name: "OuroFeelRecorderInjectable", type: .dynamic, targets: ["OuroFeelRecorderLoader"]),
         // Ouro Reins: an app's screens as state plus actions, driven headless with `ls` and `do`. See docs/ouro-reins/README.md.
         .library(name: "OuroReins", targets: ["OuroReins"]),
     ],
@@ -77,6 +79,7 @@ let package = Package(
         .target(name: "OuroFeelCore", swiftSettings: strict),
         .target(name: "OuroFeel", dependencies: ["OuroFeelCore"], swiftSettings: strict),
         .target(name: "OuroFeelRecorder", dependencies: ["OuroFeelCore"], swiftSettings: strict),
+        .target(name: "OuroFeelRecorderLoader", dependencies: ["OuroFeelRecorder"]),
         .testTarget(name: "OuroFeelTests", dependencies: ["OuroFeelCore"], swiftSettings: strict),
 
         // Ouro Reins. No SwiftUI and no XCTest, so an app's UI-free core links it, and so does a headless

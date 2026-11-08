@@ -364,13 +364,14 @@ each by its settled picture (rests under 1.5 apart share a label), and fails whe
 
 - a label comes back after another within `within` samples (default 90, counted in ticks; the element check's 30 counts
   frames);
-- the screen flashes away from a rest and back in samples too short to rest (one tick is plain to see);
-- between two rests it shows something that is neither, nor on the way (pages spun through before it settled); a fade
-  or a slide is on the way, so it is one change;
+- the screen flashes away from a rest and back in samples too short to rest (one tick is plain to see), or reaches the
+  next rest for a moment, goes back, then on again;
 - the action rests in more than `states` different states (default 2, which covers a toggle; a contents jump that shows
   a veil, then the page, declares 3).
 
-It cannot be checked when the clock stalled, when a sample came more than twice the usual gap after the last (a skipped
+Frames between two different rests are otherwise not judged: a slide or scroll of real content is as far from both rests
+as they are from each other, so pages spun through on the way to a new page are not caught here; judge such a page's
+place with the element check. It cannot be checked when the clock stalled, when a sample came more than twice the usual gap after the last (a skipped
 tick could hide a flash), when the pictures differ in size, or when the screen was still changing at the end. Only motion
 that follows the app's clock is filmed deterministically: a web view's CSS or WebKit's own fades run on wall time, so
 film those from a recording. The screenshot follows the accessibility tree's tick and can lag it by a frame on a slow

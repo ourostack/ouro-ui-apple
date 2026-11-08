@@ -61,14 +61,19 @@ private func film(_ shades: [UInt8]) -> FeelScreenFilm {
     }
 
     /// Gatefold build 20 spun through pages a tick each before it settled back.
-    @Test func spinningThroughPagesFails() {
+    @Test func spinningThroughPagesAndBackFails() {
         #expect(!film([10, 10, 50, 90, 130, 10, 10]).flickers().passed)
-        // Through pages that are neither the first nor the last, on the way to a new one: not a fade.
-        let pages: [[UInt8]] = [[10, 10, 10, 10], [10, 10, 10, 10], [200, 0, 200, 0], [0, 200, 0, 200], [10, 200, 10, 200], [10, 200, 10, 200]]
-        let spun = FeelScreenFilm(frames: pages.enumerated().map { i, p in
-            FeelScreenFrame(t: Double(i) / 10, width: 4, height: 4, gray: Array(repeating: p, count: 4).flatMap { $0 })
-        })
-        #expect(spun.flickers().detections.contains { $0.what.contains("neither") }, "\(spun.flickers().text)")
+    }
+
+    /// A slide, a scroll and a slow ease of real (textured) content are one change, though each frame on the way is as
+    /// far from both rests as they are from each other.
+    @Test func texturedSlidesScrollsAndEasesPass() {
+        let slide = textured(offsets: [0, 0, 0, 40, 80, 120, 160, 160, 160], pageAt: { $0 < 160 ? 0 : 1 })
+        #expect(slide.flickers().passed, "\(slide.flickers().text)")
+        let scroll = textured(offsets: [0, 0, 0, 6, 12, 18, 18, 18])
+        #expect(scroll.flickers().passed, "\(scroll.flickers().text)")
+        let ease = textured(offsets: [0, 0, 0, 30, 50, 62, 70, 75, 78, 79, 80, 80, 80, 80])
+        #expect(ease.flickers().passed, "\(ease.flickers().text)")
     }
 
     /// A slow drift never chains into one rest: each sample is judged against the rest's first.
@@ -99,4 +104,21 @@ private func film(_ shades: [UInt8]) -> FeelScreenFilm {
         #expect(mixed.flickers().findings.contains { $0.unchecked && $0.what.contains("one size") })
         #expect(!mixed.flickers().passed)
     }
+}
+
+/// A 160x40 film of a textured strip scrolled by each offset (pixels): stripes of varied shades, as text lines are.
+private func textured(offsets: [Int], pageAt: (Int) -> Int = { _ in 0 }) -> FeelScreenFilm {
+    let w = 160, h = 40
+    func shadeAt(_ x: Int, _ y: Int, page: Int) -> UInt8 {
+        let v = (x * 37 + y * 11 + page * 101) % 7 == 0 ? 30 : ((x / 3 + y / 2 + page * 5) % 5) * 40 + 40
+        return UInt8(min(255, v))
+    }
+    return FeelScreenFilm(frames: offsets.enumerated().map { i, off in
+        var gray = [UInt8](repeating: 0, count: w * h)
+        for y in 0..<h { for x in 0..<w {
+            let sx = x + off
+            gray[y * w + x] = shadeAt(sx % 320, y, page: pageAt(off) == 0 ? (sx < 160 ? 0 : 1) : (sx < 320 ? 1 : 0))
+        } }
+        return FeelScreenFrame(t: Double(i) / 10, width: w, height: h, gray: gray)
+    })
 }

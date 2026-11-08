@@ -76,11 +76,14 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
     /// Flicker of the whole screen within one action, judged in samples, never seconds. It fails when:
     ///
     /// - the screen comes back to a state it left (A, B, A) within `within` samples;
-    /// - it leaves a rest for samples too short to be a rest of their own and comes back (a one-tick flash);
-    /// - between two rests it shows something that is neither, nor on the way from one to the other (pages spun
-    ///   through a tick each before it settled); a fade or a slide between them is on the way, so it is one change;
+    /// - it leaves a rest for samples too short to be a rest of their own and comes back (a one-tick flash, or pages spun
+    ///   through a tick each before it settled back), or reaches the next rest for a moment, goes back, then on again;
     /// - it rests in more than `states` different states. A toggle (A to B) is the default 2; a contents jump that shows a
     ///   veil, then the page, declares 3. A slip meant to come and go is still A, B, A, so blank its region when filming.
+    ///
+    /// Frames between two different rests are not judged otherwise: a slide or a scroll of real content is as far from
+    /// both rests as they are from each other, so pages spun through on the way to a new one are not caught here (judge
+    /// such a page's place with ``FeelFilm/flickers(of:within:changes:distance:hold:maxGap:tolerance:)``).
     ///
     /// The pictures are compared as small grayscale thumbnails by mean absolute difference (0 to 255): a rest is at least
     /// `run` samples, each under `stable` from its first; two rests under `merge` apart are the same state. `within` is in
@@ -122,19 +125,11 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
                         flips += 1
                         findings.append(FeelFinding(what: "the screen flashed away from a state at \(at(far)) s for \(between.count) \(between.count == 1 ? "sample" : "samples") and came back"))
                     }
-                } else {
-                    // On the way, each sample lies between the two (a blend or a slide): its distances to them add up to
-                    // about theirs. Something else adds up to far more.
-                    let apart = d(from, to)
+                } else if let reached = between.first(where: { d($0, to) < merge }),
+                          let back = between.first(where: { $0 > reached && d($0, from) < merge }) {
                     // Reached the new state for a moment, went back to the old one, then on again.
-                    if let reached = between.first(where: { d($0, to) < merge }),
-                       let back = between.first(where: { $0 > reached && d($0, from) < merge }) {
-                        flips += 1
-                        findings.append(FeelFinding(what: "the screen reached a new state at \(at(reached)) s, went back to the old one at \(at(back)) s, then on again"))
-                    } else if let stray = between.first(where: { d($0, from) >= merge && d($0, to) >= merge && d($0, from) + d($0, to) > apart * 1.25 + merge }) {
-                        flips += 1
-                        findings.append(FeelFinding(what: "between two rests the screen showed something that was neither, nor on the way, at \(at(stray)) s"))
-                    }
+                    flips += 1
+                    findings.append(FeelFinding(what: "the screen reached a new state at \(at(reached)) s, went back to the old one at \(at(back)) s, then on again"))
                 }
             }
             // A, B, A: a state comes back after another, within `within` samples.

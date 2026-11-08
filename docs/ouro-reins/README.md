@@ -144,6 +144,20 @@ the guard that checks them.
   `journey.expect("page")` won't match it and Ouro Feel's screen identity depends on the ancestors. Give the focused
   screen a name no ancestor uses.
 
+## The protocol
+
+[PROTOCOL.md](PROTOCOL.md) is the wire contract on its own, independent of this Swift code: the screen, the requests and replies, every refusal code with its exit, journeys, and the optional batches and diffs a remote driver uses. Write another driver against it, and change it (and its Changes list) in the same pull request as any wire change here.
+
+## Reins for any Mac app
+
+The same `ls` and `do`, for every app on a Mac, not only Ouro UI apps: an agent drives Finder, System Settings or a vendor's app as state and actions, with no model in the loop and no clicking by coordinates. It's a second driver, for Ari's own Macs, that now speaks [PROTOCOL.md](PROTOCOL.md) (it also sends `available` and `path` as fields); the code isn't public yet.
+
+- **The accessibility layer.** A resident engine reads the front app's accessibility tree (or a named app's) and prunes it to what a person can act on: each element has a role, a label, its value, whether it's enabled or focused, and its frame. Blocking alerts come first. Actions are narrowed to the screen: `click`'s `element` is an `enum` of the elements that can be clicked, `menu`'s `item` of the menu-bar items that are enabled (`File > New Finder Window`), `open_app`'s `app` of the installed apps. The others are `set_value`, `type_text`, `press_key` (`cmd+w`), `scroll`, `perform` (any other accessibility action) and `activate`.
+- **Stable addresses.** Each element has `#12`, its index on this screen, and a ref like `button[Back]` or `toolbar > button[Back]`: the shortest role-and-label path that's unique on the screen. An editable field is never named by its own value. A recorded journey keeps refs; on replay, a ref that no longer matches exactly matches by a unique suffix of the element's full path.
+- **The pixel layer.** Where there's no usable tree (FileVault and the login window, a canvas, a hung window server, or a Mac that hasn't granted Accessibility), the same screen comes from a screenshot: Apple Vision's text boxes become `text[Label]` elements, `"layer": "pixels"` says so, and clicks, keys and text go through a pixel driver. One driver is an IP-KVM (a GL.iNet Comet, through PiKVM's HTTP API), whose HDMI capture and USB keyboard and mouse need no permission on the Mac at all.
+- **Safe by refusal.** It refuses with `person-active` when anyone has touched the Mac in the last 90 seconds, `app-protected` for apps whose own policy refuses automation (the GitHub Copilot app, which has its own local API), password and administrator prompts, consents its own tools didn't raise, and device-management or security settings, and `permission-missing` when Accessibility hasn't been granted. It never raises a permission prompt on a screen nobody is at, never types a password given on a command line, and reads a secret only from the Mac's Keychain by name.
+- **Fast across a network.** The driver runs on the Mac and only lines cross the network, so the engine stays resident and warm, `batch` runs a whole journey in one round trip with every `until` checked on the Mac, and after the first screen only a diff against the `rev` the agent holds comes back.
+
 ## Agent skill
 
 [SKILL.md](SKILL.md) is the short version for an agent that has to drive an app it didn't write.

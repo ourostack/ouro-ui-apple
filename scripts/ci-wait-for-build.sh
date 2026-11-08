@@ -37,7 +37,8 @@ while :; do
     if [ -z "$name" ] && [ "$conclusion" = success ]; then
       # The artifacts API can take a minute or more to list a fresh upload: on main's run 42447094866 one shard,
       # 6 s after the upload, failed here while the two beside it found it. So a succeeded build's upload gets
-      # WAIT_LISTED_CHECKS more looks, WAIT_RECHECK seconds apart (24 x 10 s), before this fails.
+      # WAIT_LISTED_CHECKS more looks, WAIT_RECHECK seconds apart, before this fails. On a rerun an earlier attempt's
+      # upload is already listed, so a shard may take it during the delay; it is the same commit and Xcode.
       checks=0
       while :; do
         name="$(pick current)"

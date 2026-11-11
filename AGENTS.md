@@ -2,9 +2,9 @@
 
 This repository is the Swift package for Ouro HX for Apple (`OuroHX`, `OuroHXTesting`) and Ouro AX for Apple (`OuroAX`, `OuroAXTesting`, the `ouro-ax-xray` X-ray and its probe, the `ouro-ax-skills` linter and its build-tool plugin). What is true on every platform lives in core, not here.
 
-## Pull requests merge within 30 minutes
+## Pull requests merge fast
 
-Follow ourostack's shared rule, [every PR merges within 30 minutes](https://github.com/ourostack/.github/blob/main/agents/prs-merge-within-30-minutes.md). Finish, review and validate on your branch first, then publish with `gh ouro-pr`, which turns auto-merge on so green means merged. When a PR here shows on the [PR clock](https://github.com/ourostack/.github/issues?q=is%3Aissue+is%3Aopen+label%3Apr-clock), act on it now: merge it if green, fix the cause if red (file an issue before any rerun), rebase it if conflicted, or close it with a reason if it isn't going anywhere.
+Follow ourostack's shared rule, [every PR merges fast](https://github.com/ourostack/.github/blob/main/agents/prs-merge-within-30-minutes.md). Finish, review and validate on your branch first, then publish with `gh ouro-pr`, which turns auto-merge on so green means merged. 30 minutes is the outer alarm, not the goal: merge and run CI as fast as possible. When a PR here shows on the [PR clock](https://github.com/ourostack/.github/issues?q=is%3Aissue+is%3Aopen+label%3Apr-clock), act on it now: merge it if green, fix the cause if red (file an issue before any rerun), rebase it if conflicted, or close it with a reason if it isn't going anywhere.
 
 ## Where things live
 

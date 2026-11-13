@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 @testable import OuroA2UI
 @testable import OuroHX
 import OuroHXTesting
@@ -6,7 +7,9 @@ import SwiftUI
 import Testing
 
 /// Draws core's model-composed recipe card (`recipe-card-agent.json`) and its consequential button's confirmation
-/// with Ouro HX. Every run checks both draw; with `OURO_A2UI_CAPTURE=<folder>` it also writes them there as PNGs.
+/// with Ouro HX. Every run checks both draw; with `OURO_A2UI_CAPTURE=<folder>` it also writes them there as PNGs, and
+/// with `OURO_A2UI_IMAGE=<png>` the card shows that local file (such as web's synthetic picture, so the two captures
+/// match) instead of the drawn one. Nothing touches the network.
 @Suite @MainActor struct RenderTests {
     static let width: CGFloat = 390
 
@@ -51,7 +54,10 @@ import Testing
 
     @Test func recipeCard() throws {
         let node = try Self.card()
-        let orzo = Self.syntheticOrzo()
+        let orzo = ProcessInfo.processInfo.environment["OURO_A2UI_IMAGE"]
+            .flatMap { CGImageSourceCreateWithURL(URL(filePath: $0) as CFURL, nil) }
+            .flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+            .map { Image(decorative: $0, scale: 1) } ?? Self.syntheticOrzo()
         let view = A2UISurface(node, surfaceId: "recipe-card", onAction: { _ in }, onHandoff: { _, _ in })
             .environment(\.a2uiImageLoader, { _ in orzo })
             .padding(16)

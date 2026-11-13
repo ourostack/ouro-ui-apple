@@ -1,0 +1,655 @@
+{
+  "description": "A recipe card a model composed from the recipe catalog and a synthetic recipe, unedited: its photo, name, description, tags, facts, ingredients from a template, and one button per consent class.",
+  "source": {
+    "model": "claude-sonnet-4-6",
+    "date": "2026-11-13",
+    "prompt": "agent/recipe-card.prompt.txt",
+    "attempts": "validated on the first attempt once the catalog's instructions named the id rule; before that, two attempts used hyphenated ids and the validator rejected them"
+  },
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "recipe-card",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+        "dataModel": {
+          "id": "rcp_lemon_orzo",
+          "name": "Charred Lemon Orzo",
+          "description": "Orzo toasted in brown butter, finished with charred lemon, peas and a lot of parmesan. A weeknight pan dinner.",
+          "image": "https://ui.ouroboros.bot/a2ui/v1/examples/charred-lemon-orzo.png",
+          "imageDescription": "A shallow pan of golden orzo with peas and charred lemon halves",
+          "minutes": 25,
+          "minutesDisplay": "25 min",
+          "servings": 4,
+          "difficulty": "Easy",
+          "tags": [
+            "Vegetarian",
+            "One pan"
+          ],
+          "ingredients": [
+            {
+              "quantity": "1½ cups",
+              "name": "orzo"
+            },
+            {
+              "quantity": "3 tbsp",
+              "name": "butter"
+            },
+            {
+              "quantity": "2",
+              "name": "lemons, halved"
+            },
+            {
+              "quantity": "1 cup",
+              "name": "frozen peas"
+            },
+            {
+              "quantity": "¾ cup",
+              "name": "grated parmesan"
+            },
+            {
+              "quantity": "3 cups",
+              "name": "vegetable stock"
+            }
+          ],
+          "sharedWith": "sam@example.com"
+        },
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "children": [
+              "main_stack"
+            ]
+          },
+          {
+            "id": "main_stack",
+            "component": "Stack",
+            "direction": "vertical",
+            "gap": "medium",
+            "children": [
+              "recipe_image",
+              "recipe_name",
+              "recipe_description",
+              "tags_stack",
+              "facts_separator",
+              "recipe_facts",
+              "ingredients_separator",
+              "ingredients_heading",
+              "ingredients_stack",
+              "actions_separator",
+              "actions_stack"
+            ]
+          },
+          {
+            "id": "recipe_image",
+            "component": "Image",
+            "url": {
+              "@path": "/image"
+            },
+            "description": {
+              "@path": "/imageDescription"
+            },
+            "aspect": "landscape"
+          },
+          {
+            "id": "recipe_name",
+            "component": "Heading",
+            "text": {
+              "@path": "/name"
+            },
+            "level": 1
+          },
+          {
+            "id": "recipe_description",
+            "component": "Text",
+            "text": {
+              "@path": "/description"
+            },
+            "tone": "muted"
+          },
+          {
+            "id": "tags_stack",
+            "component": "Stack",
+            "direction": "horizontal",
+            "gap": "small",
+            "children": {
+              "componentId": "tag_badge",
+              "path": "/tags"
+            }
+          },
+          {
+            "id": "tag_badge",
+            "component": "Badge",
+            "text": {
+              "@path": ""
+            }
+          },
+          {
+            "id": "facts_separator",
+            "component": "Separator"
+          },
+          {
+            "id": "recipe_facts",
+            "component": "DescriptionList",
+            "items": [
+              {
+                "term": "Time",
+                "detail": {
+                  "@path": "/minutesDisplay"
+                }
+              },
+              {
+                "term": "Servings",
+                "detail": {
+                  "@path": "/servings"
+                }
+              },
+              {
+                "term": "Difficulty",
+                "detail": {
+                  "@path": "/difficulty"
+                }
+              }
+            ]
+          },
+          {
+            "id": "ingredients_separator",
+            "component": "Separator"
+          },
+          {
+            "id": "ingredients_heading",
+            "component": "Heading",
+            "text": "Ingredients",
+            "level": 2
+          },
+          {
+            "id": "ingredients_stack",
+            "component": "Stack",
+            "direction": "vertical",
+            "gap": "small",
+            "children": {
+              "componentId": "ingredient_item",
+              "path": "/ingredients"
+            }
+          },
+          {
+            "id": "ingredient_item",
+            "component": "Stack",
+            "direction": "horizontal",
+            "gap": "small",
+            "children": [
+              "ingredient_quantity",
+              "ingredient_name"
+            ]
+          },
+          {
+            "id": "ingredient_quantity",
+            "component": "Text",
+            "text": {
+              "@path": "quantity"
+            },
+            "tone": "muted"
+          },
+          {
+            "id": "ingredient_name",
+            "component": "Text",
+            "text": {
+              "@path": "name"
+            }
+          },
+          {
+            "id": "actions_separator",
+            "component": "Separator"
+          },
+          {
+            "id": "actions_stack",
+            "component": "Stack",
+            "direction": "vertical",
+            "gap": "small",
+            "children": [
+              "btn_open",
+              "btn_shopping",
+              "btn_share",
+              "btn_order"
+            ]
+          },
+          {
+            "id": "btn_open",
+            "component": "ActionButton",
+            "action": "get_recipe",
+            "input": {
+              "recipe": {
+                "@path": "/id"
+              }
+            },
+            "emphasis": "primary"
+          },
+          {
+            "id": "btn_shopping",
+            "component": "ActionButton",
+            "action": "add_recipe_to_shopping_list",
+            "input": {
+              "recipe": {
+                "@path": "/id"
+              },
+              "servings": {
+                "@path": "/servings"
+              }
+            },
+            "emphasis": "secondary"
+          },
+          {
+            "id": "btn_share",
+            "component": "ActionButton",
+            "action": "share_recipe",
+            "input": {
+              "recipe": {
+                "@path": "/id"
+              },
+              "with": {
+                "@path": "/sharedWith"
+              }
+            },
+            "emphasis": "secondary"
+          },
+          {
+            "id": "btn_order",
+            "component": "ActionButton",
+            "action": "order_ingredients",
+            "emphasis": "secondary"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "surfaces": {
+      "recipe-card": {
+        "id": "root",
+        "component": "Card",
+        "props": {},
+        "children": [
+          {
+            "id": "main_stack",
+            "component": "Stack",
+            "props": {
+              "direction": "vertical",
+              "gap": "medium"
+            },
+            "children": [
+              {
+                "id": "recipe_image",
+                "component": "Image",
+                "props": {
+                  "url": "https://ui.ouroboros.bot/a2ui/v1/examples/charred-lemon-orzo.png",
+                  "description": "A shallow pan of golden orzo with peas and charred lemon halves",
+                  "aspect": "landscape"
+                },
+                "children": []
+              },
+              {
+                "id": "recipe_name",
+                "component": "Heading",
+                "props": {
+                  "text": "Charred Lemon Orzo",
+                  "level": 1
+                },
+                "children": []
+              },
+              {
+                "id": "recipe_description",
+                "component": "Text",
+                "props": {
+                  "text": "Orzo toasted in brown butter, finished with charred lemon, peas and a lot of parmesan. A weeknight pan dinner.",
+                  "tone": "muted"
+                },
+                "children": []
+              },
+              {
+                "id": "tags_stack",
+                "component": "Stack",
+                "props": {
+                  "direction": "horizontal",
+                  "gap": "small"
+                },
+                "children": [
+                  {
+                    "id": "tag_badge",
+                    "component": "Badge",
+                    "props": {
+                      "text": "Vegetarian",
+                      "tone": "neutral"
+                    },
+                    "children": []
+                  },
+                  {
+                    "id": "tag_badge",
+                    "component": "Badge",
+                    "props": {
+                      "text": "One pan",
+                      "tone": "neutral"
+                    },
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "id": "facts_separator",
+                "component": "Separator",
+                "props": {},
+                "children": []
+              },
+              {
+                "id": "recipe_facts",
+                "component": "DescriptionList",
+                "props": {
+                  "items": [
+                    {
+                      "term": "Time",
+                      "detail": "25 min"
+                    },
+                    {
+                      "term": "Servings",
+                      "detail": "4"
+                    },
+                    {
+                      "term": "Difficulty",
+                      "detail": "Easy"
+                    }
+                  ]
+                },
+                "children": []
+              },
+              {
+                "id": "ingredients_separator",
+                "component": "Separator",
+                "props": {},
+                "children": []
+              },
+              {
+                "id": "ingredients_heading",
+                "component": "Heading",
+                "props": {
+                  "text": "Ingredients",
+                  "level": 2
+                },
+                "children": []
+              },
+              {
+                "id": "ingredients_stack",
+                "component": "Stack",
+                "props": {
+                  "direction": "vertical",
+                  "gap": "small"
+                },
+                "children": [
+                  {
+                    "id": "ingredient_item",
+                    "component": "Stack",
+                    "props": {
+                      "direction": "horizontal",
+                      "gap": "small"
+                    },
+                    "children": [
+                      {
+                        "id": "ingredient_quantity",
+                        "component": "Text",
+                        "props": {
+                          "text": "1½ cups",
+                          "tone": "muted"
+                        },
+                        "children": []
+                      },
+                      {
+                        "id": "ingredient_name",
+                        "component": "Text",
+                        "props": {
+                          "text": "orzo",
+                          "tone": "default"
+                        },
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "ingredient_item",
+                    "component": "Stack",
+                    "props": {
+                      "direction": "horizontal",
+                      "gap": "small"
+                    },
+                    "children": [
+                      {
+                        "id": "ingredient_quantity",
+                        "component": "Text",
+                        "props": {
+                          "text": "3 tbsp",
+                          "tone": "muted"
+                        },
+                        "children": []
+                      },
+                      {
+                        "id": "ingredient_name",
+                        "component": "Text",
+                        "props": {
+                          "text": "butter",
+                          "tone": "default"
+                        },
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "ingredient_item",
+                    "component": "Stack",
+                    "props": {
+                      "direction": "horizontal",
+                      "gap": "small"
+                    },
+                    "children": [
+                      {
+                        "id": "ingredient_quantity",
+                        "component": "Text",
+                        "props": {
+                          "text": "2",
+                          "tone": "muted"
+                        },
+                        "children": []
+                      },
+                      {
+                        "id": "ingredient_name",
+                        "component": "Text",
+                        "props": {
+                          "text": "lemons, halved",
+                          "tone": "default"
+                        },
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "ingredient_item",
+                    "component": "Stack",
+                    "props": {
+                      "direction": "horizontal",
+                      "gap": "small"
+                    },
+                    "children": [
+                      {
+                        "id": "ingredient_quantity",
+                        "component": "Text",
+                        "props": {
+                          "text": "1 cup",
+                          "tone": "muted"
+                        },
+                        "children": []
+                      },
+                      {
+                        "id": "ingredient_name",
+                        "component": "Text",
+                        "props": {
+                          "text": "frozen peas",
+                          "tone": "default"
+                        },
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "ingredient_item",
+                    "component": "Stack",
+                    "props": {
+                      "direction": "horizontal",
+                      "gap": "small"
+                    },
+                    "children": [
+                      {
+                        "id": "ingredient_quantity",
+                        "component": "Text",
+                        "props": {
+                          "text": "¾ cup",
+                          "tone": "muted"
+                        },
+                        "children": []
+                      },
+                      {
+                        "id": "ingredient_name",
+                        "component": "Text",
+                        "props": {
+                          "text": "grated parmesan",
+                          "tone": "default"
+                        },
+                        "children": []
+                      }
+                    ]
+                  },
+                  {
+                    "id": "ingredient_item",
+                    "component": "Stack",
+                    "props": {
+                      "direction": "horizontal",
+                      "gap": "small"
+                    },
+                    "children": [
+                      {
+                        "id": "ingredient_quantity",
+                        "component": "Text",
+                        "props": {
+                          "text": "3 cups",
+                          "tone": "muted"
+                        },
+                        "children": []
+                      },
+                      {
+                        "id": "ingredient_name",
+                        "component": "Text",
+                        "props": {
+                          "text": "vegetable stock",
+                          "tone": "default"
+                        },
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "actions_separator",
+                "component": "Separator",
+                "props": {},
+                "children": []
+              },
+              {
+                "id": "actions_stack",
+                "component": "Stack",
+                "props": {
+                  "direction": "vertical",
+                  "gap": "small"
+                },
+                "children": [
+                  {
+                    "id": "btn_open",
+                    "component": "ActionButton",
+                    "props": {
+                      "emphasis": "primary",
+                      "action": "get_recipe",
+                      "label": "Open recipe",
+                      "consent": "read",
+                      "press": "run",
+                      "input": {
+                        "recipe": "rcp_lemon_orzo"
+                      }
+                    },
+                    "children": []
+                  },
+                  {
+                    "id": "btn_shopping",
+                    "component": "ActionButton",
+                    "props": {
+                      "emphasis": "secondary",
+                      "action": "add_recipe_to_shopping_list",
+                      "label": "Add ingredients to list",
+                      "consent": "write",
+                      "press": "run",
+                      "input": {
+                        "recipe": "rcp_lemon_orzo",
+                        "servings": 4
+                      }
+                    },
+                    "children": []
+                  },
+                  {
+                    "id": "btn_share",
+                    "component": "ActionButton",
+                    "props": {
+                      "emphasis": "secondary",
+                      "action": "share_recipe",
+                      "label": "Share recipe",
+                      "consent": "consequential",
+                      "press": "confirm",
+                      "input": {
+                        "recipe": "rcp_lemon_orzo",
+                        "with": "sam@example.com"
+                      },
+                      "confirm": {
+                        "title": "Share recipe",
+                        "description": "Send this recipe to someone.",
+                        "fields": [
+                          {
+                            "label": "Recipe",
+                            "value": "rcp_lemon_orzo"
+                          },
+                          {
+                            "label": "Send to",
+                            "value": "sam@example.com"
+                          }
+                        ]
+                      }
+                    },
+                    "children": []
+                  },
+                  {
+                    "id": "btn_order",
+                    "component": "ActionButton",
+                    "props": {
+                      "emphasis": "secondary",
+                      "action": "order_ingredients",
+                      "label": "Order ingredients",
+                      "consent": "person-only",
+                      "press": "handoff",
+                      "input": {},
+                      "handoff": "with Order ingredients on the recipe in the app"
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

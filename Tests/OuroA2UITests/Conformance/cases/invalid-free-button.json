@@ -1,0 +1,40 @@
+{
+  "description": "A free Button with an agent-written event is not in the catalog: every button is a declared action.",
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+        "components": [
+          {
+            "id": "root",
+            "component": "Button",
+            "child": "label",
+            "action": {
+              "event": {
+                "name": "order_ingredients"
+              }
+            }
+          },
+          {
+            "id": "label",
+            "component": "Text",
+            "text": "Add to list"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "problems": [
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/0/component",
+        "message": "\"Button\" is not in this catalog; use one of Card, Stack, Heading, Text, Image, Badge, List, DescriptionList, Separator, Alert, ActionButton."
+      }
+    ]
+  }
+}

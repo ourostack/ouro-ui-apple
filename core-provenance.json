@@ -4,5 +4,58 @@
     "Sources/OuroHX/Tokens/OuroTokens.swift": "137b131097c2d75ae7fe0d9ad270cb8f117dd5c11cac391964f2e0717fcaf2b2",
     "Sources/OuroAXTesting/Resources/apple.claims.json": "4216bfdce2983fb95a722b208cdb944315e87d5b8b5b7d0056b8edcb2208254d",
     "Sources/OuroHXTesting/Resources/components.claims.json": "0da8e34c5044add8e120d4e1265e6bfac0b53941ad9b8a9b5c5bcb4a19e1d31e"
+  },
+  "tree": {
+    "coreTag": "v0.7.1",
+    "files": {
+      "Tests/OuroA2UITests/Conformance/cases/action-buttons.json": {
+        "from": "standard/hx/a2ui/conformance/cases/action-buttons.json",
+        "sha256": "68da62e41d6cb73e04043d4521cca5dd91f0d3dcb447c7043ca1c31f20d53fc2"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/bindings.json": {
+        "from": "standard/hx/a2ui/conformance/cases/bindings.json",
+        "sha256": "caa7bf2452ece1f50b847f255292faa3ca7c23172f3c388234eb08839f0b0f95"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/invalid-agent-presses.json": {
+        "from": "standard/hx/a2ui/conformance/cases/invalid-agent-presses.json",
+        "sha256": "40e862b038cbf4c738771cc87fe9b02b5c08a267caca9601d95fced3d90b635d"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/invalid-free-button.json": {
+        "from": "standard/hx/a2ui/conformance/cases/invalid-free-button.json",
+        "sha256": "078838f57f814a6f69597b2179aa97aceaba09dfd0efc5f94d277055b92bed3c"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/invalid-person-only-input.json": {
+        "from": "standard/hx/a2ui/conformance/cases/invalid-person-only-input.json",
+        "sha256": "c029fd37eafc73b7a692d7ec485f6a219dfb8fb0d5abd1af386c346755dc842c"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/invalid-styling.json": {
+        "from": "standard/hx/a2ui/conformance/cases/invalid-styling.json",
+        "sha256": "0b5fa0760634e7994794a8c5073b6e2962b3552d430bd8c9dac8a9c2ea1fe593"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/invalid-tree.json": {
+        "from": "standard/hx/a2ui/conformance/cases/invalid-tree.json",
+        "sha256": "83b47f503beef9fb4e162925a147ef36cb48c7214a127a4317de0b243a30cdb5"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/recipe-card-agent.json": {
+        "from": "standard/hx/a2ui/conformance/cases/recipe-card-agent.json",
+        "sha256": "256b6b249b11102efdca574c707700afe63c30017e3362ed1dc837bcb82c1a55"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/templates.json": {
+        "from": "standard/hx/a2ui/conformance/cases/templates.json",
+        "sha256": "0b52a6ffffd57a79815719f444152a64889d90af5dea61142ce86fe335067b15"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/updates.json": {
+        "from": "standard/hx/a2ui/conformance/cases/updates.json",
+        "sha256": "d79ec09dd54469e9f7dee4169d943a6c5cc4b2393ada09d5f78c00c3dfa79a7c"
+      },
+      "Tests/OuroA2UITests/Conformance/catalog.json": {
+        "from": "standard/hx/a2ui/catalog.json",
+        "sha256": "e2cb57bd32388d5e4da377938ab70fbc0358bc54601526d355ba7884ab5e04aa"
+      },
+      "Tests/OuroA2UITests/Conformance/recipe.catalog.json": {
+        "from": "standard/hx/a2ui/conformance/recipe.catalog.json",
+        "sha256": "34b904855cdcb054036f910c1b37fdd13a8875bbf3bdd960983a3f3fec0a8c48"
+      }
+    }
   }
 }

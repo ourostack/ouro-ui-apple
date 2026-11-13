@@ -43,6 +43,7 @@ OS has them.
 | `OuroFeel` | your UI tests | checks how the app feels, one per genre of jank: the way back, overlay dismissal, inside the window, tap landing, double-draw, jumps, chrome, snaps, settle and place ([Ouro Feel](#ouro-feel-how-it-feels-measured)) |
 | `OuroFeelCore`, `OuroFeelRecorder`, `OuroFeelRecorderInjectable` | Ouro Feel's internals | the measurements, the in-app recorder, and the same recorder as a library a UI test loads into a simulator app so the app never links it |
 | `OuroReins` | your app's UI-free core, its tests and agents | every screen as state and actions, driven with `ls` and `do` headless or over a debug-only socket; journeys; a network guard that fails any request ([docs/ouro-reins/README.md](docs/ouro-reins/README.md)) |
+| `OuroA2UI` | your app, when an agent composes UI for a person | `A2UISurface`: Ouro HX's [A2UI](https://github.com/a2ui-project/a2ui) catalog in SwiftUI, where every button is one of your declared actions and pressing it follows its consent class; `A2UI.validate` and `A2UI.resolve`, ported from core and proved against core's conformance cases ([agent-composed UI](#agent-composed-ui-a2ui)) |
 | `ouro-devicehub` | a Mac CI job | presses Device Hub's buttons: `dump`, `press "Partially Open"`, `serve <dir>` |
 
 ```swift
@@ -138,6 +139,29 @@ swift run ouro-reins-sample ls 'do openItem {"id":"flour"}' 'do toggleStocked' '
 The guide is [docs/ouro-reins/README.md](docs/ouro-reins/README.md), the agent skill
 [docs/ouro-reins/SKILL.md](docs/ouro-reins/SKILL.md), and the decisions
 [docs/decisions/2026-11-05-ouro-reins.md](docs/decisions/2026-11-05-ouro-reins.md).
+
+## Agent-composed UI (A2UI)
+
+An agent writes A2UI v1.0 messages against your app's catalog (core's `ouro-a2ui-catalog.mts` generates it from your
+action set); `OuroA2UI` checks and draws them with Ouro HX. Buttons are your declared actions only: read and write send
+A2UI's `action` at once, consequential opens an `.ouroSheet` with what the agent prepared and sends only when the
+person confirms, and person-only calls `onHandoff` with the declaration's `how` and never sends one.
+
+```swift
+switch A2UI.resolve(messages, catalog: try A2UICatalog(data: catalogJSON)) {
+case .success(let surfaces):
+    if let (id, node?) = surfaces.first {
+        A2UISurface(node, surfaceId: id) { action in agent.send(action) } onHandoff: { action, _ in router.open(action) }
+    }
+case .failure(let p):
+    agent.reply(p.problems.map(\.json))   // A2UI's validation error format, so the agent can correct itself
+}
+```
+
+`Tests/OuroA2UITests` runs core's 10 conformance cases (vendored from ouro-ui-core v0.7.1 and pinned in
+`core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
+web's `a2ui-surface` passes. The decision is core's
+[2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md).
 
 ## The gallery
 

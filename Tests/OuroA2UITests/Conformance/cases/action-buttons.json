@@ -1,0 +1,163 @@
+{
+  "description": "One ActionButton per consent class: read and write run, consequential confirms with the prepared values, person-only hands off and carries no input.",
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "buttons",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+        "dataModel": {
+          "recipe": {
+            "id": "rcp_123",
+            "servings": 4
+          },
+          "friend": "sam@example.com"
+        },
+        "components": [
+          {
+            "id": "root",
+            "component": "Stack",
+            "children": [
+              "open",
+              "shop",
+              "share",
+              "order"
+            ]
+          },
+          {
+            "id": "open",
+            "component": "ActionButton",
+            "action": "get_recipe",
+            "input": {
+              "recipe": {
+                "@path": "/recipe/id"
+              }
+            }
+          },
+          {
+            "id": "shop",
+            "component": "ActionButton",
+            "action": "add_recipe_to_shopping_list",
+            "emphasis": "primary",
+            "input": {
+              "recipe": {
+                "@path": "/recipe/id"
+              },
+              "servings": {
+                "@path": "/recipe/servings"
+              }
+            }
+          },
+          {
+            "id": "share",
+            "component": "ActionButton",
+            "action": "share_recipe",
+            "input": {
+              "recipe": {
+                "@path": "/recipe/id"
+              },
+              "with": {
+                "@path": "/friend"
+              }
+            }
+          },
+          {
+            "id": "order",
+            "component": "ActionButton",
+            "action": "order_ingredients"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "surfaces": {
+      "buttons": {
+        "id": "root",
+        "component": "Stack",
+        "props": {
+          "direction": "vertical",
+          "gap": "medium"
+        },
+        "children": [
+          {
+            "id": "open",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "secondary",
+              "action": "get_recipe",
+              "label": "Open recipe",
+              "consent": "read",
+              "press": "run",
+              "input": {
+                "recipe": "rcp_123"
+              }
+            },
+            "children": []
+          },
+          {
+            "id": "shop",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "primary",
+              "action": "add_recipe_to_shopping_list",
+              "label": "Add ingredients to list",
+              "consent": "write",
+              "press": "run",
+              "input": {
+                "recipe": "rcp_123",
+                "servings": 4
+              }
+            },
+            "children": []
+          },
+          {
+            "id": "share",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "secondary",
+              "action": "share_recipe",
+              "label": "Share recipe",
+              "consent": "consequential",
+              "press": "confirm",
+              "input": {
+                "recipe": "rcp_123",
+                "with": "sam@example.com"
+              },
+              "confirm": {
+                "title": "Share recipe",
+                "description": "Send this recipe to someone.",
+                "fields": [
+                  {
+                    "label": "Recipe",
+                    "value": "rcp_123"
+                  },
+                  {
+                    "label": "Send to",
+                    "value": "sam@example.com"
+                  }
+                ]
+              }
+            },
+            "children": []
+          },
+          {
+            "id": "order",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "secondary",
+              "action": "order_ingredients",
+              "label": "Order ingredients",
+              "consent": "person-only",
+              "press": "handoff",
+              "input": {},
+              "handoff": "with Order ingredients on the recipe in the app"
+            },
+            "children": []
+          }
+        ]
+      }
+    }
+  }
+}

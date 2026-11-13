@@ -1,0 +1,60 @@
+{
+  "description": "Input prepared for a person-only action fails with the typed refusal.",
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+        "components": [
+          {
+            "id": "root",
+            "component": "ActionButton",
+            "action": "order_ingredients",
+            "input": {
+              "recipe": "rcp_123"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "problems": [
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/0/input",
+        "message": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
+        "refusal": {
+          "ax": "outcome/1",
+          "action": "recipe order",
+          "effect": "private",
+          "audience": {
+            "only": true,
+            "who": "only you"
+          },
+          "target": null,
+          "state": "refused",
+          "summary": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
+          "postcondition": {
+            "checked": false,
+            "holds": null,
+            "how": "not checked"
+          },
+          "receipt": null,
+          "next": [],
+          "error": {
+            "code": "person-only",
+            "exit": 2,
+            "thing": "recipe order",
+            "problem": "You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app",
+            "fix": null,
+            "message": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app."
+          }
+        }
+      }
+    ]
+  }
+}

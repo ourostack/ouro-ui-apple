@@ -78,6 +78,15 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
   `--disposable`. Build the app, the probe and the X-ray with one Xcode whose AppIntentsTesting matches the OS.
 - After changing `SiriScenarioSet`, regenerate the files in `Examples/SiriScenarios` with `ouro-ax-xray scenarios`.
 
+## Agent-composed UI (A2UI)
+
+- `Sources/OuroA2UI` ports core's `src/a2ui.mts` (validator, resolver, action message) to Swift and draws the catalog
+  with OuroHX. A behaviour change starts in core; then vendor its catalogs and conformance cases into
+  `Tests/OuroA2UITests/Conformance` and pin each in `core-provenance.json`'s `tree` (`from` is its path in core).
+- Every case must match core's `expect` byte for byte (`A2UIJSON` keeps key order and writes numbers as JavaScript
+  does). Never edit a vendored case to make it pass.
+- A component joins only when core's catalog has it and web renders it too.
+
 ## Ouro Feel
 
 `OuroFeel` and `OuroFeelCore` check how an app feels, deterministically, from a UI test: one check per genre of jank

@@ -98,6 +98,10 @@ jobs:
           python3 -I scripts/check-provenance.py --offline && status=0 || status=$?
           git checkout -- Sources/OuroHXTesting/Resources/components.claims.json
           test "$status" -eq 3
+          printf ' ' >> Tests/OuroA2UITests/Conformance/cases/recipe-card-agent.json
+          python3 -I scripts/check-provenance.py --offline && status=0 || status=$?
+          git checkout -- Tests/OuroA2UITests/Conformance/cases/recipe-card-agent.json
+          test "$status" -eq 3
       - name: Shards find their build, including after "re-run failed jobs"
         run: sh scripts/test-ci-wait-for-build.sh
       - name: UI shards retry the machine's failures, never the app's

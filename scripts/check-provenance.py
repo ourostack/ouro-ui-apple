@@ -5,6 +5,10 @@ ouro-ui-core's release at coreTag publishes, both in its dist-manifest.json and 
     python3 -I scripts/check-provenance.py            # local hashes and the release (needs the network)
     python3 -I scripts/check-provenance.py --offline  # local hashes only
 
+A second section, "tree", pins files core keeps in its repository rather than in a release asset (A2UI's catalogs and
+conformance cases): each local path maps to its path in ouro-ui-core at the section's coreTag, and the check compares
+the SHA-256 with the file at that tag.
+
 Exit codes: 0 ok, 1 error (the check could not run), 2 usage, 3 findings (a hash differs).
 """
 import hashlib
@@ -159,6 +163,36 @@ def main(argv: list[str]) -> int:
             findings += 1
         else:
             print(f"ok    {path} matches {tag}'s {keys[0]} and its release asset")
+
+    tree = provenance.get("tree")
+    if tree:
+        ttag = tree["coreTag"]
+        for path, pin in tree["files"].items():
+            try:
+                with open(os.path.join(root, path), "rb") as f:
+                    local = sha256(f.read())
+            except OSError:
+                print(f"{TOOL}: {path}: missing. Fix: copy {pin['from']} from ouro-ui-core {ttag}.")
+                findings += 1
+                continue
+            if local != pin["sha256"]:
+                print(f"{TOOL}: {path}: its SHA-256 is {local}, not the pinned {pin['sha256']}. Fix: never edit a vendored file; copy {pin['from']} from ouro-ui-core {ttag}.")
+                findings += 1
+                continue
+            print(f"ok    {path} matches its pin")
+            if offline:
+                continue
+            try:
+                remote = sha256(fetch(f"https://raw.githubusercontent.com/ourostack/ouro-ui-core/{ttag}/{pin['from']}"))
+            except Exception as error:
+                fix = "GitHub failed 3 times running; rerun the job" if unreachable(error) else f"check {pin['from']} exists at {ttag}"
+                print(f"{TOOL}: {pin['from']}: cannot download it at {ttag} ({error}). Fix: {fix}.", file=sys.stderr)
+                return 1
+            if remote != pin["sha256"]:
+                print(f"{TOOL}: {path}: pinned {pin['sha256']}, but ouro-ui-core {ttag}'s {pin['from']} is {remote}. Fix: copy it from {ttag} and pin its hash.")
+                findings += 1
+            else:
+                print(f"ok    {path} matches ouro-ui-core {ttag}'s {pin['from']}")
 
     if findings:
         print(f"{findings} provenance finding(s).")

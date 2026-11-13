@@ -34,6 +34,8 @@ let package = Package(
         .library(name: "OuroFeelRecorderInjectable", type: .dynamic, targets: ["OuroFeelRecorderLoader"]),
         // Ouro Reins: an app's screens as state plus actions, driven headless with `ls` and `do`. See docs/ouro-reins/README.md.
         .library(name: "OuroReins", targets: ["OuroReins"]),
+        // Ouro HX for agent-composed UI: renders Ouro HX's A2UI catalog with the action model's consent.
+        .library(name: "OuroA2UI", targets: ["OuroA2UI"]),
     ],
     targets: [
         // Ouro HX for Apple: tokens (vendored from ouro-ui-core), theme, colour, motion, haptics, fold posture.
@@ -88,6 +90,11 @@ let package = Package(
         // A tiny app core driven through Reins: what `ls` and `do` look like, and CI's command-line check.
         .executableTarget(name: "ouro-reins-sample", dependencies: ["OuroReins"], swiftSettings: strict),
         .testTarget(name: "OuroReinsTests", dependencies: ["OuroReins"], swiftSettings: strict),
+
+        // Ouro HX's A2UI catalog in SwiftUI, ported from core's ouro-a2ui.mts and proved against core's conformance
+        // cases (vendored in Tests/OuroA2UITests/Conformance, pinned in core-provenance.json).
+        .target(name: "OuroA2UI", dependencies: ["OuroHX"], swiftSettings: strict),
+        .testTarget(name: "OuroA2UITests", dependencies: ["OuroA2UI", "OuroHX", "OuroHXTesting"], resources: [.copy("Conformance")], swiftSettings: strict),
 
         // `__Snapshots__/macOS-<major>` holds the component snapshot references, one folder per host macOS major.
         .testTarget(name: "OuroHXTests", dependencies: ["OuroHX", "OuroHXTesting"], exclude: ["__Snapshots__"], swiftSettings: strict),

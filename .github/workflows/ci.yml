@@ -504,9 +504,11 @@ jobs:
         include:
           - { name: "iOS 27.1 simulator, Xcode 27.1", xcode: "27.1", platform: ios, runtime: "27.1", device: "iPhone Duo", destination: "generic/platform=iOS Simulator", expect: full }
           - { name: "iOS 27.0 simulator, Xcode 27.0", xcode: "27.0", platform: ios, runtime: "27.0", device: "iPhone 17 Pro", destination: "generic/platform=iOS Simulator", expect: full }
-          - { name: "macOS 27.0.1, Xcode 27.1", xcode: "27.1", platform: macos, runtime: "", device: "", destination: "platform=macOS", expect: refused }
+          - { name: "macOS 27.0.1, Xcode 27.1", xcode: "27.1", platform: macos, runtime: "", device: "", destination: "platform=macOS", expect: signed }
           # macOS: AppIntentsTesting refuses a probe that is not signed by the app's team (AppIntentsServicesSecurityErrorDomain
-          # 800). CI signs ad hoc, so this lane proves the refusal is reported as a skip with the fix, not as the app failing.
+          # 800). With the Apple Development certificate (APPLE_DEVELOPMENT_CERTIFICATE_*), the app and the probe are signed
+          # by one team and the probe must reach the app ("signed"). Without it (a fork's pull request has no secrets), this
+          # lane proves the refusal is reported as a skip with the fix, not as the app failing ("refused").
     steps:
       - uses: actions/checkout@v4
       - name: Use Xcode ${{ matrix.xcode }} for this job only
@@ -522,6 +524,12 @@ jobs:
           xcodebuild -version
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           swift build -c release --product ouro-ax-xray
+      - id: signing
+        if: matrix.platform == 'macos'
+        uses: ./.github/actions/import-apple-development-cert
+        with:
+          certificate-base64: ${{ secrets.APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
+          certificate-password: ${{ secrets.APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
       - name: Build the fixture app with the same Xcode
         run: |
           set -o pipefail
@@ -533,16 +541,31 @@ jobs:
         # A passing probe takes 9 to 21 minutes. Its own limit, inside the job's, fails a hang here with the log kept
         # and the report still uploaded; at the job's limit GitHub cancels the job and keeps no log (#46).
         timeout-minutes: 30
+        env:
+          SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
+          SIGN_TEAM: ${{ steps.signing.outputs.team }}
+          SIGN_KEYCHAIN: ${{ steps.signing.outputs.keychain }}
         run: |
           set -eu
           app="$(find .build/fixture/Build/Products -maxdepth 2 -name XrayFixture.app | head -1)"
-          sh scripts/xray-probe.sh --app "$app" --out .build/xray --platform ${{ matrix.platform }} \
+          set -- --app "$app" --out .build/xray --platform ${{ matrix.platform }} \
             --runtime "${{ matrix.runtime }}" --device-type "${{ matrix.device }}" --commit "$GITHUB_SHA" --disposable
+          if [ -n "${SIGN_IDENTITY:-}" ]; then set -- "$@" --sign-identity "$SIGN_IDENTITY" --team "$SIGN_TEAM" --keychain "$SIGN_KEYCHAIN"; fi
+          sh scripts/xray-probe.sh "$@"
       - name: The probe saw the fixture's notes and its refusals
+        env:
+          SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
         run: |
-          python3 -I - .build/xray/report.json ${{ matrix.expect }} <<'PY'
+          expect="${{ matrix.expect }}"
+          if [ "$expect" = signed ]; then if [ -n "${SIGN_IDENTITY:-}" ]; then expect=reached; else expect=refused; fi; fi
+          python3 -I - .build/xray/report.json "$expect" <<'PY'
           import json, sys
           r = json.load(open(sys.argv[1]))
+          if sys.argv[2] == "reached":
+              refused = [x for x in r["results"] if x["note"].startswith("AppIntentsTesting refused the probe")]
+              print("results the system refused:", len(refused))
+              assert not refused, "the signed probe was still refused: " + refused[0]["note"]
+              sys.exit(0)
           if sys.argv[2] == "refused":
               n = {(x["claim"], x["surface"]): (x["verdict"], x["note"]) for x in r["results"]}
               for k in [("entity.ids-resolve", "entity NoteEntity"), ("entity.indexed", "entity NoteEntity")]:
@@ -558,6 +581,11 @@ jobs:
           refusal = n[("intent.error-names-fix", "intent OpenNoteIntent")]
           assert not refusal.startswith("the probe could not reach"), "the refusals reached the app: " + refusal
           PY
+      - name: Remove the signing keychain
+        if: always() && steps.signing.outputs.keychain != ''
+        env:
+          KEYCHAIN: ${{ steps.signing.outputs.keychain }}
+        run: security delete-keychain "$KEYCHAIN" || true
       - id: upload5
         # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
         continue-on-error: true

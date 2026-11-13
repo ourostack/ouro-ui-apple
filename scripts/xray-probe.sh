@@ -6,16 +6,17 @@
 #
 #   sh scripts/xray-probe.sh --app <path.app> --out <dir> [--platform ios|macos] [--runtime 27.1]
 #     [--device-type "iPhone Duo"] [--commit <sha>] [--name <name>] [--disposable]
-#     [--sign-identity <sha1> --team <id> [--keychain <path>]]
+#     [--sign-identity <sha1> --team <id> [--keychain <path>]] [--seed-dir <dir>]
 #
 # On macOS, AppIntentsTesting runs only for a test bundle signed by the app's own team (error 800 otherwise).
 # --sign-identity names an Apple Development identity of that team: the probe bundle is signed with it, and so is the
 # app (re-signed in place, so pass a copy you can change). Without it the macOS stage reports its claims as skipped.
+# --seed-dir (macOS) opens every file in <dir> with the app first, so a document app has synthetic content to find.
 #
 # Run it with DEVELOPER_DIR set to an Xcode whose AppIntentsTesting matches the OS it runs on, and build the app with
 # the same Xcode. XRAY names the ouro-ax-xray binary (default: .build/release/ouro-ax-xray).
 set -eu
-app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""; sign_identity=""; team=""; keychain=""
+app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""; sign_identity=""; team=""; keychain=""; seed_dir=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --app) app="$2"; shift 2 ;;
@@ -29,6 +30,7 @@ while [ $# -gt 0 ]; do
     --sign-identity) sign_identity="$2"; shift 2 ;;
     --team) team="$2"; shift 2 ;;
     --keychain) keychain="$2"; shift 2 ;;
+    --seed-dir) seed_dir="$2"; shift 2 ;;
     *) echo "xray-probe: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -119,7 +121,7 @@ else
     set -- "$@" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$sign_identity" DEVELOPMENT_TEAM="$team"
     [ -z "$keychain" ] || set -- "$@" OTHER_CODE_SIGN_FLAGS="--keychain $keychain"
   fi
-  open "$app"
+  if [ -n "$seed_dir" ] && [ -n "$(ls -A "$seed_dir")" ]; then open -a "$app" "$seed_dir"/*; else open "$app"; fi
   sleep 8
   plan="$("$xray" plan --app "$app" $disposable)"
   set +e

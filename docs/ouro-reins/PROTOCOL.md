@@ -140,7 +140,7 @@ The same lines and replies travel over:
 ## Implementations
 
 - **OuroReins** (this package): any Ouro UI app, headless, from its view models. [Guide](README.md).
-- **Reins for any Mac app**: a whole Mac's UI through the accessibility tree, with a pixel layer for what has no tree. Its code is private, so nobody else can run it or read it yet; it is listed because it speaks this protocol. [Section in the guide](README.md#reins-for-any-mac-app).
+- **[hackamore](https://github.com/ourostack/hackamore)** (Reins for any Mac app): a whole Mac's UI, from outside, through the accessibility tree, with a pixel layer for what has no tree. MIT; a Node CLI and a Swift engine that run on the Mac, or reach it through any command that carries a JSON line (`--via`). [Section in the guide](README.md#reins-for-any-mac-app).
 
 ## Changes
 

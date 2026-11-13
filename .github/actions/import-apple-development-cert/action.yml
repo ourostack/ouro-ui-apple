@@ -1,0 +1,45 @@
+name: Import the Apple Development certificate
+description: >-
+  Imports the Apple Development certificate into a temporary keychain and exposes it to codesign and xcodebuild, for
+  the X-ray's behaviour stage on macOS (AppIntentsTesting runs only for a test bundle signed by the app's own team).
+  Pass the three APPLE_DEVELOPMENT_CERTIFICATE_* secrets. Without them it says so and does nothing, so a fork's run
+  still gets the metadata stage. Outputs the identity (the certificate's SHA-1) and the team; never prints a secret.
+inputs:
+  certificate-base64: { description: "The .p12, base64 encoded (APPLE_DEVELOPMENT_CERTIFICATE_BASE64).", required: false, default: "" }
+  certificate-password: { description: "The .p12's password (APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD).", required: false, default: "" }
+outputs:
+  identity: { description: "SHA-1 of the signing identity, empty when no certificate was given.", value: "${{ steps.import.outputs.identity }}" }
+  team: { description: "The certificate's team (its OU).", value: "${{ steps.import.outputs.team }}" }
+  keychain: { description: "Path of the temporary keychain.", value: "${{ steps.import.outputs.keychain }}" }
+runs:
+  using: composite
+  steps:
+    - id: import
+      shell: bash
+      env:
+        P12: ${{ inputs.certificate-base64 }}
+        P12_PASSWORD: ${{ inputs.certificate-password }}
+      run: |
+        set -eu
+        if [ -z "$P12" ] || [ -z "$P12_PASSWORD" ]; then
+          echo "::notice::No Apple Development certificate was given; the behaviour stage's macOS claims will skip."
+          echo "identity=" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+        dir="$RUNNER_TEMP/ouro-xray-signing"; mkdir -p "$dir"
+        keychain="$dir/xray.keychain-db"; pw="$(uuidgen)"
+        printf '%s' "$P12" | base64 --decode > "$dir/dev.p12"
+        security create-keychain -p "$pw" "$keychain"
+        security set-keychain-settings -lut 7200 "$keychain"
+        security unlock-keychain -p "$pw" "$keychain"
+        security import "$dir/dev.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$pw" "$keychain" >/dev/null
+        security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+        rm -f "$dir/dev.p12"
+        line="$(security find-identity -v -p codesigning "$keychain" | grep 'Apple Development' | head -1)"
+        identity="$(printf '%s' "$line" | awk '{print $2}')"
+        [ -n "$identity" ] || { echo "::error::The certificate imported but no valid Apple Development identity is in it"; security find-identity -p codesigning "$keychain"; exit 1; }
+        team="$(security find-certificate -c 'Apple Development' -p "$keychain" | openssl x509 -noout -subject | sed -n 's/.*OU *= *\([A-Z0-9]*\).*/\1/p')"
+        echo "identity=$identity" >> "$GITHUB_OUTPUT"
+        echo "team=$team" >> "$GITHUB_OUTPUT"
+        echo "keychain=$keychain" >> "$GITHUB_OUTPUT"
+        echo "Imported an Apple Development identity for team $team."

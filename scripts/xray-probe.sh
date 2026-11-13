@@ -6,11 +6,16 @@
 #
 #   sh scripts/xray-probe.sh --app <path.app> --out <dir> [--platform ios|macos] [--runtime 27.1]
 #     [--device-type "iPhone Duo"] [--commit <sha>] [--name <name>] [--disposable]
+#     [--sign-identity <sha1> --team <id> [--keychain <path>]]
+#
+# On macOS, AppIntentsTesting runs only for a test bundle signed by the app's own team (error 800 otherwise).
+# --sign-identity names an Apple Development identity of that team: the probe bundle is signed with it, and so is the
+# app (re-signed in place, so pass a copy you can change). Without it the macOS stage reports its claims as skipped.
 #
 # Run it with DEVELOPER_DIR set to an Xcode whose AppIntentsTesting matches the OS it runs on, and build the app with
 # the same Xcode. XRAY names the ouro-ax-xray binary (default: .build/release/ouro-ax-xray).
 set -eu
-app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""
+app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""; sign_identity=""; team=""; keychain=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --app) app="$2"; shift 2 ;;
@@ -21,12 +26,16 @@ while [ $# -gt 0 ]; do
     --commit) commit="$2"; shift 2 ;;
     --name) name="$2"; shift 2 ;;
     --disposable) disposable="--disposable"; shift ;;
+    --sign-identity) sign_identity="$2"; shift 2 ;;
+    --team) team="$2"; shift 2 ;;
+    --keychain) keychain="$2"; shift 2 ;;
     *) echo "xray-probe: unknown argument $1" >&2; exit 2 ;;
   esac
 done
 [ -n "$app" ] && [ -n "$out" ] || { echo "xray-probe: --app and --out are required" >&2; exit 2; }
 here="$(cd "$(dirname "$0")/.." && pwd)"
 xray="${XRAY:-$here/.build/release/ouro-ax-xray}"
+[ -z "$sign_identity" ] || [ -n "$team" ] || { echo "xray-probe: --sign-identity needs --team" >&2; exit 2; }
 mkdir -p "$out"
 (cd "$here/Templates/XrayProbe" && xcodegen generate >/dev/null)
 xcodebuild -version | tee "$out/xcode.txt"
@@ -103,13 +112,19 @@ if [ "$platform" = "ios" ]; then
 else
   plist="$app/Contents/Info.plist"
   bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")"
+  set -- -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-macOS -destination "platform=macOS" -derivedDataPath "$here/.build/xray-probe-mac"
+  if [ -n "$sign_identity" ]; then
+    # Sign the app and the probe with one team, so the system lets the probe call the app's intents.
+    if [ -n "$keychain" ]; then codesign --force --deep --sign "$sign_identity" --keychain "$keychain" "$app"; else codesign --force --deep --sign "$sign_identity" "$app"; fi
+    set -- "$@" CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$sign_identity" DEVELOPMENT_TEAM="$team"
+    [ -z "$keychain" ] || set -- "$@" OTHER_CODE_SIGN_FLAGS="--keychain $keychain"
+  fi
   open "$app"
   sleep 8
   plan="$("$xray" plan --app "$app" $disposable)"
   set +e
   TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE="$([ -n "$disposable" ] && echo 1 || echo 0)" TEST_RUNNER_OURO_AX_RAN_ON="macOS $(sw_vers -productVersion), $(head -1 "$out/xcode.txt")" \
-    xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-macOS -destination "platform=macOS" \
-    -derivedDataPath "$here/.build/xray-probe-mac" > "$out/probe.log" 2>&1
+    xcodebuild test "$@" > "$out/probe.log" 2>&1
   status=$?
   set -e
   osascript -e "tell application id \"$bundle_id\" to quit" >/dev/null 2>&1 || true

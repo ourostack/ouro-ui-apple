@@ -27,7 +27,8 @@ Releases are tags `vX.Y.Z` on `main`, published as GitHub releases.
    ```
 
    The log, attached to the release, names the commit, the Xcode and the runtime it ran on.
-4. Wait for the release's CI to pass. A failure with no open issue is a bug: file it before anything is rerun.
+4. Set the README's install line (`from:`) to the new tag. ui.ouroboros.bot states this version too, and its `Apple release` check (ourostack/ouro-ui, `scripts/apple-release.mjs`) fails until the site's Apple pages and Platforms pages name the new tag.
+5. Wait for the release's CI to pass. A failure with no open issue is a bug: file it before anything is rerun.
 
 When GitHub's free image ships Xcode 27 with an iOS 27 runtime, move this step into the gallery job on `macos-26`
 and drop it from here.

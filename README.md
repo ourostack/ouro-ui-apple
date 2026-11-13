@@ -16,7 +16,7 @@ every other agent that comes knocking.
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "0.3.0"),
+.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "0.4.1"),
 
 // your target
 .product(name: "OuroHX", package: "ouro-ui-apple"),
@@ -25,8 +25,24 @@ every other agent that comes knocking.
 iOS 18 and macOS 15 or later, Swift 6.1 (Xcode 16.3 or later). Newer things (the iPhone Duo's hinge, Siri AI) switch on by themselves where the
 OS has them.
 
-**Status:** pre-1.0, on v0.3.x; see [Releases](https://github.com/ourostack/ouro-ui-apple/releases). Meets core [v0.4.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.4.0): the tokens and the claim sets (AX's
+**Status:** pre-1.0, on v0.4.x; the newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). Meets core [v0.4.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.4.0): the tokens and the claim sets (AX's
 `apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
+
+## One system with web
+
+Ouro UI is one system with a web half and an Apple half, and each half has a side for people (Ouro HX) and a side for agents (Ouro AX). This package is the Apple half.
+
+| | Web ([ourostack/ouro-ui](https://github.com/ourostack/ouro-ui)) | Apple (this package) |
+|---|---|---|
+| People (Ouro HX) | React components you copy into your app with the shadcn CLI | `OuroHX`: `OuroButton`, `OuroEmptyState`, `OuroBanner`, `.ouroSheet` and toasts, the spring, the press, haptics and six themes; `OuroFeel` checks how it feels |
+| Agents (Ouro AX) | a kit for command lines, HTTP APIs and MCP servers, and an X-ray that calls them from outside | `OuroAX` outcomes shaped like web's, an X-ray for an app's App Intents (`ouro-ax-xray`), and `OuroReins` to drive its screens |
+| Both, from one declaration | a command line, MCP and WebMCP tools and a web control | an App Intent, a SwiftUI button and a Reins action |
+
+Both halves read the same tokens from [ouro-ui-core](https://github.com/ourostack/ouro-ui-core), and both prove ouro-ui-core's component claims with tests of their own. Where a claim has a web test but no Apple test, or the other way round, the [parity table](https://ui.ouroboros.bot/apple/#parity) on the site says so, and it is built from core's claim files, not typed by hand.
+
+### One declaration, every surface
+
+Ouro UI's [one action model](https://github.com/ourostack/ouro-ui-core/blob/main/docs/guides/actions.md) (ouro-ui-core v0.5.0, [decision record](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-agents-use-agent-interfaces.md)) lets an app declare an action once in TypeScript. Core's `ouro-actions.mts generate` writes the action's command line, MCP and WebMCP tools and web control, and for this package an App Intent and a SwiftUI `Button(intent:)` in `OuroActions.swift`, and a Reins action in `OuroActionsReins.swift` (they build against `OuroReins`). `ouro-actions.mts check` fails the app's CI when a generated file differs from its declaration, so a surface that drifts is caught in CI. The generator is core's, copied into your app; this package does not contain it.
 
 ## What's in the box
 

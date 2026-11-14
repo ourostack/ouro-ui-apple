@@ -215,8 +215,8 @@ struct CardsPage: View {
     }
 }
 
-/// Rows as an app uses them: a divided group with an icon tile, a picture, actions and a pressable row, and an
-/// outlined row on its own.
+/// Rows as an app uses them: a divided group with an icon tile, a picture, actions and a pressable row, an
+/// outlined row on its own, an ordered group and an empty one.
 struct ItemsPage: View {
     @Environment(\.ouroToast) private var toast
 
@@ -238,6 +238,11 @@ struct ItemsPage: View {
                 OuroItem("Lemons", description: "4", size: .sm)
             }
             OuroItem("Pantry", description: "12 items", systemImage: "basket", variant: .outline, onPress: { toast("Opening the pantry") })
+            OuroItemGroup("Steps", ordered: true) {
+                OuroItem("Toast the orzo in butter", size: .sm)
+                OuroItem("Add the stock and simmer", size: .sm)
+            }
+            OuroItemGroup("Cookbooks", empty: "No cookbooks yet.") {}
         }
     }
 }

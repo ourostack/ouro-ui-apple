@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "textfields", "empty", "banners", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -138,6 +138,22 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.buttons["Cook"].exists, "items: the row's action is not its own button")
         XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
+        app.terminate()
+        app = launch("textfields")
+        // A field is named by its label, never its placeholder, keeps the label with hideLabel, says it is required,
+        // and reads its error; its buttons are named.
+        XCTAssertTrue(app.textFields["Email, required"].exists, "textfields: no field named \"Email, required\"")
+        XCTAssertTrue(app.secureTextFields["Password"].exists, "textfields: the password is not a secure field named Password")
+        XCTAssertTrue(app.buttons["Show password"].exists, "textfields: no show password button")
+        XCTAssertTrue(app.textFields["Search recipes"].exists, "textfields: a hidden label is not the field's name")
+        XCTAssertTrue(app.buttons["Clear"].exists, "textfields: no clear button while the search has text")
+        let titleField = app.textFields["Recipe title, required"]
+        XCTAssertTrue(titleField.exists, "textfields: no recipe title field")
+        XCTAssertFalse(app.textFields["Lemon orzo with peas"].exists, "textfields: a placeholder is a field's name")
+        app.buttons["Show password"].tap()
+        XCTAssertTrue(app.textFields["Password"].waitForExistence(timeout: 2), "textfields: show password does not show it")
+        app.buttons["Clear"].tap()
+        XCTAssertFalse(app.buttons["Clear"].waitForExistence(timeout: 1), "textfields: clear did not empty the search")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

@@ -126,6 +126,22 @@ import Testing
         }
     }
 
+    /// A field with a description, a password, a field with an error, a search, a large field and a plain one.
+    /// ImageRenderer can't draw AppKit's text input, so the input shows as its placeholder; this proves the chrome
+    /// around it (label, description, edge, error, buttons), and the gallery's UI tests prove the input.
+    @Test(arguments: Mode.allCases) func textField(_ mode: Mode) throws {
+        try check("text-field", mode) {
+            VStack(alignment: .leading, spacing: 16) {
+                OuroTextField("Email", text: .constant("cook@example.com"), description: "We send your recipes here.", type: .email, required: true)
+                OuroTextField("Password", text: .constant("lemon-orzo"), type: .password)
+                OuroTextField("Recipe title", text: .constant(""), placeholder: "Lemon orzo with peas", error: "Give the recipe a title.")
+                OuroTextField("Search recipes", text: .constant("orzo"), type: .search, hideLabel: true, clearable: true)
+                OuroTextField("Servings", text: .constant("6"), size: .lg)
+                OuroTextField("Note", text: .constant(""), placeholder: "Oven runs hot", variant: .plain, hideLabel: true)
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

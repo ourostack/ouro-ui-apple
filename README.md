@@ -158,6 +158,10 @@ The guide is [docs/ouro-reins/README.md](docs/ouro-reins/README.md), the agent s
 
 ## Agent-composed UI (A2UI)
 
+`ComposedSurface` draws Ouro's composed tree, the format-neutral tree core's adapters resolve to, and calls `onPress`
+with a `PersonPress` (the action, the prepared input and that the person pressed it). `A2UISurface` is its A2UI entry
+point: it only wraps each press in A2UI's `action` message. Another format's entry point would be one more thin view.
+
 An agent writes A2UI v1.0 messages against your app's catalog (core's `ouro-a2ui-catalog.mts` generates it from your
 action set); `OuroA2UI` checks and draws them with Ouro HX. Buttons are your declared actions only: read and write send
 A2UI's `action` at once, consequential opens an `.ouroSheet` with what the agent prepared and sends only when the
@@ -176,8 +180,9 @@ case .failure(let p):
 
 `Tests/OuroA2UITests` runs core's 10 conformance cases (vendored from ouro-ui-core v0.7.1 and pinned in
 `core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
-web's `a2ui-surface` passes. The decision is core's
-[2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md).
+web's `a2ui-surface` passes. The decisions are core's
+[2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md)
+and [2026-11-14-composed-ui-own-tree.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-14-composed-ui-own-tree.md).
 
 ## The gallery
 

@@ -10,10 +10,11 @@ extension EnvironmentValues {
     @Entry public var a2uiImageLoader: A2UIImageLoader? = nil
 }
 
-/// A resolved A2UI surface drawn with Ouro HX: web's `a2ui-surface`. Every button is one of the app's declared actions
-/// and pressing it follows its consent class: read and write send the action at once, consequential opens a sheet
-/// built from the declaration and sends only when the person confirms, and person-only hands the person to the app's
-/// own screen and never sends one.
+/// A resolved A2UI surface drawn with Ouro HX: web's `a2ui-surface`. It is the A2UI entry point to
+/// ``ComposedSurface``, which draws the tree; this view only wraps each press in A2UI's `action` message. Every button is
+/// one of the app's declared actions and pressing it follows its consent class: read and write send the action at
+/// once, consequential opens a sheet built from the declaration and sends only when the person confirms, and
+/// person-only hands the person to the app's own screen and never sends one.
 ///
 /// ```swift
 /// switch A2UI.resolve(messages, catalog: catalog) {
@@ -48,19 +49,19 @@ public struct A2UISurface: View {
     }
 
     public var body: some View {
-        A2UINodeView(node: node, context: A2UIPressContext(surfaceId: surfaceId, onAction: onAction, onHandoff: onHandoff, now: now))
+        ComposedSurface(node, onPress: { press in
+            onAction(A2UI.actionMessage(surfaceId: surfaceId, press: press, timestamp: ISO8601DateFormatter().string(from: now())))
+        }, onHandoff: onHandoff)
     }
 }
 
+/// How a drawn button reaches the app: a press, or a handoff. Knows no format.
 struct A2UIPressContext {
-    let surfaceId: String
-    let onAction: @MainActor (A2UIJSON) -> Void
+    let onPress: @MainActor (PersonPress) -> Void
     let onHandoff: @MainActor (String, String) -> Void
-    let now: @MainActor () -> Date
 
     @MainActor func send(_ button: A2UINode, confirmed: Bool) {
-        let stamp = ISO8601DateFormatter().string(from: now())
-        if let m = A2UI.actionMessage(surfaceId: surfaceId, button: button, timestamp: stamp, confirmed: confirmed) { onAction(m) }
+        if let press = PersonPress.of(button, confirmed: confirmed) { onPress(press) }
     }
 }
 

@@ -35,6 +35,10 @@ jobs:
             product: OuroMD.app
             # Re-signed with the Apple Development certificate for the probe, so the behaviour claims run.
             disposable: true
+            # Synthetic documents, opened with the app, so its queries have something to list.
+            seed: |
+              printf '# Xray note one\n\nA synthetic document for the X-ray.\n' > "$SEED_DIR/xray-note-one.md"
+              printf '# Xray note two\n\nAnother synthetic document.\n' > "$SEED_DIR/xray-note-two.md"
           - name: Gatefold
             app-repo: ourostack/gatefold
             platform: metadata
@@ -52,6 +56,7 @@ jobs:
       product: ${{ matrix.product }}
       disposable: ${{ matrix.disposable }}
       app-repo: ${{ matrix.app-repo }}
+      seed: ${{ matrix.seed || '' }}
       tooling-ref: ${{ github.sha }}
     secrets:
       apple-development-certificate-base64: ${{ secrets.APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}

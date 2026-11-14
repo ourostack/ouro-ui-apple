@@ -5,7 +5,7 @@ name: X-ray an app (reusable)
 #
 #   jobs:
 #     xray:
-#       uses: ourostack/ouro-ui-apple/.github/workflows/xray-app.yml@v0.4.1   # or a later release
+#       uses: ourostack/ouro-ui-apple/.github/workflows/xray-app.yml@main   # or the first release after 0.4.1, which carries it
 #       with:
 #         name: Ouro MD
 #         platform: macos
@@ -33,6 +33,7 @@ on:
       xcode: { description: "Xcode version whose AppIntentsTesting matches the runner's OS and simulator (see docs/decisions/2026-11-03-ax-xray.md).", type: string, default: "27.1" }
       runtime: { description: "iOS simulator runtime (ios only).", type: string, default: "27.1" }
       device: { description: "iOS simulator device type (ios only).", type: string, default: "iPhone Duo" }
+      seed: { description: "Shell, run before the probe with SEED_DIR set, that writes synthetic files into it; on macOS the app opens them first, so a document app has content to find.", type: string, default: "" }
     secrets:
       apple-development-certificate-base64: { required: false }
       apple-development-certificate-password: { required: false }
@@ -87,6 +88,7 @@ jobs:
           bash -c "$BUILD" 2>&1 | tail -30
       - name: X-ray it
         env:
+          SEED: ${{ inputs.seed }}
           NAME: ${{ inputs.name }}
           PLATFORM: ${{ inputs.platform }}
           PRODUCT: ${{ inputs.product }}
@@ -102,11 +104,14 @@ jobs:
           app="$GITHUB_WORKSPACE/app/$PRODUCT"
           commit="$(git -C "$GITHUB_WORKSPACE/app" rev-parse --short HEAD)"
           out="$GITHUB_WORKSPACE/xray-report"
+          seed_dir="$RUNNER_TEMP/xray-seed"; mkdir -p "$seed_dir"
+          if [ -n "$SEED" ]; then (cd "$GITHUB_WORKSPACE/app" && SEED_DIR="$seed_dir" bash -c "$SEED"); fi
           if [ "$PLATFORM" = metadata ]; then
             .build/release/ouro-ax-xray --app "$app" --commit "$commit" --name "$NAME" --out "$out"
           else
             set -- --app "$app" --out "$out" --platform "$PLATFORM" --commit "$commit" --name "$NAME"
             [ -z "$DISPOSABLE" ] || set -- "$@" --disposable
+            [ "$PLATFORM" != macos ] || set -- "$@" --seed-dir "$seed_dir"
             [ "$PLATFORM" != ios ] || set -- "$@" --runtime "$RUNTIME" --device-type "$DEVICE"
             if [ -n "$SIGN_IDENTITY" ]; then set -- "$@" --sign-identity "$SIGN_IDENTITY" --team "$SIGN_TEAM" --keychain "$SIGN_KEYCHAIN"; fi
             sh scripts/xray-probe.sh "$@"

@@ -228,7 +228,7 @@ struct LoadingPage: View {
             OuroSkeleton(.row, count: 2)
             OuroSkeleton(.card)
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) { OuroSpinner(label: "Saving recipe", size: .sm); Text("Saving…").font(.subheadline) }
+                HStack(spacing: 8) { OuroSpinner(label: "Saving the draft", size: .sm); Text("Saving…").font(.subheadline) }
                 HStack(spacing: 8) { OuroSpinner(label: "Syncing pantry", tone: .primary); Text("Syncing your pantry").font(.subheadline) }
                 HStack(spacing: 8) { OuroSpinner(label: "Importing cookbook", size: .lg, tone: .success); Text("Importing").font(.subheadline) }
             }

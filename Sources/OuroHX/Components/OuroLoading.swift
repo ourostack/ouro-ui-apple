@@ -244,7 +244,9 @@ public struct OuroSpinner: View {
             .frame(width: side, height: side)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(label))
-            .accessibilityAddTraits(.updatesFrequently)
+            // Words, not a control: VoiceOver reads the label, and the accessibility audit doesn't ask a 14-point
+            // status for a 44-point target.
+            .accessibilityAddTraits(.isStaticText)
     }
 }
 

@@ -141,7 +141,7 @@ final class ComponentClaimTests: XCTestCase {
         app.terminate()
         app = launch("loading")
         // A spinner says what it waits for; a bar says what it is and how far along; a skeleton says Loading once.
-        XCTAssertTrue(app.descendants(matching: .any)["Saving recipe"].exists, "loading: the spinner is not named")
+        XCTAssertTrue(app.descendants(matching: .any)["Saving the draft"].exists, "loading: the spinner is not named")
         let upload = app.descendants(matching: .any)["Uploading photos"]
         XCTAssertTrue(upload.exists, "loading: the bar is not named")
         XCTAssertEqual(upload.value as? String, "38%", "loading: the bar's value is \(String(describing: upload.value))")

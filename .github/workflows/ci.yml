@@ -351,13 +351,14 @@ jobs:
         run: echo "::warning::The gallery-motion-xcresult artifact did not upload (see the step's log); the job's result stands without it."
 
   gallery-shard:
-    name: Gallery UI shard ${{ matrix.shard }} of 4 (free macos-26, Xcode 26)
+    name: Gallery UI shard ${{ matrix.shard }} of 4 on ${{ matrix.device }} (free macos-26, Xcode 26)
     # performAccessibilityAudit on every component page at the default and the largest text size, in light and dark,
     # plus 44-point targets, VoiceOver names, close controls and the waiting action toast, split four ways by measured
     # time (scripts/ui-shards.py). Each shard starts once the build has passed, boots its simulator while it fetches
     # the build's products, then tests them. Shards don't start alongside the build: under a runner backlog they held
     # macOS runners idle for 8.7 min waiting on a build that hadn't started (#70's run 42440823585), and the build
-    # takes about a minute. Pull requests run them only when they change what the gallery links.
+    # takes about a minute. Pull requests run them only when they change what the gallery links, on an iPhone; main
+    # and releases run them on an iPhone and on a 13-inch iPad, where a layout that doesn't fill the screen shows.
     needs: [paths, gallery-build]
     if: needs.paths.outputs.gallery == 'true'
     runs-on: macos-26
@@ -369,6 +370,9 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
+        device: ${{ fromJSON(github.event_name == 'pull_request' && '["iPhone"]' || '["iPhone", "iPad"]') }}
+    env:
+      OURO_SIM_FAMILY: ${{ matrix.device }}
     steps:
       - uses: actions/checkout@v4
       - name: A simulator for this shard, booting while the build downloads
@@ -430,7 +434,7 @@ jobs:
           # are screenshot requests the simulator never answered (#43); a real assertion failure next to one still fails.
           # Any other failure fails. The check is scripts/ci-ui-infra.sh, shared with the Ouro Feel shards.
           infra() { sh scripts/ci-ui-infra.sh ".build/$1.log" ".build/$1.xcresult"; }
-          name="gallery-ui-$SHARD"
+          name="gallery-ui-$SHARD-$OURO_SIM_FAMILY"
           status=0; gallery "$name" || status=$?
           grep -E "error|failed|passed|Executed|TEST" ".build/$name.log" | tail -80
           if [ "$status" -ne 0 ] && cause="$(infra "$name")"; then
@@ -455,19 +459,19 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
         run: |
-          bundles="$(cd .build && ls -d gallery-ui-"$SHARD"*.xcresult gallery-ui-"$SHARD"*.log 2>/dev/null || true)"
-          test -n "$bundles" && tar -czf ".build/gallery-ui-$SHARD.tgz" -C .build $bundles || true
+          bundles="$(cd .build && ls -d gallery-ui-"$SHARD-$OURO_SIM_FAMILY"*.xcresult gallery-ui-"$SHARD-$OURO_SIM_FAMILY"*.log 2>/dev/null || true)"
+          test -n "$bundles" && tar -czf ".build/gallery-ui-$SHARD-$OURO_SIM_FAMILY.tgz" -C .build $bundles || true
       - id: upload4
         # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
         continue-on-error: true
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gallery-ui-xcresult-${{ matrix.shard }}
-          path: .build/gallery-ui-${{ matrix.shard }}.tgz
+          name: gallery-ui-xcresult-${{ matrix.shard }}-${{ matrix.device }}
+          path: .build/gallery-ui-${{ matrix.shard }}-${{ matrix.device }}.tgz
           if-no-files-found: ignore
       - if: always() && steps.upload4.outcome == 'failure'
-        run: echo "::warning::The gallery-ui-xcresult-${{ matrix.shard }} artifact did not upload (see the step's log); the job's result stands without it."
+        run: echo "::warning::The gallery-ui-xcresult-${{ matrix.shard }}-${{ matrix.device }} artifact did not upload (see the step's log); the job's result stands without it."
 
   gallery-ui:
     name: Gallery UI tests, the component claims (free macos-26, Xcode 26)
@@ -490,7 +494,7 @@ jobs:
           echo "paths=$PATHS gallery=$GALLERY build=$BUILD shards=$SHARDS"
           if [ "$PATHS" != success ]; then echo "::error::The paths job ended $PATHS"; exit 1; fi
           if [ "$GALLERY" = false ]; then echo "This change doesn't touch what the gallery links."; exit 0; fi
-          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and all four shards passed."; exit 0; fi
+          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and every shard passed, on each device."; exit 0; fi
           echo "::error::Build $BUILD, shards $SHARDS"; exit 1
 
   xray:

@@ -86,6 +86,26 @@ import Testing
         }
     }
 
+    /// A card with a title, a description, an action, a body and a footer, and a small one with a body only, as
+    /// A2UI's `Card` draws.
+    @Test(arguments: Mode.allCases) func card(_ mode: Mode) throws {
+        try check("card", mode) {
+            VStack(spacing: 12) {
+                OuroCard("Pantry", description: "What you have on hand") {
+                    Text("Flour, rice, black beans, two lemons.")
+                } action: {
+                    OuroButton("Edit", variant: .plain, size: .sm) {}
+                } footer: {
+                    OuroBadge("4 items", systemImage: "basket")
+                }
+                OuroCard(size: .sm) {
+                    Text("Lemon orzo with peas").font(.headline)
+                    Text("25 minutes, serves four.")
+                }
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

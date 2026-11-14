@@ -157,6 +157,35 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct CardMetricsTests {
+    /// Web's defaults: `variant="outline"`, `size="md"`, a level-3 title.
+    @Test func aCardDefaultsToWebsOutlineMedium() {
+        #expect(OuroCardMetrics.defaultVariant == .outline)
+        #expect(OuroCardMetrics.defaultSize == .md)
+    }
+
+    /// Web's padding (`md` 24, `sm` 16), and `plain` has none, for a card's structure inside a surface of your own.
+    @Test func aCardHasWebsPadding() {
+        #expect(OuroCardMetrics.padding(size: .md, variant: .outline) == 24)
+        #expect(OuroCardMetrics.padding(size: .sm, variant: .outline) == 16)
+        #expect(OuroCardMetrics.padding(size: .md, variant: .plain) == 0)
+        #expect(OuroCardMetrics.padding(size: .sm, variant: .plain) == 0)
+        #expect(OuroCardMetrics.radius == .xl)
+    }
+
+    /// Core claim `text.reflows`: a card's title and description have no line limit at any size.
+    @Test func aCardsWordsHaveNoLineLimit() {
+        #expect(OuroCardMetrics.titleLineLimit == nil)
+        #expect(OuroCardMetrics.descriptionLineLimit == nil)
+    }
+
+    /// At the accessibility sizes the action leaves the title's side and goes under it, so the title gets the width.
+    @Test func aCardsActionDropsUnderTheTitleAtTheAccessibilitySizes() {
+        #expect(!OuroCardMetrics.stacksAction(at: .xxxLarge))
+        #expect(OuroCardMetrics.stacksAction(at: .accessibility1))
+    }
+}
+
 @Suite struct ContrastTests {
     /// Your own text on a theme surface reads at the components' target: muted text on a card, in every theme and mode.
     @Test func yourOwnTextReadsAtTheComponentsTarget() {
@@ -397,6 +426,32 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             #expect(OuroBadgePalette(tone: tone, variant: .solid, style: style).border == nil)
             #expect(OuroBadgePalette(tone: tone, variant: .soft, style: style).border == nil)
         }
+    }
+
+    /// A card's title and description read on its surface, and its edge shows, in every theme and mode: 3:1 under
+    /// increased contrast, as other lines are.
+    @Test(arguments: OuroCardVariant.allCases)
+    func cardTextReadsInEveryThemeAndMode(variant: OuroCardVariant) {
+        for (name, style) in styles {
+            let p = OuroCardPalette(variant: variant, style: style)
+            #expect(ratio(p.title, p.surface) >= target(style), "\(name) \(variant) title")
+            #expect(ratio(p.description, p.surface) >= target(style), "\(name) \(variant) description")
+            if let border = p.border {
+                #expect(ratio(border, p.surface) > 1, "\(name) \(variant) border")
+                if style.contrast == .increased { #expect(ratio(border, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) border") }
+            }
+        }
+    }
+
+    /// `outline` is the theme's card colour with an edge; `plain` is the page, with neither.
+    @Test func anOutlineCardIsTheThemesCardAndAPlainOneIsThePage() {
+        let style = OuroHXStyle(theme: OuroTokens.pearl, scheme: .dark)
+        let outline = OuroCardPalette(variant: .outline, style: style)
+        let plain = OuroCardPalette(variant: .plain, style: style)
+        #expect(outline.fill == OuroColor.resolve(style.colors.card))
+        #expect(outline.border != nil)
+        #expect(plain.fill == nil && plain.border == nil)
+        #expect(plain.surface == OuroColor.resolve(style.colors.background))
     }
 
     @Test func aSolidButtonKeepsItsThemeColoursWhereTheyAlreadyRead() {

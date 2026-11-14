@@ -77,12 +77,9 @@ struct A2UINodeView: View {
     @ViewBuilder private var content: some View {
         switch node.component {
         case "Card":
-            VStack(alignment: .leading, spacing: 16) { kids }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .background(RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous).fill(colors.card))
-                .overlay(RoundedRectangle(cornerRadius: theme.radius(.xl), style: .continuous).strokeBorder(colors.border, lineWidth: 1))
-                .foregroundStyle(colors.cardForeground)
+            // Ouro HX's card, small, at the 16 points this surface drew before. Web's is medium with its first Image as
+            // edge-to-edge media; that waits for OuroCard's media slot.
+            OuroCard(size: .sm) { kids }
         case "Stack":
             let gap = A2UIMetrics.gap(node.text("gap"))
             if node.text("direction") == "horizontal" {

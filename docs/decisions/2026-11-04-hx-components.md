@@ -361,3 +361,23 @@ Third in the 1.0 order: rows are the job our apps hand-roll most (17 views, Spoo
   Increase Contrast (`itemTextReadsInEveryThemeAndMode`).
 - **Not yet:** web's `ItemGroup` `empty` and `ordered`. A2UI's catalog `List` is a list of strings, so `OuroA2UI`
   keeps drawing it as text. Core's `appliesTo` doesn't list `item` yet.
+
+## OuroAvatar (2026-11-14)
+
+Fifth in the 1.0 order: eight hand-drawn avatars and thumbnails, all in Spoonjoy.
+
+- **Web's API.** `name` (required; `nil` while it loads, which shimmers and says `loadingLabel`), `url` or `image`,
+  `initials`, `systemImage` (web's `icon`), `alt`, `shape` (`circle`, `square`, `agent`), `color` (`colorful`,
+  `brand`, `neutral`), `idForColor`, `size` and `presence` with its `presenceLabel` (`OuroAvatarMetrics`). Web's
+  `2xl` and `3xl` are `xxl` and `xxxl`, as a Swift case can't start with a digit.
+- **One colour per person on every platform.** `hue(_:)` is web's `hueOf` (FNV, then MurmurHash3's finaliser, scaled
+  from the top bits) over the same trimmed, lowercased code points, so Ana is the same hue on web and Apple
+  (`theHueIsWebs` checks indexes computed with web's function).
+- **Initials are drawn, not read**, as web draws them with CSS: the avatar is one image named by its person, then its
+  presence ("Ana Lind, Busy"). Their size is fixed with the avatar's, so the audit has no text to scale.
+- **Presence never relies on colour**: each state has its own SF Symbol glyph from 40 points up, and a plain dot
+  below, as on web. A square has no presence, as on web.
+- **Colours.** The fill is the hue at 18% over the page and the initials are raised to 5:1 (7:1) on it in every
+  theme, hue and colour (`avatarInitialsReadOnEveryHueInEveryThemeAndMode`). Web mixes in OKLab; this mixes in sRGB
+  and then raises the initials, so the fills differ slightly while the contrast is at least web's.
+- **Not yet:** web's `AvatarGroup` and its cut-out "bite" behind the dot (here a ring of the page's colour).

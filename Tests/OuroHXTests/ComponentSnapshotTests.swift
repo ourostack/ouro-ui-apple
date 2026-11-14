@@ -126,6 +126,35 @@ import Testing
         }
     }
 
+    /// Every size, every presence, the three shapes and colours, and one loading.
+    @Test(arguments: Mode.allCases) func avatar(_ mode: Mode) throws {
+        try check("avatar", mode) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .bottom, spacing: 8) {
+                    ForEach(Array(OuroAvatarSize.allCases.prefix(5).enumerated()), id: \.offset) { i, size in
+                        OuroAvatar(name: ["Ana Lind", "Ari Mendelow", "Rachel Okafor", "Kenji Sato", "Priya Raman"][i], size: size)
+                    }
+                }
+                HStack(alignment: .bottom, spacing: 8) {
+                    OuroAvatar(name: "Tomás Ruiz", size: .xxl)
+                    OuroAvatar(name: "Mei Chen", size: .xxxl)
+                }
+                HStack(spacing: 10) {
+                    ForEach(OuroAvatarPresence.allCases, id: \.self) { presence in
+                        OuroAvatar(name: "Ana Lind", size: .lg, presence: presence, presenceLabel: presence.rawValue)
+                    }
+                }
+                HStack(spacing: 12) {
+                    OuroAvatar(name: "Sunday supper club", shape: .square, size: .lg)
+                    OuroAvatar(name: "Sous chef", systemImage: "sparkles", shape: .agent, size: .lg)
+                    OuroAvatar(name: "Spoonjoy", systemImage: "fork.knife", shape: .square, color: .brand, size: .lg)
+                    OuroAvatar(name: "Guest cook", color: .neutral, size: .lg)
+                    OuroAvatar(name: nil, size: .lg)
+                }
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

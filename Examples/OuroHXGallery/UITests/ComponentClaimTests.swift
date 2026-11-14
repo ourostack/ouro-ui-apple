@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "avatars", "empty", "banners", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -138,6 +138,15 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.buttons["Cook"].exists, "items: the row's action is not its own button")
         XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
+        app.terminate()
+        app = launch("avatars")
+        // An avatar is an image named by its person, then its presence; its initials are drawn, not read; one beside
+        // its name is not read twice; one still loading says so.
+        XCTAssertTrue(app.images["Ana Lind"].exists, "avatars: no image named Ana Lind")
+        XCTAssertTrue(app.images["Ana Lind, busy"].exists, "avatars: the presence is not read after the name")
+        XCTAssertTrue(app.images["Name loading"].exists, "avatars: a loading avatar is silent")
+        XCTAssertFalse(app.staticTexts["AL"].exists, "avatars: the initials are read")
+        XCTAssertFalse(app.images["Kenji Sato"].exists && app.staticTexts["Kenji Sato"].exists, "avatars: a name beside its avatar is read twice")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

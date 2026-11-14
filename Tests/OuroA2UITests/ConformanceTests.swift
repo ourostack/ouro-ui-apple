@@ -2,7 +2,7 @@ import Foundation
 @testable import OuroA2UI
 import Testing
 
-/// Core's conformance cases (ouro-ui-core v0.7.1, `standard/hx/a2ui/conformance`): each stream must resolve to the
+/// Core's conformance cases (ouro-ui-core v0.9.0, `standard/hx/a2ui/conformance`): each stream must resolve to the
 /// case's `expect`, byte for byte as core's reference resolver writes it: every surface's tree, or every problem.
 @Suite struct ConformanceTests {
     static let root = Bundle.module.url(forResource: "Conformance", withExtension: nil)!
@@ -14,7 +14,7 @@ import Testing
     static func load(_ path: String) throws -> A2UIJSON { try A2UIJSON.parse(Data(contentsOf: root.appending(path: path))) }
 
     @Test func everyCaseIsHere() {
-        #expect(Self.cases.count == 10)
+        #expect(Self.cases.count == 11)
     }
 
     @Test(arguments: cases) func resolvesToExpect(_ name: String) throws {

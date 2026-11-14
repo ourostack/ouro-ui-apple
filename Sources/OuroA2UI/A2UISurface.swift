@@ -281,21 +281,31 @@ struct A2UIActionButton: View {
     }
 }
 
-/// What the agent prepared, each field's label beside its value, as the person confirms it.
+/// What the agent prepared, each field's label beside its value, as the person confirms it. An id shows its name,
+/// with the id small beside it.
 public struct A2UIConfirmFields: View {
     let fields: [A2UIJSON]
     @Environment(\.ouroColors) private var colors
 
     public init(fields: [A2UIJSON]) { self.fields = fields }
 
+    /// A row as VoiceOver reads it: the label, the value, then the id the value replaced.
+    static func spoken(_ f: A2UIJSON) -> String {
+        [f["label"]?.string, f["value"]?.string, f["raw"]?.string].compactMap { $0 }.joined(separator: ", ")
+    }
+
     public var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
             ForEach(Array(fields.enumerated()), id: \.offset) { _, f in
                 GridRow {
                     Text(f["label"]?.string ?? "").foregroundStyle(colors.mutedForeground)
-                    Text(f["value"]?.string ?? "").foregroundStyle(colors.foreground)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(f["value"]?.string ?? "").foregroundStyle(colors.foreground)
+                        if let raw = f["raw"]?.string { Text(raw).font(.caption).foregroundStyle(colors.mutedForeground) }
+                    }
                 }
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Self.spoken(f))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

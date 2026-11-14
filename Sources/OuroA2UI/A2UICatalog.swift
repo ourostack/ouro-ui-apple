@@ -103,6 +103,8 @@ public struct A2UICatalogAction: Sendable {
         public let kind: String
         public let optional: Bool
         public let values: [String]
+        /// For an id field: the sibling input that carries the person's name for it (`recipeTitle` for `recipe`).
+        public let shownAs: String?
     }
 
     public let consent: String
@@ -146,7 +148,7 @@ public struct A2UICatalog: Sendable {
         actions = raw.pairs.map { id, a in
             let fields = (a["input"]?.object?.pairs ?? []).map { name, f in
                 A2UICatalogAction.Field(name: name, label: f["label"]?.string ?? name, kind: f["kind"]?.string ?? "string",
-                                        optional: f["optional"] == .bool(true), values: f["values"]?.array?.compactMap(\.string) ?? [])
+                                        optional: f["optional"] == .bool(true), values: f["values"]?.array?.compactMap(\.string) ?? [], shownAs: f["shownAs"]?.string)
             }
             return (id, A2UICatalogAction(
                 consent: a["consent"]?.string ?? "read",

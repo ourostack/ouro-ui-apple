@@ -324,3 +324,21 @@ The first component past the five, first in the order `2026-11-14-apple-1-0.md` 
 - **Claims.** Core's `appliesTo` doesn't list `badge` yet; this release proves `contrast.text`, `text.reflows` and
   `name.spoken` for it here (`ContrastTests`, `BadgeMetricsTests`, the snapshots, and the gallery's `badges` page in
   the audit and `testVoiceOverLabels`). Adding `badge` to core's `appliesTo` is the follow-up.
+
+## OuroCard (2026-11-14)
+
+Second in the 1.0 order.
+
+- **Web's API, without media for now.** A title, a description, an action beside them, a body and a footer;
+  `outline` (default) or `plain`; `md` (24 points) or `sm` (16) padding, and none for `plain` (`OuroCardMetrics`).
+  Web's `media` slot (an image edge to edge across the top) and `href` (the whole card one link) come in a follow-up.
+- **Colours.** `outline` is the theme's `card` with its `cardForeground` title and a `border` edge, raised to 3:1
+  under Increase Contrast; `plain` is the page. Title and description read at 5:1 (7:1) in every theme
+  (`cardTextReadsInEveryThemeAndMode`).
+- **The theme's `xl` corner, continuous**, as `OuroA2UI`'s private card already drew it.
+- **The title is a heading** (`name.spoken`), and **at the accessibility sizes the action goes under the title**, so
+  the title keeps the width (`text.reflows`, `CardMetricsTests`).
+- **`OuroA2UI` draws the catalog's `Card` with it**, small, at the 16 points it drew before. Web's A2UI card is medium
+  with its first `Image` as media; Apple matches that once the media slot lands.
+- **Claims.** Core's `appliesTo` doesn't list `card` yet (ourostack/ouro-ui-core#48 adds `badge`); the follow-up adds
+  `card` to `name.spoken`, `text.reflows` and `contrast.text`.

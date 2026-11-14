@@ -51,7 +51,8 @@ SUITES = {
                           "ComponentClaimTests/testAnEmptyStatesActionSpansTheWidthAtAccessibilitySizes": 45.5},
                 "pages": {"sheet": 119.3}},
             3: {"tests": {"ComponentClaimTests/testEveryControlIs44Points": 38.5},
-                "pages": {"toasts": 94.6, "buttons": 78.8}},
+                # cards: not measured yet; banners' time, a page of the same size, until a run measures it.
+                "pages": {"toasts": 94.6, "buttons": 78.8, "cards": 35.0}},
             4: {"tests": {"ComponentClaimTests/testVoiceOverLabels": 36.6,
                           "ComponentClaimTests/testCloseControlsClose": 27.8,
                           "ComponentClaimTests/testAToastShowsAboveASheet": 20.3,

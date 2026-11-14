@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "empty", "banners", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -121,6 +121,13 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(row.label.contains("Vegan") && row.label.contains("25 min"), "badges: the row says \"\(row.label)\"")
         XCTAssertFalse(row.label.contains("leaf"), "badges: the decorative icon is spoken: \"\(row.label)\"")
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == 'Vegan'")).count, 0, "badges: a badge is not a button")
+        app.terminate()
+        app = launch("cards")
+        // A card's title is text VoiceOver reads (a heading; the audit checks traits), and its action is a button.
+        XCTAssertTrue(app.staticTexts["Pantry"].exists, "cards: no title")
+        XCTAssertTrue(app.staticTexts["What you have on hand"].exists, "cards: no description")
+        XCTAssertTrue(app.buttons["Edit"].exists, "cards: the action is not a button")
+        XCTAssertTrue(app.buttons["Start cooking"].exists)
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

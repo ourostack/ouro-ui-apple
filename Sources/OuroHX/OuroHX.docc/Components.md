@@ -1,6 +1,6 @@
 # Components
 
-Button, Badge, Card, Item, EmptyState, Banner, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, Card, Item, Skeleton, Spinner, Progress, EmptyState, Banner, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -47,6 +47,9 @@ struct SettingsScreen: View {
 | `Badge` | ``OuroBadge`` | A short label or a count beside something else. Tones and variants (`solid`, `soft`, `outline`); secondary solid by default, as on web. It is words, not a control: a chip someone presses is an ``OuroButton`` at size `.sm`. |
 | `Card` | ``OuroCard`` | A surface that groups one thing: a title (a heading for VoiceOver), a description, an action beside them, a body and a footer. `outline` (the theme's card colour with an edge) or `plain`; `md` or `sm` padding. The action goes under the title at the accessibility sizes. No media slot yet. |
 | `Item`, `ItemGroup` | ``OuroItem``, ``OuroItemGroup`` | A row: a title, a description, leading media (an icon tile or a picture at `sm`, `md` or `lg`) and trailing actions. A row with `onPress` is one button, at least 44 points tall, and its actions stay their own. At the accessibility sizes the actions go under the words and a picture above them. A group names its rows with a label (a heading) and divides them (`divided`), frames them (`outline`) or neither (`plain`). |
+| `Skeleton` | ``OuroSkeleton`` | The outline of what is loading, in its place: `rect`, `text` (lines, the last shorter), `circle`, `row` (an ``OuroItem``'s height) or `card`. Holds still for a second, then breathes; still under Reduce Motion. VoiceOver hears one "Loading". |
+| `Spinner` | ``OuroSpinner`` | The system's activity indicator at web's sizes (16, 20, 32 points), named by what it waits for. |
+| `Progress` | ``OuroProgress`` | How far along some work is: a label, a value from `min` to `max` (`nil` while unknown, which slides, or pulses under Reduce Motion), `showValue`, a tone. VoiceOver hears the label and the percentage. |
 | `Empty` | ``OuroEmptyState`` | What a list or page shows when it has nothing in it. |
 | `Alert` | ``OuroBanner`` | An inline message in the page. On Apple an "alert" is SwiftUI's modal `.alert`, so it is a banner here. |
 | `Sheet` | `.ouroSheet(isPresented:title:…)` | A panel from the bottom edge with a title, a body, an actions row and a close button. |
@@ -165,6 +168,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
   accessibility sizes) and Gatefold's `EmptyShelf` (centred, one action).
 - ``OuroBadge``: web's `Badge`, and the chips Spoonjoy (`CookTimerChip`, `RecipeStepDurationCue`) and Gatefold (`FontChip`, `AccountBadge`) draw by hand. `OuroA2UI`'s catalog `Badge` draws with it.
 - ``OuroCard``: web's `Card`, and the surfaces Spoonjoy (`KitchenTablePage`, `CookingNowPlate`, `ImportStatusPanel`), Gatefold (`HighlightCard`) and Ouro MD (`GlassSurface`) draw by hand. `OuroA2UI`'s catalog `Card` draws with it.
+- ``OuroSkeleton``, ``OuroSpinner`` and ``OuroProgress``: web's `Skeleton`, `Spinner` and `Progress`, and the loading states and bars Spoonjoy (`KitchenTableLoadingStateView`, `ArrivingFromLoading`, `CookingNowProgressRule`, `JourneyStillProgressViewStyle`), Gatefold (`OpeningPlaceholder`) and Ouro MD (`UpdateProgressView`) draw by hand.
 - ``OuroItem``: web's `Item`, and the rows Spoonjoy (`RecipeIndexRow`, `ShoppingReceiptRow`, `SettingsRowLabel` and nine more) and Gatefold (`SettingRow`, `PressedRow`, `StillRow` and two more) draw by hand.
 - ``OuroBanner``: Spoonjoy's `HeldChangeBanner` (a titled message with its way out) and web's `Alert`.
 - The sheet and the toast follow web's `Sheet` and `Toaster`; neither app had a toast.
@@ -206,6 +210,16 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroItemMediaSize``
 - ``OuroItemGroupVariant``
 - ``OuroItemPalette``
+
+### Loading
+
+- ``OuroSkeleton``
+- ``OuroSkeletonShape``
+- ``OuroSpinner``
+- ``OuroSpinnerSize``
+- ``OuroProgress``
+- ``OuroLoadingPalette``
+- ``OuroLoadingMetrics``
 - ``OuroItemMetrics``
 
 ### Empty state

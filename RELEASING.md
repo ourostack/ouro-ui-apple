@@ -19,7 +19,7 @@ Releases are tags `vX.Y.Z` on `main`, published as GitHub releases.
    must pass. A failure is a bug to fix before the tag, not something to rerun past.
 
    Without a quiet Mac with Xcode 27 (a loaded machine stalls the test runner before any claim runs), run the same
-   script on the billed `xcode-27` runner, on its newest iOS 27 runtime, and use its log:
+   script on the billed `xcode-27` runner (iOS 27.0, Xcode 27.0), and use its log:
 
    ```sh
    gh workflow run ios27-claims.yml -f ref=<commit>

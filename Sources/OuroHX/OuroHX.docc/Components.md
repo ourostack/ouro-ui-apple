@@ -208,6 +208,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroItemMediaSize``
 - ``OuroItemGroupVariant``
 - ``OuroItemPalette``
+- ``OuroItemMetrics``
 
 ### Page header
 
@@ -215,7 +216,6 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroPageHeaderSize``
 - ``OuroPageHeaderPalette``
 - ``OuroPageHeaderMetrics``
-- ``OuroItemMetrics``
 
 ### Empty state
 

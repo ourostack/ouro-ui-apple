@@ -101,6 +101,10 @@ public enum OuroAvatarMetrics {
         }
     }
 
+    /// How far the initials may shrink to fit the avatar at their default size; at larger text sizes they first grow
+    /// with Dynamic Type, then shrink back into the avatar, which keeps its size.
+    public static let initialsMinimumScale: CGFloat = 0.5
+
     /// The presence dot's side: web's 8 to 31 pixels.
     public static func presenceSide(_ size: OuroAvatarSize) -> CGFloat {
         switch size {
@@ -186,6 +190,8 @@ public struct OuroAvatar: View {
     @Environment(\.ouroTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
+    /// The initials follow Dynamic Type, then shrink to fit the avatar, which keeps its size as web's does.
+    @ScaledMetric(relativeTo: .body) private var typeScale: CGFloat = 1
 
     public init(
         name: String?,
@@ -262,9 +268,9 @@ public struct OuroAvatar: View {
                     .font(.system(size: OuroAvatarMetrics.fontSize(size), weight: .semibold))
             } else {
                 Text(initials ?? OuroAvatarMetrics.initials(name ?? ""))
-                    .font(.system(size: OuroAvatarMetrics.fontSize(size), weight: .semibold))
+                    .font(.system(size: OuroAvatarMetrics.fontSize(size) * typeScale, weight: .semibold))
                     .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                    .minimumScaleFactor(OuroAvatarMetrics.initialsMinimumScale / typeScale)
             }
         }
         .foregroundStyle(Color(palette.label))

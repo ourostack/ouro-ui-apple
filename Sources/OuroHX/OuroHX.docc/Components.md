@@ -208,6 +208,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroItemMediaSize``
 - ``OuroItemGroupVariant``
 - ``OuroItemPalette``
+- ``OuroItemMetrics``
 
 ### Text field
 
@@ -218,7 +219,6 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroTextFieldPalette``
 - ``OuroTextFieldMetrics``
 - ``OuroTextContentType``
-- ``OuroItemMetrics``
 
 ### Empty state
 

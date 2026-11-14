@@ -388,3 +388,18 @@ Fourth in the 1.0 order: nine hand-drawn fields (Spoonjoy 6, Gatefold 2, Ouro MD
   possibly clipped at large sizes, because a single-line input scrolls its text sideways, as web's `<input>` does. The
   gallery excuses that one issue on the textfields page only while the field is at least a line of its text tall at
   the size the run uses (`singleLineFieldMisreadings`), so a field that stopped growing with Dynamic Type still fails.
+
+## OuroPageHeader (2026-11-14)
+
+Sixth in the 1.0 order: seven hand-drawn section headers and mastheads, all in Spoonjoy.
+
+- **Web's API.** `title`, `eyebrow`, `description`, `actions`, `media`, more content under the description (web's
+  `children`), `level` (1 or 2), `size` (`md` or `lg`) and `divider` (`OuroPageHeaderMetrics`). Web's `breadcrumb`
+  isn't here: Apple's navigation stack already shows where a page sits.
+- **The title is a heading** at web's level (`accessibilityHeading(.h1)` or `.h2`), so VoiceOver's rotor finds it
+  (`name.spoken`, `theTitleIsAHeadingAtItsLevel`).
+- **Actions beside the title where they fit, under it where they don't**, with SwiftUI's `ViewThatFits`, and always
+  under it at the accessibility sizes, as web moves them under the title on phones. On an iPad or a Mac the header
+  uses the width; on an iPhone at large sizes the title keeps it (`text.reflows`, `aPageHeaderReflows`).
+- **Colours.** Title and description as web; the eyebrow is the theme's primary, raised to 5:1 (7:1) like the rest
+  (`pageHeaderTextReadsInEveryThemeAndMode`).

@@ -104,7 +104,7 @@ struct A2UINodeView: View {
         case "Image":
             A2UIImageView(url: node.text("url"), description: node.text("description"), aspect: node.text("aspect"))
         case "Badge":
-            A2UIBadge(text: node.text("text"), tone: node.text("tone"))
+            A2UIMetrics.badge(text: node.text("text"), tone: node.text("tone"))
         case "List":
             let items = node.props["items"]?.array?.compactMap(\.string) ?? []
             let ordered = node.props["ordered"] == .bool(true)
@@ -183,6 +183,11 @@ public enum A2UIMetrics {
         }
     }
 
+    /// A catalog `Badge` as Ouro HX's ``OuroBadge``: solid in its tone, as web's `A2UISurface` draws its `Badge`.
+    public static func badge(text: String, tone: String) -> OuroBadge {
+        OuroBadge(text, tone: Self.tone(tone), variant: .solid)
+    }
+
     public static func aspect(_ aspect: String) -> CGFloat {
         switch aspect {
         case "square": 1
@@ -220,35 +225,6 @@ struct A2UIImageView: View {
                 AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
             }
         }
-    }
-}
-
-struct A2UIBadge: View {
-    let text: String
-    let tone: String
-    @Environment(\.ouroColors) private var colors
-
-    var body: some View {
-        let fill: Color = switch tone {
-        case "success": colors.success
-        case "warning": colors.warning
-        case "danger": colors.destructive
-        case "info": colors.primary
-        default: colors.secondary
-        }
-        let ink: Color = switch tone {
-        case "success": colors.successForeground
-        case "warning": colors.warningForeground
-        case "danger": colors.destructiveForeground
-        case "info": colors.primaryForeground
-        default: colors.secondaryForeground
-        }
-        Text(text)
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .foregroundStyle(ink)
-            .background(Capsule().fill(fill))
     }
 }
 

@@ -1,6 +1,6 @@
 # Components
 
-Button, EmptyState, Banner, Sheet and Toast: the same five components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, EmptyState, Banner, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -44,6 +44,7 @@ struct SettingsScreen: View {
 | Web | Apple | What it is |
 |---|---|---|
 | `Button` | ``OuroButton``, ``OuroButtonStyle`` (`.buttonStyle(.ouro())`) | Any action. Tones, variants (`solid`, `soft`, `outline`, `plain`, `glass`), sizes and a `pill` shape. `role: .destructive` draws the destructive tone. |
+| `Badge` | ``OuroBadge`` | A short label or a count beside something else. Tones and variants (`solid`, `soft`, `outline`); secondary solid by default, as on web. It is words, not a control: a chip someone presses is an ``OuroButton`` at size `.sm`. |
 | `Empty` | ``OuroEmptyState`` | What a list or page shows when it has nothing in it. |
 | `Alert` | ``OuroBanner`` | An inline message in the page. On Apple an "alert" is SwiftUI's modal `.alert`, so it is a banner here. |
 | `Sheet` | `.ouroSheet(isPresented:title:…)` | A panel from the bottom edge with a title, a body, an actions row and a close button. |
@@ -160,6 +161,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
   `glassEffect(.regular.interactive())`).
 - ``OuroEmptyState``: Spoonjoy's `KitchenTableEmptyTile` (a heading title, a hidden icon, a full-width action at the
   accessibility sizes) and Gatefold's `EmptyShelf` (centred, one action).
+- ``OuroBadge``: web's `Badge`, and the chips Spoonjoy (`CookTimerChip`, `RecipeStepDurationCue`) and Gatefold (`FontChip`, `AccountBadge`) draw by hand. `OuroA2UI`'s catalog `Badge` draws with it.
 - ``OuroBanner``: Spoonjoy's `HeldChangeBanner` (a titled message with its way out) and web's `Alert`.
 - The sheet and the toast follow web's `Sheet` and `Toaster`; neither app had a toast.
 
@@ -175,6 +177,13 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroButtonPalette``
 - ``OuroButtonMetrics``
 - ``OuroColor/readable(_:on:contrast:)``
+
+### Badge
+
+- ``OuroBadge``
+- ``OuroBadgeVariant``
+- ``OuroBadgePalette``
+- ``OuroBadgeMetrics``
 
 ### Empty state
 

@@ -20,6 +20,7 @@ import Testing
         "text.reflows": [
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAnEmptyStatesActionSpansTheWidthAtAccessibilitySizes",
+            "Tests/OuroHXTests/ComponentTests.swift: BadgeMetricsTests",
         ],
         "contrast.text": [
             "Tests/OuroHXTests/ComponentTests.swift: ContrastTests",

@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "empty", "banners", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -110,6 +110,17 @@ final class ComponentClaimTests: XCTestCase {
         for name in ["Save recipe", "Primary", "Destructive", "Glass pill", "Small", "Unavailable"] {
             XCTAssertTrue(app.buttons[name].firstMatch.exists, "buttons: no button named \"\(name)\"")
         }
+        app.terminate()
+        app = launch("badges")
+        // A badge is words, not a control: VoiceOver reads it with its row, and its icon stays out of the way.
+        for variant in ["solid", "soft", "outline"] {
+            XCTAssertTrue(app.descendants(matching: .any)["badges.\(variant)"].exists, "badges: no \(variant) row")
+        }
+        let row = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Lemon orzo with peas'")).firstMatch
+        XCTAssertTrue(row.exists, "badges: the recipe row is not one element")
+        XCTAssertTrue(row.label.contains("Vegan") && row.label.contains("25 min"), "badges: the row says \"\(row.label)\"")
+        XCTAssertFalse(row.label.contains("leaf"), "badges: the decorative icon is spoken: \"\(row.label)\"")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == 'Vegan'")).count, 0, "badges: a badge is not a button")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

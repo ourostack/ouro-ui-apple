@@ -66,6 +66,26 @@ import Testing
         }
     }
 
+    /// Every tone in each variant, with and without an icon.
+    @Test(arguments: Mode.allCases) func badge(_ mode: Mode) throws {
+        try check("badge", mode) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(OuroBadgeVariant.allCases, id: \.self) { variant in
+                    HStack(spacing: 6) {
+                        ForEach(OuroTone.allCases, id: \.self) { tone in
+                            OuroBadge(tone.rawValue.capitalized, tone: tone, variant: variant)
+                        }
+                    }
+                }
+                HStack(spacing: 6) {
+                    OuroBadge("Vegan", systemImage: "leaf", tone: .success, variant: .soft)
+                    OuroBadge("25 min", systemImage: "timer")
+                    OuroBadge("3", tone: .destructive)
+                }
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

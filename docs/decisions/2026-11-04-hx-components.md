@@ -304,3 +304,23 @@ It compiled and used every component as documented. What it found, and what chan
 | [Apple: Explore UI animation hitches](https://developer.apple.com/documentation/xcode/understanding-hitches-in-your-app) | Hitch ratio in ms per second; under 5 good, over 10 critical | **Adopt**: `MotionTests`' limit |
 | iOS 26 system toasts (AirPods, Silent mode) and notification stacks | Top-centre glass capsules; older items tuck behind | **Borrow** the place and the tuck; **ignore** hiding the close control, for `dismiss.reachable` |
 | [cashapp/AccessibilitySnapshot](https://github.com/cashapp/AccessibilitySnapshot) | Snapshots of the VoiceOver element tree | **Watch**: a natural next proof for `name.spoken` once it supports SwiftUI-only hosts well |
+
+## OuroBadge (2026-11-14)
+
+The first component past the five, first in the order `2026-11-14-apple-1-0.md` sets.
+
+- **Web's API and defaults.** `tone` (secondary by default) and `variant` (`solid` by default, `soft`, `outline`),
+  an optional SF Symbol, web's `h-6 px-2 rounded-md` as a 24-point minimum height, 8 points at the sides and the
+  theme's `md` corner (`OuroBadgeMetrics`).
+- **A button's colours.** `OuroBadgePalette` is `OuroButtonPalette` for the same tone and variant
+  (`aBadgeTakesTheButtonsColours`), so a badge beside a button reads as one family and inherits its proofs of 5:1
+  (7:1 under Increase Contrast) in every theme.
+- **Words, not a control.** It has no action, so `target.touch` doesn't apply. Web's pressable badge (`onClick`,
+  `href`) is an `OuroButton` at size `.sm` here, until an app needs a pressable chip that a button can't draw.
+- **One line, until the accessibility sizes.** It keeps web's `whitespace-nowrap` up to the largest standard size,
+  then wraps (`text.reflows`).
+- **`OuroA2UI` draws the catalog's `Badge` with it** (solid, as web's `A2UISurface` uses its `Badge`), replacing a
+  private view whose words were never raised to read on the fill.
+- **Claims.** Core's `appliesTo` doesn't list `badge` yet; this release proves `contrast.text`, `text.reflows` and
+  `name.spoken` for it here (`ContrastTests`, `BadgeMetricsTests`, the snapshots, and the gallery's `badges` page in
+  the audit and `testVoiceOverLabels`). Adding `badge` to core's `appliesTo` is the follow-up.

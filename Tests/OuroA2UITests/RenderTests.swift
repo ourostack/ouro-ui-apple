@@ -139,6 +139,17 @@ extension RenderTests {
         #expect(first["value"]?.string == "Mine: rcp_lemon_orzo")
         #expect(first["raw"]?.string == "rcp_lemon_orzo")
     }
+
+    /// A catalog `Badge` is Ouro HX's ``OuroBadge``, solid in its tone, so an agent's badge and an app's are one
+    /// component, and its words are raised to read on the fill as every component's are.
+    @Test(arguments: [("success", OuroTone.success), ("warning", .warning), ("danger", .destructive), ("info", .primary), ("neutral", .secondary), ("", .secondary)])
+    func aCatalogBadgeIsOuroBadge(tone: String, expected: OuroTone) {
+        let badge = A2UIMetrics.badge(text: "Vegan", tone: tone)
+        #expect(badge.text == "Vegan")
+        #expect(badge.tone == expected)
+        #expect(badge.variant == .solid)
+        #expect(badge.systemImage == nil)
+    }
 }
 
 extension A2UINode {

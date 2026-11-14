@@ -126,6 +126,21 @@ import Testing
         }
     }
 
+    /// A page header with an eyebrow, a description, badges and actions; a large one; and a section with a divider.
+    @Test(arguments: Mode.allCases) func pageHeader(_ mode: Mode) throws {
+        try check("page-header", mode) {
+            VStack(alignment: .leading, spacing: 24) {
+                OuroPageHeader("Lemon orzo with peas", eyebrow: "Weeknight", description: "Bright, quick and made in one pot.") {
+                    OuroButton("Cook", systemImage: "flame") {}
+                } content: {
+                    OuroBadge("25 min", systemImage: "timer")
+                }
+                OuroPageHeader("Ana Lind", eyebrow: "Chef", description: "Bakes on Sundays.", size: .lg)
+                OuroPageHeader("Shopping list", description: "Four items for Sunday.", level: 2, divider: true)
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

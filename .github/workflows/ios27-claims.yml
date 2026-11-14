@@ -1,0 +1,60 @@
+name: iOS 27 claims
+
+# The release's iOS 27 step (RELEASING.md, step 2) on GitHub's billed xcode-27 runner, for a release made where no
+# quiet Mac with Xcode 27 is at hand. It runs scripts/ios27-claims.sh, the same script as the local step, on a fresh
+# iPhone simulator with the newest iOS 27 runtime the image has at or below its Xcode 27.1 SDK (iOS 27.1 today), and
+# uploads the log the release attaches. Dispatch it with the commit you will tag:
+#   gh workflow run ios27-claims.yml -f ref=<commit>
+# then download the log with `gh run download <run id> -n ios27-claims` and attach it as RELEASING.md says.
+# It counts against the xcode-27 runner's monthly cap (ci.yml), so it runs only when dispatched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The commit you will tag (a full SHA, or main)
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  claims:
+    name: Component claims on iOS 27 (Xcode 27.1)
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Use Xcode 27.1 for this job only
+        run: |
+          set -eu
+          for app in /Applications/Xcode_*.app; do
+            v="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
+            if [ "$v" = "27.1" ] || [ "$v" = "27.1.0" ]; then echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"; echo "Using $app ($v)"; exit 0; fi
+          done
+          ls -d /Applications/Xcode_*.app; exit 1
+      - name: Tools
+        run: |
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Start an iOS 27 simulator
+        run: python3 -I scripts/ci-simulator.py start ouro-hx-ios27
+      - name: The simulator finished booting
+        timeout-minutes: 16
+        run: python3 -I scripts/ci-simulator.py wait ouro-hx-ios27 240
+      - name: Component claims
+        timeout-minutes: 40
+        run: sh scripts/ios27-claims.sh "$UDID" .build/ios27-claims.txt
+      - name: Keep the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios27-claims
+          path: .build/ios27-claims.txt
+          if-no-files-found: warn
+      - name: Delete the simulator
+        if: always() && env.UDID != ''
+        run: xcrun simctl delete "$UDID" || true

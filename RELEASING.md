@@ -17,6 +17,14 @@ Releases are tags `vX.Y.Z` on `main`, published as GitHub releases.
 
    It refuses a checkout with changes. To use another Xcode, set `DEVELOPER_DIR` (never `xcode-select`). Every claim
    must pass. A failure is a bug to fix before the tag, not something to rerun past.
+
+   Without a quiet Mac with Xcode 27 (a loaded machine stalls the test runner before any claim runs), run the same
+   script on the billed `xcode-27` runner, on its newest iOS 27 runtime, and use its log:
+
+   ```sh
+   gh workflow run ios27-claims.yml -f ref=<commit>
+   gh run download <run id> -n ios27-claims -D .build   # .build/ios27-claims.txt, attached in step 3
+   ```
 3. Check the next free tag (`git ls-remote --tags origin`), then tag and publish:
 
    ```sh

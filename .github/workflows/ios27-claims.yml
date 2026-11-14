@@ -2,7 +2,8 @@ name: iOS 27 claims
 
 # The release's iOS 27 step (RELEASING.md, step 2) on GitHub's billed xcode-27 runner, for a release made where no
 # quiet Mac with Xcode 27 is at hand. It runs scripts/ios27-claims.sh, the same script as the local step, on a fresh
-# iPhone simulator with the newest iOS 27 runtime the image has at or below its Xcode 27.1 SDK (iOS 27.1 today), and
+# iPhone 17 Pro simulator on iOS 27.0 with Xcode 27.0, the pairing ci.yml's X-ray lane boots (on this image's iOS 27.1
+# runtime, simctl created none of the iPhones scripts/ci-simulator.py tries: run 43551982311), and
 # uploads the log the release attaches. Dispatch it with the commit you will tag:
 #   gh workflow run ios27-claims.yml -f ref=<commit>
 # then download the log with `gh run download <run id> -n ios27-claims` and attach it as RELEASING.md says.
@@ -21,19 +22,19 @@ permissions:
 
 jobs:
   claims:
-    name: Component claims on iOS 27 (Xcode 27.1)
+    name: Component claims on iOS 27 (Xcode 27.0)
     runs-on: xcode-27
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
-      - name: Use Xcode 27.1 for this job only
+      - name: Use Xcode 27.0 for this job only
         run: |
           set -eu
           for app in /Applications/Xcode_*.app; do
             v="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
-            if [ "$v" = "27.1" ] || [ "$v" = "27.1.0" ]; then echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"; echo "Using $app ($v)"; exit 0; fi
+            if [ "$v" = "27.0" ] || [ "$v" = "27.0.0" ]; then echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"; echo "Using $app ($v)"; exit 0; fi
           done
           ls -d /Applications/Xcode_*.app; exit 1
       - name: Tools

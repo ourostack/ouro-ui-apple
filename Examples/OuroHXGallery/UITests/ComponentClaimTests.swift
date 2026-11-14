@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "empty", "banners", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -128,6 +128,16 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["What you have on hand"].exists, "cards: no description")
         XCTAssertTrue(app.buttons["Edit"].exists, "cards: the action is not a button")
         XCTAssertTrue(app.buttons["Start cooking"].exists)
+        app.terminate()
+        app = launch("items")
+        // A pressable row is one button named by its title and description; its actions stay their own buttons, and
+        // its icon tile is not spoken.
+        let soup = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Black bean soup'")).firstMatch
+        XCTAssertTrue(soup.exists, "items: the pressable row is not a button")
+        XCTAssertTrue(soup.label.contains("40 minutes"), "items: the row says \"\(soup.label)\"")
+        XCTAssertTrue(app.buttons["Cook"].exists, "items: the row's action is not its own button")
+        XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

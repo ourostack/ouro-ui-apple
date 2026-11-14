@@ -22,6 +22,7 @@ import Testing
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAnEmptyStatesActionSpansTheWidthAtAccessibilitySizes",
             "Tests/OuroHXTests/ComponentTests.swift: BadgeMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: CardMetricsTests",
+            "Tests/OuroHXTests/ComponentTests.swift: ItemMetricsTests",
         ],
         "contrast.text": [
             "Tests/OuroHXTests/ComponentTests.swift: ContrastTests",

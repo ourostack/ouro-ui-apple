@@ -186,6 +186,51 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct ItemMetricsTests {
+    /// Web's defaults: `variant="plain"`, `size="md"`, `mediaSize="sm"`, and a group divided.
+    @Test func anItemDefaultsToWebsPlainMedium() {
+        #expect(OuroItemMetrics.defaultVariant == .plain)
+        #expect(OuroItemMetrics.defaultSize == .md)
+        #expect(OuroItemMetrics.defaultMediaSize == .sm)
+        #expect(OuroItemMetrics.defaultGroupVariant == .divided)
+    }
+
+    /// Web's `py-3` and `py-2`, its media sides (`size-10`, `size-16`, `size-28`) and its `px-4` inside an outline.
+    @Test func anItemHasWebsSpacing() {
+        #expect(OuroItemMetrics.verticalPadding(.md) == 12)
+        #expect(OuroItemMetrics.verticalPadding(.sm) == 8)
+        #expect(OuroItemMetrics.mediaSide(.icon) == 40)
+        #expect(OuroItemMetrics.mediaSide(.sm) == 40)
+        #expect(OuroItemMetrics.mediaSide(.md) == 64)
+        #expect(OuroItemMetrics.mediaSide(.lg) == 112)
+        #expect(OuroItemMetrics.mediaRadius(.sm) == .md)
+        #expect(OuroItemMetrics.mediaRadius(.lg) == .lg)
+        #expect(OuroItemMetrics.outlineInset == 16)
+        #expect(OuroItemMetrics.radius == .xl)
+    }
+
+    /// Core claim `target.size`: a row someone presses is at least 44 points tall.
+    @Test func aPressableRowIsATouchTarget() {
+        #expect(OuroItemMetrics.pressableMinimumHeight >= 44)
+    }
+
+    /// Core claim `text.reflows`: a row's title and description have no line limit at any size.
+    @Test func anItemsWordsHaveNoLineLimit() {
+        #expect(OuroItemMetrics.titleLineLimit == nil)
+        #expect(OuroItemMetrics.descriptionLineLimit == nil)
+    }
+
+    /// At the accessibility sizes the actions go under the words, and a picture goes above them; an icon tile stays.
+    @Test func anItemStacksAtTheAccessibilitySizes() {
+        #expect(!OuroItemMetrics.stacksActions(at: .xxxLarge))
+        #expect(OuroItemMetrics.stacksActions(at: .accessibility1))
+        #expect(!OuroItemMetrics.liftsMedia(.lg, at: .xxxLarge))
+        #expect(OuroItemMetrics.liftsMedia(.lg, at: .accessibility1))
+        #expect(OuroItemMetrics.liftsMedia(.sm, at: .accessibility1))
+        #expect(!OuroItemMetrics.liftsMedia(.icon, at: .accessibility5))
+    }
+}
+
 @Suite struct ContrastTests {
     /// Your own text on a theme surface reads at the components' target: muted text on a card, in every theme and mode.
     @Test func yourOwnTextReadsAtTheComponentsTarget() {
@@ -440,6 +485,19 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
                 #expect(ratio(border, p.surface) > 1, "\(name) \(variant) border")
                 if style.contrast == .increased { #expect(ratio(border, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) border") }
             }
+        }
+    }
+
+    /// A row's words read on the page, an icon tile's symbol reads on its tile, and the lines between rows show, in
+    /// every theme and mode: 3:1 under increased contrast, as other lines are.
+    @Test func itemTextReadsInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroItemPalette(style: style)
+            #expect(ratio(p.title, p.surface) >= target(style), "\(name) title")
+            #expect(ratio(p.description, p.surface) >= target(style), "\(name) description")
+            #expect(ratio(p.icon, p.iconFill) >= target(style), "\(name) icon")
+            #expect(ratio(p.line, p.surface) > 1, "\(name) line")
+            if style.contrast == .increased { #expect(ratio(p.line, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) line") }
         }
     }
 

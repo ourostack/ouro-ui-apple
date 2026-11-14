@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "loading", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "loading", "pageheaders", "empty", "banners", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -147,6 +147,14 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertEqual(upload.value as? String, "38%", "loading: the bar's value is \(String(describing: upload.value))")
         XCTAssertEqual(app.descendants(matching: .any)["Preparing your cookbook"].value as? String, "Loading", "loading: an unknown value is not Loading")
         XCTAssertGreaterThan(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Loading'")).count, 0, "loading: a skeleton is silent")
+        app.terminate()
+        app = launch("pageheaders")
+        // A header's title is a heading; its actions are buttons; its picture is not spoken.
+        let heading = app.staticTexts["Lemon orzo with peas"]
+        XCTAssertTrue(heading.exists, "pageheaders: no title")
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Lemon orzo with peas'")).allElementsBoundByIndex.contains { $0.elementType == .staticText }, "pageheaders: the title is not text")
+        XCTAssertTrue(app.buttons["Cook"].exists && app.buttons["Share"].exists, "pageheaders: an action is not a button")
+        XCTAssertTrue(app.staticTexts["Shopping list"].exists, "pageheaders: no section title")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

@@ -260,6 +260,34 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct PageHeaderMetricsTests {
+    /// Web's defaults: `size="md"`, `level={1}`.
+    @Test func aPageHeaderDefaultsToWebsMediumPageTitle() {
+        #expect(OuroPageHeaderMetrics.defaultSize == .md)
+        #expect(OuroPageHeaderMetrics.defaultLevel == 1)
+    }
+
+    /// Core claim `name.spoken`: the title is a heading at web's level, 1 for a page and 2 for a section.
+    @Test func theTitleIsAHeadingAtItsLevel() {
+        #expect(OuroPageHeaderMetrics.headingLevel(1) == .h1)
+        #expect(OuroPageHeaderMetrics.headingLevel(2) == .h2)
+    }
+
+    /// Core claim `text.reflows`: no line limit, and at the accessibility sizes the actions go under the title.
+    @Test func aPageHeaderReflows() {
+        #expect(OuroPageHeaderMetrics.titleLineLimit == nil)
+        #expect(!OuroPageHeaderMetrics.stacksActions(at: .xxxLarge))
+        #expect(OuroPageHeaderMetrics.stacksActions(at: .accessibility1))
+    }
+
+    /// Web's `gap-2` and `gap-4`, and the theme's `xl` corner on the picture.
+    @Test func aPageHeaderHasWebsSpacing() {
+        #expect(OuroPageHeaderMetrics.spacing == 8)
+        #expect(OuroPageHeaderMetrics.blockSpacing == 16)
+        #expect(OuroPageHeaderMetrics.mediaRadius == .xl)
+    }
+}
+
 @Suite struct ContrastTests {
     /// Your own text on a theme surface reads at the components' target: muted text on a card, in every theme and mode.
     @Test func yourOwnTextReadsAtTheComponentsTarget() {
@@ -528,6 +556,16 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             for tone in OuroTone.allCases {
                 let fill = p.fill(tone, style: style)
                 #expect(ratio(fill, p.track) >= OuroColor.increasedLineContrast - 0.01, "\(name) \(tone) on the track: \(ratio(fill, p.track))")
+            }
+        }
+    }
+
+    /// A page header's title, eyebrow and description read on the page in every theme and mode.
+    @Test func pageHeaderTextReadsInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroPageHeaderPalette(style: style)
+            for (part, colour) in [("title", p.title), ("eyebrow", p.eyebrow), ("description", p.description)] {
+                #expect(ratio(colour, p.surface) >= target(style), "\(name) \(part): \(ratio(colour, p.surface))")
             }
         }
     }

@@ -210,6 +210,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroItemMediaSize``
 - ``OuroItemGroupVariant``
 - ``OuroItemPalette``
+- ``OuroItemMetrics``
 
 ### Loading
 
@@ -220,7 +221,6 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroProgress``
 - ``OuroLoadingPalette``
 - ``OuroLoadingMetrics``
-- ``OuroItemMetrics``
 
 ### Empty state
 

@@ -384,3 +384,7 @@ Fourth in the 1.0 order: nine hand-drawn fields (Spoonjoy 6, Gatefold 2, Ouro MD
 - **Claims.** `target.touch`, `name.spoken`, `text.reflows` and `contrast.text` are proven here
   (`TextFieldMetricsTests`, `ContrastTests`, the snapshots and the gallery audit). Adding `textField` to core's
   `appliesTo`, and its spec, is the follow-up.
+- **The audit's "Text clipped".** Xcode's accessibility audit reports every SwiftUI `TextField` (a `UITextField`) as
+  possibly clipped at large sizes, because a single-line input scrolls its text sideways, as web's `<input>` does. The
+  gallery excuses that one issue on the textfields page only while the field is at least a line of its text tall at
+  the size the run uses (`singleLineFieldMisreadings`), so a field that stopped growing with Dynamic Type still fails.

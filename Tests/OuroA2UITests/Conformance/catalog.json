@@ -5,11 +5,11 @@
   "title": "Ouro HX catalog",
   "description": "Ouro HX's components for UI an agent composes for a person.",
   "catalogId": "https://ui.ouroboros.bot/a2ui/v1/catalog.json",
-  "instructions": "Ouro HX for agent-composed UI. Compose for a person reading on a phone: one Card per thing, a Heading first, then what they need to decide, then at most one primary ActionButton.\n\n- Use only these components. Styling comes from the app's theme; there are no colours, sizes or fonts to set.\n- Component ids are identifiers: letters, digits and _, starting with a letter (recipe_name, not recipe-name). The root's id is root.\n- Put content in the data model and bind to it with {\"@path\": \"/...\"}; repeat a template over a list with children: {\"componentId\", \"path\"}.\n- Every Image needs a description of what it shows.\n- ActionButton is the only button. Name one of the app's actions; its label is the action's. Prepare its input from what the person said. For a consequential action the person sees and confirms what you prepared; a person-only action takes the person to the app's own screen, so give it no input.\n- This catalog has no functions. To act for the person, call the action's own tool (MCP, CLI); never try to press a button.",
+  "instructions": "Ouro HX for agent-composed UI. Compose for a person reading on a phone: one Card per thing, a Heading first, then what they need to decide, then at most one primary ActionButton.\n\n- Use only these components. Styling comes from the app's theme; there are no colours, sizes or fonts to set.\n- Component ids are identifiers: letters, digits and _, starting with a letter (recipe_name, not recipe-name). The root's id is root.\n- Put content in the data model and bind to it with {\"@path\": \"/...\"}; repeat a template over a list with children: {\"componentId\", \"path\"}.\n- Every Image needs a description of what it shows.\n- ActionButton is the only button. Name one of the app's actions; its label is the action's. Prepare its input from what the person said; when an id field has a name field (shownAs in the catalog), prepare the name too, since the person confirms by the name, not the id. For a consequential action the person sees and confirms what you prepared; a person-only action takes the person to the app's own screen, so give it no input.\n- This catalog has no functions. To act for the person, call the action's own tool (MCP, CLI); never try to press a button.",
   "metadata": {
     "extensions": {
       "bot_ouroboros_hx": {
-        "generator": "ouro-a2ui 0.8.0"
+        "generator": "ouro-a2ui 0.9.0"
       }
     }
   },

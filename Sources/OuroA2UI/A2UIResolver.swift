@@ -3,6 +3,21 @@ import Foundation
 /// `^\d+$`: a JSON pointer token that indexes an array.
 func isIndex(_ s: String) -> Bool { !s.isEmpty && s.unicodeScalars.allSatisfy { $0 >= "0" && $0 <= "9" } }
 
+/// What an app's resolver is asked to name: one prepared input of a button that confirms.
+public struct A2UILabelContext: Sendable {
+    public let action: String
+    public let field: String
+    /// The prepared value, as text: the id.
+    public let value: String
+    /// Every prepared input of the button.
+    public let input: A2UIObject
+}
+
+/// The app's own word for an id, from its own data, such as a recipe's title for `rcp_lemon_orzo`; nil leaves the field
+/// to the agent's `shownAs` name, then to the id itself. Asked for each field a confirm sheet shows, and it wins over
+/// what the agent prepared, since the agent's text is the one thing the person can't check.
+public typealias A2UILabelResolver = @Sendable (A2UILabelContext) -> String?
+
 /// A resolved node: the component, its props with every binding resolved and defaults filled, and its children. Its
 /// ``json`` is core's reference tree, which the conformance cases check.
 public struct A2UINode: Sendable, Equatable {
@@ -124,8 +139,29 @@ extension A2UI {
         return v
     }
 
-    /// One surface as every renderer must show it; nil when it has no root yet.
-    public static func resolve(_ surface: A2UISurfaceState, catalog cat: A2UICatalog) -> A2UINode? {
+    /// The rows of a confirm sheet: each prepared input with the person's label. An id shows its name (the app's
+    /// resolver, else the sibling `shownAs` names, else the value itself), with the id as `raw` when the name replaced
+    /// it; a name field that stands in for an id has no row of its own. Core's `confirmFields`.
+    static func confirmFields(action: String, _ a: A2UICatalogAction, input: A2UIObject, label: A2UILabelResolver?) -> [A2UIJSON] {
+        let names = Set(a.input.compactMap { f -> String? in
+            guard input[f.name] != nil, let n = f.shownAs, a.field(n) != nil else { return nil }
+            return n
+        })
+        return a.input.filter { input[$0.name] != nil && !names.contains($0.name) }.map { f in
+            let raw = text(input[f.name])
+            let sibling = f.shownAs.flatMap { input[$0]?.string }?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let prepared = (sibling?.isEmpty ?? true) ? nil : sibling
+            let given = label?(A2UILabelContext(action: action, field: f.name, value: raw, input: input))
+            let value = given ?? prepared ?? raw
+            var row: A2UIObject = ["label": .string(f.label), "value": .string(value)]
+            if value != raw { row["raw"] = .string(raw) }
+            return .object(row)
+        }
+    }
+
+    /// One surface as every renderer must show it; nil when it has no root yet. `label` is the app's own word for an
+    /// id (see ``A2UILabelContext``); it wins over the name the agent prepared.
+    public static func resolve(_ surface: A2UISurfaceState, catalog cat: A2UICatalog, label: A2UILabelResolver? = nil) -> A2UINode? {
         guard let root = surface.components["root"] else { return nil }
         let data = surface.data
         func node(_ comp: A2UIObject, _ scope: String) -> A2UINode {
@@ -185,9 +221,7 @@ extension A2UI {
                     props["confirm"] = .object([
                         "title": .string(a.label),
                         "description": .string(a.description),
-                        "fields": .array(a.input.filter { input[$0.name] != nil }.map {
-                            .object(["label": .string($0.label), "value": .string(text(input[$0.name]))])
-                        }),
+                        "fields": .array(confirmFields(action: id, a, input: input, label: label)),
                     ])
                 }
                 if let how = a.how { props["handoff"] = .string(how) }
@@ -199,12 +233,12 @@ extension A2UI {
     }
 
     /// Every surface a stream leaves, resolved, or the validator's problems when it has any.
-    public static func resolve(_ messages: A2UIJSON, catalog cat: A2UICatalog) -> Result<[(String, A2UINode?)], A2UIProblems> {
+    public static func resolve(_ messages: A2UIJSON, catalog cat: A2UICatalog, label: A2UILabelResolver? = nil) -> Result<[(String, A2UINode?)], A2UIProblems> {
         let problems = validate(messages, catalog: cat)
         if !problems.isEmpty { return .failure(A2UIProblems(problems: problems)) }
         var surfaces = Ordered<A2UISurfaceState>()
         apply(messages.array ?? [], to: &surfaces)
-        return .success(surfaces.pairs.map { ($0.0, resolve($0.1, catalog: cat)) })
+        return .success(surfaces.pairs.map { ($0.0, resolve($0.1, catalog: cat, label: label)) })
     }
 
     /// The A2UI `action` message a composed button sends when the person presses it (after confirming, for a

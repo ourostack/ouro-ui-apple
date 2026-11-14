@@ -6,7 +6,7 @@
     "Sources/OuroHXTesting/Resources/components.claims.json": "0da8e34c5044add8e120d4e1265e6bfac0b53941ad9b8a9b5c5bcb4a19e1d31e"
   },
   "tree": {
-    "coreTag": "v0.8.0",
+    "coreTag": "v0.9.0",
     "files": {
       "Tests/OuroA2UITests/Conformance/cases/action-buttons.json": {
         "from": "standard/hx/a2ui/conformance/cases/action-buttons.json",
@@ -15,6 +15,10 @@
       "Tests/OuroA2UITests/Conformance/cases/bindings.json": {
         "from": "standard/hx/a2ui/conformance/cases/bindings.json",
         "sha256": "caa7bf2452ece1f50b847f255292faa3ca7c23172f3c388234eb08839f0b0f95"
+      },
+      "Tests/OuroA2UITests/Conformance/cases/confirm-names.json": {
+        "from": "standard/hx/a2ui/conformance/cases/confirm-names.json",
+        "sha256": "7238626bd45ae322cc54f9fd1fa2479237e7246e0fd95e979a9470ac8e4e3748"
       },
       "Tests/OuroA2UITests/Conformance/cases/invalid-agent-presses.json": {
         "from": "standard/hx/a2ui/conformance/cases/invalid-agent-presses.json",
@@ -50,11 +54,11 @@
       },
       "Tests/OuroA2UITests/Conformance/catalog.json": {
         "from": "standard/hx/a2ui/catalog.json",
-        "sha256": "af1437ba65e08ca894f9a5f5eeb53facba57e4d2c577851043172ca1c4c485e7"
+        "sha256": "b000946f4763d29384f40d1a9cd5c91b20a51fcda4268c120a0b774cffdb37dd"
       },
       "Tests/OuroA2UITests/Conformance/recipe.catalog.json": {
         "from": "standard/hx/a2ui/conformance/recipe.catalog.json",
-        "sha256": "a67ed6c2227989456dc190fbea5e882e60b3150c3aa81ca5bd53637151e6613f"
+        "sha256": "14679a142646e11a4d20de8771966cf870388447833a3474f49ec0dfd6957a4e"
       }
     }
   }

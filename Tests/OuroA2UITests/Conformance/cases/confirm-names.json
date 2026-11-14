@@ -1,0 +1,135 @@
+{
+  "description": "A confirm sheet shows an id's name, not the id: the field's shownAs sibling stands in for it, the id stays beside it as raw, and the name field has no row of its own. Without a name the id shows as before.",
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "names",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+        "dataModel": {
+          "recipe": {
+            "id": "rcp_lemon_orzo",
+            "title": "Lemon orzo"
+          },
+          "friend": "sam@example.com"
+        },
+        "components": [
+          {
+            "id": "root",
+            "component": "Stack",
+            "children": [
+              "named",
+              "unnamed"
+            ]
+          },
+          {
+            "id": "named",
+            "component": "ActionButton",
+            "action": "share_recipe",
+            "input": {
+              "recipe": {
+                "@path": "/recipe/id"
+              },
+              "recipeTitle": {
+                "@path": "/recipe/title"
+              },
+              "with": {
+                "@path": "/friend"
+              }
+            }
+          },
+          {
+            "id": "unnamed",
+            "component": "ActionButton",
+            "action": "share_recipe",
+            "input": {
+              "recipe": {
+                "@path": "/recipe/id"
+              },
+              "with": {
+                "@path": "/friend"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "surfaces": {
+      "names": {
+        "id": "root",
+        "component": "Stack",
+        "props": {
+          "direction": "vertical",
+          "gap": "medium"
+        },
+        "children": [
+          {
+            "id": "named",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "secondary",
+              "action": "share_recipe",
+              "label": "Share recipe",
+              "consent": "consequential",
+              "press": "confirm",
+              "input": {
+                "recipe": "rcp_lemon_orzo",
+                "recipeTitle": "Lemon orzo",
+                "with": "sam@example.com"
+              },
+              "confirm": {
+                "title": "Share recipe",
+                "description": "Send this recipe to someone.",
+                "fields": [
+                  {
+                    "label": "Recipe",
+                    "value": "Lemon orzo",
+                    "raw": "rcp_lemon_orzo"
+                  },
+                  {
+                    "label": "Send to",
+                    "value": "sam@example.com"
+                  }
+                ]
+              }
+            },
+            "children": []
+          },
+          {
+            "id": "unnamed",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "secondary",
+              "action": "share_recipe",
+              "label": "Share recipe",
+              "consent": "consequential",
+              "press": "confirm",
+              "input": {
+                "recipe": "rcp_lemon_orzo",
+                "with": "sam@example.com"
+              },
+              "confirm": {
+                "title": "Share recipe",
+                "description": "Send this recipe to someone.",
+                "fields": [
+                  {
+                    "label": "Recipe",
+                    "value": "rcp_lemon_orzo"
+                  },
+                  {
+                    "label": "Send to",
+                    "value": "sam@example.com"
+                  }
+                ]
+              }
+            },
+            "children": []
+          }
+        ]
+      }
+    }
+  }
+}

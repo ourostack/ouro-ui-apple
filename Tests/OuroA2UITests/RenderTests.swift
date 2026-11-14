@@ -44,8 +44,8 @@ import Testing
         return node
     }
 
-    func capture(_ view: some View, _ name: String) throws {
-        let image = try #require(OuroSnapshot.render(view, size: nil, appearance: .light))
+    func capture(_ view: some View, _ name: String, appearance: OuroSnapshot.Appearance = .light) throws {
+        let image = try #require(OuroSnapshot.render(view, size: nil, appearance: appearance))
         #expect(image.width > 0 && image.height > 0)
         if let dir = ProcessInfo.processInfo.environment["OURO_A2UI_CAPTURE"] {
             try OuroSnapshot.png(image)!.write(to: URL(filePath: dir).appending(path: "\(name).png"))
@@ -87,6 +87,57 @@ import Testing
         .background(Color(OuroSheetPalette(style: style).surface))
         .ouroTheme(.pearl)
         try capture(view, "recipe-card-confirm-share-light")
+    }
+}
+
+extension RenderTests {
+    /// core's `confirm-names.json`: the button whose id has a name (`named`), resolved with the app's own names when
+    /// `label` is given.
+    static func namedShare(label: (@Sendable (A2UILabelContext) -> String?)? = nil) throws -> A2UINode {
+        let c = try ConformanceTests.load("cases/confirm-names.json")
+        let catalog = try A2UICatalog(json: ConformanceTests.load(c["catalog"]!.string!))
+        guard case .success(let surfaces) = A2UI.resolve(c["messages"]!, catalog: catalog, label: label), let node = surfaces.first?.1 else { throw A2UIProblems(problems: []) }
+        return try #require(node.children.first { $0.id == "named" })
+    }
+
+    /// The confirm sheet of `share`, as `consequentialConfirmation` draws it, in light or dark.
+    func confirmSheet(_ share: A2UINode, dark: Bool) throws {
+        let confirm = try #require(share.props["confirm"])
+        let style = OuroHXStyle(theme: OuroTokens.pearl, scheme: dark ? .dark : .light)
+        let view = OuroSheetBody(title: confirm["title"]?.string ?? "", description: confirm["description"]?.string, hideTitle: false, detents: nil, closeLabel: "Close", close: {}) {
+            EmptyView()
+        } footer: {
+            VStack(spacing: 20) {
+                A2UIConfirmFields(fields: confirm["fields"]?.array ?? [])
+                OuroButton(share.text("label"), fullWidth: true) {}
+            }
+        }
+        .padding(16)
+        .frame(width: Self.width, height: 300, alignment: .top)
+        .background(Color(OuroSheetPalette(style: style).surface))
+        .ouroTheme(.pearl)
+        .environment(\.colorScheme, dark ? .dark : .light)
+        try capture(view, "named-confirm-share-\(dark ? "dark" : "light")", appearance: dark ? .dark : .light)
+    }
+
+    @Test func namedConfirmationLight() throws { try confirmSheet(Self.namedShare(), dark: false) }
+    @Test func namedConfirmationDark() throws { try confirmSheet(Self.namedShare(), dark: true) }
+
+    @Test func aConfirmRowShowsTheNameWithTheIdBesideIt() throws {
+        let fields = try #require(Self.namedShare().props["confirm"]?["fields"]?.array)
+        #expect(fields.first?["value"]?.string == "Lemon orzo")
+        #expect(fields.first?["raw"]?.string == "rcp_lemon_orzo")
+        #expect(fields.count == 2)
+        // The row a person reads: the name, then the id.
+        #expect(A2UIConfirmFields.spoken(fields[0]) == "Recipe, Lemon orzo, rcp_lemon_orzo")
+        #expect(A2UIConfirmFields.spoken(fields[1]) == "Send to, sam@example.com")
+    }
+
+    @Test func theAppsOwnNameWinsOverTheAgents() throws {
+        let share = try Self.namedShare(label: { $0.field == "recipe" ? "Mine: \($0.value)" : nil })
+        let first = try #require(share.props["confirm"]?["fields"]?.array?.first)
+        #expect(first["value"]?.string == "Mine: rcp_lemon_orzo")
+        #expect(first["raw"]?.string == "rcp_lemon_orzo")
     }
 }
 

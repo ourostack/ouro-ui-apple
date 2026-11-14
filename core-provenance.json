@@ -1,12 +1,12 @@
 {
-  "coreTag": "v0.4.0",
+  "coreTag": "v0.8.0",
   "files": {
-    "Sources/OuroHX/Tokens/OuroTokens.swift": "137b131097c2d75ae7fe0d9ad270cb8f117dd5c11cac391964f2e0717fcaf2b2",
+    "Sources/OuroHX/Tokens/OuroTokens.swift": "bcb4bbfe030f8f8f30dcd6f724b05f7c4066fd1fea3087c22a5acffc13cdf05e",
     "Sources/OuroAXTesting/Resources/apple.claims.json": "4216bfdce2983fb95a722b208cdb944315e87d5b8b5b7d0056b8edcb2208254d",
     "Sources/OuroHXTesting/Resources/components.claims.json": "0da8e34c5044add8e120d4e1265e6bfac0b53941ad9b8a9b5c5bcb4a19e1d31e"
   },
   "tree": {
-    "coreTag": "v0.7.1",
+    "coreTag": "v0.8.0",
     "files": {
       "Tests/OuroA2UITests/Conformance/cases/action-buttons.json": {
         "from": "standard/hx/a2ui/conformance/cases/action-buttons.json",
@@ -50,11 +50,11 @@
       },
       "Tests/OuroA2UITests/Conformance/catalog.json": {
         "from": "standard/hx/a2ui/catalog.json",
-        "sha256": "e2cb57bd32388d5e4da377938ab70fbc0358bc54601526d355ba7884ab5e04aa"
+        "sha256": "af1437ba65e08ca894f9a5f5eeb53facba57e4d2c577851043172ca1c4c485e7"
       },
       "Tests/OuroA2UITests/Conformance/recipe.catalog.json": {
         "from": "standard/hx/a2ui/conformance/recipe.catalog.json",
-        "sha256": "34b904855cdcb054036f910c1b37fdd13a8875bbf3bdd960983a3f3fec0a8c48"
+        "sha256": "a67ed6c2227989456dc190fbea5e882e60b3150c3aa81ca5bd53637151e6613f"
       }
     }
   }

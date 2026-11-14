@@ -57,14 +57,14 @@ private var linePairs: [(String, KeyPath<OuroColors, Color>, KeyPath<OuroColors,
 @Suite struct ThemeTests {
     @Test func radiiFollowWebsScale() {
         let pearl = OuroTokens.pearl
-        #expect(pearl.radius == 12)
-        #expect(abs(pearl.radius(.sm) - 7.2) < 1e-9)
-        #expect(abs(pearl.radius(.md) - 9.6) < 1e-9)
-        #expect(pearl.radius(.lg) == 12)
-        #expect(abs(pearl.radius(.xl) - 16.8) < 1e-9)
-        #expect(abs(pearl.radius(.xl2) - 21.6) < 1e-9)
-        #expect(abs(pearl.radius(.xl3) - 26.4) < 1e-9)
-        #expect(abs(pearl.radius(.xl4) - 31.2) < 1e-9)
+        #expect(pearl.radius == 18)
+        #expect(abs(pearl.radius(.sm) - 10.8) < 1e-9)
+        #expect(abs(pearl.radius(.md) - 14.4) < 1e-9)
+        #expect(pearl.radius(.lg) == 18)
+        #expect(abs(pearl.radius(.xl) - 25.2) < 1e-9)
+        #expect(abs(pearl.radius(.xl2) - 32.4) < 1e-9)
+        #expect(abs(pearl.radius(.xl3) - 39.6) < 1e-9)
+        #expect(abs(pearl.radius(.xl4) - 46.8) < 1e-9)
     }
 
     @Test func colorsFollowSchemeAndContrast() {

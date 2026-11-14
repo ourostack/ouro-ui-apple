@@ -377,3 +377,18 @@ Ouro MD (`DocumentStatusBar`) draw by hand, three of the eight hand-rolled banne
   moves the page. With `onRetry` that is Retry's 44 points.
 - **Not yet:** web moves focus to the line when Retry goes away while focused; SwiftUI has no focus to lose there,
   as VoiceOver stays on the line's position.
+
+## OuroPageHeader (2026-11-14)
+
+Sixth in the 1.0 order: seven hand-drawn section headers and mastheads, all in Spoonjoy.
+
+- **Web's API.** `title`, `eyebrow`, `description`, `actions`, `media`, more content under the description (web's
+  `children`), `level` (1 or 2), `size` (`md` or `lg`) and `divider` (`OuroPageHeaderMetrics`). Web's `breadcrumb`
+  isn't here: Apple's navigation stack already shows where a page sits.
+- **The title is a heading** at web's level (`accessibilityHeading(.h1)` or `.h2`), so VoiceOver's rotor finds it
+  (`name.spoken`, `theTitleIsAHeadingAtItsLevel`).
+- **Actions beside the title where they fit, under it where they don't**, with SwiftUI's `ViewThatFits`, and always
+  under it at the accessibility sizes, as web moves them under the title on phones. On an iPad or a Mac the header
+  uses the width; on an iPhone at large sizes the title keeps it (`text.reflows`, `aPageHeaderReflows`).
+- **Colours.** Title and description as web; the eyebrow is the theme's primary, raised to 5:1 (7:1) like the rest
+  (`pageHeaderTextReadsInEveryThemeAndMode`).

@@ -126,6 +126,24 @@ import Testing
         }
     }
 
+    /// Segmented controls (hugging and full width) and checkboxes: checked, mixed, with a description and an error.
+    @Test(arguments: Mode.allCases) func choices(_ mode: Mode) throws {
+        try check("choices", mode) {
+            VStack(alignment: .leading, spacing: 16) {
+                OuroSegmentedControl("View", selection: .constant("list"), hideLabel: true, items: [
+                    OuroSegment("List", value: "list"), OuroSegment("Grid", value: "grid"), OuroSegment("Board", value: "board", disabled: true),
+                ])
+                OuroSegmentedControl("Units", selection: .constant("us"), fullWidth: true, items: [
+                    OuroSegment("Metric", value: "metric"), OuroSegment("US", value: "us"),
+                ])
+                OuroCheckbox("Whole basket", isOn: .constant(false), indeterminate: true)
+                OuroCheckbox("Lemons", isOn: .constant(true))
+                OuroCheckbox("Email me new recipes", isOn: .constant(false), description: "One a week, on Sundays.")
+                OuroCheckbox("I agree to the terms", isOn: .constant(false), error: "Agree to the terms to continue.", required: true)
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

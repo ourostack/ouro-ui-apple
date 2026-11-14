@@ -361,3 +361,24 @@ Third in the 1.0 order: rows are the job our apps hand-roll most (17 views, Spoo
   Increase Contrast (`itemTextReadsInEveryThemeAndMode`).
 - **Not yet:** web's `ItemGroup` `empty` and `ordered`. A2UI's catalog `List` is a list of strings, so `OuroA2UI`
   keeps drawing it as text. Core's `appliesTo` doesn't list `item` yet.
+
+## OuroSegmentedControl and OuroCheckbox (2026-11-14)
+
+The first two controls that hold a value, ninth and tenth in the 1.0 order.
+
+- **Segmented control.** Drawn, not SwiftUI's `.segmented` picker, because the system's is 32 points tall on iPhone
+  and core's `target.touch` asks 44 (web's segments are 44 to touch, 36 with a pointer, and so are these). Web's
+  `label`, `hideLabel`, `items` (`OuroSegment(label, value:, disabled:)`), `fullWidth`; the value is any `Hashable`
+  through a binding. Segments are as wide as the longest label (or share the width with `fullWidth`); the thumb is
+  the page's colour on the muted track (web's 16% foreground mix in dark) and slides on the `layout` spring, or
+  crossfades under Reduce Motion; a selection haptic plays. Under Increase Contrast the thumb gets a 3:1 edge so the
+  pressed segment never rests on a shadow. At the accessibility sizes the segments stack. VoiceOver hears the label,
+  then each segment as a button, the pressed one selected; web's radio group has no SwiftUI equivalent.
+- **Checkbox.** Drawn too: iOS has no checkbox. Web's `label`, `hideLabel`, `description`, `error`, `required` and
+  `indeterminate`; `disabled` is SwiftUI's `.disabled(_:)`. The box is web's 20 points to touch and 16 with a pointer,
+  the whole row its 44-point target. Checking fills the box, then draws web's tick along its path over core's `draw`
+  duration after `fast`; under Reduce Motion it fades. Its empty edge, its fill and its tick are graphics, so they
+  reach 3:1 (WCAG 1.4.11); its words reach 5:1. VoiceOver hears the label (", required"), the state as its value
+  ("Checked", "Not checked", "Mixed") with the toggle trait, and the error then the description as its hint.
+- **Not yet:** web's `CheckboxGroup` (a labelled group with one error), `readOnly`, and form `name`/`value`, which
+  have no SwiftUI form to submit to.

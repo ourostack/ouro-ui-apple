@@ -9,10 +9,11 @@ import Testing
     static let proofs: [String: [String]] = [
         "target.touch": [
             "Tests/OuroHXTests/ComponentTests.swift: TouchTargetTests",
+            "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryControlIs44Points",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
         ],
-        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests"],
+        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests", "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests"],
         "name.spoken": [
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testVoiceOverLabels",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
@@ -23,6 +24,7 @@ import Testing
             "Tests/OuroHXTests/ComponentTests.swift: BadgeMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: CardMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: ItemMetricsTests",
+            "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests",
         ],
         "contrast.text": [
             "Tests/OuroHXTests/ComponentTests.swift: ContrastTests",

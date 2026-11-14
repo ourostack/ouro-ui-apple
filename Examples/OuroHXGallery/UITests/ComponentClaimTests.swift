@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "choices", "empty", "banners", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -138,6 +138,20 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.buttons["Cook"].exists, "items: the row's action is not its own button")
         XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
+        app.terminate()
+        app = launch("choices")
+        // A segment is a button, the pressed one selected; a checkbox says its name, its state, and changes it.
+        let grid = app.buttons["Grid"]
+        XCTAssertTrue(grid.exists, "choices: no Grid segment")
+        XCTAssertTrue(app.buttons["List"].isSelected, "choices: the pressed segment is not selected")
+        grid.tap()
+        XCTAssertTrue(grid.isSelected, "choices: pressing a segment does not select it")
+        let terms = app.descendants(matching: .any)["I agree to the terms, required"]
+        XCTAssertTrue(terms.exists, "choices: the checkbox is not named with required")
+        XCTAssertEqual(terms.value as? String, "Not checked", "choices: the checkbox's value is \(String(describing: terms.value))")
+        terms.tap()
+        XCTAssertEqual(terms.value as? String, "Checked", "choices: checking does not check")
+        XCTAssertEqual(app.descendants(matching: .any)["Whole basket"].value as? String, "Mixed", "choices: a partial select-all is not mixed")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

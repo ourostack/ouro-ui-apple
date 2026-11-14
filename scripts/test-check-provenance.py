@@ -47,6 +47,9 @@ def check(name, ok):
 
 cp.time.sleep = lambda s: None
 
+check("a tree file pinned at its own tag uses it", cp.tree_tag({"coreTag": "v0.13.0", "from": "x", "sha256": "y"}, "v0.9.0") == "v0.13.0")
+check("a tree file without one uses the section's tag", cp.tree_tag({"from": "x", "sha256": "y"}, "v0.9.0") == "v0.9.0")
+
 cp.urllib.request.urlopen, calls = scripted(http(504), b"data")
 check("a 504 then an answer returns the answer", cp.fetch("https://example.invalid/u") == b"data" and len(calls) == 2)
 

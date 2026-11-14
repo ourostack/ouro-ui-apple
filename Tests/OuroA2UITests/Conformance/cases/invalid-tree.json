@@ -1,0 +1,100 @@
+{
+  "description": "A missing child, a bad id, a wrong enum, a function call and a missing required prop.",
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "children": [
+              "title",
+              "nowhere",
+              "shop"
+            ]
+          },
+          {
+            "id": "title",
+            "component": "Heading",
+            "text": {
+              "@call": "formatString",
+              "args": {
+                "value": "x"
+              }
+            },
+            "level": 4
+          },
+          {
+            "id": "shop",
+            "component": "ActionButton",
+            "action": "add_recipe_to_shopping_list",
+            "input": {
+              "servings": "four"
+            }
+          },
+          {
+            "id": "bad-id",
+            "component": "Badge",
+            "tone": "loud"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "problems": [
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/1/text",
+        "message": "This catalog has no functions; bind to the data model with {\"@path\"} or give the value."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/1/level",
+        "message": "level is 1, 2 or 3, got 4."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/2/input/servings",
+        "message": "Servings is an integer, got \"four\"."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/2/input",
+        "message": "add_recipe_to_shopping_list needs recipe (Recipe) prepared before the person can press it."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/3/id",
+        "message": "id \"bad-id\" is not an identifier: letters, digits and _, not starting with a digit (user_card, not user-card)."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/3/text",
+        "message": "Badge needs text: One to three words."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/3/tone",
+        "message": "tone is one of neutral, info, success, warning, danger, got \"loud\"."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/0/children/1",
+        "message": "No component has id nowhere."
+      }
+    ]
+  }
+}

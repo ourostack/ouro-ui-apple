@@ -1,0 +1,202 @@
+{
+  "description": "A list template over the data model with relative and absolute paths, a bound List and a bound DescriptionList.",
+  "catalog": "catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "plan",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/catalog.json"
+      }
+    },
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "plan",
+        "components": [
+          {
+            "id": "root",
+            "component": "Stack",
+            "gap": "large",
+            "children": {
+              "componentId": "day",
+              "path": "/days"
+            }
+          },
+          {
+            "id": "day",
+            "component": "Card",
+            "children": [
+              "day_name",
+              "meals",
+              "facts"
+            ]
+          },
+          {
+            "id": "day_name",
+            "component": "Heading",
+            "text": {
+              "@path": "name"
+            },
+            "level": 2
+          },
+          {
+            "id": "meals",
+            "component": "List",
+            "items": {
+              "@path": "meals"
+            },
+            "ordered": true
+          },
+          {
+            "id": "facts",
+            "component": "DescriptionList",
+            "items": [
+              {
+                "term": "Cook",
+                "detail": {
+                  "@path": "cook"
+                }
+              },
+              {
+                "term": "Week",
+                "detail": {
+                  "@path": "/week"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.0",
+      "updateDataModel": {
+        "surfaceId": "plan",
+        "value": {
+          "week": "Week 46",
+          "days": [
+            {
+              "name": "Monday",
+              "meals": [
+                "Oats",
+                "Lentil soup"
+              ],
+              "cook": "Sam"
+            },
+            {
+              "name": "Tuesday",
+              "meals": [
+                "Toast"
+              ],
+              "cook": "Ana"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "surfaces": {
+      "plan": {
+        "id": "root",
+        "component": "Stack",
+        "props": {
+          "direction": "vertical",
+          "gap": "large"
+        },
+        "children": [
+          {
+            "id": "day",
+            "component": "Card",
+            "props": {},
+            "children": [
+              {
+                "id": "day_name",
+                "component": "Heading",
+                "props": {
+                  "text": "Monday",
+                  "level": 2
+                },
+                "children": []
+              },
+              {
+                "id": "meals",
+                "component": "List",
+                "props": {
+                  "items": [
+                    "Oats",
+                    "Lentil soup"
+                  ],
+                  "ordered": true
+                },
+                "children": []
+              },
+              {
+                "id": "facts",
+                "component": "DescriptionList",
+                "props": {
+                  "items": [
+                    {
+                      "term": "Cook",
+                      "detail": "Sam"
+                    },
+                    {
+                      "term": "Week",
+                      "detail": "Week 46"
+                    }
+                  ]
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": "day",
+            "component": "Card",
+            "props": {},
+            "children": [
+              {
+                "id": "day_name",
+                "component": "Heading",
+                "props": {
+                  "text": "Tuesday",
+                  "level": 2
+                },
+                "children": []
+              },
+              {
+                "id": "meals",
+                "component": "List",
+                "props": {
+                  "items": [
+                    "Toast"
+                  ],
+                  "ordered": true
+                },
+                "children": []
+              },
+              {
+                "id": "facts",
+                "component": "DescriptionList",
+                "props": {
+                  "items": [
+                    {
+                      "term": "Cook",
+                      "detail": "Ana"
+                    },
+                    {
+                      "term": "Week",
+                      "detail": "Week 46"
+                    }
+                  ]
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

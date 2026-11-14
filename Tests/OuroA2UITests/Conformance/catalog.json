@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ui.ouroboros.bot/a2ui/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "Ouro HX catalog",
+  "description": "Ouro HX's components for UI an agent composes for a person.",
+  "catalogId": "https://ui.ouroboros.bot/a2ui/v1/catalog.json",
+  "instructions": "Ouro HX for agent-composed UI. Compose for a person reading on a phone: one Card per thing, a Heading first, then what they need to decide, then at most one primary ActionButton.\n\n- Use only these components. Styling comes from the app's theme; there are no colours, sizes or fonts to set.\n- Component ids are identifiers: letters, digits and _, starting with a letter (recipe_name, not recipe-name). The root's id is root.\n- Put content in the data model and bind to it with {\"@path\": \"/...\"}; repeat a template over a list with children: {\"componentId\", \"path\"}.\n- Every Image needs a description of what it shows.\n- ActionButton is the only button. Name one of the app's actions; its label is the action's. Prepare its input from what the person said. For a consequential action the person sees and confirms what you prepared; a person-only action takes the person to the app's own screen, so give it no input.\n- This catalog has no functions. To act for the person, call the action's own tool (MCP, CLI); never try to press a button.",
+  "metadata": {
+    "extensions": {
+      "bot_ouroboros_hx": {
+        "generator": "ouro-a2ui 0.7.1"
+      }
+    }
+  },
+  "components": {
+    "Card": {
+      "type": "object",
+      "description": "A raised surface that groups one thing's content; its children stack vertically.",
+      "properties": {
+        "component": {
+          "const": "Card"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList",
+          "description": "What the card holds, top to bottom."
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    },
+    "Stack": {
+      "type": "object",
+      "description": "Lays children out in a column or a row with HX spacing.",
+      "properties": {
+        "component": {
+          "const": "Stack"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList",
+          "description": "What the stack holds, in order."
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "vertical",
+            "horizontal"
+          ],
+          "default": "vertical",
+          "description": "vertical stacks top to bottom; horizontal lays out a row that wraps."
+        },
+        "gap": {
+          "type": "string",
+          "enum": [
+            "none",
+            "small",
+            "medium",
+            "large"
+          ],
+          "default": "medium",
+          "description": "Space between children, from HX's spacing scale."
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    },
+    "Heading": {
+      "type": "object",
+      "description": "A title. Level 1 is a card's or page's title, 2 a section, 3 a subsection.",
+      "properties": {
+        "component": {
+          "const": "Heading"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The heading's words."
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 2,
+          "description": "1, 2 or 3."
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ]
+    },
+    "Text": {
+      "type": "object",
+      "description": "A paragraph of plain text.",
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The words, plain text without Markdown."
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "default",
+            "muted"
+          ],
+          "default": "default",
+          "description": "muted for secondary text such as a byline or a note."
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ]
+    },
+    "Image": {
+      "type": "object",
+      "description": "A picture with a description for people who can't see it.",
+      "properties": {
+        "component": {
+          "const": "Image"
+        },
+        "url": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The image's https URL."
+        },
+        "description": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "What the picture shows, for a screen reader; never \"image of\"."
+        },
+        "aspect": {
+          "type": "string",
+          "enum": [
+            "landscape",
+            "square",
+            "portrait",
+            "wide"
+          ],
+          "default": "landscape",
+          "description": "The frame's shape; the picture fills it."
+        }
+      },
+      "required": [
+        "component",
+        "url",
+        "description"
+      ]
+    },
+    "Badge": {
+      "type": "object",
+      "description": "A short label for a status or a category, such as \"Vegetarian\".",
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "One to three words."
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "neutral",
+            "info",
+            "success",
+            "warning",
+            "danger"
+          ],
+          "default": "neutral",
+          "description": "neutral unless the label is a status."
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ]
+    },
+    "List": {
+      "type": "object",
+      "description": "A list of short plain-text items, such as ingredients or steps.",
+      "properties": {
+        "component": {
+          "const": "List"
+        },
+        "items": {
+          "$ref": "common_types.json#/$defs/DynamicStringList",
+          "description": "The items, in order."
+        },
+        "ordered": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "true numbers the items, for steps that happen in order."
+        }
+      },
+      "required": [
+        "component",
+        "items"
+      ]
+    },
+    "DescriptionList": {
+      "type": "object",
+      "description": "Pairs of a term and its detail, such as \"Time\" and \"25 min\".",
+      "properties": {
+        "component": {
+          "const": "DescriptionList"
+        },
+        "items": {
+          "$ref": "#/$defs/TermList",
+          "description": "The pairs, each { term, detail }."
+        }
+      },
+      "required": [
+        "component",
+        "items"
+      ]
+    },
+    "Separator": {
+      "type": "object",
+      "description": "A hairline between groups of content.",
+      "properties": {
+        "component": {
+          "const": "Separator"
+        }
+      },
+      "required": [
+        "component"
+      ]
+    },
+    "Alert": {
+      "type": "object",
+      "description": "A message the person should notice: a warning, an error, a success or information.",
+      "properties": {
+        "component": {
+          "const": "Alert"
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "One line saying what happened."
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "What to do about it, if anything."
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "info",
+            "success",
+            "warning",
+            "danger"
+          ],
+          "default": "info",
+          "description": "How serious it is."
+        }
+      },
+      "required": [
+        "component",
+        "title"
+      ]
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Card"
+        },
+        {
+          "$ref": "#/components/Stack"
+        },
+        {
+          "$ref": "#/components/Heading"
+        },
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/Image"
+        },
+        {
+          "$ref": "#/components/Badge"
+        },
+        {
+          "$ref": "#/components/List"
+        },
+        {
+          "$ref": "#/components/DescriptionList"
+        },
+        {
+          "$ref": "#/components/Separator"
+        },
+        {
+          "$ref": "#/components/Alert"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "description": "This catalog has no functions.",
+      "not": {}
+    },
+    "TermList": {
+      "description": "Term and detail pairs, or a binding to a list of them.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "term": {
+                "$ref": "common_types.json#/$defs/DynamicString"
+              },
+              "detail": {
+                "$ref": "common_types.json#/$defs/DynamicString"
+              }
+            },
+            "required": [
+              "term",
+              "detail"
+            ],
+            "additionalProperties": false
+          }
+        },
+        {
+          "$ref": "common_types.json#/$defs/DataBinding"
+        }
+      ]
+    }
+  }
+}

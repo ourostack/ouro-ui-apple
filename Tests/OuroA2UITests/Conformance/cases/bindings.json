@@ -1,0 +1,121 @@
+{
+  "description": "Inline components and data in createSurface; literal values and @path bindings; defaults filled in.",
+  "catalog": "catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "note",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/catalog.json",
+        "dataModel": {
+          "title": "Pantry check",
+          "count": 3,
+          "ok": true
+        },
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "children": [
+              "title",
+              "body",
+              "status",
+              "rule",
+              "note"
+            ]
+          },
+          {
+            "id": "title",
+            "component": "Heading",
+            "text": {
+              "@path": "/title"
+            },
+            "level": 1
+          },
+          {
+            "id": "body",
+            "component": "Text",
+            "text": {
+              "@path": "/count"
+            }
+          },
+          {
+            "id": "status",
+            "component": "Badge",
+            "text": "Stocked",
+            "tone": "success",
+            "@accessibility": {
+              "label": "Pantry is stocked"
+            }
+          },
+          {
+            "id": "rule",
+            "component": "Separator"
+          },
+          {
+            "id": "note",
+            "component": "Text",
+            "text": {
+              "@path": "/missing"
+            },
+            "tone": "muted"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "surfaces": {
+      "note": {
+        "id": "root",
+        "component": "Card",
+        "props": {},
+        "children": [
+          {
+            "id": "title",
+            "component": "Heading",
+            "props": {
+              "text": "Pantry check",
+              "level": 1
+            },
+            "children": []
+          },
+          {
+            "id": "body",
+            "component": "Text",
+            "props": {
+              "text": "3",
+              "tone": "default"
+            },
+            "children": []
+          },
+          {
+            "id": "status",
+            "component": "Badge",
+            "props": {
+              "text": "Stocked",
+              "tone": "success",
+              "@label": "Pantry is stocked"
+            },
+            "children": []
+          },
+          {
+            "id": "rule",
+            "component": "Separator",
+            "props": {},
+            "children": []
+          },
+          {
+            "id": "note",
+            "component": "Text",
+            "props": {
+              "text": "",
+              "tone": "muted"
+            },
+            "children": []
+          }
+        ]
+      }
+    }
+  }
+}

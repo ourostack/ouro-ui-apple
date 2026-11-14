@@ -3,7 +3,7 @@
 set -eu
 out="${1:-.build/docc}"
 mkdir -p "$out"
-for scheme in OuroHX OuroHXTesting OuroAX OuroAXTesting OuroFeel OuroFeelCore OuroReins; do
+for scheme in OuroHX OuroHXTesting OuroAX OuroAXTesting OuroFeel OuroFeelCore OuroReins OuroA2UI; do
   log=".build/docc-$scheme.log"
   if ! xcodebuild docbuild -scheme "$scheme" -destination 'generic/platform=macOS' -derivedDataPath .build/docc-dd > "$log" 2>&1; then
     tail -40 "$log"

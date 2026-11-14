@@ -1,0 +1,148 @@
+{
+  "description": "Progressive updates: a component replaced in full, a data path written and one deleted, a bound DescriptionList and a second surface deleted.",
+  "catalog": "catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "timer",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/catalog.json",
+        "dataModel": {
+          "facts": [
+            {
+              "term": "Oven",
+              "detail": "200 C"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "scratch",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/catalog.json"
+      }
+    },
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "timer",
+        "components": [
+          {
+            "id": "root",
+            "component": "Stack",
+            "direction": "horizontal",
+            "gap": "small",
+            "children": [
+              "state",
+              "facts"
+            ]
+          },
+          {
+            "id": "state",
+            "component": "Alert",
+            "title": "Preheating"
+          },
+          {
+            "id": "facts",
+            "component": "DescriptionList",
+            "items": {
+              "@path": "/facts"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "scratch",
+        "components": [
+          {
+            "id": "root",
+            "component": "Text",
+            "text": "gone soon"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.0",
+      "updateDataModel": {
+        "surfaceId": "timer",
+        "path": "/facts/1",
+        "value": {
+          "term": "Timer",
+          "detail": "12 min"
+        }
+      }
+    },
+    {
+      "version": "1.0",
+      "updateDataModel": {
+        "surfaceId": "timer",
+        "path": "/facts/0",
+        "value": null
+      }
+    },
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "timer",
+        "components": [
+          {
+            "id": "state",
+            "component": "Alert",
+            "title": "Ready",
+            "text": "Put the tray in.",
+            "tone": "success"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.0",
+      "deleteSurface": {
+        "surfaceId": "scratch"
+      }
+    }
+  ],
+  "expect": {
+    "surfaces": {
+      "timer": {
+        "id": "root",
+        "component": "Stack",
+        "props": {
+          "direction": "horizontal",
+          "gap": "small"
+        },
+        "children": [
+          {
+            "id": "state",
+            "component": "Alert",
+            "props": {
+              "title": "Ready",
+              "text": "Put the tray in.",
+              "tone": "success"
+            },
+            "children": []
+          },
+          {
+            "id": "facts",
+            "component": "DescriptionList",
+            "props": {
+              "items": [
+                {
+                  "term": "Timer",
+                  "detail": "12 min"
+                }
+              ]
+            },
+            "children": []
+          }
+        ]
+      }
+    }
+  }
+}

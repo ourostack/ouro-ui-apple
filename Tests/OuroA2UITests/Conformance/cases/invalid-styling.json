@@ -1,0 +1,40 @@
+{
+  "description": "No theme and no styling props: HX's theme styles the surface.",
+  "catalog": "catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/catalog.json",
+        "theme": {
+          "primaryColor": "#ff0000"
+        },
+        "components": [
+          {
+            "id": "root",
+            "component": "Text",
+            "text": "Hi",
+            "color": "#ff0000"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "problems": [
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/theme",
+        "message": "A2UI v1.0 has no theme; the app's HX theme styles the surface."
+      },
+      {
+        "code": "VALIDATION_FAILED",
+        "surfaceId": "s",
+        "path": "/0/createSurface/components/0/color",
+        "message": "Text has no color; its props are text, tone."
+      }
+    ]
+  }
+}

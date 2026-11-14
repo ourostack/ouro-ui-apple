@@ -1,0 +1,72 @@
+{
+  "description": "An agent calling an action through the screen is refused: it uses the action's own tool, and a person-only action answers with the typed refusal.",
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "callRendererFunction": {
+        "functionCallId": "c1",
+        "callFunction": {
+          "@call": "add_recipe_to_shopping_list",
+          "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+          "args": {
+            "recipe": "rcp_123"
+          }
+        }
+      }
+    },
+    {
+      "version": "1.0",
+      "callRendererFunction": {
+        "functionCallId": "c2",
+        "callFunction": {
+          "@call": "order_ingredients",
+          "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "problems": [
+      {
+        "code": "INVALID_FUNCTION_CALL",
+        "functionCallId": "c1",
+        "path": "/0/callRendererFunction/callFunction",
+        "message": "add_recipe_to_shopping_list is an action, and agents run actions through their own tool (MCP add_recipe_to_shopping_list), not through the person's screen."
+      },
+      {
+        "code": "INVALID_FUNCTION_CALL",
+        "functionCallId": "c2",
+        "path": "/1/callRendererFunction/callFunction",
+        "message": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
+        "refusal": {
+          "ax": "outcome/1",
+          "action": "recipe order",
+          "effect": "private",
+          "audience": {
+            "only": true,
+            "who": "only you"
+          },
+          "target": null,
+          "state": "refused",
+          "summary": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
+          "postcondition": {
+            "checked": false,
+            "holds": null,
+            "how": "not checked"
+          },
+          "receipt": null,
+          "next": [],
+          "error": {
+            "code": "person-only",
+            "exit": 2,
+            "thing": "recipe order",
+            "problem": "You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app",
+            "fix": null,
+            "message": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app."
+          }
+        }
+      }
+    ]
+  }
+}

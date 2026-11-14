@@ -58,7 +58,8 @@ SUITES = {
                           "ComponentClaimTests/testATallSheetOpensAtItsTopAtTheLargestSize": 17.5,
                           "ComponentClaimTests/testAToastWithAnActionWaits": 16.6,
                           "FeelTests/testAToastStackArrivesWithoutJumpsGhostsOrALongSettle": 11.0},
-                "pages": {"empty": 39.2, "banners": 35.0}},
+                # badges: not measured yet; banners' time, a page of the same size, until a run measures it.
+                "pages": {"empty": 39.2, "banners": 35.0, "badges": 35.0}},
         },
     },
     "feel": {

@@ -132,6 +132,31 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
 // MARK: contrast.text
 
+@Suite struct BadgeMetricsTests {
+    /// Web's defaults: `tone="secondary"`, `variant="solid"`.
+    @Test func aBadgeDefaultsToWebsSecondarySolid() {
+        #expect(OuroBadgeMetrics.defaultTone == .secondary)
+        #expect(OuroBadgeMetrics.defaultVariant == .solid)
+    }
+
+    /// Web's `h-6 px-2 rounded-md`: at least 24 points tall at the default size, 8 at the sides, the theme's `md`
+    /// corner. It is a label, not a control, so it has no 44-point target; a pressable chip is an `OuroButton`.
+    @Test func aBadgeHasWebsMetrics() {
+        #expect(OuroBadgeMetrics.minimumHeight == 24)
+        #expect(OuroBadgeMetrics.horizontalPadding == 8)
+        #expect(OuroBadgeMetrics.radius == .md)
+    }
+
+    /// Core claim `text.reflows`: a badge wraps at the accessibility sizes rather than truncating, as web's
+    /// `whitespace-nowrap` would.
+    @Test func aBadgeWrapsAtTheAccessibilitySizes() {
+        #expect(OuroBadgeMetrics.lineLimit(for: .large) == 1)
+        #expect(OuroBadgeMetrics.lineLimit(for: .xxxLarge) == 1)
+        #expect(OuroBadgeMetrics.lineLimit(for: .accessibility1) == nil)
+        #expect(OuroBadgeMetrics.lineLimit(for: .accessibility5) == nil)
+    }
+}
+
 @Suite struct ContrastTests {
     /// Your own text on a theme surface reads at the components' target: muted text on a card, in every theme and mode.
     @Test func yourOwnTextReadsAtTheComponentsTarget() {
@@ -336,6 +361,41 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
                 #expect(ratio(p.action, p.surface) >= OuroColor.increasedTextContrast, "\(name) \(tone) action")
                 #expect(ratio(p.divider, p.surface) > 1, "\(name) \(tone) divider")
             }
+        }
+    }
+
+    /// A badge's words and icon read on its own fill, in every tone, variant, theme and mode.
+    @Test(arguments: OuroBadgeVariant.allCases)
+    func everyBadgeLabelReadsOnItsFillInEveryThemeAndMode(variant: OuroBadgeVariant) {
+        for (name, style) in styles {
+            for tone in OuroTone.allCases {
+                let p = OuroBadgePalette(tone: tone, variant: variant, style: style)
+                #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(tone) \(variant): \(ratio(p.label, p.surface))")
+            }
+        }
+    }
+
+    /// A badge is drawn as a button of the same tone and variant is, so a badge beside a button reads as one family.
+    @Test func aBadgeTakesTheButtonsColours() {
+        for (name, style) in styles {
+            for tone in OuroTone.allCases {
+                for (badge, button) in [(OuroBadgeVariant.solid, OuroButtonVariant.solid), (.soft, .soft), (.outline, .outline)] {
+                    let b = OuroBadgePalette(tone: tone, variant: badge, style: style)
+                    let k = OuroButtonPalette(tone: tone, variant: button, style: style)
+                    #expect(b.label == k.label && b.fill == k.fill && b.border == k.border && b.surface == k.surface, "\(name) \(tone) \(badge)")
+                }
+            }
+        }
+    }
+
+    /// Only an outline badge has a border; solid and soft are fills.
+    @Test func onlyAnOutlineBadgeHasABorder() {
+        let style = OuroHXStyle(theme: OuroTokens.pearl, scheme: .light)
+        for tone in OuroTone.allCases {
+            #expect(OuroBadgePalette(tone: tone, variant: .outline, style: style).border != nil)
+            #expect(OuroBadgePalette(tone: tone, variant: .outline, style: style).fill == nil)
+            #expect(OuroBadgePalette(tone: tone, variant: .solid, style: style).border == nil)
+            #expect(OuroBadgePalette(tone: tone, variant: .soft, style: style).border == nil)
         }
     }
 

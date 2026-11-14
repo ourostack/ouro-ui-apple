@@ -146,6 +146,88 @@ private struct Flow: Layout {
     }
 }
 
+/// Every tone in every variant, then badges where an app puts them: beside a recipe's title and time, as Spoonjoy's
+/// and Gatefold's hand-drawn chips do.
+struct BadgesPage: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            ForEach(OuroBadgeVariant.allCases, id: \.self) { variant in
+                OuroBadgeFlow {
+                    ForEach(OuroTone.allCases, id: \.self) { tone in
+                        OuroBadge(tone.rawValue.capitalized, tone: tone, variant: variant)
+                    }
+                }
+                .accessibilityIdentifier("badges.\(variant.rawValue)")
+            }
+            VStack(alignment: .leading, spacing: 14) {
+                recipe("Lemon orzo with peas", minutes: 25) {
+                    OuroBadge("Vegan", systemImage: "leaf", tone: .success, variant: .soft)
+                    OuroBadge("New", tone: .primary)
+                }
+                Divider()
+                recipe("Braised short ribs", minutes: 240) {
+                    OuroBadge("Weekend", variant: .outline)
+                    OuroBadge("Oven runs hot", systemImage: "flame", tone: .warning, variant: .soft)
+                }
+                Divider()
+                recipe("Saffron buns", minutes: 90) {
+                    OuroBadge("3 unread", tone: .destructive)
+                }
+            }
+        }
+    }
+
+    private func recipe(_ title: String, minutes: Int, @ViewBuilder badges: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.headline)
+            OuroBadgeFlow {
+                OuroBadge("\(minutes) min", systemImage: "timer")
+                badges()
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Lays badges out in a row that wraps, as they do under a title at large text sizes.
+struct OuroBadgeFlow: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(proposal.width ?? .infinity, subviews)
+        return CGSize(width: rows.map(\.width).max() ?? 0, height: rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(bounds.width, subviews) {
+            var x = bounds.minX
+            for i in row.items {
+                let size = subviews[i].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+                subviews[i].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: min(size.width, bounds.width), height: size.height))
+                x += min(size.width, bounds.width) + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func arrange(_ width: CGFloat, _ subviews: Subviews) -> [Row] {
+        var rows = [Row()]
+        for i in subviews.indices {
+            let size = subviews[i].sizeThatFits(ProposedViewSize(width: width, height: nil))
+            let w = min(size.width, width)
+            if !rows[rows.count - 1].items.isEmpty, rows[rows.count - 1].width + spacing + w > width { rows.append(Row()) }
+            let gap = rows[rows.count - 1].items.isEmpty ? 0 : spacing
+            rows[rows.count - 1].items.append(i)
+            rows[rows.count - 1].width += gap + w
+            rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
+        }
+        return rows
+    }
+}
+
 struct EmptyStatesPage: View {
     @Environment(\.ouroToast) private var toast
     @State private var shown = demo != "empty"

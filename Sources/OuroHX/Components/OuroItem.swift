@@ -188,7 +188,11 @@ public struct OuroItem<Media: View, Actions: View>: View {
     /// title and the description and presses the row, while the actions stay their own controls.
     @ViewBuilder private func pressable(_ words: some View) -> some View {
         if let onPress {
-            Button(action: onPress) { words.contentShape(Rectangle()) }
+            Button(action: onPress) {
+                words
+                    .frame(minHeight: OuroItemMetrics.pressableMinimumHeight)
+                    .contentShape(Rectangle())
+            }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isButton)

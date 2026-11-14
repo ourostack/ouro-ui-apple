@@ -342,3 +342,22 @@ Second in the 1.0 order.
   with its first `Image` as media; Apple matches that once the media slot lands.
 - **Claims.** Core's `appliesTo` doesn't list `card` yet (ourostack/ouro-ui-core#48 adds `badge`); the follow-up adds
   `card` to `name.spoken`, `text.reflows` and `contrast.text`.
+
+## OuroItem and OuroItemGroup (2026-11-14)
+
+Third in the 1.0 order: rows are the job our apps hand-roll most (17 views, Spoonjoy 12 and Gatefold 5).
+
+- **Web's API.** A title, a description, leading media and trailing actions; `plain` (default) or `outline`; `md`
+  (12 points above and below) or `sm` (8); media at `icon` (a 40-point muted tile, decorative), `sm` (40), `md` (64)
+  or `lg` (112) (`OuroItemMetrics`). `systemImage:` is the short way to an icon tile. Web's `href` is `onPress` here.
+- **A pressable row is one button**, named by its title and description, at least 44 points tall (`target.size`),
+  as web's stretched link; its actions stay their own buttons beside it.
+- **At the accessibility sizes the actions go under the words and a picture goes above them**, as web's
+  `stackBelow` and `mediaAbove` do below a breakpoint; an icon tile stays beside the words (`text.reflows`,
+  `ItemMetricsTests`). On Apple the trigger is the text size, not the width.
+- **`OuroItemGroup`** names its rows with a label (a heading for VoiceOver) and draws web's `divided` (default),
+  `outline` or `plain`. It walks its rows with SwiftUI's `Group(subviews:)`, which the iOS 18 floor allows.
+- **Colours.** Words on the page and a tile's symbol on its tile read at 5:1 (7:1), and the lines reach 3:1 under
+  Increase Contrast (`itemTextReadsInEveryThemeAndMode`).
+- **Not yet:** web's `ItemGroup` `empty` and `ordered`. A2UI's catalog `List` is a list of strings, so `OuroA2UI`
+  keeps drawing it as text. Core's `appliesTo` doesn't list `item` yet.

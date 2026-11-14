@@ -106,6 +106,26 @@ import Testing
         }
     }
 
+    /// A divided group of rows (an icon tile with a badge, a picture, a pressable row, actions) and an outlined row.
+    @Test(arguments: Mode.allCases) func item(_ mode: Mode) throws {
+        try check("item", mode) {
+            VStack(spacing: 12) {
+                OuroItemGroup("Recipes") {
+                    OuroItem("Braised short ribs", description: "3 hours, serves six", systemImage: "flame") {
+                        OuroBadge("New", tone: .primary, variant: .soft)
+                    }
+                    OuroItem("Lemon orzo", description: "25 minutes", mediaSize: .sm) {
+                        RoundedRectangle(cornerRadius: 0).fill(Color.orange)
+                    } actions: {
+                        OuroButton("Cook", variant: .outline, size: .sm) {}
+                    }
+                    OuroItem("Black bean soup", onPress: {})
+                }
+                OuroItem("Pantry", description: "12 items", systemImage: "basket", variant: .outline)
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

@@ -244,20 +244,23 @@ extension A2UI {
     /// The A2UI `action` message a composed button sends when the person presses it (after confirming, for a
     /// consequential one). Nil for a person-only button, which sends none, and for a consequential one not confirmed.
     public static func actionMessage(surfaceId: String, button: A2UINode, timestamp: String, confirmed: Bool = false) -> A2UIJSON? {
-        let press = button.text("press")
-        if press == A2UIPress.handoff.rawValue { return nil }
-        if press == A2UIPress.confirm.rawValue, !confirmed { return nil }
-        var ext: A2UIObject = ["consent": .string(button.text("consent")), "by": .string("person")]
-        if press == A2UIPress.confirm.rawValue { ext["confirmed"] = .bool(true) }
+        PersonPress.of(button, confirmed: confirmed).map { actionMessage(surfaceId: surfaceId, press: $0, timestamp: timestamp) }
+    }
+
+    /// A press wrapped in A2UI's `action` message: named after the action, the prepared input as its context, and in
+    /// `metadata.extensions` the consent class and that the person pressed it.
+    public static func actionMessage(surfaceId: String, press: PersonPress, timestamp: String) -> A2UIJSON {
+        var ext: A2UIObject = ["consent": .string(press.consent), "by": .string("person")]
+        if press.confirmed { ext["confirmed"] = .bool(true) }
         return .object([
             "version": .string(version),
             "action": .object([
-                "name": .string(button.text("action")),
+                "name": .string(press.action),
                 "surfaceId": .string(surfaceId),
-                "sourceComponentId": .string(button.id),
+                "sourceComponentId": .string(press.sourceComponentId),
                 "timestamp": .string(timestamp),
-                "userMessage": .string(button.text("label")),
-                "context": button.props["input"] ?? .object(A2UIObject()),
+                "userMessage": .string(press.label),
+                "context": .object(press.input),
                 "metadata": .object(["extensions": .object([actionExtensionKey: .object(ext)])]),
             ]),
         ])

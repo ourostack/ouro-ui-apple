@@ -6,7 +6,8 @@ public import SwiftUI
 public enum OuroChoiceMetrics {
     /// A segment's height: 44 points to touch (core claim `target.touch`), web's 36 with a pointer.
     public static func segmentHeight(_ input: OuroInput) -> CGFloat { input == .touch ? 44 : 36 }
-    /// The track's inset around the thumb: web's `p-0.5`.
+    /// The track's inset around the thumb: web's `p-0.5`. Above and below, it sits inside each segment, so a segment's
+    /// target is the track's whole height, 44 points to touch, though the thumb is drawn 2 points in.
     public static let trackInset: CGFloat = 2
     /// A segment's side padding: web's `px-3`.
     public static let segmentPadding: CGFloat = 12
@@ -136,7 +137,7 @@ public struct OuroSegmentedControl<Value: Hashable>: View {
             layout {
                 ForEach(items) { item in segment(item, palette) }
             }
-            .padding(OuroChoiceMetrics.trackInset)
+            .padding(.horizontal, OuroChoiceMetrics.trackInset)
             .background(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous).fill(Color(palette.track)))
             .fixedSize(horizontal: !fullWidth && !stacked, vertical: false)
             .accessibilityElement(children: .contain)
@@ -157,6 +158,7 @@ public struct OuroSegmentedControl<Value: Hashable>: View {
                 .foregroundStyle(Color(on ? palette.selected : palette.unselected))
                 .padding(.horizontal, OuroChoiceMetrics.segmentPadding)
                 .frame(maxWidth: .infinity, minHeight: OuroChoiceMetrics.segmentHeight(.current) - OuroChoiceMetrics.trackInset * 2)
+                .padding(.vertical, OuroChoiceMetrics.trackInset)
                 .background {
                     if on {
                         RoundedRectangle(cornerRadius: theme.radius(.md), style: .continuous)
@@ -167,6 +169,7 @@ public struct OuroSegmentedControl<Value: Hashable>: View {
                                 }
                             }
                             .shadow(color: .black.opacity(scheme == .dark ? 0.3 : 0.12), radius: 1.5, y: 1)
+                            .padding(.vertical, OuroChoiceMetrics.trackInset)
                             .matchedGeometryEffect(id: "thumb", in: thumbSpace)
                     }
                 }

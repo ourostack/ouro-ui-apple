@@ -41,7 +41,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "choices" ? Self.inactiveMisreadings : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -220,6 +220,14 @@ final class ComponentClaimTests: XCTestCase {
     /// toast. So contrast on a glass button is measured from the screen's pixels instead (`inkContrast`).
     static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
+    }
+
+    /// The choices page's disabled segment and checkbox, faded as web fades them (`opacity-50`). WCAG 1.4.3 exempts
+    /// text in an inactive control, so contrast is excused for them, by name and only on that page; every enabled
+    /// segment and box on it is still audited.
+    static let inactiveExamples: Set<String> = ["Board", "Archived"]
+    static let inactiveMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .contrast && (issue.element.map { !$0.isEnabled || ComponentClaimTests.inactiveExamples.contains($0.label) } ?? false)
     }
 
     /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.

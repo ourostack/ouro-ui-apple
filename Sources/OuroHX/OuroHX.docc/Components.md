@@ -1,6 +1,6 @@
 # Components
 
-Button, Badge, Card, Item, SegmentedControl, Checkbox, EmptyState, Banner, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, Card, Item, SegmentedControl, Checkbox, PageHeader, EmptyState, Banner, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -49,6 +49,7 @@ struct SettingsScreen: View {
 | `Item`, `ItemGroup` | ``OuroItem``, ``OuroItemGroup`` | A row: a title, a description, leading media (an icon tile or a picture at `sm`, `md` or `lg`) and trailing actions. A row with `onPress` is one button, at least 44 points tall, and its actions stay their own. At the accessibility sizes the actions go under the words and a picture above them. A group names its rows with a label (a heading) and divides them (`divided`), frames them (`outline`) or neither (`plain`). |
 | `SegmentedControl` | ``OuroSegmentedControl`` | Two to five equal segments with a thumb that slides to the pressed one, for switching how a view shows its content. 44 points to touch; stacks at the accessibility sizes; a selection haptic. |
 | `Checkbox` | ``OuroCheckbox`` | A box and what checking it means, with `description`, `error`, `required` and `indeterminate` (a dash, "Mixed"). The whole row is a 44-point target; the tick draws, or fades under Reduce Motion. |
+| `PageHeader` | ``OuroPageHeader`` | The top of a page or a section: its title (a heading, level 1 or 2), an `eyebrow` above it, a `description` under it, more under that (badges, a byline), the page's actions beside it where they fit and under it where they don't, a picture above, and an optional `divider`. `md` or `lg`. |
 | `Empty` | ``OuroEmptyState`` | What a list or page shows when it has nothing in it. |
 | `Alert` | ``OuroBanner`` | An inline message in the page. On Apple an "alert" is SwiftUI's modal `.alert`, so it is a banner here. |
 | `Sheet` | `.ouroSheet(isPresented:title:…)` | A panel from the bottom edge with a title, a body, an actions row and a close button. |
@@ -167,6 +168,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
   accessibility sizes) and Gatefold's `EmptyShelf` (centred, one action).
 - ``OuroBadge``: web's `Badge`, and the chips Spoonjoy (`CookTimerChip`, `RecipeStepDurationCue`) and Gatefold (`FontChip`, `AccountBadge`) draw by hand. `OuroA2UI`'s catalog `Badge` draws with it.
 - ``OuroCard``: web's `Card`, and the surfaces Spoonjoy (`KitchenTablePage`, `CookingNowPlate`, `ImportStatusPanel`), Gatefold (`HighlightCard`) and Ouro MD (`GlassSurface`) draw by hand. `OuroA2UI`'s catalog `Card` draws with it.
+- ``OuroPageHeader``: web's `PageHeader`, and the headers Spoonjoy draws by hand (`KitchenMasthead`, `KitchenSectionHeader`, `KitchenTableHeader`, `KitchenEyebrowTracking` and three more).
 - ``OuroItem``: web's `Item`, and the rows Spoonjoy (`RecipeIndexRow`, `ShoppingReceiptRow`, `SettingsRowLabel` and nine more) and Gatefold (`SettingRow`, `PressedRow`, `StillRow` and two more) draw by hand.
 - ``OuroSegmentedControl`` and ``OuroCheckbox``: web's `SegmentedControl` and `Checkbox`, and the pickers and ticks the apps draw by hand.
 - ``OuroBanner``: Spoonjoy's `HeldChangeBanner` (a titled message with its way out) and web's `Alert`.
@@ -219,6 +221,13 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroCheckbox``
 - ``OuroCheckboxPalette``
 - ``OuroChoiceMetrics``
+
+### Page header
+
+- ``OuroPageHeader``
+- ``OuroPageHeaderSize``
+- ``OuroPageHeaderPalette``
+- ``OuroPageHeaderMetrics``
 
 ### Empty state
 

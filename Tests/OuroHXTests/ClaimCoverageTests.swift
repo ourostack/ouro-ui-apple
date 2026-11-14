@@ -15,6 +15,7 @@ import Testing
         ],
         "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests", "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests"],
         "name.spoken": [
+            "Tests/OuroHXTests/ComponentTests.swift: PageHeaderMetricsTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testVoiceOverLabels",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
         ],
@@ -25,6 +26,7 @@ import Testing
             "Tests/OuroHXTests/ComponentTests.swift: CardMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: ItemMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests",
+            "Tests/OuroHXTests/ComponentTests.swift: PageHeaderMetricsTests",
         ],
         "contrast.text": [
             "Tests/OuroHXTests/ComponentTests.swift: ContrastTests",

@@ -5,7 +5,7 @@ name: X-ray an app (reusable)
 #
 #   jobs:
 #     xray:
-#       uses: ourostack/ouro-ui-apple/.github/workflows/xray-app.yml@v0.4.1   # or a later release
+#       uses: ourostack/ouro-ui-apple/.github/workflows/xray-app.yml@main   # or the first release after 0.4.1, which carries it
 #       with:
 #         name: Ouro MD
 #         platform: macos

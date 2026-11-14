@@ -1,0 +1,128 @@
+name: X-ray an app (reusable)
+
+# One app's X-ray, metadata and behaviour: builds the app, runs ouro-ax-xray and uploads the report. Our own
+# xray-apps.yml calls it for each app, and an app's own CI calls it for itself:
+#
+#   jobs:
+#     xray:
+#       uses: ourostack/ouro-ui-apple/.github/workflows/xray-app.yml@v0.4.1   # or a later release
+#       with:
+#         name: Ouro MD
+#         platform: macos
+#         build: OURO_MD_TELEMETRY_DISABLED=1 ./make-app.sh
+#         product: OuroMD.app
+#         disposable: true
+#       secrets:
+#         apple-development-certificate-base64: ${{ secrets.APPLE_DEVELOPMENT_CERTIFICATE_BASE64 }}
+#         apple-development-certificate-password: ${{ secrets.APPLE_DEVELOPMENT_CERTIFICATE_PASSWORD }}
+#
+# macOS needs the Apple Development certificate: AppIntentsTesting there runs only for a probe signed by the app's own
+# team. Without it the macOS behaviour claims skip, saying so. iOS and the metadata-only stage need no certificate.
+# It runs on the billed xcode-27 runner, so call it on main and on releases, not on every pull request.
+on:
+  workflow_call:
+    inputs:
+      name: { description: "The app's name in the report.", type: string, required: true }
+      platform: { description: "ios, macos or metadata (metadata skips the behaviour stage).", type: string, required: true }
+      build: { description: "Shell command, run in the app's checkout, that builds it.", type: string, required: true }
+      product: { description: "Path of the built .app, relative to the app's checkout.", type: string, required: true }
+      disposable: { description: "True only when the device and the app's backend are throwaway: allows refusal runs and import read-backs.", type: boolean, default: false }
+      app-repo: { description: "owner/name of the app's repository; default is the calling repository.", type: string, default: "" }
+      app-ref: { description: "Ref of the app to build; default is the calling workflow's commit.", type: string, default: "" }
+      tooling-ref: { description: "Ref of ouro-ui-apple whose X-ray tooling runs.", type: string, default: "main" }
+      xcode: { description: "Xcode version whose AppIntentsTesting matches the runner's OS and simulator (see docs/decisions/2026-11-03-ax-xray.md).", type: string, default: "27.1" }
+      runtime: { description: "iOS simulator runtime (ios only).", type: string, default: "27.1" }
+      device: { description: "iOS simulator device type (ios only).", type: string, default: "iPhone Duo" }
+    secrets:
+      apple-development-certificate-base64: { required: false }
+      apple-development-certificate-password: { required: false }
+
+permissions:
+  contents: read
+
+jobs:
+  xray:
+    name: X-ray ${{ inputs.name }}
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ourostack/ouro-ui-apple
+          ref: ${{ inputs.tooling-ref }}
+          path: tooling
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.app-repo || github.repository }}
+          ref: ${{ inputs.app-ref }}
+          path: app
+          persist-credentials: false
+      - name: Use Xcode ${{ inputs.xcode }}
+        run: |
+          set -eu
+          for x in /Applications/Xcode_*.app; do
+            v="$(defaults read "$x/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
+            if [ "$v" = "${{ inputs.xcode }}" ] || [ "$v" = "${{ inputs.xcode }}.0" ]; then echo "DEVELOPER_DIR=$x/Contents/Developer" >> "$GITHUB_ENV"; exit 0; fi
+          done
+          exit 1
+      - name: Tools
+        working-directory: tooling
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          swift build -c release --product ouro-ax-xray
+      - id: signing
+        if: inputs.platform == 'macos'
+        uses: ./tooling/.github/actions/import-apple-development-cert
+        with:
+          certificate-base64: ${{ secrets.apple-development-certificate-base64 }}
+          certificate-password: ${{ secrets.apple-development-certificate-password }}
+      - name: Build ${{ inputs.name }}
+        working-directory: app
+        shell: bash
+        env:
+          BUILD: ${{ inputs.build }}
+        run: |
+          set -o pipefail
+          bash -c "$BUILD" 2>&1 | tail -30
+      - name: X-ray it
+        env:
+          NAME: ${{ inputs.name }}
+          PLATFORM: ${{ inputs.platform }}
+          PRODUCT: ${{ inputs.product }}
+          DISPOSABLE: ${{ inputs.disposable && '--disposable' || '' }}
+          SIGN_IDENTITY: ${{ steps.signing.outputs.identity }}
+          SIGN_TEAM: ${{ steps.signing.outputs.team }}
+          SIGN_KEYCHAIN: ${{ steps.signing.outputs.keychain }}
+          RUNTIME: ${{ inputs.runtime }}
+          DEVICE: ${{ inputs.device }}
+        working-directory: tooling
+        run: |
+          set -eu
+          app="$GITHUB_WORKSPACE/app/$PRODUCT"
+          commit="$(git -C "$GITHUB_WORKSPACE/app" rev-parse --short HEAD)"
+          out="$GITHUB_WORKSPACE/xray-report"
+          if [ "$PLATFORM" = metadata ]; then
+            .build/release/ouro-ax-xray --app "$app" --commit "$commit" --name "$NAME" --out "$out"
+          else
+            set -- --app "$app" --out "$out" --platform "$PLATFORM" --commit "$commit" --name "$NAME"
+            [ -z "$DISPOSABLE" ] || set -- "$@" --disposable
+            [ "$PLATFORM" != ios ] || set -- "$@" --runtime "$RUNTIME" --device-type "$DEVICE"
+            if [ -n "$SIGN_IDENTITY" ]; then set -- "$@" --sign-identity "$SIGN_IDENTITY" --team "$SIGN_TEAM" --keychain "$SIGN_KEYCHAIN"; fi
+            sh scripts/xray-probe.sh "$@"
+          fi
+      - name: Remove the signing keychain
+        if: always() && steps.signing.outputs.keychain != ''
+        env:
+          KEYCHAIN: ${{ steps.signing.outputs.keychain }}
+        run: security delete-keychain "$KEYCHAIN" || true
+      - id: upload
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-${{ inputs.platform }}-${{ inputs.name }}
+          path: xray-report
+      - if: always() && steps.upload.outcome == 'failure'
+        run: echo "::warning::The X-ray artifact did not upload (see the step's log); the job's result stands, and the report is in the log above."

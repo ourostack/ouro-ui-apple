@@ -23,6 +23,7 @@ import Testing
             "Tests/OuroHXTests/ComponentTests.swift: BadgeMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: CardMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: ItemMetricsTests",
+            "Tests/OuroHXTests/ComponentTests.swift: DisplayMetricsTests",
         ],
         "contrast.text": [
             "Tests/OuroHXTests/ComponentTests.swift: ContrastTests",

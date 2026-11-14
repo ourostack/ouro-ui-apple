@@ -243,6 +243,31 @@ struct ItemsPage: View {
 }
 
 /// Lays badges out in a row that wraps, as they do under a title at large text sizes.
+struct DisplayPage: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            OuroDescriptionList([
+                OuroDescriptionItem("Prep time", "20 minutes"),
+                OuroDescriptionItem("Cook time", "4 hours"),
+                OuroDescriptionItem("Serves", "6"),
+                OuroDescriptionItem("Diet") { OuroBadge("Vegan", systemImage: "leaf", tone: .success, variant: .soft) },
+            ])
+            .accessibilityIdentifier("display.list")
+            OuroSeparator()
+            OuroButton("Continue with Apple", systemImage: "apple.logo", variant: .outline) {}
+            OuroSeparator(label: "or")
+            OuroButton("Continue with email", variant: .outline) {}
+            HStack(spacing: 12) {
+                OuroButton("Edit", variant: .plain) {}
+                OuroSeparator(.vertical)
+                OuroButton("Share", variant: .plain) {}
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            OuroSeparator(label: "New since you left · 2 messages", tone: .primary)
+        }
+    }
+}
+
 struct OuroBadgeFlow: Layout {
     var spacing: CGFloat = 6
 

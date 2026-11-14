@@ -126,6 +126,22 @@ import Testing
         }
     }
 
+    /// A description list side by side, a plain line, a labelled one and a toned one.
+    @Test(arguments: Mode.allCases) func display(_ mode: Mode) throws {
+        try check("display", mode) {
+            VStack(alignment: .leading, spacing: 16) {
+                OuroDescriptionList([
+                    OuroDescriptionItem("Prep time", "20 minutes"),
+                    OuroDescriptionItem("Cook time", "4 hours"),
+                    OuroDescriptionItem("Serves", "6"),
+                ])
+                OuroSeparator()
+                OuroSeparator(label: "or")
+                OuroSeparator(label: "New since you left", tone: .primary)
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

@@ -175,6 +175,21 @@ jobs:
           xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS="\$(inherited) $require" 2>&1 | tail -40
 
+  api-break:
+    name: Public API against the last release (free macos-26)
+    # README, "Source stability": a source break waits for the next major. Pull requests only; before 0.9.0 it reports.
+    if: github.event_name == 'pull_request'
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: diagnose-api-breaking-changes against the newest vX.Y.Z tag
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/api-break.sh
+
   swift:
     name: Build, test, DocC and gallery (free macos-26, Xcode 26)
     # GitHub's free standard image. Its Xcode 26 lacks the iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the

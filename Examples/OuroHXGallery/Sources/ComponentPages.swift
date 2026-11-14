@@ -243,6 +243,29 @@ struct ItemsPage: View {
 }
 
 /// Lays badges out in a row that wraps, as they do under a title at large text sizes.
+struct SyncStatusPage: View {
+    @State private var state = OuroSyncState.error
+    @State private var retries = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            OuroSyncStatus(state) {
+                retries += 1
+                state = .saving
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    state = .saved
+                }
+            }
+            .accessibilityIdentifier("sync.live")
+            Divider()
+            ForEach(OuroSyncState.allCases, id: \.self) { s in
+                OuroSyncStatus(s, labels: OuroSyncStatusLabels(saved: "Recipe saved", saving: "Saving recipe…"))
+            }
+        }
+    }
+}
+
 struct OuroBadgeFlow: Layout {
     var spacing: CGFloat = 6
 

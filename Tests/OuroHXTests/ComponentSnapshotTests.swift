@@ -126,6 +126,15 @@ import Testing
         }
     }
 
+    /// Every sync state, with Retry on the problems.
+    @Test(arguments: Mode.allCases) func syncStatus(_ mode: Mode) throws {
+        try check("sync-status", mode) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(OuroSyncState.allCases, id: \.self) { s in OuroSyncStatus(s) {} }
+            }
+        }
+    }
+
     @Test(arguments: Mode.allCases) func emptyState(_ mode: Mode) throws {
         try check("empty-state", mode) {
             OuroEmptyState("No recipes yet", systemImage: "book.closed", description: "Start by creating your first recipe.") {

@@ -1,6 +1,6 @@
 # Components
 
-Button, Badge, Card, Item, Avatar, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, Card, Item, TextField, SegmentedControl, Checkbox, Separator, DescriptionList, Avatar, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -48,6 +48,11 @@ struct SettingsScreen: View {
 | `Card` | ``OuroCard`` | A surface that groups one thing: a title (a heading for VoiceOver), a description, an action beside them, a body and a footer. `outline` (the theme's card colour with an edge) or `plain`; `md` or `sm` padding. The action goes under the title at the accessibility sizes. No media slot yet. |
 | `Item`, `ItemGroup` | ``OuroItem``, ``OuroItemGroup`` | A row: a title, a description, leading media (an icon tile or a picture at `sm`, `md` or `lg`) and trailing actions. A row with `onPress` is one button, at least 44 points tall, and its actions stay their own. At the accessibility sizes the actions go under the words and a picture above them. A group names its rows with a label (a heading) and divides them (`divided`), frames them (`outline`) or neither (`plain`). |
 | `Avatar` | ``OuroAvatar`` | A person's or a thing's picture (`url` or `image`), or their initials on a colour that is theirs: the same hue web picks for the same name (`colorful`), or `brand` or `neutral`. Sizes `xs` to `xxxl` (24 to 112 points; web's `2xl` and `3xl` are `xxl` and `xxxl`); `circle`, `square` or `agent`; a presence dot with its own glyph. VoiceOver reads the name, then the presence; `alt: ""` when the name is beside it. |
+| `Separator` | ``OuroSeparator`` | A line between groups: horizontal or vertical, a word in its middle (`label: "or"`), an accent `tone`. Silent to VoiceOver; a label is read as text. |
+| `DescriptionList` | ``OuroDescriptionList`` | Pairs of a term and its details. Stacked below 448 points of its own width (`stackBelow: .md` is 512) and at the accessibility sizes; side by side above, terms in a `min(40%, 224)` column. Each pair is heard as one. |
+| `TextField` | ``OuroTextField`` | A labelled field for a line of text. Its label stays above it and names it (`hideLabel` keeps the name and hides the words); a description, an error that says what is wrong, `required`; `type` (`text`, `email`, `password`, `tel`, `url`, `search`) sets the keyboard and autofill, and `password` adds a show button; `clearable`; `outline` or `plain`; `md` (44 points) or `lg` (56). A date or time is SwiftUI's `DatePicker`. |
+| `SegmentedControl` | ``OuroSegmentedControl`` | Two to five equal segments with a thumb that slides to the pressed one, for switching how a view shows its content. 44 points to touch; stacks at the accessibility sizes; a selection haptic. |
+| `Checkbox` | ``OuroCheckbox`` | A box and what checking it means, with `description`, `error`, `required` and `indeterminate` (a dash, "Mixed"). The whole row is a 44-point target; the tick draws, or fades under Reduce Motion. |
 | `Skeleton` | ``OuroSkeleton`` | The outline of what is loading, in its place: `rect`, `text` (lines, the last shorter), `circle`, `row` (an ``OuroItem``'s height) or `card`. Holds still for a second, then breathes; still under Reduce Motion. VoiceOver hears one "Loading". |
 | `Spinner` | ``OuroSpinner`` | The system's activity indicator at web's sizes (16, 20, 32 points), named by what it waits for. |
 | `Progress` | ``OuroProgress`` | How far along some work is: a label, a value from `min` to `max` (`nil` while unknown, which slides, or pulses under Reduce Motion), `showValue`, a tone. VoiceOver hears the label and the percentage. |
@@ -172,9 +177,12 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroBadge``: web's `Badge`, and the chips Spoonjoy (`CookTimerChip`, `RecipeStepDurationCue`) and Gatefold (`FontChip`, `AccountBadge`) draw by hand. `OuroA2UI`'s catalog `Badge` draws with it.
 - ``OuroCard``: web's `Card`, and the surfaces Spoonjoy (`KitchenTablePage`, `CookingNowPlate`, `ImportStatusPanel`), Gatefold (`HighlightCard`) and Ouro MD (`GlassSurface`) draw by hand. `OuroA2UI`'s catalog `Card` draws with it.
 - ``OuroAvatar``: web's `Avatar` (its sizes, shapes, presence glyphs and hue hash), and the avatars and thumbnails Spoonjoy draws by hand (`ChefAvatar`, `ProfileAvatar`, `RecipeInitialTile` and five more).
+- ``OuroTextField``: web's `TextField`, and the fields Spoonjoy (`EditorField`, `SignInFieldStyle`, `SearchFieldChrome` and three more), Gatefold (`PasswordField`) and Ouro MD (`FindBar`) draw by hand. The password's show button and the 3:1 edge come from Gatefold's `PasswordField` and web's `TextField`.
 - ``OuroSkeleton``, ``OuroSpinner`` and ``OuroProgress``: web's `Skeleton`, `Spinner` and `Progress`, and the loading states and bars Spoonjoy (`KitchenTableLoadingStateView`, `ArrivingFromLoading`, `CookingNowProgressRule`, `JourneyStillProgressViewStyle`), Gatefold (`OpeningPlaceholder`) and Ouro MD (`UpdateProgressView`) draw by hand.
 - ``OuroPageHeader``: web's `PageHeader`, and the headers Spoonjoy draws by hand (`KitchenMasthead`, `KitchenSectionHeader`, `KitchenTableHeader`, `KitchenEyebrowTracking` and three more).
 - ``OuroItem``: web's `Item`, and the rows Spoonjoy (`RecipeIndexRow`, `ShoppingReceiptRow`, `SettingsRowLabel` and nine more) and Gatefold (`SettingRow`, `PressedRow`, `StillRow` and two more) draw by hand.
+- ``OuroSeparator`` and ``OuroDescriptionList``: web's `Separator` and `DescriptionList`, Spoonjoy's `RecipeIndexRowSeparator` and `NotificationDiagnosticsDisclosure`, and the private views `OuroA2UI` drew A2UI's `Separator` and `DescriptionList` with; it draws them with these now.
+- ``OuroSegmentedControl`` and ``OuroCheckbox``: web's `SegmentedControl` and `Checkbox`, and the pickers and ticks the apps draw by hand.
 - ``OuroBanner``: Spoonjoy's `HeldChangeBanner` (a titled message with its way out) and web's `Alert`.
 - ``OuroSyncStatus``: web's `SyncStatus`, and Gatefold's `SyncStatusLine`, Spoonjoy's `OfflineStatusView` and Ouro MD's `DocumentStatusBar`.
 - The sheet and the toast follow web's `Sheet` and `Toaster`; neither app had a toast.
@@ -227,6 +235,36 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroAvatarPresence``
 - ``OuroAvatarPalette``
 - ``OuroAvatarMetrics``
+
+### Display
+
+- ``OuroSeparator``
+- ``OuroSeparatorOrientation``
+- ``OuroSeparatorPalette``
+- ``OuroDescriptionList``
+- ``OuroDescriptionItem``
+- ``OuroDescriptionListBreakpoint``
+- ``OuroDescriptionListPalette``
+- ``OuroDisplayMetrics``
+
+### Text field
+
+- ``OuroTextField``
+- ``OuroTextFieldType``
+- ``OuroTextFieldVariant``
+- ``OuroTextFieldSize``
+- ``OuroTextFieldPalette``
+- ``OuroTextFieldMetrics``
+- ``OuroTextContentType``
+
+### Choices
+
+- ``OuroSegmentedControl``
+- ``OuroSegment``
+- ``OuroSegmentedControlPalette``
+- ``OuroCheckbox``
+- ``OuroCheckboxPalette``
+- ``OuroChoiceMetrics``
 
 ### Loading
 

@@ -6,8 +6,8 @@ ouro-ui-core's release at coreTag publishes, both in its dist-manifest.json and 
     python3 -I scripts/check-provenance.py --offline  # local hashes only
 
 A second section, "tree", pins files core keeps in its repository rather than in a release asset (A2UI's catalogs and
-conformance cases): each local path maps to its path in ouro-ui-core at the section's coreTag, and the check compares
-the SHA-256 with the file at that tag.
+conformance cases, the HX component specs): each local path maps to its path in ouro-ui-core at the section's coreTag,
+or at the file's own coreTag when it has one, and the check compares the SHA-256 with the file at that tag.
 
 Exit codes: 0 ok, 1 error (the check could not run), 2 usage, 3 findings (a hash differs).
 """
@@ -91,6 +91,12 @@ def asset_urls(tag: str) -> dict[str, str]:
         return {}
 
 
+def tree_tag(pin: dict, section_tag: str) -> str:
+    """The core tag a tree file is pinned at: its own `coreTag`, else the section's. Files move to a newer tag one
+    group at a time (the component specs at one tag, the A2UI cases at another) without re-vendoring the rest."""
+    return pin.get("coreTag", section_tag)
+
+
 def unreachable(error: Exception) -> bool:
     """Whether a download failed on GitHub's side rather than on a missing file: a 5xx or no answer at all."""
     if isinstance(error, urllib.error.HTTPError):
@@ -166,8 +172,9 @@ def main(argv: list[str]) -> int:
 
     tree = provenance.get("tree")
     if tree:
-        ttag = tree["coreTag"]
+        section_tag = tree["coreTag"]
         for path, pin in tree["files"].items():
+            ttag = tree_tag(pin, section_tag)
             try:
                 with open(os.path.join(root, path), "rb") as f:
                     local = sha256(f.read())

@@ -382,6 +382,73 @@ Fifth in the 1.0 order: eight hand-drawn avatars and thumbnails, all in Spoonjoy
   and then raises the initials, so the fills differ slightly while the contrast is at least web's.
 - **Not yet:** web's `AvatarGroup` and its cut-out "bite" behind the dot (here a ring of the page's colour).
 
+## OuroSeparator and OuroDescriptionList (2026-11-14)
+
+Eleventh and thirteenth in the 1.0 order, shipped together because `OuroA2UI` drew both with private views, so an
+agent's surface and an app's screen drew them differently. Now `A2UISurface` draws A2UI's `DescriptionList` and
+`Separator` with them.
+
+- **Separator.** Web's `orientation`, `tone` (primary, destructive, success or warning; `secondary` is a surface, so it
+  draws as no tone, as on web) and `label`, a word in the middle of a horizontal line ("or"). The line is the theme's
+  border, pushed to 3:1 under Increase Contrast like every line, and an outline's width (1 point, 2 under Increase
+  Contrast). Apple has no separator role (SwiftUI's `Divider` is silent), so the line is hidden from VoiceOver and a
+  label is read as text in its place; web's `decorative` has nothing left to switch, so it is not a parameter.
+- **DescriptionList.** Web's `items` (`OuroDescriptionItem(term, details)`, or details drawn as a view) and
+  `stackBelow` (`sm` 448 points, `md` 512). Like web's container query, the list's own width decides: the side-by-side
+  layout is offered at the breakpoint's width at least (`ViewThatFits`), so a list in a sheet stacks on an iPad. Side by
+  side the terms' column is web's `min(40%, 14rem)`, with a line between pairs. At the accessibility sizes it always
+  stacks (`text.reflows`, `aDescriptionListStacksWhereItIsNarrow`). A pair whose details are words is one VoiceOver
+  element, "Prep time, 20 minutes"; one whose details are a view keeps its parts, so a link in it stays a control.
+- **Not yet:** Spoonjoy's `ProfileFigures` (large numbers over small labels) is a stat, not a description list.
+
+## OuroTextField (2026-11-14)
+
+Fourth in the 1.0 order: nine hand-drawn fields (Spoonjoy 6, Gatefold 2, Ouro MD 1).
+
+- **Web's API.** A required `label` that stays above the field and names it (`hideLabel` hides the words, keeps the
+  name), `description`, `error`, `required`, `placeholder` (an example, never the name), `type`, `variant` (`outline`
+  or `plain`), `size` (`md` 44 points, `lg` 56) and `clearable` (`OuroTextFieldMetrics`).
+- **It wraps SwiftUI's `TextField` and `SecureField`**, as the HIG asks of a text field, so selection, dictation,
+  autofill and the keyboard stay the system's. `type` sets the keyboard, `textContentType` and, for what must be
+  typed exactly (`email`, `url`, `password`, `tel`), no capitalisation or autocorrection, as web's types do.
+  `password` adds a show button named "Show password" whose value says shown or hidden, as web's `aria-pressed`.
+  Web's `date` and `time` are SwiftUI's `DatePicker` here, and `number` is a later `NumberField`, as on web.
+- **VoiceOver** reads the label (with ", required"), then the error, then the description, as web's
+  `aria-describedby`; the words drawn around the field are hidden so nothing is read twice
+  (`theHintReadsTheErrorThenTheDescription`, the gallery's `textfields` page in `testVoiceOverLabels`).
+- **Colours.** Label, text, placeholder, description and error read at 5:1 (7:1) on the page, and the edge, the focus
+  ring and the error edge reach 3:1 in every theme, so the box can be found (WCAG 1.4.11). That is more than web's
+  `input` border, which is lighter in some themes; a box someone must find is worth the line
+  (`textFieldTextAndEdgesReadInEveryThemeAndMode`).
+- **Claims.** `target.touch`, `name.spoken`, `text.reflows` and `contrast.text` are proven here
+  (`TextFieldMetricsTests`, `ContrastTests`, the snapshots and the gallery audit). Adding `textField` to core's
+  `appliesTo`, and its spec, is the follow-up.
+- **The audit's "Text clipped".** Xcode's accessibility audit reports every SwiftUI `TextField` (a `UITextField`) as
+  possibly clipped at large sizes, because a single-line input scrolls its text sideways, as web's `<input>` does. The
+  gallery excuses that one issue on the textfields page only while the field is at least a line of its text tall at
+  the size the run uses (`singleLineFieldMisreadings`), so a field that stopped growing with Dynamic Type still fails.
+
+## OuroSegmentedControl and OuroCheckbox (2026-11-14)
+
+The first two controls that hold a value, ninth and tenth in the 1.0 order.
+
+- **Segmented control.** Drawn, not SwiftUI's `.segmented` picker, because the system's is 32 points tall on iPhone
+  and core's `target.touch` asks 44 (web's segments are 44 to touch, 36 with a pointer, and so are these). Web's
+  `label`, `hideLabel`, `items` (`OuroSegment(label, value:, disabled:)`), `fullWidth`; the value is any `Hashable`
+  through a binding. Segments are as wide as the longest label (or share the width with `fullWidth`); the thumb is
+  the page's colour on the muted track (web's 16% foreground mix in dark) and slides on the `layout` spring, or
+  crossfades under Reduce Motion; a selection haptic plays. Under Increase Contrast the thumb gets a 3:1 edge so the
+  pressed segment never rests on a shadow. At the accessibility sizes the segments stack. VoiceOver hears the label,
+  then each segment as a button, the pressed one selected; web's radio group has no SwiftUI equivalent.
+- **Checkbox.** Drawn too: iOS has no checkbox. Web's `label`, `hideLabel`, `description`, `error`, `required` and
+  `indeterminate`; `disabled` is SwiftUI's `.disabled(_:)`. The box is web's 20 points to touch and 16 with a pointer,
+  the whole row its 44-point target. Checking fills the box, then draws web's tick along its path over core's `draw`
+  duration after `fast`; under Reduce Motion it fades. Its empty edge, its fill and its tick are graphics, so they
+  reach 3:1 (WCAG 1.4.11); its words reach 5:1. VoiceOver hears the label (", required"), the state as its value
+  ("Checked", "Not checked", "Mixed") with the toggle trait, and the error then the description as its hint.
+- **Not yet:** web's `CheckboxGroup` (a labelled group with one error), `readOnly`, and form `name`/`value`, which
+  have no SwiftUI form to submit to.
+
 ## OuroSkeleton, OuroSpinner and OuroProgress (2026-11-14)
 
 Seventh and eighth in the 1.0 order, shipped together because they are one job, waiting: the loading half of the 13

@@ -97,7 +97,7 @@ let package = Package(
         .testTarget(name: "OuroA2UITests", dependencies: ["OuroA2UI", "OuroHX", "OuroHXTesting"], resources: [.copy("Conformance")], swiftSettings: strict),
 
         // `__Snapshots__/macOS-<major>` holds the component snapshot references, one folder per host macOS major.
-        .testTarget(name: "OuroHXTests", dependencies: ["OuroHX", "OuroHXTesting"], exclude: ["__Snapshots__"], swiftSettings: strict),
+        .testTarget(name: "OuroHXTests", dependencies: ["OuroHX", "OuroHXTesting"], exclude: ["__Snapshots__"], resources: [.copy("Specs")], swiftSettings: strict),
         .testTarget(name: "OuroAXTests", dependencies: ["OuroAX", "OuroAXTesting"], swiftSettings: strict),
         .testTarget(
             name: "OuroAXTestingTests",

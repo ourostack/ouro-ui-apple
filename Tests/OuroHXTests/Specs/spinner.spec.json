@@ -1,0 +1,92 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "spinner",
+  "version": "1.0.0",
+  "summary": "A small sign that something is under way, beside the words that say what.",
+  "role": "label",
+  "properties": [
+    {
+      "name": "label",
+      "type": "string",
+      "default": "Loading",
+      "description": "What is loading, spoken, not shown."
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "default": "md",
+      "description": "16, 20 or 32 points."
+    },
+    {
+      "name": "tone",
+      "type": "enum",
+      "values": [
+        "primary",
+        "secondary",
+        "destructive",
+        "success",
+        "warning"
+      ],
+      "description": "The colour role; without one it takes the text colour around it."
+    }
+  ],
+  "slots": [],
+  "events": [],
+  "states": [
+    {
+      "name": "busy",
+      "description": "Turning; pulsing under reduced motion."
+    }
+  ],
+  "tokens": {
+    "ring": "{tone}"
+  },
+  "metrics": {
+    "sm": 16,
+    "md": 20,
+    "lg": 32
+  },
+  "claims": [
+    "name.spoken"
+  ],
+  "accessibility": {
+    "name": "Its label.",
+    "web": "A <span role=\"status\"> with its label as visually hidden text.",
+    "apple": "The system's ProgressView, one element named by its label, updating frequently.",
+    "windows": "UI Automation ControlType.ProgressBar, indeterminate, named by its label."
+  },
+  "cases": [
+    {
+      "id": "saving",
+      "props": {
+        "label": "Saving recipe",
+        "size": "sm"
+      },
+      "person": "A small turning ring.",
+      "agent": {
+        "role": "status",
+        "name": "Saving recipe",
+        "focusable": false
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Spinner (registry/ouro/components/ouro/spinner)"
+    },
+    "apple": {
+      "type": "OuroSpinner",
+      "deviations": [
+        "The system's activity indicator, whose motion the system reduces."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroSpinner (not yet built)"
+    }
+  }
+}

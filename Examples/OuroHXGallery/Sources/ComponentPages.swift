@@ -255,6 +255,36 @@ struct AvatarsPage: View {
     }
 }
 
+/// Text fields as an app's sign-in and editor screens use them: an email with a description, a password, a field
+/// with an error, a search with a clear button, a large field, a plain one in the app's own frame and a disabled one.
+struct TextFieldsPage: View {
+    @State private var email = "cook@example.com"
+    @State private var password = "lemon-orzo"
+    @State private var title = ""
+    @State private var query = "orzo"
+    @State private var servings = "6"
+    @State private var note = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            OuroTextField("Email", text: $email, placeholder: "you@example.com", description: "We send your recipes here.", type: .email, required: true)
+            OuroTextField("Password", text: $password, type: .password)
+            OuroTextField("Recipe title", text: $title, placeholder: "Lemon orzo with peas", error: title.isEmpty ? "Give the recipe a title." : nil, required: true)
+            OuroTextField("Search recipes", text: $query, placeholder: "Search recipes", type: .search, hideLabel: true, clearable: true)
+            OuroTextField("Servings", text: $servings, size: .lg)
+            HStack(spacing: 8) {
+                OuroTextField("Note to self", text: $note, placeholder: "Oven runs hot", variant: .plain, hideLabel: true)
+                OuroButton("Add", variant: .soft, size: .sm) { note = "" }
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 12)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.quaternary))
+            OuroTextField("Kitchen name", text: .constant("Ari's kitchen"), description: "Set by your household.")
+                .disabled(true)
+        }
+    }
+}
+
 /// Loading as an app shows it: a recipe's words and picture still arriving, rows and a card in their places, spinners
 /// beside what they wait for, and progress bars known and unknown.
 struct LoadingPage: View {
@@ -340,6 +370,65 @@ struct ItemsPage: View {
 }
 
 /// Lays badges out in a row that wraps, as they do under a title at large text sizes.
+struct DisplayPage: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            OuroDescriptionList([
+                OuroDescriptionItem("Prep time", "20 minutes"),
+                OuroDescriptionItem("Cook time", "4 hours"),
+                OuroDescriptionItem("Serves", "6"),
+                OuroDescriptionItem("Diet") { OuroBadge("Vegan", systemImage: "leaf", tone: .success, variant: .soft) },
+            ])
+            .accessibilityIdentifier("display.list")
+            OuroSeparator()
+            OuroButton("Continue with Apple", systemImage: "apple.logo", variant: .outline) {}
+            OuroSeparator(label: "or")
+            OuroButton("Continue with email", variant: .outline) {}
+            HStack(spacing: 12) {
+                OuroButton("Edit", variant: .plain) {}
+                OuroSeparator(.vertical)
+                OuroButton("Share", variant: .plain) {}
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            OuroSeparator(label: "New since you left · 2 messages", tone: .primary)
+        }
+    }
+}
+
+struct ChoicesPage: View {
+    @State private var view = "list"
+    @State private var units = "metric"
+    @State private var basket = [true, false, true]
+    @State private var email = true
+    @State private var agreed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            OuroSegmentedControl("View", selection: $view, hideLabel: true, items: [
+                OuroSegment("List", value: "list"),
+                OuroSegment("Grid", value: "grid"),
+                OuroSegment("Board", value: "board", disabled: true),
+            ])
+            OuroSegmentedControl("Units", selection: $units, fullWidth: true, items: [
+                OuroSegment("Metric", value: "metric"),
+                OuroSegment("US", value: "us"),
+            ])
+            VStack(alignment: .leading, spacing: 0) {
+                OuroCheckbox("Whole basket", isOn: Binding(
+                    get: { basket.allSatisfy { $0 } },
+                    set: { all in basket = basket.map { _ in all } }
+                ), indeterminate: basket.contains(true) && !basket.allSatisfy { $0 })
+                ForEach(Array(["Lemons", "Orzo", "Peas"].enumerated()), id: \.offset) { i, name in
+                    OuroCheckbox(name, isOn: $basket[i]).padding(.leading, 32)
+                }
+            }
+            OuroCheckbox("Email me new recipes", isOn: $email, description: "One a week, on Sundays.")
+            OuroCheckbox("I agree to the terms", isOn: $agreed, error: agreed ? nil : "Agree to the terms to continue.", required: true)
+            OuroCheckbox("Archived", isOn: .constant(true)).disabled(true)
+        }
+    }
+}
+
 struct SyncStatusPage: View {
     @State private var state = OuroSyncState.error
     @State private var retries = 0

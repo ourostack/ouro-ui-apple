@@ -58,8 +58,8 @@ public struct OuroAvatarPalette: Sendable {
         case .neutral: nil
         }
         if let base {
-            fill = OuroInk.tint(base, over: page, 0.18)
-            label = OuroInk.readable(OuroColor.mix(ink, base, 0.7), on: fill, style)
+            fill = OuroInk.tint(base, over: page, OuroAvatarMetrics.fill)
+            label = OuroInk.readable(OuroColor.mix(ink, base, OuroAvatarMetrics.inkMix), on: fill, style)
         } else {
             fill = OuroInk.r(c.secondary)
             label = OuroInk.readable(OuroInk.r(c.secondaryForeground), on: fill, style)
@@ -104,6 +104,12 @@ public enum OuroAvatarMetrics {
     /// How far the initials may shrink to fit the avatar at their default size; at larger text sizes they first grow
     /// with Dynamic Type, then shrink back into the avatar, which keeps its size.
     public static let initialsMinimumScale: CGFloat = 0.5
+
+    /// A coloured avatar's fill: 18% of its hue over the page, as web's `color-mix`.
+    public static let fill = 0.18
+
+    /// How much of the page's foreground the initials take before their hue, as web's: 70%, then raised to read.
+    public static let inkMix = 0.7
 
     /// The presence dot's side: web's 8 to 31 pixels.
     public static func presenceSide(_ size: OuroAvatarSize) -> CGFloat {

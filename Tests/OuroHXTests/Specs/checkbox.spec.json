@@ -1,0 +1,154 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "checkbox",
+  "version": "1.0.0",
+  "summary": "A box and what checking it means: checked, not checked, or mixed.",
+  "role": "control",
+  "properties": [
+    {
+      "name": "label",
+      "type": "string",
+      "required": true,
+      "description": "What checking it means, beside the box and its spoken name."
+    },
+    {
+      "name": "hideLabel",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the label's words; the box keeps it as its name."
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "Supporting words under the label, read after the name."
+    },
+    {
+      "name": "error",
+      "type": "string",
+      "description": "What is wrong; the box's edge turns destructive."
+    },
+    {
+      "name": "required",
+      "type": "boolean",
+      "default": false,
+      "description": "The box must be checked; the label gets a marker and the name says required."
+    },
+    {
+      "name": "checked",
+      "type": "boolean",
+      "default": false,
+      "description": "Whether it is checked."
+    },
+    {
+      "name": "indeterminate",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows a dash and is spoken as mixed, as a select-all box with some items checked."
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Can't be changed, and fades."
+    }
+  ],
+  "slots": [],
+  "events": [
+    {
+      "name": "press",
+      "description": "The row is pressed."
+    },
+    {
+      "name": "change",
+      "description": "The box was checked or unchecked."
+    }
+  ],
+  "states": [
+    {
+      "name": "rest",
+      "description": "An edge at 3:1; filled in the primary colour when checked or mixed."
+    },
+    {
+      "name": "pressed",
+      "description": "The box scales to the press scale, never under reduced motion."
+    },
+    {
+      "name": "disabled",
+      "description": "Faded."
+    }
+  ],
+  "tokens": {
+    "edge": "muted-foreground",
+    "fill": "primary",
+    "tick": "primary-foreground",
+    "label": "foreground",
+    "description": "muted-foreground",
+    "error": "destructive"
+  },
+  "metrics": {
+    "boxTouch": 20,
+    "boxPointer": 16,
+    "rowMinHeightTouch": 44,
+    "gap": 12,
+    "graphicContrast": 3
+  },
+  "claims": [
+    "contrast.text",
+    "motion.reduced",
+    "name.spoken",
+    "target.touch",
+    "text.reflows"
+  ],
+  "accessibility": {
+    "name": "Its label, with required when it is; its state checked, not checked or mixed; then its error and description.",
+    "keyboard": "One tab stop; Space toggles it.",
+    "web": "A role=\"checkbox\" with aria-checked (true, false or mixed), named by its label, aria-describedby for the description and error.",
+    "apple": "One element with the toggle trait, named by its label (\", required\"), its value Checked, Not checked or Mixed, its hint the error then the description.",
+    "windows": "UI Automation ControlType.CheckBox with the Toggle pattern (On, Off, Indeterminate), named by its label."
+  },
+  "cases": [
+    {
+      "id": "terms",
+      "props": {
+        "label": "I agree to the terms",
+        "required": true
+      },
+      "person": "An empty box beside \"I agree to the terms\" with a red marker.",
+      "agent": {
+        "role": "checkbox",
+        "name": "I agree to the terms, required",
+        "focusable": true
+      }
+    },
+    {
+      "id": "mixed",
+      "props": {
+        "label": "Whole basket",
+        "indeterminate": true
+      },
+      "person": "A filled box with a dash beside \"Whole basket\".",
+      "agent": {
+        "role": "checkbox",
+        "name": "Whole basket",
+        "focusable": true
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Checkbox (registry/ouro/components/ouro/checkbox)",
+      "deviations": [
+        "readOnly, name and value for forms, and CheckboxGroup."
+      ]
+    },
+    "apple": {
+      "type": "OuroCheckbox",
+      "deviations": [
+        "Drawn: iOS has no checkbox. No readOnly, form name or value, or group yet."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroCheckbox (not yet built)"
+    }
+  }
+}

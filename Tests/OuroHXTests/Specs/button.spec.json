@@ -1,0 +1,192 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "button",
+  "version": "1.0.0",
+  "summary": "A control a person presses to do one thing, such as Add to list or Place order.",
+  "role": "control",
+  "properties": [
+    {
+      "name": "label",
+      "type": "string",
+      "required": true,
+      "description": "The words on it, which are also its spoken name. With an action, the action's label."
+    },
+    {
+      "name": "action",
+      "type": "action",
+      "description": "The defineAction it runs. Its label, description and id become the button's words, hint and automation id, and a press goes through the person's door."
+    },
+    {
+      "name": "tone",
+      "type": "enum",
+      "values": [
+        "primary",
+        "secondary",
+        "destructive",
+        "success",
+        "warning"
+      ],
+      "default": "primary",
+      "description": "The colour role, from the theme: primary reads colors.primary."
+    },
+    {
+      "name": "variant",
+      "type": "enum",
+      "values": [
+        "solid",
+        "soft",
+        "outline",
+        "plain"
+      ],
+      "default": "solid",
+      "description": "Visual weight: solid fills with the tone, soft tints, outline draws the edge, plain draws text only."
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "default": "md",
+      "description": "Height. Every size keeps a 44-point target on touch."
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Can't be pressed, and says so to assistive technology."
+    },
+    {
+      "name": "busy",
+      "type": "boolean",
+      "default": false,
+      "description": "Its action is running: it keeps its width, can't be pressed again, and tells assistive technology it is busy."
+    }
+  ],
+  "slots": [
+    {
+      "name": "icon",
+      "description": "An icon before the words.",
+      "decorative": true
+    }
+  ],
+  "events": [
+    {
+      "name": "press",
+      "description": "A person pressed it: a click, a tap, Enter or Space while focused, or an accessibility Invoke."
+    }
+  ],
+  "states": [
+    {
+      "name": "rest",
+      "description": "The tone and variant's colours."
+    },
+    {
+      "name": "hover",
+      "description": "A pointer over it: the fill a step stronger."
+    },
+    {
+      "name": "pressed",
+      "description": "Held down: scales to the press scale token (0.97), not at all when the platform's reduce-motion setting is on."
+    },
+    {
+      "name": "focused",
+      "description": "Keyboard focus: the platform's own focus ring, never removed."
+    },
+    {
+      "name": "disabled",
+      "description": "Dimmed and not pressable."
+    },
+    {
+      "name": "busy",
+      "description": "A spinner in place of the words, same width."
+    }
+  ],
+  "tokens": {
+    "fill": "{tone}",
+    "label": "{tone}-foreground",
+    "edge": "{tone}",
+    "focus": "ring"
+  },
+  "metrics": {
+    "minTarget": 44,
+    "paddingX": 16,
+    "pressScale": 0.97
+  },
+  "claims": [
+    "target.touch",
+    "motion.reduced",
+    "name.spoken",
+    "text.reflows",
+    "contrast.text"
+  ],
+  "accessibility": {
+    "name": "Its words, or the action's label.",
+    "keyboard": "Tab focuses it; Enter and Space press it.",
+    "web": "<button> (or <a> with href), named by its text; aria-busy while busy.",
+    "apple": "A SwiftUI Button (Button(intent:) with an action), with the button trait.",
+    "windows": "UI Automation ControlType.Button with the Invoke pattern, named by its words; AutomationId action.<id> with an action."
+  },
+  "cases": [
+    {
+      "id": "action-write",
+      "props": {
+        "action": "add_shopping_list_item",
+        "tone": "primary"
+      },
+      "person": "A filled primary button that says Add to list.",
+      "agent": {
+        "role": "button",
+        "name": "Add to list",
+        "focusable": true
+      }
+    },
+    {
+      "id": "action-person-only",
+      "props": {
+        "action": "place_grocery_order",
+        "tone": "secondary",
+        "variant": "soft"
+      },
+      "person": "A tinted button that says Place order.",
+      "agent": {
+        "role": "button",
+        "name": "Place order",
+        "focusable": true
+      }
+    },
+    {
+      "id": "destructive-outline",
+      "props": {
+        "label": "Delete list",
+        "tone": "destructive",
+        "variant": "outline"
+      },
+      "person": "An outlined red button that says Delete list.",
+      "agent": {
+        "role": "button",
+        "name": "Delete list",
+        "focusable": true
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Button (registry/ouro/components/ouro/button)",
+      "deviations": [
+        "Also a link with href, and an inline size that takes the text's size; the native kits have no links in their buttons."
+      ]
+    },
+    "apple": {
+      "type": "OuroButton",
+      "deviations": [
+        "Adds a glass variant (Liquid Glass) and a pill or rounded shape; neither exists on other platforms yet."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroButton, a templated WinUI Button"
+    }
+  }
+}

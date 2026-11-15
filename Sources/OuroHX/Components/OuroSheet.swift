@@ -263,7 +263,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.title2.weight(.bold))
+                    .font(.ouroHeading(.title2, weight: 700, in: theme))
                     .foregroundStyle(Color(p.title))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)

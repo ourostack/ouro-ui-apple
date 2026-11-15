@@ -18,7 +18,7 @@ struct GalleryApp: App {
 
 enum GalleryPage: String, CaseIterable, Identifiable {
     case colors = "Colours", pairs = "Pairs", feel = "Feel"
-    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", avatars = "Avatars", loading = "Loading", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
+    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", textFields = "Text fields", choices = "Choices", display = "Display", avatars = "Avatars", loading = "Loading", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
     var id: String { rawValue }
 
     init?(rawValue: String) {
@@ -31,6 +31,9 @@ enum GalleryPage: String, CaseIterable, Identifiable {
         case "cards", "card": self = .cards
         case "items", "item": self = .items
         case "avatars", "avatar": self = .avatars
+        case "display", "separator", "separators", "descriptionlist": self = .display
+        case "textfields", "textfield", "text-field": self = .textFields
+        case "choices", "checkbox", "checkboxes", "segmented", "segmentedcontrol": self = .choices
         case "loading", "skeleton", "spinner", "progress": self = .loading
         case "pageheaders", "pageheader", "page-header": self = .pageHeaders
         case "empty", "emptystate": self = .empty
@@ -112,6 +115,9 @@ private struct ThemedPage: View {
                 case .cards: CardsPage()
                 case .items: ItemsPage()
                 case .avatars: AvatarsPage()
+                case .display: DisplayPage()
+                case .textFields: TextFieldsPage()
+                case .choices: ChoicesPage()
                 case .loading: LoadingPage()
                 case .pageHeaders: PageHeadersPage()
                 case .empty: EmptyStatesPage()
@@ -144,7 +150,7 @@ private struct ThemedPage: View {
                     .frame(minHeight: 44)
             }
             .accessibilityIdentifier("gallery.theme")
-            Text("\(scheme == .dark ? "Dark" : "Light")\(contrast == .increased ? ", increased contrast" : "") · ouro-ui-core v0.3.0")
+            Text("\(scheme == .dark ? "Dark" : "Light")\(contrast == .increased ? ", increased contrast" : "") · ouro-ui-core v0.14.0")
                 .font(.subheadline)
                 .foregroundStyle(colors.mutedForeground)
         }

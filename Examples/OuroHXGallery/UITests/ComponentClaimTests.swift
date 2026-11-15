@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "avatars", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "textfields", "choices", "display", "avatars", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -19,7 +19,25 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
         // Let sheets and toasts finish arriving.
         sleep(2)
+        if page == "toasts", open { waitForToastsToSettle(app) }
         return app
+    }
+
+    /// The toasts page pushes its toasts at launch. On a loaded runner two seconds have caught the stack still arriving,
+    /// its region 8 points tall, and the audit read that sliver as "Potentially inaccessible text" with no element.
+    /// So the audit waits until the stack's region is at least 44 points tall and has held still for half a second. (The
+    /// region is the element to watch: XCUI doesn't always list the toasts inside it by their own identifier.)
+    private func waitForToastsToSettle(_ app: XCUIApplication, timeout: TimeInterval = 15) {
+        let region = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.regionIdentifier).firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        var last: [CGRect] = []
+        while Date() < deadline {
+            let frames = [region.exists ? region.frame : .zero]
+            if frames[0].height >= 44, frames == last { return }
+            last = frames
+            usleep(500_000)
+        }
+        XCTFail("toasts: the stack had not settled after \(Int(timeout)) seconds: \(last)")
     }
 
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,
@@ -41,7 +59,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : run.page == "choices" ? Self.inactiveMisreadings : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -139,6 +157,12 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
         app.terminate()
+        app = launch("display")
+        // A pair is heard as one; a pair whose details are a view keeps its parts; a line is silent, its label is not.
+        XCTAssertTrue(app.descendants(matching: .any)["Prep time, 20 minutes"].exists, "display: a pair is not heard as one")
+        XCTAssertTrue(app.staticTexts["Diet"].exists && app.descendants(matching: .any)["Vegan"].exists, "display: a pair with a view lost its parts")
+        XCTAssertTrue(app.staticTexts["or"].exists, "display: a separator's label is not text")
+        app.terminate()
         app = launch("loading")
         // A spinner says what it waits for; a bar says what it is and how far along; a skeleton says Loading once.
         XCTAssertTrue(app.descendants(matching: .any)["Saving the draft"].firstMatch.exists, "loading: the spinner is not named")
@@ -178,6 +202,38 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Lemon orzo with peas'")).allElementsBoundByIndex.contains { $0.elementType == .staticText }, "pageheaders: the title is not text")
         XCTAssertTrue(app.buttons["Cook"].exists && app.buttons["Share"].exists, "pageheaders: an action is not a button")
         XCTAssertTrue(app.staticTexts["Shopping list"].exists, "pageheaders: no section title")
+        app.terminate()
+        app = launch("textfields")
+        // A field is named by its label, never its placeholder, keeps the label with hideLabel, says it is required,
+        // and reads its error; its buttons are named.
+        XCTAssertTrue(app.textFields["Email, required"].exists, "textfields: no field named \"Email, required\"")
+        XCTAssertTrue(app.secureTextFields["Password"].exists, "textfields: the password is not a secure field named Password")
+        XCTAssertTrue(app.buttons["Show password"].exists, "textfields: no show password button")
+        XCTAssertTrue(app.textFields["Search recipes"].exists, "textfields: a hidden label is not the field's name")
+        XCTAssertTrue(app.buttons["Clear"].exists, "textfields: no clear button while the search has text")
+        let titleField = app.textFields["Recipe title, required"]
+        XCTAssertTrue(titleField.exists, "textfields: no recipe title field")
+        // XCUI's subscript also matches a placeholder, so the name is read from `label`.
+        XCTAssertFalse(app.textFields.matching(NSPredicate(format: "label == %@", "Lemon orzo with peas")).firstMatch.exists, "textfields: a placeholder is a field's name")
+        app.buttons["Show password"].tap()
+        XCTAssertTrue(app.textFields["Password"].waitForExistence(timeout: 2), "textfields: show password does not show it")
+        app.buttons["Clear"].tap()
+        XCTAssertFalse(app.buttons["Clear"].waitForExistence(timeout: 1), "textfields: clear did not empty the search")
+        app.terminate()
+        app = launch("choices")
+        // A segment is a button, the pressed one selected; a checkbox says its name, its state, and changes it.
+        let grid = app.buttons["Grid"]
+        XCTAssertTrue(grid.exists, "choices: no Grid segment")
+        XCTAssertTrue(app.buttons["List"].isSelected, "choices: the pressed segment is not selected")
+        grid.tap()
+        XCTAssertTrue(grid.isSelected, "choices: pressing a segment does not select it")
+        // XCUI lists a checkbox's toggle, its button and its words under one name; VoiceOver hears only the toggle.
+        let terms = app.descendants(matching: .toggle)["I agree to the terms, required"]
+        XCTAssertTrue(terms.exists, "choices: the checkbox is not named with required")
+        XCTAssertEqual(terms.value as? String, "Not checked", "choices: the checkbox's value is \(String(describing: terms.value))")
+        terms.tap()
+        XCTAssertEqual(terms.value as? String, "Checked", "choices: checking does not check")
+        XCTAssertEqual(app.descendants(matching: .toggle)["Whole basket"].value as? String, "Mixed", "choices: a partial select-all is not mixed")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)
@@ -244,6 +300,20 @@ final class ComponentClaimTests: XCTestCase {
     /// glass (well over 15:1 in `gallery-r10/buttons-dark.png`) as failing contrast, and raising every glass label to
     /// 6:1 made it report more failures, not fewer (W8 evidence, taste round 5). The same misreading as Undo on the glass
     /// toast. So contrast on a glass button is measured from the screen's pixels instead (`inkContrast`).
+    /// A single-line field scrolls its text sideways, as every platform's input does, and the audit reads every
+    /// `UITextField` as "Text clipped". It is excused only for a field at least a line of its text tall at the size
+    /// the app runs at, so a field that didn't grow with Dynamic Type still fails.
+    static func singleLineFieldMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
+        { issue in
+            guard issue.auditType == .textClipped, let element = issue.element, element.exists,
+                  [.textField, .secureTextField].contains(element.elementType) else { return false }
+            let size = app.launchArguments.firstIndex(of: "-UIPreferredContentSizeCategoryName")
+                .flatMap { app.launchArguments.indices.contains($0 + 1) ? UIContentSizeCategory(rawValue: app.launchArguments[$0 + 1]) : nil } ?? .large
+            let line = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)).lineHeight
+            return element.frame.height >= line - 1
+        }
+    }
+
     static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
     }
@@ -254,6 +324,14 @@ final class ComponentClaimTests: XCTestCase {
     /// would break every row it sits in. Excused for one or two capital letters on the avatars page only.
     static let avatarInitialsMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .dynamicType && (issue.element.map { $0.label.range(of: "^[A-Z]{1,2}$", options: .regularExpression) != nil } ?? false)
+    }
+
+    /// The choices page's disabled segment and checkbox, faded as web fades them (`opacity-50`). WCAG 1.4.3 exempts
+    /// text in an inactive control, so contrast is excused for them, by name and only on that page; every enabled
+    /// segment and box on it is still audited.
+    static let inactiveExamples: Set<String> = ["Board", "Archived"]
+    static let inactiveMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .contrast && (issue.element.map { !$0.isEnabled || ComponentClaimTests.inactiveExamples.contains($0.label) } ?? false)
     }
 
     /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.

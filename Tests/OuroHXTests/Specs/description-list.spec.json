@@ -1,0 +1,96 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "description-list",
+  "version": "1.0.0",
+  "summary": "One thing's details as pairs of a term and its value, such as a recipe's prep time and servings.",
+  "role": "group",
+  "properties": [
+    {
+      "name": "stackBelow",
+      "type": "enum",
+      "values": [
+        "sm",
+        "md"
+      ],
+      "default": "sm",
+      "description": "Below this width of the list itself (sm 448, md 512 points) each term sits above its details; above it the terms form a column beside them."
+    }
+  ],
+  "slots": [
+    {
+      "name": "items",
+      "description": "The pairs, in order: a term and its details, which are words or a view."
+    }
+  ],
+  "events": [],
+  "states": [
+    {
+      "name": "rest",
+      "description": "Terms muted, details in the foreground, a line between pairs."
+    }
+  ],
+  "tokens": {
+    "term": "muted-foreground",
+    "details": "foreground",
+    "line": "border"
+  },
+  "metrics": {
+    "stackWidthSm": 448,
+    "stackWidthMd": 512,
+    "termColumnMax": 224,
+    "termColumnFraction": 0.4,
+    "pairPadding": 12
+  },
+  "claims": [
+    "contrast.text",
+    "name.spoken",
+    "text.reflows"
+  ],
+  "accessibility": {
+    "name": "Each pair is heard as its term, then its details.",
+    "web": "A <dl> of <dt> and <dd>.",
+    "apple": "A pair whose details are words is one element, \"Prep time, 20 minutes\"; one whose details are a view keeps its parts.",
+    "windows": "UI Automation ControlType.List of ControlType.ListItem, each named by its term and details."
+  },
+  "cases": [
+    {
+      "id": "recipe",
+      "props": {},
+      "slots": {
+        "items": "Prep time: 20 minutes; Serves: 6"
+      },
+      "person": "Prep time over 20 minutes, a line, then Serves over 6, on a phone.",
+      "agent": {
+        "role": "group",
+        "name": "",
+        "children": [
+          {
+            "role": "text",
+            "name": "Prep time, 20 minutes"
+          },
+          {
+            "role": "text",
+            "name": "Serves, 6"
+          }
+        ]
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "DescriptionList (registry/ouro/components/ouro/description-list)",
+      "deviations": [
+        "items is a property of { term, details } on web."
+      ]
+    },
+    "apple": {
+      "type": "OuroDescriptionList",
+      "deviations": [
+        "items are OuroDescriptionItem values: a term and details as a string or a view. At the accessibility text sizes it always stacks."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroDescriptionList (not yet built)"
+    }
+  }
+}

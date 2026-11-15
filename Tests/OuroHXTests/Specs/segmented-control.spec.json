@@ -1,0 +1,141 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "segmented-control",
+  "version": "1.0.0",
+  "summary": "A row of equal segments with a thumb that slides to the pressed one, for switching how one view shows its content.",
+  "role": "control",
+  "properties": [
+    {
+      "name": "label",
+      "type": "string",
+      "required": true,
+      "description": "Names the choice; shown above the control unless hidden, and always its spoken name."
+    },
+    {
+      "name": "hideLabel",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the label's words; the control keeps it as its name."
+    },
+    {
+      "name": "value",
+      "type": "string",
+      "description": "The pressed segment's value."
+    },
+    {
+      "name": "fullWidth",
+      "type": "boolean",
+      "default": false,
+      "description": "Stretches the control to its container, the segments sharing the width."
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables every segment."
+    }
+  ],
+  "slots": [
+    {
+      "name": "items",
+      "description": "Two to five segments: a value, one short word, and whether it is disabled."
+    }
+  ],
+  "events": [
+    {
+      "name": "press",
+      "description": "A segment is pressed."
+    },
+    {
+      "name": "change",
+      "description": "The pressed segment changed, with its value."
+    }
+  ],
+  "states": [
+    {
+      "name": "rest",
+      "description": "Muted track; the pressed segment on the raised thumb."
+    },
+    {
+      "name": "pressed",
+      "description": "The segment scales to the press scale, never under reduced motion."
+    },
+    {
+      "name": "disabled",
+      "description": "Faded; can't be pressed."
+    }
+  ],
+  "tokens": {
+    "track": "muted",
+    "thumb": "background",
+    "selected": "foreground",
+    "unselected": "muted-foreground",
+    "label": "foreground",
+    "edge": "border"
+  },
+  "metrics": {
+    "heightTouch": 44,
+    "heightPointer": 36,
+    "trackInset": 2,
+    "segmentPadding": 12
+  },
+  "claims": [
+    "contrast.text",
+    "motion.reduced",
+    "name.spoken",
+    "target.touch",
+    "text.reflows"
+  ],
+  "accessibility": {
+    "name": "Its label; each segment by its word, the pressed one selected.",
+    "keyboard": "One tab stop; the arrow keys press the next segment.",
+    "web": "A role=\"radiogroup\" named by its label, of role=\"radio\" segments with aria-checked.",
+    "apple": "A container named by its label, of buttons with the selected trait on the pressed one; a selection haptic.",
+    "windows": "UI Automation ControlType.List with the Selection pattern, of ListItems with SelectionItem."
+  },
+  "cases": [
+    {
+      "id": "view",
+      "props": {
+        "label": "View",
+        "hideLabel": true,
+        "value": "list"
+      },
+      "slots": {
+        "items": "List; Grid"
+      },
+      "person": "Two equal segments, List on a raised white thumb.",
+      "agent": {
+        "role": "group",
+        "name": "View",
+        "children": [
+          {
+            "role": "button",
+            "name": "List"
+          },
+          {
+            "role": "button",
+            "name": "Grid"
+          }
+        ]
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "SegmentedControl (registry/ouro/components/ouro/segmented-control)",
+      "deviations": [
+        "name submits the value with a form."
+      ]
+    },
+    "apple": {
+      "type": "OuroSegmentedControl",
+      "deviations": [
+        "Drawn rather than the system's segmented picker, which is 32 points tall on iPhone. Segments are buttons with the selected trait, as SwiftUI has no radio role. They stack at the accessibility sizes."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroSegmentedControl (not yet built)"
+    }
+  }
+}

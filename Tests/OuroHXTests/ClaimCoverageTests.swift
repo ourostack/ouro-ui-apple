@@ -10,10 +10,11 @@ import Testing
         "target.touch": [
             "Tests/OuroHXTests/ComponentTests.swift: TouchTargetTests",
             "Tests/OuroHXTests/ComponentTests.swift: TextFieldMetricsTests",
+            "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryControlIs44Points",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
         ],
-        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests", "Tests/OuroHXTests/ComponentTests.swift: LoadingMetricsTests", "Tests/OuroHXTests/ComponentTests.swift: SyncStatusTests"],
+        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests", "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests", "Tests/OuroHXTests/ComponentTests.swift: LoadingMetricsTests", "Tests/OuroHXTests/ComponentTests.swift: SyncStatusTests"],
         "name.spoken": [
             "Tests/OuroHXTests/ComponentTests.swift: LoadingMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: PageHeaderMetricsTests",
@@ -27,6 +28,7 @@ import Testing
             "Tests/OuroHXTests/ComponentTests.swift: CardMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: ItemMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: TextFieldMetricsTests",
+            "Tests/OuroHXTests/ComponentTests.swift: ChoiceMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: PageHeaderMetricsTests",
         ],
         "contrast.text": [

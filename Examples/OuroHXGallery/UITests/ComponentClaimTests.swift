@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "textfields", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "textfields", "choices", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -41,7 +41,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "choices" ? Self.inactiveMisreadings : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -184,6 +184,21 @@ final class ComponentClaimTests: XCTestCase {
         app.buttons["Clear"].tap()
         XCTAssertFalse(app.buttons["Clear"].waitForExistence(timeout: 1), "textfields: clear did not empty the search")
         app.terminate()
+        app = launch("choices")
+        // A segment is a button, the pressed one selected; a checkbox says its name, its state, and changes it.
+        let grid = app.buttons["Grid"]
+        XCTAssertTrue(grid.exists, "choices: no Grid segment")
+        XCTAssertTrue(app.buttons["List"].isSelected, "choices: the pressed segment is not selected")
+        grid.tap()
+        XCTAssertTrue(grid.isSelected, "choices: pressing a segment does not select it")
+        // XCUI lists a checkbox's toggle, its button and its words under one name; VoiceOver hears only the toggle.
+        let terms = app.descendants(matching: .toggle)["I agree to the terms, required"]
+        XCTAssertTrue(terms.exists, "choices: the checkbox is not named with required")
+        XCTAssertEqual(terms.value as? String, "Not checked", "choices: the checkbox's value is \(String(describing: terms.value))")
+        terms.tap()
+        XCTAssertEqual(terms.value as? String, "Checked", "choices: checking does not check")
+        XCTAssertEqual(app.descendants(matching: .toggle)["Whole basket"].value as? String, "Mixed", "choices: a partial select-all is not mixed")
+        app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)
         XCTAssertTrue(app.buttons["Create recipe"].exists)
@@ -265,6 +280,14 @@ final class ComponentClaimTests: XCTestCase {
 
     static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
+    }
+
+    /// The choices page's disabled segment and checkbox, faded as web fades them (`opacity-50`). WCAG 1.4.3 exempts
+    /// text in an inactive control, so contrast is excused for them, by name and only on that page; every enabled
+    /// segment and box on it is still audited.
+    static let inactiveExamples: Set<String> = ["Board", "Archived"]
+    static let inactiveMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .contrast && (issue.element.map { !$0.isEnabled || ComponentClaimTests.inactiveExamples.contains($0.label) } ?? false)
     }
 
     /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.

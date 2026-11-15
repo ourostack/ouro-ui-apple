@@ -25,7 +25,7 @@ every other agent that comes knocking.
 iOS 18 and macOS 15 or later, Swift 6.1 (Xcode 16.3 or later). Newer things (the iPhone Duo's hinge, Siri AI) switch on by themselves where the
 OS has them.
 
-**Status:** pre-1.0, on v0.6.x; the newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). What 1.0 needs (eighteen components, claims, platforms, API stability and adoption) is in [docs/decisions/2026-11-14-apple-1-0.md](docs/decisions/2026-11-14-apple-1-0.md). Meets core [v0.8.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.8.0): the tokens and the claim sets (AX's
+**Status:** pre-1.0, on v0.6.x; the newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). What 1.0 needs (eighteen components, claims, platforms, API stability and adoption) is in [docs/decisions/2026-11-14-apple-1-0.md](docs/decisions/2026-11-14-apple-1-0.md). Meets core [v0.13.1](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.13.1): the tokens and the claim sets (AX's
 `apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
 
 ## One system with web
@@ -34,7 +34,7 @@ Ouro UI is one system with a web half and an Apple half, and each half has a sid
 
 | | Web ([ourostack/ouro-ui](https://github.com/ourostack/ouro-ui)) | Apple (this package) |
 |---|---|---|
-| People (Ouro HX) | React components you copy into your app with the shadcn CLI | `OuroHX`: `OuroButton`, `OuroBadge`, `OuroCard`, `OuroItem`, `OuroTextField`, `OuroSkeleton`, `OuroSpinner`, `OuroProgress`, `OuroPageHeader`, `OuroEmptyState`, `OuroBanner`, `OuroSyncStatus`, `.ouroSheet` and toasts, the spring, the press, haptics and six themes; `OuroFeel` checks how it feels |
+| People (Ouro HX) | React components you copy into your app with the shadcn CLI | `OuroHX`: `OuroButton`, `OuroBadge`, `OuroCard`, `OuroItem`, `OuroTextField`, `OuroSegmentedControl`, `OuroCheckbox`, `OuroSkeleton`, `OuroSpinner`, `OuroProgress`, `OuroPageHeader`, `OuroEmptyState`, `OuroBanner`, `OuroSyncStatus`, `.ouroSheet` and toasts, the spring, the press, haptics and six themes; `OuroFeel` checks how it feels |
 | Agents (Ouro AX) | a kit for command lines, HTTP APIs and MCP servers, and an X-ray that calls them from outside | `OuroAX` outcomes shaped like web's, an X-ray for an app's App Intents (`ouro-ax-xray`), and `OuroReins` to drive its screens |
 | Both, from one declaration | a command line, MCP and WebMCP tools and a web control | an App Intent, a SwiftUI button and a Reins action |
 
@@ -48,7 +48,7 @@ Ouro UI's [one action model](https://github.com/ourostack/ouro-ui-core/blob/main
 
 | Product | For | What it has |
 |---|---|---|
-| `OuroHX` | your app | the components: `OuroButton` (solid, soft, outline, plain, glass; rounded or pill), `OuroBadge` (solid, soft, outline), `OuroCard` (outline or plain), `OuroItem` and `OuroItemGroup` (rows and lists of them), `OuroTextField` (a labelled field with its keyboard, autofill, error and show password), `OuroSkeleton`, `OuroSpinner` and `OuroProgress` (loading, known and unknown), `OuroPageHeader` (a page's or section's title, eyebrow, description, actions and picture), `OuroEmptyState`, `OuroBanner`, `OuroSyncStatus` (saved, saving, offline, not saved, with Retry), `.ouroSheet`, and toasts (`.ouroToaster()` at the root, then `@Environment(\.ouroToast)`); `.ouroTheme(.pearl)`, `ouroColors` and radii in the environment; `OuroColor` (contrast, increased contrast, adaptive colours); `OuroMotion` (core's spring and curves, polite under Reduce Motion); `OuroHaptics` (one named table of moments); `OuroFoldPosture` and `OuroFoldReader` (tabletop, book, closed) |
+| `OuroHX` | your app | the components: `OuroButton` (solid, soft, outline, plain, glass; rounded or pill), `OuroBadge` (solid, soft, outline), `OuroCard` (outline or plain), `OuroItem` and `OuroItemGroup` (rows and lists of them), `OuroTextField` (a labelled field with its keyboard, autofill, error and show password), `OuroSegmentedControl` (one of a few views, 44 points to touch), `OuroCheckbox` (checked, not or mixed), `OuroSkeleton`, `OuroSpinner` and `OuroProgress` (loading, known and unknown), `OuroPageHeader` (a page's or section's title, eyebrow, description, actions and picture), `OuroEmptyState`, `OuroBanner`, `OuroSyncStatus` (saved, saving, offline, not saved, with Retry), `.ouroSheet`, and toasts (`.ouroToaster()` at the root, then `@Environment(\.ouroToast)`); `.ouroTheme(.pearl)`, `ouroColors` and radii in the environment; `OuroColor` (contrast, increased contrast, adaptive colours); `OuroMotion` (core's spring and curves, polite under Reduce Motion); `OuroHaptics` (one named table of moments); `OuroFoldPosture` and `OuroFoldReader` (tabletop, book, closed) |
 | `OuroHXTesting` | your tests | `OuroSnapshot` (light, dark, increased contrast), `ouroAccessibilityAudit`, `OuroDuoHinge` (fold the Duo simulator from a UI test) |
 | `OuroAX` | your app | `OuroAX.Outcome` and `OuroAX.Problem` (web's `ax-outcome` and `ax-problem`, field for field), exit codes, entity queries with fuzzy matching, `OuroAXOutcomeIntent`, `OuroAXPackage` |
 | `OuroAXTesting` | your tests | Siri evaluation wordings and pass rates; the App Intents X-ray's checks, reports and Siri scenario sets (`AXXray`) |
@@ -178,7 +178,7 @@ case .failure(let p):
 }
 ```
 
-`Tests/OuroA2UITests` runs core's 10 conformance cases (vendored from ouro-ui-core v0.7.1 and pinned in
+`Tests/OuroA2UITests` runs core's 10 conformance cases (vendored from ouro-ui-core v0.13.1 and pinned in
 `core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
 web's `a2ui-surface` passes. The decisions are core's
 [2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md)

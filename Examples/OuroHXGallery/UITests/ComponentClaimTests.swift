@@ -43,6 +43,11 @@ final class ComponentClaimTests: XCTestCase {
         }
     }
 
+    /// Xcode's "Audit failed to complete in time": the audit found nothing either way.
+    static func auditTimedOut(_ error: NSError) -> Bool {
+        error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56
+    }
+
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,
     /// descriptions, traits, clipped text, Dynamic Type, contrast) on every component page, at the default and the
     /// largest accessibility text size, in light and dark. Each page's file under `Pages/` says how its audit runs, what
@@ -57,7 +62,11 @@ final class ComponentClaimTests: XCTestCase {
                         let run = GalleryAuditRun(name: "\(claims.page)\(variant.suffix) \(size ?? "default") \(scheme)", size: size, extra: variant.extra)
                         let app = launch(claims.page, size: size, scheme: scheme, extra: variant.extra)
                         XCTContext.runActivity(named: run.name) { _ in
-                            do { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) } catch { XCTFail("\(run.name): \(error)") }
+                            do { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) } catch let error as NSError where Self.auditTimedOut(error) {
+                                // The audit ran out of time, on the machine's account rather than the page's (a loaded
+                                // CI runner did on two pages in a row): it runs once more, and a second timeout fails.
+                                do { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) } catch { XCTFail("\(run.name), audited twice: \(error)") }
+                            } catch { XCTFail("\(run.name): \(error)") }
                         }
                         claims.afterAudit(app, run)
                         app.terminate()

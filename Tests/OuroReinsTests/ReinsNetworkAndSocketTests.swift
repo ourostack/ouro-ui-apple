@@ -114,6 +114,10 @@ struct SocketTests {
     nonisolated private static func exchange(path: String, lines: [String]) throws -> [String] {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         defer { close(fd) }
+        // A write to a connection the server has closed must fail this test, not kill the whole test process with
+        // SIGPIPE (#106, "exited with unexpected signal code 13").
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
         let bytes = Array(path.utf8)

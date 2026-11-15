@@ -515,6 +515,14 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(r.findings.contains { $0.note && $0.what.contains("only a tap outside") })
     }
 
+    @Test func anOverlayThatWouldNotReopenIsNamedAsUnchecked() {
+        var unopened = FeelOverlayTrial(name: "kitchen.tidy", appeared: true, outsideDismisses: true)
+        unopened.reopenFailed = true
+        let named = FeelOverlays.evaluate([unopened])
+        #expect(named.findings.contains { $0.unchecked && $0.what.contains("kitchen.tidy") && $0.what.contains("no pick was tried") },
+                "an overlay that would not reopen is named, not passed in silence (#92)")
+    }
+
     @Test func aTapOutsideThatLandsOnTheScreenBehindIsNotCountedAsADismissal() {
         let r = FeelOverlays.evaluate([FeelOverlayTrial(name: "filter", appeared: true, outsideLandedBehind: true)])
         #expect(!r.passed)

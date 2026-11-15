@@ -568,11 +568,18 @@ extension OuroFeel {
                 outsideDismisses = wait(timeout) { !showing() }
             }
             // A tap that went through the overlay to the screen behind (a row it opened) is no dismissal: the screen
-            // it left is mostly gone. Say so, and let the walk recover.
+            // it left is mostly gone, and stays gone. Say so, and let the walk recover.
             if outsideDismisses == true {
-                let now = elements()
                 let content = before.filter { [.button, .cell, .link, .staticText].contains($0.value.type) && appeared[$0.key] == nil }
-                if !content.isEmpty, content.keys.filter({ now[$0] != nil }).count * 2 < content.count {
+                func mostlyGone() -> Bool {
+                    let now = elements()
+                    return content.keys.filter { now[$0] != nil }.count * 2 < content.count
+                }
+                // While a popover's exit finishes, the screen behind can stay hidden from accessibility (the popover
+                // holds it modal), longest on a loaded runner: a CI walk once read a stepper's popover, closed by a
+                // tap at the top of a short list, as a tap that landed behind. Only a screen that stays changed was
+                // left.
+                if !content.isEmpty, mostlyGone(), !wait(timeout, until: { !mostlyGone() }) {
                     return FeelOverlayTrial(name: name, appeared: true, outsideLandedBehind: true)
                 }
             }
@@ -580,8 +587,16 @@ extension OuroFeel {
         if !showing() {
             reopen()
             pause(0.8)
+            // A loaded runner can drop the reopening tap as it can any other (#92): one more before giving up, and a
+            // trial with no pick is then reported as unchecked by name.
             if !wait(timeout, until: showing) {
-                return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: nil)
+                reopen()
+                pause(0.8)
+            }
+            if !wait(timeout, until: showing) {
+                var trial = FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: nil)
+                trial.reopenFailed = true
+                return trial
             }
         }
         // The topmost item that is safe to pick, never a part of a stepper or slider. One that opens a submenu leaves

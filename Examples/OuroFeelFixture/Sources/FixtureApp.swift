@@ -23,6 +23,7 @@ struct FixtureApp: App {
             case "flicker": FlickerPage()
             case "screen-flicker": ScreenFlickerPage()
             case "reveal": RevealPage()
+            case "reveal-reads": RevealByReadsPage()
             case "stray": StrayPage()
             case "fight": FightPage()
             case "keyboard": KeyboardPage()
@@ -719,6 +720,39 @@ struct RevealPage: View {
                 .accessibilityHidden(true)
             Button("Open") { openedAt = clock.ticks }.accessibilityIdentifier("reveal.open")
             Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("reveal.clock")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// The first page shown after an open, for an app with no clock of its own (#94): the same open as ``RevealPage``, run on
+/// wall time as UIKit and reader engines do, filmed by XCUITest's reads. Fixed: the cover holds 1.2 s, then his page
+/// shows. The bug: the cover goes after 0.3 s onto another page, which 1.5 s later jumps to his. Each state lasts long
+/// enough for several reads on a loaded runner.
+struct RevealByReadsPage: View {
+    @State private var shown: Int?
+    @State private var opened = false
+
+    var body: some View {
+        VStack(spacing: 24) {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(shown == nil ? Color.black : (shown == 1 ? Color.teal : Color.purple))
+                .overlay(Text(shown.map { "Page \($0)" } ?? "").font(.system(size: 60, weight: .bold)).foregroundStyle(.white))
+                .frame(height: 360)
+                .padding(.horizontal, 24)
+                .accessibilityHidden(true)
+            Button("Open") {
+                guard !opened else { return }
+                opened = true
+                Task { @MainActor in
+                    if bug {
+                        try? await Task.sleep(for: .seconds(0.3)); shown = 1
+                        try? await Task.sleep(for: .seconds(1.5)); shown = 2
+                    } else {
+                        try? await Task.sleep(for: .seconds(1.2)); shown = 2
+                    }
+                }
+            }.accessibilityIdentifier("revealreads.open")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

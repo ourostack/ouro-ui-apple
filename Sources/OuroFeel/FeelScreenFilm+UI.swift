@@ -54,6 +54,42 @@ extension OuroFeel {
         return FeelScreenFilm(frames: frames, timedBy: timedBy)
     }
 
+    /// Films the whole screen for an app with no clock of its own (#94): one screenshot per XCUITest read, as fast as
+    /// screenshots come, each shrunk to a `width`-pixel grayscale thumbnail with the top `statusBand` points and every
+    /// rect in `ignoring` blanked. An app that runs on the system's animations (UIKit, a web view, a reader engine)
+    /// can't step a clock for ``screenFilm(steps:tick:clock:advance:width:statusBand:ignoring:stall:during:)``, so this
+    /// samples it as it plays and the film is judged in reads: ``FeelScreenFilm/flickers(within:states:stable:merge:run:)``
+    /// and ``FeelScreenFilm/revealHolds(cover:until:stable:merge:run:)`` count samples, never seconds.
+    ///
+    /// It reads for at least `atLeast` seconds after `action`, then stops once the last `settle` reads all look the same
+    /// (under 0.6 apart, a film's `stable`), or after `reads` reads at most. Set `atLeast` past the slowest step you
+    /// expect, so a page that rests for a moment before it jumps is still filmed when it jumps. The film is marked
+    /// ``FeelScreenFilm/byReads`` and its ``FeelScreenFilm/timedBy`` says how many reads covered how long, since a flash
+    /// shorter than one read can't be seen. Each sample's `t` is the seconds since `action`, for the report only.
+    public func screenFilm(reads: Int = 120, atLeast: TimeInterval = 2, settle: Int = 6, width: Int = 160,
+                           statusBand: CGFloat = 60, ignoring: [CGRect] = [],
+                           during action: (() -> Void)? = nil) -> FeelScreenFilm {
+        var frames: [FeelScreenFrame] = []
+        action?()
+        let start = Date()
+        let settle = max(2, settle)
+        while frames.count < max(1, reads) {
+            let shot = XCUIScreen.main.screenshot().image
+            let t = Date().timeIntervalSince(start)
+            let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring
+            guard let frame = Self.thumbnail(shot, width: width, blank: blank, t: t) else { break }
+            frames.append(frame)
+            if t >= atLeast, frames.count >= settle {
+                let last = frames.suffix(settle)
+                if let first = last.first, last.allSatisfy({ (FeelScreenFilm.difference(first, $0) ?? .infinity) < 0.6 }) { break }
+            }
+        }
+        let seconds = frames.last.map { String(format: "%.2f", $0.t) } ?? "0"
+        var film = FeelScreenFilm(frames: frames, timedBy: "XCUITest's reads, one screenshot a read (\(frames.count) reads over \(seconds) s; a flash shorter than one read is not seen)")
+        film.byReads = true
+        return film
+    }
+
     /// One picture of the screen now, shrunk and blanked as ``screenFilm(steps:tick:clock:advance:width:statusBand:ignoring:stall:during:)``
     /// does (the status band, the clock's label, `ignoring`), to compare a film with: the cover for
     /// ``FeelScreenFilm/revealHolds(cover:until:stable:merge:run:)``, taken while it is surely up. Nil when there is no
@@ -63,6 +99,15 @@ extension OuroFeel {
         let shot = XCUIScreen.main.screenshot().image
         let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockFrame.insetBy(dx: -4, dy: -4)] + ignoring
         return Self.thumbnail(shot, width: width, blank: blank, t: 0)
+    }
+
+    /// One picture of the screen now, shrunk and blanked as ``screenFilm(reads:atLeast:settle:width:statusBand:ignoring:during:)``
+    /// does (the status band and `ignoring`), for an app with no clock of its own: the cover for
+    /// ``FeelScreenFilm/revealHolds(cover:until:stable:merge:run:)``, taken while it is surely up. Nil when there is no
+    /// screenshot to take.
+    public func screenPicture(width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelScreenFrame? {
+        let shot = XCUIScreen.main.screenshot().image
+        return Self.thumbnail(shot, width: width, blank: [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring, t: 0)
     }
 
     /// A screenshot as a `width`-pixel grayscale thumbnail, with each rect of `blank` (in points, top down) painted

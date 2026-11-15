@@ -24,7 +24,8 @@ extension FeelScreenFilm {
     /// a film that starts after the cover had gone would otherwise take the wrong first page for the cover and pass the
     /// very jump it is for. Rests before the first one that looks like `cover` (under `merge`) are not judged. The reveal
     /// is the first rest after the cover that is not the cover; every rest after it that begins before sample `until`
-    /// (the next scripted mark, not itself included; the film's end when nil) must be the reveal. Another rest, the
+    /// (the next scripted mark, not itself included; the film's end when nil) must be the reveal, even one that only
+    /// frames at and after the mark confirm: the screen showed it before the person acted. Another rest, the
     /// cover coming back, or a flash away and back fails. Judged in samples, never seconds, with the same rests
     /// (`stable`, `merge`, `run`) as ``flickers(within:states:stable:merge:run:)``. It cannot be checked when the film
     /// stalled, skipped a tick or mixed picture sizes, when `cover` is another size, when no rest looks like the cover

@@ -1,0 +1,129 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "card",
+  "version": "1.0.0",
+  "summary": "A surface that groups one thing's content: a title, a description, an action beside them, a body and a footer.",
+  "role": "group",
+  "properties": [
+    {
+      "name": "title",
+      "type": "string",
+      "description": "The card's heading."
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "A line under the title."
+    },
+    {
+      "name": "variant",
+      "type": "enum",
+      "values": [
+        "outline",
+        "plain"
+      ],
+      "default": "outline",
+      "description": "outline is a bordered surface in the theme's card colours; plain has no frame or padding."
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": [
+        "md",
+        "sm"
+      ],
+      "default": "md",
+      "description": "Padding: md 24, sm 16."
+    }
+  ],
+  "slots": [
+    {
+      "name": "content",
+      "description": "The body."
+    },
+    {
+      "name": "action",
+      "description": "One control beside the title, such as Edit. It goes under the title at the largest text sizes."
+    },
+    {
+      "name": "footer",
+      "description": "A row at the bottom for buttons or a timestamp."
+    }
+  ],
+  "events": [],
+  "states": [
+    {
+      "name": "rest",
+      "description": "The variant's surface. The card itself is not pressable; its controls are."
+    }
+  ],
+  "tokens": {
+    "surface": "card",
+    "title": "card-foreground",
+    "description": "muted-foreground",
+    "edge": "border"
+  },
+  "metrics": {
+    "paddingMd": 24,
+    "paddingSm": 16,
+    "gapMd": 16,
+    "gapSm": 12
+  },
+  "claims": [
+    "name.spoken",
+    "text.reflows",
+    "contrast.text"
+  ],
+  "accessibility": {
+    "name": "Its title, which is a heading.",
+    "web": "A <div> (or article, section, li) with the title as a heading.",
+    "apple": "The title has the header trait; the action is its own button.",
+    "windows": "UI Automation ControlType.Group named by its title; the title is a Text with heading level 2; the action keeps its own control."
+  },
+  "cases": [
+    {
+      "id": "titled-with-action",
+      "props": {
+        "title": "Pantry",
+        "description": "What you have on hand"
+      },
+      "slots": {
+        "content": "Flour, rice, black beans.",
+        "action": "Edit"
+      },
+      "person": "A bordered card titled Pantry, with an Edit button beside the title.",
+      "agent": {
+        "role": "group",
+        "name": "Pantry",
+        "children": [
+          {
+            "role": "heading",
+            "name": "Pantry"
+          },
+          {
+            "role": "text",
+            "name": "What you have on hand"
+          },
+          {
+            "role": "button",
+            "name": "Edit"
+          }
+        ]
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Card (registry/ouro/components/ouro/card)",
+      "deviations": [
+        "With href the whole card is one link named by its title; native cards are not links."
+      ]
+    },
+    "apple": {
+      "type": "OuroCard"
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroCard, a templated WinUI ContentControl"
+    }
+  }
+}

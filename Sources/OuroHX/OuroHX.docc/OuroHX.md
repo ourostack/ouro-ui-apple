@@ -1,6 +1,6 @@
 # ``OuroHX``
 
-Ouro HX for Apple: the tokens from ouro-ui-core v0.3.0 and the SwiftUI pieces that use them.
+Ouro HX for Apple: the tokens from ouro-ui-core v0.13.1 and the SwiftUI pieces that use them.
 
 ## Overview
 

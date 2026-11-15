@@ -142,6 +142,40 @@ import Testing
         }
     }
 
+    /// A field with a description, a password, a field with an error, a search, a large field and a plain one.
+    /// ImageRenderer can't draw AppKit's text input, so the input shows as its placeholder; this proves the chrome
+    /// around it (label, description, edge, error, buttons), and the gallery's UI tests prove the input.
+    @Test(arguments: Mode.allCases) func textField(_ mode: Mode) throws {
+        try check("text-field", mode) {
+            VStack(alignment: .leading, spacing: 16) {
+                OuroTextField("Email", text: .constant("cook@example.com"), description: "We send your recipes here.", type: .email, required: true)
+                OuroTextField("Password", text: .constant("lemon-orzo"), type: .password)
+                OuroTextField("Recipe title", text: .constant(""), placeholder: "Lemon orzo with peas", error: "Give the recipe a title.")
+                OuroTextField("Search recipes", text: .constant("orzo"), type: .search, hideLabel: true, clearable: true)
+                OuroTextField("Servings", text: .constant("6"), size: .lg)
+                OuroTextField("Note", text: .constant(""), placeholder: "Oven runs hot", variant: .plain, hideLabel: true)
+            }
+        }
+    }
+
+    /// Segmented controls (hugging and full width) and checkboxes: checked, mixed, with a description and an error.
+    @Test(arguments: Mode.allCases) func choices(_ mode: Mode) throws {
+        try check("choices", mode) {
+            VStack(alignment: .leading, spacing: 16) {
+                OuroSegmentedControl("View", selection: .constant("list"), hideLabel: true, items: [
+                    OuroSegment("List", value: "list"), OuroSegment("Grid", value: "grid"), OuroSegment("Board", value: "board", disabled: true),
+                ])
+                OuroSegmentedControl("Units", selection: .constant("us"), fullWidth: true, items: [
+                    OuroSegment("Metric", value: "metric"), OuroSegment("US", value: "us"),
+                ])
+                OuroCheckbox("Whole basket", isOn: .constant(false), indeterminate: true)
+                OuroCheckbox("Lemons", isOn: .constant(true))
+                OuroCheckbox("Email me new recipes", isOn: .constant(false), description: "One a week, on Sundays.")
+                OuroCheckbox("I agree to the terms", isOn: .constant(false), error: "Agree to the terms to continue.", required: true)
+            }
+        }
+    }
+
     /// Skeletons in every shape, spinners and progress bars, known and unknown. (A spinner is the system's, which
     /// ImageRenderer draws at rest.)
     @Test(arguments: Mode.allCases) func loading(_ mode: Mode) throws {

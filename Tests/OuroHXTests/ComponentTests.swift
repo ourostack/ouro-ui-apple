@@ -266,6 +266,73 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct TextFieldMetricsTests {
+    /// Web's defaults: `type="text"`, `variant="outline"`, `size="md"`.
+    @Test func aTextFieldDefaultsToWebsOutlineMedium() {
+        #expect(OuroTextFieldMetrics.defaultType == .text)
+        #expect(OuroTextFieldMetrics.defaultVariant == .outline)
+        #expect(OuroTextFieldMetrics.defaultSize == .md)
+    }
+
+    /// Core claim `target.touch`: web's `h-11` and `h-14`, 44 and 56 points, with `px-3` and `rounded-lg`.
+    @Test func aTextFieldIsATouchTarget() {
+        #expect(OuroTextFieldMetrics.minimumHeight(.md) == 44)
+        #expect(OuroTextFieldMetrics.minimumHeight(.lg) == 56)
+        #expect(OuroTextFieldMetrics.horizontalPadding == 12)
+        #expect(OuroTextFieldMetrics.radius == .lg)
+    }
+
+    /// Each type sets autofill, and what must be typed exactly is never capitalised or corrected, as on web.
+    @Test func eachTypeSetsAutofillAndLiteralInput() {
+        #expect(OuroTextFieldMetrics.contentType(.email) == .emailAddress)
+        #expect(OuroTextFieldMetrics.contentType(.password) == .password)
+        #expect(OuroTextFieldMetrics.contentType(.tel) == .telephoneNumber)
+        #expect(OuroTextFieldMetrics.contentType(.url) == .url)
+        #expect(OuroTextFieldMetrics.contentType(.text) == nil)
+        for type in [OuroTextFieldType.email, .url, .password, .tel] { #expect(OuroTextFieldMetrics.isLiteral(type)) }
+        for type in [OuroTextFieldType.text, .search] { #expect(!OuroTextFieldMetrics.isLiteral(type)) }
+    }
+
+    /// Core claim `name.spoken`: VoiceOver hears the error first, then the description, after the field's name.
+    @Test func theHintReadsTheErrorThenTheDescription() {
+        #expect(OuroTextFieldMetrics.hint(description: "We send your recipes here.", error: nil) == "We send your recipes here.")
+        #expect(OuroTextFieldMetrics.hint(description: "We send your recipes here.", error: "Use an email address.") == "Error: Use an email address. We send your recipes here.")
+        #expect(OuroTextFieldMetrics.hint(description: nil, error: "") == nil)
+        #expect(OuroTextFieldMetrics.hint(description: nil, error: "Required") == "Error: Required.")
+    }
+}
+
+@Suite struct ChoiceMetricsTests {
+    /// Core claim `target.touch`: a segment and a checkbox row are 44 points tall to touch, web's sizes with a pointer.
+    @Test func segmentsAndCheckboxRowsAreTouchTargets() {
+        #expect(OuroChoiceMetrics.segmentHeight(.touch) == 44)
+        #expect(OuroChoiceMetrics.segmentHeight(.pointer) == 36)
+        #expect(OuroChoiceMetrics.rowMinHeight(.touch) == 44)
+        #expect(OuroChoiceMetrics.boxSide(.touch) == 20)
+        #expect(OuroChoiceMetrics.boxSide(.pointer) == 16)
+    }
+
+    /// Core claim `name.spoken`: a checkbox is heard by its label (with required), its state, then its error and
+    /// description.
+    @Test func aCheckboxSaysWhatItIsAndWhereItStands() {
+        #expect(OuroChoiceMetrics.checkboxName("I agree to the terms", required: true) == "I agree to the terms, required")
+        #expect(OuroChoiceMetrics.checkboxValue(isOn: true, indeterminate: false) == "Checked")
+        #expect(OuroChoiceMetrics.checkboxValue(isOn: false, indeterminate: false) == "Not checked")
+        #expect(OuroChoiceMetrics.checkboxValue(isOn: true, indeterminate: true) == "Mixed")
+        #expect(OuroChoiceMetrics.hint(error: "Agree to continue.", description: "Read them first.") == "Agree to continue. Read them first.")
+        #expect(OuroChoiceMetrics.hint(error: nil, description: "One a week.") == "One a week.")
+    }
+
+    /// Core claims `motion.reduced` and `text.reflows`: the tick fades rather than draws under Reduce Motion, and
+    /// segments stack at the accessibility sizes.
+    @Test func nothingDrawsUnderReduceMotionAndSegmentsStackWhenLarge() {
+        #expect(OuroChoiceMetrics.tickDraws(reduceMotion: false))
+        #expect(!OuroChoiceMetrics.tickDraws(reduceMotion: true))
+        #expect(OuroChoiceMetrics.stacksSegments(at: .accessibility1))
+        #expect(!OuroChoiceMetrics.stacksSegments(at: .large))
+    }
+}
+
 @Suite struct LoadingMetricsTests {
     /// Web's defaults: a `rect` skeleton, an `md` spinner, a `primary` bar.
     @Test func theLoadingComponentsDefaultToWebs() {
@@ -607,6 +674,20 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         }
     }
 
+    /// A text field's label, text, placeholder, description and error read on the page, and its edge, focus ring and
+    /// error edge reach 3:1 so the box can be found (WCAG 1.4.11), in every theme and mode.
+    @Test func textFieldTextAndEdgesReadInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroTextFieldPalette(style: style)
+            for (part, colour) in [("label", p.label), ("text", p.text), ("placeholder", p.placeholder), ("description", p.description), ("error", p.error)] {
+                #expect(ratio(colour, p.surface) >= target(style), "\(name) \(part): \(ratio(colour, p.surface))")
+            }
+            for (part, colour) in [("edge", p.edge), ("focus", p.focus), ("invalid edge", p.invalidEdge)] {
+                #expect(ratio(colour, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) \(part): \(ratio(colour, p.surface))")
+            }
+        }
+    }
+
     /// A bar's words read on the page, its filled part reaches 3:1 on the track and the page in every tone, and a
     /// placeholder is seen on the page, in every theme and mode.
     @Test func loadingReadsInEveryThemeAndMode() {
@@ -646,6 +727,22 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
                 #expect(ratio(p.line, p.surface) > 1, "\(name) \(String(describing: tone)) line")
                 if style.contrast == .increased { #expect(ratio(p.line, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) line") }
             }
+        }
+    }
+
+    @Test func segmentedControlAndCheckboxReadInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let s = OuroSegmentedControlPalette(style: style)
+            #expect(ratio(s.selected, s.thumb) >= target(style), "\(name) pressed segment")
+            #expect(ratio(s.unselected, s.track) >= target(style), "\(name) segment")
+            if let edge = s.thumbEdge { #expect(ratio(edge, s.track) >= OuroColor.increasedLineContrast - 0.01, "\(name) thumb edge") }
+            let c = OuroCheckboxPalette(style: style)
+            #expect(ratio(c.label, c.surface) >= target(style), "\(name) checkbox label")
+            #expect(ratio(c.description, c.surface) >= target(style), "\(name) checkbox description")
+            #expect(ratio(c.error, c.surface) >= target(style), "\(name) checkbox error")
+            #expect(ratio(c.tick, c.fill) >= 2.99, "\(name) tick")
+            #expect(ratio(c.edge, c.surface) >= 2.99, "\(name) box edge")
+            #expect(ratio(c.fill, c.surface) >= 2.99, "\(name) checked box")
         }
     }
 

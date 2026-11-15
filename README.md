@@ -233,6 +233,21 @@ The Siri AI Developer Preview needs the Xcode 27.3 beta SDK. Until you build wit
 
 CI's `siri-ai-sdk` job compiles them as soon as its image has Xcode 27.3.
 
+## Source stability
+
+Ouro UI for Apple follows [semantic versioning](https://semver.org), on
+[swift-argument-parser's model](https://github.com/apple/swift-argument-parser#project-status). The public API is
+every public declaration, not starting with an underscore, in the library products (`OuroHX`, `OuroHXTesting`,
+`OuroAX`, `OuroAXTesting`, `OuroAXTestingProbe`, `OuroFeel`, `OuroFeelCore`, `OuroFeelRecorder`, `OuroReins`,
+`OuroA2UI`). From 1.0.0, a change that breaks a caller's source waits for 2.0; a minor release may add API, deprecate
+it, or raise the toolchain it needs. Not covered: the executables' output, the gallery, snapshots and what the
+components look like, which follow the design and may change in any release.
+
+Every pull request runs `scripts/api-break.sh`, which compares the API with the last release tag through
+[`swift package diagnose-api-breaking-changes`](https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageManagerDocs/Documentation.docc/Package/PackageDiagnoseAPIBreakingChange.md).
+From 0.9.0 a break fails it, unless the pull request's title starts `Breaking:`; before that it is reported in the
+run's summary.
+
 ## CI
 
 - **Free GitHub-hosted runners** (`ubuntu-latest`, `macos-26`) run on every pull request and push: core provenance, `swift build` and `swift test`, the skills linter, the iOS Simulator build, DocC and the gallery. The gallery's UI tests run on an iPhone on pull requests, and on an iPhone and a 13-inch iPad on `main` and releases. Their Xcode 26 has no iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the Siri AI parts compile out behind SDK checks (`#if canImport(SwiftUICore, _version: 8.0.85)` and `canImport`), never compiler checks: Xcode 27.0 and 27.1 have Swift 6.4 but older SDKs.

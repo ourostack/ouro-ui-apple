@@ -75,4 +75,25 @@ private let cover = FeelScreenFrame(t: 0, width: 4, height: 4, gray: Array(repea
         let moving = film([0, 0, 120, 120, 150]).revealHolds(cover: cover)
         #expect(moving.findings.contains { $0.unchecked && $0.what.contains("still changing") }, "\(moving.text)")
     }
+
+    /// A film that carries its own cover (#73, item 5) is judged against it, the same as passing it in.
+    @Test func aFilmsOwnCoverJudgesAsAPassedOne() {
+        var held = film([0, 0, 0, 120, 120, 120, 120]); held.cover = cover
+        #expect(held.revealHolds().passed)
+        var jumped = film([0, 0, 120, 120, 120, 200, 200, 200]); jumped.cover = cover
+        #expect(jumped.revealHolds().text == jumped.revealHolds(cover: cover).text)
+        #expect(!jumped.revealHolds().passed)
+    }
+
+    @Test func aFilmWithNoCoverCannotBeChecked() {
+        let result = film([0, 0, 120, 120]).revealHolds()
+        #expect(!result.passed && result.findings.contains { $0.unchecked && $0.what.contains("no cover picture") }, "\(result.text)")
+    }
+
+    /// Old films, written before `cover`, still decode.
+    @Test func aFilmWithoutACoverFieldDecodes() throws {
+        let json = #"{"frames":[{"t":0,"width":1,"height":1,"gray":[0]}]}"#
+        let decoded = try JSONDecoder().decode(FeelScreenFilm.self, from: Data(json.utf8))
+        #expect(decoded.cover == nil && decoded.frames.count == 1)
+    }
 }

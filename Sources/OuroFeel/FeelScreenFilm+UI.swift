@@ -21,6 +21,27 @@ extension OuroFeel {
     public func screenFilm(steps: Int, tick: TimeInterval, clock: String, advance: () -> Void, width: Int = 160,
                            statusBand: CGFloat = 60, ignoring: [CGRect] = [], stall: TimeInterval = 30,
                            during action: (() -> Void)? = nil) -> FeelScreenFilm {
+        screenFilm(cover: false, steps: steps, tick: tick, clock: clock, advance: advance, width: width,
+                   statusBand: statusBand, ignoring: ignoring, stall: stall, during: action)
+    }
+
+    /// ``screenFilm(steps:tick:clock:advance:width:statusBand:ignoring:stall:during:)`` that, with `cover`, first shoots
+    /// the screen as it is, before `action`, with the film's own size and blanking, into ``FeelScreenFilm/cover``, for
+    /// ``FeelScreenFilm/revealHolds(until:stable:merge:run:)``. Start it while the cover is up. A cover taken apart with
+    /// ``screenPicture(clock:width:statusBand:ignoring:)`` and other settings would only make the judge "could not check".
+    public func screenFilm(cover: Bool, steps: Int, tick: TimeInterval, clock: String, advance: () -> Void,
+                           width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = [], stall: TimeInterval = 30,
+                           during action: (() -> Void)? = nil) -> FeelScreenFilm {
+        let coverPicture = cover ? screenPicture(clock: clock, width: width, statusBand: statusBand, ignoring: ignoring) : nil
+        var film = clockFilm(steps: steps, tick: tick, clock: clock, advance: advance, width: width, statusBand: statusBand,
+                             ignoring: ignoring, stall: stall, during: action)
+        film.cover = coverPicture
+        return film
+    }
+
+    func clockFilm(steps: Int, tick: TimeInterval, clock: String, advance: () -> Void, width: Int,
+                   statusBand: CGFloat, ignoring: [CGRect], stall: TimeInterval,
+                   during action: (() -> Void)?) -> FeelScreenFilm {
         let timedBy = "the app's own clock (\"\(clock)\", \(String(format: "%g", tick)) s a tick), one screenshot per tick"
         func sample(atLeast least: Int) -> (count: Int, clockFrame: CGRect)? {
             let deadline = Date().addingTimeInterval(stall)
@@ -69,6 +90,17 @@ extension OuroFeel {
     public func screenFilm(reads: Int = 120, atLeast: TimeInterval = 2, settle: Int = 6, width: Int = 160,
                            statusBand: CGFloat = 60, ignoring: [CGRect] = [],
                            during action: (() -> Void)? = nil) -> FeelScreenFilm {
+        screenFilm(cover: false, reads: reads, atLeast: atLeast, settle: settle, width: width, statusBand: statusBand,
+                   ignoring: ignoring, during: action)
+    }
+
+    /// ``screenFilm(reads:atLeast:settle:width:statusBand:ignoring:during:)`` that, with `cover`, first shoots the screen
+    /// as it is, before `action`, with the film's own size and blanking, into ``FeelScreenFilm/cover``, for
+    /// ``FeelScreenFilm/revealHolds(until:stable:merge:run:)``. Start it while the cover is up.
+    public func screenFilm(cover: Bool, reads: Int = 120, atLeast: TimeInterval = 2, settle: Int = 6, width: Int = 160,
+                           statusBand: CGFloat = 60, ignoring: [CGRect] = [],
+                           during action: (() -> Void)? = nil) -> FeelScreenFilm {
+        let coverPicture = cover ? screenPicture(width: width, statusBand: statusBand, ignoring: ignoring) : nil
         var frames: [FeelScreenFrame] = []
         action?()
         let start = Date()
@@ -87,6 +119,7 @@ extension OuroFeel {
         let seconds = frames.last.map { String(format: "%.2f", $0.t) } ?? "0"
         var film = FeelScreenFilm(frames: frames, timedBy: "XCUITest's reads, one screenshot a read (\(frames.count) reads over \(seconds) s; a flash shorter than one read is not seen)")
         film.byReads = true
+        film.cover = coverPicture
         return film
     }
 

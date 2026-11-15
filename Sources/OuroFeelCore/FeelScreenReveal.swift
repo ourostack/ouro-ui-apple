@@ -3,6 +3,17 @@ public import Foundation
 // MARK: The first page shown is the one that stays
 
 extension FeelScreenFilm {
+    /// ``revealHolds(cover:until:stable:merge:run:)`` against the film's own ``cover``, which the `screenFilm(cover:…)`
+    /// overloads of `OuroFeel` shoot with the film's own size and blanking just before the action, so the two always
+    /// compare. Without a cover it cannot be checked.
+    public func revealHolds(until: Int? = nil, stable: Double = 0.6, merge: Double = 1.5, run: Int = 2) -> FeelResult {
+        guard let cover else {
+            return FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "", failing: { _ in "" },
+                                     findings: [.couldNotCheck("the film has no cover picture; film it with screenFilm(cover: true, …), or pass revealHolds(cover:) a picture")])
+        }
+        return revealHolds(cover: cover, until: until, stable: stable, merge: merge, run: run)
+    }
+
     /// Jump after landing, at an open, judged from pixels: the first thing the screen rests on once the cover goes is the
     /// thing it stays on. Gatefold build 20 relaunched on an iPad showed a page 25 pages from his place for about 10 s,
     /// then jumped to it, while the app's own report of the place was right throughout; this catches that from the

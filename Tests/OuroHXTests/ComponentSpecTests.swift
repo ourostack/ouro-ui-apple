@@ -46,12 +46,18 @@ import Testing
             "mediaSm": OuroItemMetrics.mediaSide(.sm), "mediaMd": OuroItemMetrics.mediaSide(.md),
             "mediaLg": OuroItemMetrics.mediaSide(.lg), "outlineInset": OuroItemMetrics.outlineInset,
         ],
+        "description-list": [
+            "stackWidthSm": OuroDisplayMetrics.stackWidth(.sm), "stackWidthMd": OuroDisplayMetrics.stackWidth(.md),
+            "termColumnMax": OuroDisplayMetrics.termColumnMaxWidth, "termColumnFraction": OuroDisplayMetrics.termColumnFraction,
+            "pairPadding": OuroDisplayMetrics.pairPadding,
+        ],
         "page-header": ["gap": OuroPageHeaderMetrics.spacing, "blockGap": OuroPageHeaderMetrics.blockSpacing],
         "progress": ["barHeight": OuroLoadingMetrics.barHeight, "fillContrast": OuroColor.increasedLineContrast],
         "segmented-control": [
             "heightTouch": OuroChoiceMetrics.segmentHeight(.touch), "heightPointer": OuroChoiceMetrics.segmentHeight(.pointer),
             "trackInset": OuroChoiceMetrics.trackInset, "segmentPadding": OuroChoiceMetrics.segmentPadding,
         ],
+        "separator": ["lineWidth": OuroDisplayMetrics.lineWidth(contrast: .standard), "labelGap": OuroDisplayMetrics.labelGap],
         "skeleton": [
             "breatheDelaySeconds": OuroLoadingMetrics.breatheDelay, "lastLineFraction": OuroLoadingMetrics.lastLineFraction,
             "placeholderContrast": OuroLoadingMetrics.placeholderContrast,
@@ -59,6 +65,10 @@ import Testing
         "spinner": [
             "sm": OuroLoadingMetrics.spinnerSide(.sm), "md": OuroLoadingMetrics.spinnerSide(.md),
             "lg": OuroLoadingMetrics.spinnerSide(.lg),
+        ],
+        "text-field": [
+            "minHeightMd": OuroTextFieldMetrics.minimumHeight(.md), "minHeightLg": OuroTextFieldMetrics.minimumHeight(.lg),
+            "paddingX": OuroTextFieldMetrics.horizontalPadding, "edgeContrast": OuroColor.increasedLineContrast,
         ],
         "sync-status": ["speakDelayMs": OuroSyncStatusMetrics.speakDelay / .milliseconds(1)],
     ]
@@ -71,7 +81,7 @@ import Testing
 
     /// Specs vendored for components this package doesn't ship yet; each leaves this list in the pull request that
     /// adds the component and its row in `apple`.
-    static let notYetBuilt: Set<String> = ["avatar", "description-list", "separator", "text-field"]
+    static let notYetBuilt: Set<String> = ["avatar"]
 
     @Test func everyVendoredSpecIsComparedOrNotYetBuilt() {
         #expect(Set(Self.vendored) == Set(Self.apple.keys).union(Self.notYetBuilt))

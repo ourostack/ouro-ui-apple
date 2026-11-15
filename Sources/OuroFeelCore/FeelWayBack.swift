@@ -202,6 +202,9 @@ public struct FeelOverlayTrial: Codable, Equatable, Sendable {
     /// True when the tap outside changed the screen behind (it went through the overlay to a row, say), so whether
     /// the overlay dismisses was not seen. `outsideDismisses` is then nil.
     public var outsideLandedBehind: Bool?
+    /// True when it closed after the tap outside and would not open again, so no pick was tried: a menu that stays open
+    /// after a pick would otherwise pass unreported (#92).
+    public var reopenFailed: Bool? = nil
 
     public init(name: String, appeared: Bool, outsideDismisses: Bool? = nil, pickDismisses: Bool? = nil, noPickBecause: String? = nil,
                 outsideLandedBehind: Bool? = nil) {
@@ -228,6 +231,9 @@ public enum FeelOverlays {
             }
             if t.pickDismisses == false { findings.append(FeelFinding(what: "\(t.name): still on screen after picking an item")) }
             if let why = t.noPickBecause { findings.append(.note("\(t.name): \(why), so only a tap outside was asked of it")) }
+            if t.reopenFailed == true {
+                findings.append(.couldNotCheck("\(t.name): it did not open again after the tap outside, so no pick was tried"))
+            }
         }
         if trials.isEmpty { findings.append(.couldNotCheck("no overlays were named")) }
         let tried = trials.filter(\.appeared).count

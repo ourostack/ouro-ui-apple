@@ -55,6 +55,15 @@ public enum OuroSnapshot {
     /// Compares a render with `<directory>/<name>.png`, recording it when there is none (or when ``recording``).
     /// `tolerance` is the share of pixels allowed to differ.
     public static func verify(_ view: some View, named name: String, in directory: URL, size: CGSize? = nil, appearance: Appearance = .light, tolerance: Double = 0) throws -> Result {
+        try verify(view, named: name, in: directory, size: size, appearance: appearance, tolerance: tolerance, ignoringUnrenderedInput: false)
+    }
+
+    /// ``verify(_:named:in:size:appearance:tolerance:)`` for a view with text input, which `ImageRenderer` can't draw: it
+    /// draws a yellow placeholder with a red sign instead, whose size changes from run to run (#173). With
+    /// `ignoringUnrenderedInput`, a pixel that is that placeholder's yellow-to-red (or its edge) in either image doesn't
+    /// count, so the snapshot proves the chrome around the input and nothing else. Don't use it for a view whose own
+    /// colours are saturated yellow, orange or red, which it would stop checking too.
+    public static func verify(_ view: some View, named name: String, in directory: URL, size: CGSize? = nil, appearance: Appearance = .light, tolerance: Double = 0, ignoringUnrenderedInput: Bool) throws -> Result {
         guard let image = render(view, size: size, appearance: appearance), let data = png(image) else { throw RenderFailed(name: name) }
         let reference = directory.appendingPathComponent("\(name).png")
         guard !recording, FileManager.default.fileExists(atPath: reference.path),
@@ -69,7 +78,7 @@ public enum OuroSnapshot {
             try data.write(to: reference, options: .atomic)
             return .recorded
         }
-        let fraction = difference(image, recorded)
+        let fraction = difference(image, recorded, ignoringUnrenderedInput: ignoringUnrenderedInput)
         if fraction <= tolerance { return .matched }
         try data.write(to: directory.appendingPathComponent("\(name).actual.png"), options: .atomic)
         return .differs(fraction: fraction)
@@ -103,11 +112,22 @@ public enum OuroSnapshot {
     /// conversion and antialiasing can land a level apart from run to run. Exact colours are the palette tests' job.
     static let channelNoise = 2
 
-    static func difference(_ a: CGImage, _ b: CGImage) -> Double {
+    static func difference(_ a: CGImage, _ b: CGImage, ignoringUnrenderedInput: Bool = false) -> Double {
         guard a.width == b.width, a.height == b.height, let pa = rgba(a), let pb = rgba(b) else { return 1 }
         var differing = 0
         for i in stride(from: 0, to: pa.count, by: 4)
-        where (0..<4).contains(where: { abs(Int(pa[i + $0]) - Int(pb[i + $0])) > channelNoise }) { differing += 1 }
+        where (0..<4).contains(where: { abs(Int(pa[i + $0]) - Int(pb[i + $0])) > channelNoise }) {
+            if ignoringUnrenderedInput, unrendered(pa, i) || unrendered(pb, i) { continue }
+            differing += 1
+        }
         return Double(differing) / Double(a.width * a.height)
+    }
+
+    /// Whether the pixel at byte `i` is `ImageRenderer`'s placeholder for an input it can't draw: its yellow
+    /// (255, 204, 0), the red sign on it, or the blend of either with the page at its edge. Saturated: red high, blue
+    /// well below it. Text and edges in grays, and a dark error red, are not.
+    static func unrendered(_ p: [UInt8], _ i: Int) -> Bool {
+        let r = Int(p[i]), b = Int(p[i + 2])
+        return p[i + 3] > 0 && r >= 200 && b <= 200 && r - b >= 55
     }
 }

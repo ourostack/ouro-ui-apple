@@ -23,13 +23,13 @@ import Testing
 
     static let width: CGFloat = 390
 
-    private func check(_ name: String, _ mode: Mode, height: CGFloat? = nil, @ViewBuilder _ view: () -> some View) throws {
+    private func check(_ name: String, _ mode: Mode, height: CGFloat? = nil, input: Bool = false, @ViewBuilder _ view: () -> some View) throws {
         let framed = view()
             .padding(16)
             .frame(width: Self.width, height: height, alignment: .top)
             .background(Color(OuroInk.r(OuroHXStyle(theme: OuroTokens.pearl, scheme: mode.appearance.scheme, contrast: mode.appearance.contrast).colors.background)))
             .ouroTheme(.pearl)
-        let result = try OuroSnapshot.verify(framed, named: "\(name)-\(mode.rawValue)", in: Self.directory, appearance: mode.appearance, tolerance: 0.002)
+        let result = try OuroSnapshot.verify(framed, named: "\(name)-\(mode.rawValue)", in: Self.directory, appearance: mode.appearance, tolerance: 0.002, ignoringUnrenderedInput: input)
         #expect(result == .matched || result == .recorded, "\(name) \(mode): \(result); see \(Self.directory.path)")
     }
 
@@ -175,7 +175,8 @@ import Testing
     /// ImageRenderer can't draw AppKit's text input, so the input shows as its placeholder; this proves the chrome
     /// around it (label, description, edge, error, buttons), and the gallery's UI tests prove the input.
     @Test(arguments: Mode.allCases) func textField(_ mode: Mode) throws {
-        try check("text-field", mode) {
+        // The input's placeholder changes size between runs, so it doesn't count (#173).
+        try check("text-field", mode, input: true) {
             VStack(alignment: .leading, spacing: 16) {
                 OuroTextField("Email", text: .constant("cook@example.com"), description: "We send your recipes here.", type: .email, required: true)
                 OuroTextField("Password", text: .constant("lemon-orzo"), type: .password)

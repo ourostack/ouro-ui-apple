@@ -25,16 +25,15 @@ final class ComponentClaimTests: XCTestCase {
 
     /// The toasts page pushes its toasts at launch. On a loaded runner two seconds have caught the stack still arriving,
     /// its region 8 points tall, and the audit read that sliver as "Potentially inaccessible text" with no element.
-    /// So the audit waits until a toast is there, the stack is at least 44 points tall and it has held still for half a
-    /// second.
+    /// So the audit waits until the stack's region is at least 44 points tall and has held still for half a second. (The
+    /// region is the element to watch: XCUI doesn't always list the toasts inside it by their own identifier.)
     private func waitForToastsToSettle(_ app: XCUIApplication, timeout: TimeInterval = 15) {
         let region = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.regionIdentifier).firstMatch
-        let toasts = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.toastIdentifier)
         let deadline = Date().addingTimeInterval(timeout)
         var last: [CGRect] = []
         while Date() < deadline {
-            let frames = [region.exists ? region.frame : .zero] + toasts.allElementsBoundByIndex.map(\.frame)
-            if frames.count > 1, frames[0].height >= 44, frames == last { return }
+            let frames = [region.exists ? region.frame : .zero]
+            if frames[0].height >= 44, frames == last { return }
             last = frames
             usleep(500_000)
         }

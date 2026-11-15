@@ -20,6 +20,8 @@ fresh runner (scripts/ci-broken-runner.sh, #74). A third try on the same runner 
 Worst case for `wait <name> 240`: boot 240 + cleanup 60 + list 60 + create 270 + boot 240 = 870 s, inside a
 16-minute step limit.
 """
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -194,6 +196,19 @@ def main(argv):
 
 
 def selftest():
+    # The checks below make the retry paths print their `::warning` lines. Caught here, they're checked rather than read by
+    # GitHub as real workflow commands, which put a fake "hung past 20 s" and "boom" on every shard's annotations.
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        checks()
+    printed = out.getvalue()
+    assert printed.count("title=Infrastructure retry::simctl list runtimes hung past") == 3, printed
+    assert "exited 1: boom" in printed and "exited 1: service gone" in printed, printed
+    print("ci-simulator: selftest passed")
+    return 0
+
+
+def checks():
     runtimes = [
         {"platform": "iOS", "isAvailable": True, "version": "26.2", "identifier": "iOS-26-2"},
         {"platform": "iOS", "isAvailable": True, "version": "26.10", "identifier": "iOS-26-10"},
@@ -253,8 +268,6 @@ def selftest():
         raise AssertionError("two failures must fail")
     except SystemExit as e:
         assert "service gone" in str(e), "the error carries simctl's own words"
-    print("ci-simulator: selftest passed")
-    return 0
 
 
 if __name__ == "__main__":

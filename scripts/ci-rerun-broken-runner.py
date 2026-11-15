@@ -45,6 +45,21 @@ def gh(*args):
     return subprocess.run(["gh", *args], check=True, capture_output=True, text=True).stdout
 
 
+def evidence(repo, job_id):
+    """The job's annotations, then its log. Annotations exist as soon as the job ends; a log GitHub hasn't stored yet
+    reads as empty, which once read a broken runner as no broken runner at all (#201)."""
+    text = []
+    for path in (f"{repo}/check-runs/{job_id}/annotations", f"{repo}/actions/jobs/{job_id}/logs"):
+        try:
+            got = gh("api", path, *(["--jq", ".[].message"] if path.endswith("annotations") else []))
+        except subprocess.CalledProcessError:
+            continue
+        text.append(got)
+        if MARK.search(got):
+            break
+    return "\n".join(text)
+
+
 def main(run_id):
     repo = "repos/{owner}/{repo}"
     jobs = json.loads(gh("api", "--paginate", f"{repo}/actions/runs/{run_id}/attempts/1/jobs", "--jq", "[.jobs[]|{id, name, conclusion}]"))
@@ -52,11 +67,7 @@ def main(run_id):
     for job in jobs:
         if job["conclusion"] != "failure":
             continue
-        try:
-            log = gh("api", f"{repo}/actions/jobs/{job['id']}/logs")
-        except subprocess.CalledProcessError:
-            log = ""
-        failed.append((job["name"], log))
+        failed.append((job["name"], evidence(repo, job["id"])))
     rerun, why = decide(failed)
     print(("Rerunning the failed jobs: " if rerun else "Not rerunning: ") + why)
     if rerun:

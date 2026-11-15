@@ -353,6 +353,29 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// The same open as ``testRevealHolds`` for an app with no clock of its own (#94): the page runs on wall time and the
+    /// film is one screenshot per XCUITest read, judged in reads. The bug's cover goes onto another page that then jumps
+    /// to his; the fixed cover holds until his page shows.
+    func testRevealHoldsByReads() {
+        both("reveal-reads") { app, feel in
+            let open = app.buttons["revealreads.open"]
+            _ = open.waitForExistence(timeout: 10)
+            guard let cover = feel.screenPicture() else {
+                return (FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "", failing: { _ in "" },
+                                          findings: [.couldNotCheck("no screenshot of the cover")]), nil)
+            }
+            // At least 7 s: the bug's jump comes 4 s after Open, and a loaded runner can take the tap late.
+            let film = feel.screenFilm(atLeast: 7) { open.tap() }
+            XCTAssertEqual(film.byReads, true)
+            XCTAssertTrue(film.timedBy?.contains("reads") ?? false, film.timedBy ?? "no timedBy")
+            let result = film.revealHolds(cover: cover)
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("was replaced") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
     /// Place kept through stray input: a tap in the middle, an edge swipe, the Contents sheet swiped away and a trip
     /// to the Home Screen, after reading on to page 3. The bug build's middle tap turns the page and its sheet resets it.
     func testPlaceKeptThroughStrayInput() {

@@ -27,6 +27,11 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
     public var stalledAt: Double?
     /// How the samples were timed, for the report.
     public var timedBy: String?
+    /// True for a film timed by XCUITest's reads rather than an app's clock
+    /// (``OuroFeel/screenFilm(reads:atLeast:settle:width:statusBand:ignoring:during:)``): its samples come as fast as
+    /// screenshots can be taken, so an uneven gap between them is how reads go, not a skipped tick, and is not a reason
+    /// it cannot be checked. Nil or false for a film on an app's clock.
+    public var byReads: Bool?
 
     public init(frames: [FeelScreenFrame], stalledAt: Double? = nil, timedBy: String? = nil) {
         self.frames = frames
@@ -150,7 +155,8 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
     }
 
     /// Why the film can't be judged, or not all of it: it stalled, its pictures differ in size, it is shorter than a
-    /// rest, or a sample came more than twice the usual gap after the one before.
+    /// rest, or a sample came more than twice the usual gap after the one before (on an app's clock only: a film
+    /// ``byReads`` has no ticks to skip).
     func unjudgeable(run: Int) -> [FeelFinding] {
         var findings: [FeelFinding] = []
         if let at = stalledAt {
@@ -163,7 +169,7 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
         if frames.count < run {
             findings.append(.couldNotCheck("the film had \(frames.count) samples, fewer than the \(run) a rest needs; film for longer"))
         }
-        let gaps = zip(frames, frames.dropFirst()).map { $1.t - $0.t }
+        let gaps = byReads == true ? [] : zip(frames, frames.dropFirst()).map { $1.t - $0.t }
         if let usual = gaps.sorted().dropFirst(gaps.count / 2).first, usual > 0,
            let (n, gap) = gaps.enumerated().max(by: { $0.element < $1.element }).map({ ($0.offset, $0.element) }), gap > usual * 2 {
             findings.append(.couldNotCheck("samples were once \(FeelResult.number(Self.round3(gap))) s apart (from \(FeelResult.number(Self.round3(frames[n].t))) s), more than twice the usual \(FeelResult.number(Self.round3(usual))) s, so a flash there could be missed"))

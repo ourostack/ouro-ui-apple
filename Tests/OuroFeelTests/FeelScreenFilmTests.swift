@@ -104,6 +104,33 @@ private func film(_ shades: [UInt8]) -> FeelScreenFilm {
         #expect(mixed.flickers().findings.contains { $0.unchecked && $0.what.contains("one size") })
         #expect(!mixed.flickers().passed)
     }
+
+    /// A film on the app's clock that skips a tick cannot be checked, since a flash could hide in the gap. A film timed
+    /// by XCUITest's reads (#94) has no ticks to skip: its gaps are as long as each screenshot took.
+    @Test func unevenGapsCountOnlyOnAnAppsClock() {
+        var ticked = film([10, 10, 10, 200, 200, 200])
+        ticked.frames[4].t = 2.0
+        ticked.frames[5].t = 2.1
+        #expect(ticked.flickers().findings.contains { $0.unchecked && $0.what.contains("twice the usual") })
+        var read = ticked
+        read.byReads = true
+        let result = read.flickers()
+        #expect(result.passed, "\(result.text)")
+        #expect(read.revealHolds(cover: shade(10, at: 0)).passed)
+    }
+
+    /// Judged in reads, a film without a clock still catches A, B, A, and a cover that goes onto one page and then
+    /// jumps to another.
+    @Test func aFilmByReadsIsJudgedInReads() {
+        var flicker = film([10, 10, 200, 200, 10, 10, 10])
+        flicker.byReads = true
+        #expect(!flicker.flickers().passed)
+        var jump = film([0, 0, 0, 120, 120, 120, 220, 220, 220])
+        jump.byReads = true
+        let result = jump.revealHolds(cover: shade(0, at: 0))
+        #expect(!result.passed)
+        #expect(result.detections.contains { $0.what.contains("was replaced") }, "\(result.text)")
+    }
 }
 
 /// A 160x40 film of a textured strip scrolled by each offset (pixels): stripes of varied shades, as text lines are.

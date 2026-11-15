@@ -409,6 +409,26 @@ let film = feel.screenFilm(steps: 40, tick: 0.1, clock: "reader.clock",
 feel.expect(film.revealHolds(cover: cover))
 ```
 
+### A screen film for an app with no clock of its own
+
+An app that runs on the system's animations (UIKit transitions, a web view, a reader engine such as Readium) has no
+clock a test can step, so it can't use the films above without a test-only seam in its own code.
+`feel.screenFilm(reads:atLeast:settle:during:)` films it as it plays instead: one screenshot per XCUITest read, as fast
+as they come, shrunk and blanked as the clock film's are (the status band and `ignoring`). It reads for at least
+`atLeast` seconds after the action, then stops once the last `settle` reads look the same, or after `reads` reads. Set
+`atLeast` past the slowest step you expect, so a page that rests a moment before it jumps is filmed when it jumps.
+`flickers(within:states:)` and `revealHolds(cover:until:)` judge it in reads. The film is marked `byReads`: an uneven gap
+between reads is how screenshots go, so it is not a reason the film can't be checked, and `timedBy` says how many reads
+covered how long. A flash shorter than one read is not seen, so this is weaker than a film on the app's clock: use the
+clock where you have one. Take the cover with `feel.screenPicture()`. The fixture's `reveal-reads` page is the same open
+as `reveal`, run on wall time (`testRevealHoldsByReads`).
+
+```swift
+let cover = feel.screenPicture()!
+let film = feel.screenFilm(atLeast: 4) { app.buttons["Open"].tap() }
+feel.expect(film.revealHolds(cover: cover))
+```
+
 ### Place kept through stray input, and navigation that fights you
 
 Both read the place after every action and keep only fingerprints (`FeelPlaceTrail`), judged in reads, never seconds.

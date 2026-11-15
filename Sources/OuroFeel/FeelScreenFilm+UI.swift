@@ -39,7 +39,7 @@ extension OuroFeel {
         func shoot(at t: Double, clockFrame: CGRect) -> Bool {
             let shot = XCUIScreen.main.screenshot().image
             let points = shot.size
-            let blank = [CGRect(x: 0, y: 0, width: points.width, height: statusBand), clockFrame.insetBy(dx: -4, dy: -4)] + ignoring
+            let blank = [CGRect(x: 0, y: 0, width: points.width, height: statusBand), clockFrame.insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring
             guard let frame = Self.thumbnail(shot, width: width, blank: blank, t: t) else { return false }
             frames.append(frame)
             return true
@@ -97,7 +97,7 @@ extension OuroFeel {
     public func screenPicture(clock: String, width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelScreenFrame? {
         let clockFrame = self.seen([clock]).seen.first { $0.key == clock }?.frame ?? .zero
         let shot = XCUIScreen.main.screenshot().image
-        let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockFrame.insetBy(dx: -4, dy: -4)] + ignoring
+        let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockFrame.insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring
         return Self.thumbnail(shot, width: width, blank: blank, t: 0)
     }
 
@@ -109,6 +109,10 @@ extension OuroFeel {
         let shot = XCUIScreen.main.screenshot().image
         return Self.thumbnail(shot, width: width, blank: [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring, t: 0)
     }
+
+    /// How far past its accessibility frame the clock's label is blanked, in points. In landscape on an iPhone the drawn
+    /// digits sat up to 5 points above the frame the snapshot gave (#172), so 4 points let each tick show.
+    static let clockMargin: CGFloat = 8
 
     /// A screenshot as a `width`-pixel grayscale thumbnail, with each rect of `blank` (in points, top down) painted
     /// black. Drawn through UIKit, so a landscape screenshot's orientation is honoured and the rects land where they are.
@@ -130,7 +134,12 @@ extension OuroFeel {
             UIGraphicsPopContext()
             let sx = CGFloat(width) / points.width, sy = CGFloat(height) / points.height
             context.setFillColor(gray: 0, alpha: 1)
-            for r in blank { context.fill(CGRect(x: r.minX * sx, y: r.minY * sy, width: r.width * sx, height: r.height * sy)) }
+            // Out to whole pixels: a rect that only partly covers a pixel would blend what is under it into the
+            // thumbnail, so a ticking clock would still show at its edge (#73, landscape).
+            for r in blank {
+                let x0 = (r.minX * sx).rounded(.down), y0 = (r.minY * sy).rounded(.down)
+                context.fill(CGRect(x: x0, y: y0, width: (r.maxX * sx).rounded(.up) - x0, height: (r.maxY * sy).rounded(.up) - y0))
+            }
             return true
         }
         return drawn ? FeelScreenFrame(t: t, width: width, height: height, gray: gray) : nil

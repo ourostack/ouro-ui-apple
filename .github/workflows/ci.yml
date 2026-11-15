@@ -526,7 +526,7 @@ jobs:
 
   gallery-requeue-plan:
     name: Gallery shards a broken runner stopped (#74)
-    # Lists the gallery shards that marked their runner broken (scripts/ci-broken-runner.sh), from their logs.
+    # Lists the gallery shards that marked their runner broken (scripts/ci-broken-runner.sh), from their annotations.
     needs: [paths, gallery-shard]
     if: always() && needs.paths.outputs.gallery == 'true' && needs.gallery-shard.result == 'success'
     runs-on: ubuntu-latest
@@ -534,6 +534,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      checks: read
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
@@ -990,6 +991,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      checks: read
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:

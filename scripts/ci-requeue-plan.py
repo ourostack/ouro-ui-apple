@@ -4,11 +4,12 @@
     python3 -I scripts/ci-requeue-plan.py <gallery|feel> <run id>    # GH_TOKEN and GH_REPO set; writes `shards` to $GITHUB_OUTPUT
     python3 -I scripts/ci-requeue-plan.py --selftest
 
-A shard whose runner's simulator service is broken (scripts/ci-broken-runner.sh) ends green without running its tests
-and prints MARK. This reads the log of every shard of the suite that ended green in the run's latest attempt and lists
-those that carry MARK, as the requeue job's matrix: `[{"shard": 3, "device": "iPhone"}]` for the gallery, `[{"shard":
+A shard whose runner's simulator service is broken (scripts/ci-broken-runner.sh) ends green without running its tests,
+with a warning that carries MARK. This reads the annotations of every shard of the suite that ended green in the run's
+latest attempt (a job's id is its check run's id) and lists those that carry MARK, as the requeue job's matrix: `[{"shard": 3, "device": "iPhone"}]` for the gallery, `[{"shard":
 2}]` or `[{"shard": "ipad"}]` for Ouro Feel, `[]` when none. A log it cannot read fails the job, so the required check
-fails closed rather than counting an untested shard as passed.
+fails closed rather than counting an untested shard as passed. (Annotations, not logs: the workflow's own token could
+not read a job's log while its run was still going, on #196's proof run.)
 """
 import json
 import os
@@ -16,7 +17,7 @@ import re
 import subprocess
 import sys
 
-MARK = "ouro-ci: broken runner, requeue this shard (#74)"
+MARK = "it runs again on a fresh runner once the other shards finish (#74)"
 SUITES = {
     "gallery": [(re.compile(r"^Gallery UI shard (\d+) of \d+ on (\w+) \("), lambda m: {"shard": int(m[1]), "device": m[2]})],
     "feel": [(re.compile(r"^Ouro Feel shard (\d+) of \d+ \("), lambda m: {"shard": int(m[1])}),
@@ -36,7 +37,7 @@ def entry(suite, name):
 
 
 def plan(suite, jobs, log):
-    """`jobs`: [{"id", "name", "conclusion"}]; `log(id)`: that job's log text. The shards to requeue, in job order."""
+    """`jobs`: [{"id", "name", "conclusion"}]; `log(id)`: that job's annotations, as text. The shards to requeue, in job order."""
     out = []
     for job in jobs:
         e = entry(suite, job["name"])
@@ -57,7 +58,7 @@ def main(argv):
     jobs = []
     for page in gh("--paginate", f"repos/{repo}/actions/runs/{run}/jobs?filter=latest&per_page=100", "--jq", ".jobs[]|{id,name,conclusion}").splitlines():
         jobs.append(json.loads(page))
-    shards = plan(suite, jobs, lambda i: gh(f"repos/{repo}/actions/jobs/{i}/logs"))
+    shards = plan(suite, jobs, lambda i: gh("--paginate", f"repos/{repo}/check-runs/{i}/annotations?per_page=100", "--jq", ".[].message"))
     print(f"{suite}: requeue {json.dumps(shards)}" if shards else f"{suite}: no shard needs a requeue")
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         f.write(f"shards={json.dumps(shards)}\n")

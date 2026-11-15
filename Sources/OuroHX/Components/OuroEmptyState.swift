@@ -101,7 +101,7 @@ public struct OuroEmptyState<Action: View>: View {
                     .accessibilityHidden(true)
             }
             Text(title)
-                .font(.title2.weight(.bold))
+                .font(.ouroHeading(.title2, weight: 700, in: theme))
                 .foregroundStyle(Color(p.title))
                 .multilineTextAlignment(text)
                 .fixedSize(horizontal: false, vertical: true)

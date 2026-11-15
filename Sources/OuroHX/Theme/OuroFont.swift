@@ -23,6 +23,8 @@ public enum OuroFont {
     private static let generics: [String: Font.Design] = [
         "serif": .serif, "ui-serif": .serif,
         "sans-serif": .default, "ui-sans-serif": .default, "system-ui": .default, "-apple-system": .default,
+        // The other names a CSS stack gives for Apple's system font (Pearl's heading leads with all three).
+        "blinkmacsystemfont": .default, "sf pro display": .default, "sf pro text": .default, "sf pro": .default,
         "monospace": .monospaced, "ui-monospace": .monospaced,
         "ui-rounded": .rounded,
     ]
@@ -43,7 +45,12 @@ public enum OuroFont {
     public static func resolve(
         _ token: OuroTypeToken, in extras: OuroThemeExtras, registered: (String) -> Bool = OuroFont.isRegistered
     ) -> Resolution {
-        let stack = extras.fonts[token.family] ?? []
+        resolve(families: extras.fonts[token.family] ?? [], registered: registered)
+    }
+
+    /// The first family in a CSS `font-family` stack that is a generic family or available to the app; the system font
+    /// when none is.
+    static func resolve(families stack: [String], registered: (String) -> Bool) -> Resolution {
         for family in stack {
             if let design = generics[family.lowercased()] { return .system(design: design) }
             if registered(family) { return .custom(family) }

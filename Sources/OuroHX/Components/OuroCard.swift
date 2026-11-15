@@ -132,7 +132,7 @@ public struct OuroCard<Content: View, Action: View, Footer: View>: View {
         let words = VStack(alignment: .leading, spacing: 4) {
             if let title {
                 Text(title)
-                    .font(.headline)
+                    .font(.ouroHeading(.headline, weight: 600, in: theme))
                     .lineLimit(OuroCardMetrics.titleLineLimit)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)

@@ -16,6 +16,14 @@ Colour names are HX's CSS variables in camel case, so `--primary-foreground` is 
 shadows `Swift.Duration`; outside it does not. Write `Swift.Duration` in an extension of `OuroTokens` if you ever need
 both (see `docs/decisions/2026-11-03-package-shape.md`).
 
+## Headings
+
+``OuroTheme/heading`` is the theme's `--font-heading` stack. The kit sets its titles in it where web does: the empty
+state's, the page header's, the card's and the sheet's (``SwiftUI/Font/ouroHeading(_:weight:in:registered:)``). The
+first family the app has wins, as with a text role, and a generic family picks the system design. So Cookbook's titles are
+Fraunces when the app bundles it, then Georgia, and Pearl's stay the system font. ``OuroFont/heading(_:registered:)``
+says which one a theme resolves to.
+
 ## A theme's own tokens
 
 ``OuroTheme/extras`` holds the tokens only one theme defines, such as Cookbook's `sj-*` colours, lengths, shadows and

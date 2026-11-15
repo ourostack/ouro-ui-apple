@@ -1,0 +1,219 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "text-field",
+  "version": "1.0.0",
+  "summary": "A labelled field for a line of text, such as an email address, a password or a search.",
+  "role": "control",
+  "properties": [
+    {
+      "name": "label",
+      "type": "string",
+      "required": true,
+      "description": "What the field is for, shown above it and its spoken name. A placeholder is never the name."
+    },
+    {
+      "name": "value",
+      "type": "string",
+      "description": "The text in the field."
+    },
+    {
+      "name": "placeholder",
+      "type": "string",
+      "description": "An example of what to type, shown while the field is empty."
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "Supporting words under the label, read after the name."
+    },
+    {
+      "name": "error",
+      "type": "string",
+      "description": "What is wrong. The field is invalid while it has one, and its edge turns destructive."
+    },
+    {
+      "name": "type",
+      "type": "enum",
+      "values": [
+        "text",
+        "email",
+        "password",
+        "tel",
+        "url",
+        "search"
+      ],
+      "default": "text",
+      "description": "What kind of text it holds; each sets the keyboard and autofill. password adds a show button."
+    },
+    {
+      "name": "variant",
+      "type": "enum",
+      "values": [
+        "outline",
+        "plain"
+      ],
+      "default": "outline",
+      "description": "outline draws the box; plain draws none, for a field in a frame the app draws."
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": [
+        "md",
+        "lg"
+      ],
+      "default": "md",
+      "description": "md is 44 points tall; lg is 56 with larger text, for a page's main search."
+    },
+    {
+      "name": "required",
+      "type": "boolean",
+      "default": false,
+      "description": "The field must be filled; the label gets a marker and the name says required."
+    },
+    {
+      "name": "hideLabel",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the label's words; the field keeps it as its name."
+    },
+    {
+      "name": "clearable",
+      "type": "boolean",
+      "default": false,
+      "description": "Adds a Clear button while there is text."
+    },
+    {
+      "name": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "The field and its buttons can't be used."
+    }
+  ],
+  "slots": [],
+  "events": [
+    {
+      "name": "press",
+      "description": "Focus moves into the field."
+    },
+    {
+      "name": "change",
+      "description": "The text changed."
+    },
+    {
+      "name": "submit",
+      "description": "Return or Enter in the field."
+    }
+  ],
+  "states": [
+    {
+      "name": "rest",
+      "description": "The edge at 3:1 on the page, so the box can be found."
+    },
+    {
+      "name": "focused",
+      "description": "The ring colour, twice as thick."
+    },
+    {
+      "name": "disabled",
+      "description": "Faded; its buttons can't be pressed."
+    }
+  ],
+  "tokens": {
+    "label": "foreground",
+    "text": "foreground",
+    "description": "muted-foreground",
+    "placeholder": "muted-foreground",
+    "error": "destructive",
+    "edge": "input",
+    "focus": "ring",
+    "surface": "background"
+  },
+  "metrics": {
+    "minHeightMd": 44,
+    "minHeightLg": 56,
+    "paddingX": 12,
+    "edgeContrast": 3
+  },
+  "claims": [
+    "contrast.text",
+    "name.spoken",
+    "target.touch",
+    "text.reflows"
+  ],
+  "accessibility": {
+    "name": "Its label, with required when it is; then its error, then its description.",
+    "keyboard": "One tab stop for the input; Clear and Show password are their own.",
+    "web": "An <input> with a <label>, aria-describedby for the description and error, aria-invalid with an error.",
+    "apple": "SwiftUI's TextField or SecureField, named by its label (\", required\"), with its error and description as its hint; the words drawn around it are hidden so nothing is read twice.",
+    "windows": "UI Automation ControlType.Edit with the Value pattern, named by its label, help text its error then its description."
+  },
+  "cases": [
+    {
+      "id": "email-with-description",
+      "props": {
+        "label": "Email",
+        "type": "email",
+        "required": true,
+        "description": "We send your recipes here."
+      },
+      "person": "An Email label with a required marker, a line under it and an empty box.",
+      "agent": {
+        "role": "textbox",
+        "name": "Email, required",
+        "focusable": true
+      }
+    },
+    {
+      "id": "password",
+      "props": {
+        "label": "Password",
+        "type": "password",
+        "value": "lemon-orzo"
+      },
+      "person": "A Password box showing dots, with an eye button at its end.",
+      "agent": {
+        "role": "textbox",
+        "name": "Password",
+        "focusable": true,
+        "children": [
+          {
+            "role": "button",
+            "name": "Show password"
+          }
+        ]
+      }
+    },
+    {
+      "id": "with-error",
+      "props": {
+        "label": "Recipe title",
+        "error": "Give the recipe a title."
+      },
+      "person": "A box with a red edge and the error under it.",
+      "agent": {
+        "role": "textbox",
+        "name": "Recipe title",
+        "focusable": true
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "TextField (registry/ouro/components/ouro/text-field)",
+      "deviations": [
+        "Also date and time types, which open the OS picker; native kits use the platform's date picker instead.",
+        "startAdornment and endAdornment slots; native kits draw search's magnifying glass and no other adornment yet."
+      ]
+    },
+    "apple": {
+      "type": "OuroTextField",
+      "deviations": [
+        "No date or time type: SwiftUI's DatePicker is the control for those."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroTextField (not yet built)"
+    }
+  }
+}

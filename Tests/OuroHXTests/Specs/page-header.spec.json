@@ -1,0 +1,139 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "page-header",
+  "version": "1.0.0",
+  "summary": "The top of a page or a section: its title, a line above that says where it sits, a sentence under it, and the page's actions.",
+  "role": "group",
+  "properties": [
+    {
+      "name": "title",
+      "type": "string",
+      "required": true,
+      "description": "The page's or section's title, a heading."
+    },
+    {
+      "name": "eyebrow",
+      "type": "string",
+      "description": "A short line above the title: what kind of page this is or where it sits."
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "A short sentence under the title."
+    },
+    {
+      "name": "level",
+      "type": "enum",
+      "values": [
+        "h1",
+        "h2"
+      ],
+      "default": "h1",
+      "description": "1 for a page's title, 2 for a section's."
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": [
+        "md",
+        "lg"
+      ],
+      "default": "md",
+      "description": "md for an app page, lg for a landing or profile page."
+    },
+    {
+      "name": "divider",
+      "type": "boolean",
+      "default": false,
+      "description": "A line under the header."
+    }
+  ],
+  "slots": [
+    {
+      "name": "actions",
+      "description": "The page's actions: beside the title where they fit, under it where they don't."
+    },
+    {
+      "name": "media",
+      "description": "A picture above the title, at the header's full width."
+    },
+    {
+      "name": "content",
+      "description": "More under the description, such as badges or a byline."
+    }
+  ],
+  "events": [],
+  "states": [
+    {
+      "name": "rest",
+      "description": "The title in the theme's heading weight, the eyebrow in the primary colour."
+    }
+  ],
+  "tokens": {
+    "title": "foreground",
+    "eyebrow": "primary",
+    "description": "muted-foreground",
+    "divider": "border"
+  },
+  "metrics": {
+    "gap": 8,
+    "blockGap": 16
+  },
+  "claims": [
+    "contrast.text",
+    "name.spoken",
+    "text.reflows"
+  ],
+  "accessibility": {
+    "name": "Its title, a heading at its level.",
+    "web": "A <div> whose title is an <h1> (or <h2>).",
+    "apple": "The title has the header trait and accessibilityHeading at its level; the actions are their own controls.",
+    "windows": "UI Automation ControlType.Group; the title is ControlType.Text with HeadingLevel 1 or 2."
+  },
+  "cases": [
+    {
+      "id": "recipe",
+      "props": {
+        "title": "Lemon orzo with peas",
+        "eyebrow": "Weeknight",
+        "description": "Bright, quick and made in one pot."
+      },
+      "slots": {
+        "actions": "Cook"
+      },
+      "person": "A small blue Weeknight, a large title, a grey sentence, and a Cook button at the end of the title.",
+      "agent": {
+        "role": "group",
+        "name": "",
+        "children": [
+          {
+            "role": "heading",
+            "name": "Lemon orzo with peas"
+          },
+          {
+            "role": "button",
+            "name": "Cook"
+          }
+        ]
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "PageHeader (registry/ouro/components/ouro/page-header)",
+      "deviations": [
+        "level is 1 or 2 on web.",
+        "A breadcrumb slot; native navigation stacks show where a page sits."
+      ]
+    },
+    "apple": {
+      "type": "OuroPageHeader",
+      "deviations": [
+        "level is the Int 1 or 2."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroPageHeader (not yet built)"
+    }
+  }
+}

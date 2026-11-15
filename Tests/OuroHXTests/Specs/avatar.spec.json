@@ -1,0 +1,180 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "avatar",
+  "version": "1.0.0",
+  "summary": "A person's or a thing's picture, or their initials on a colour that is theirs.",
+  "role": "label",
+  "properties": [
+    {
+      "name": "name",
+      "type": "string",
+      "required": true,
+      "description": "Who or what it is: its spoken name, and where the initials and the colour come from."
+    },
+    {
+      "name": "src",
+      "type": "string",
+      "description": "The picture's address. Until it loads, or if it fails, the initials show."
+    },
+    {
+      "name": "alt",
+      "type": "string",
+      "description": "What is spoken instead of the name; empty when the name is written beside it."
+    },
+    {
+      "name": "initials",
+      "type": "string",
+      "description": "Letters to draw instead of the ones taken from the name."
+    },
+    {
+      "name": "shape",
+      "type": "enum",
+      "values": [
+        "circle",
+        "square",
+        "agent"
+      ],
+      "default": "circle",
+      "description": "circle for a person, square for a team or an app, agent for an AI agent."
+    },
+    {
+      "name": "color",
+      "type": "enum",
+      "values": [
+        "colorful",
+        "brand",
+        "neutral"
+      ],
+      "default": "colorful",
+      "description": "colorful picks one of eight hues from the name, the same on every platform; brand is the primary; neutral the secondary surface."
+    },
+    {
+      "name": "idForColor",
+      "type": "string",
+      "description": "What colorful picks the hue from instead of the name: a stable id."
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": [
+        "xs",
+        "sm",
+        "md",
+        "lg",
+        "xl",
+        "xxl",
+        "xxxl"
+      ],
+      "default": "md",
+      "description": "24, 32, 40, 48, 64, 72 or 112 points."
+    },
+    {
+      "name": "presence",
+      "type": "enum",
+      "values": [
+        "available",
+        "busy",
+        "away",
+        "dnd",
+        "offline",
+        "ooo"
+      ],
+      "description": "A dot with its own glyph and tone. A square has none."
+    },
+    {
+      "name": "presenceLabel",
+      "type": "string",
+      "description": "What the dot says, spoken after the name."
+    }
+  ],
+  "slots": [
+    {
+      "name": "icon",
+      "description": "A symbol in place of the initials.",
+      "decorative": true
+    }
+  ],
+  "events": [],
+  "states": [
+    {
+      "name": "rest",
+      "description": "The picture, or the initials on the hue. A null name shimmers in the avatar's shape and says that it is loading."
+    }
+  ],
+  "tokens": {
+    "hues": "avatar-1",
+    "brand": "primary",
+    "neutral": "secondary",
+    "neutralLabel": "secondary-foreground",
+    "page": "background",
+    "ink": "foreground"
+  },
+  "metrics": {
+    "xs": 24,
+    "sm": 32,
+    "md": 40,
+    "lg": 48,
+    "xl": 64,
+    "xxl": 72,
+    "xxxl": 112,
+    "fill": 0.18,
+    "inkMix": 0.7
+  },
+  "claims": [
+    "contrast.text",
+    "name.spoken"
+  ],
+  "accessibility": {
+    "name": "Its name (or alt), then its presence's words: \"Ana Lind, Busy\". The initials are drawn, not read.",
+    "web": "A <span role=\"img\"> named by its name; the initials are CSS generated content.",
+    "apple": "One element with the image trait, named by its name and presence; hidden when alt is empty and there is no presence.",
+    "windows": "UI Automation ControlType.Image named by its name and presence."
+  },
+  "cases": [
+    {
+      "id": "initials",
+      "props": {
+        "name": "Ana Lind"
+      },
+      "person": "A circle with AL on Ana's hue.",
+      "agent": {
+        "role": "image",
+        "name": "Ana Lind",
+        "focusable": false
+      }
+    },
+    {
+      "id": "busy",
+      "props": {
+        "name": "Ana Lind",
+        "presence": "busy",
+        "presenceLabel": "Busy",
+        "size": "lg"
+      },
+      "person": "A circle with AL and a red dot at its lower end corner.",
+      "agent": {
+        "role": "image",
+        "name": "Ana Lind, Busy",
+        "focusable": false
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Avatar (registry/ouro/components/ouro/avatar)",
+      "deviations": [
+        "Sizes are named 2xl and 3xl on web; xxl and xxxl elsewhere, since a native identifier can't start with a digit.",
+        "Presence values are do-not-disturb and out-of-office on web."
+      ]
+    },
+    "apple": {
+      "type": "OuroAvatar",
+      "deviations": [
+        "The presence values are doNotDisturb and outOfOffice. The dot sits on a ring of the page's colour rather than web's cut-out."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroAvatar (not yet built)"
+    }
+  }
+}

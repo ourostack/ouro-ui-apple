@@ -352,9 +352,16 @@ final class FeelCatchesTests: XCTestCase {
         let film = feel.screenFilm(steps: 6, tick: 0.1, clock: "screenflicker.clock", advance: tick, width: 640)
         XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
         XCTAssertGreaterThan(film.frames.first.map { $0.width } ?? 0, film.frames.first.map { $0.height } ?? 0, "the film is landscape")
-        for (n, frame) in film.frames.enumerated().dropFirst() {
-            XCTAssertEqual(FeelScreenFilm.difference(film.frames[0], frame), 0, "sample \(n) differs from the first: the clock is not blanked in landscape")
+        // Where a sample differs from the first, in points, beside where the clock is: so a failure says what changed.
+        let first = film.frames[0], scale = app.windows.firstMatch.frame.width / CGFloat(first.width)
+        for (n, frame) in film.frames.enumerated().dropFirst() where FeelScreenFilm.difference(first, frame) != 0 {
+            var box = CGRect.null
+            for i in 0..<min(first.gray.count, frame.gray.count) where first.gray[i] != frame.gray[i] {
+                box = box.union(CGRect(x: CGFloat(i % first.width) * scale, y: CGFloat(i / first.width) * scale, width: scale, height: scale))
+            }
+            XCTFail("sample \(n) differs from the first at \(box) (points), the clock at \(clock.frame): the clock is not blanked in landscape")
         }
+        feel.record(film.flickers(states: 1), name: "landscape-clock", screenFilm: film)
     }
 
     /// The first page shown after an open holds, judged from screenshots: the bug's cover goes onto another page that

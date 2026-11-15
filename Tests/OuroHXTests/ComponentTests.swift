@@ -237,6 +237,35 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct DisplayMetricsTests {
+    /// Core claim `text.reflows`: a list stacks below web's 28rem (or 32rem), by its own width, and always at the
+    /// accessibility sizes, where the details keep the width.
+    @Test func aDescriptionListStacksWhereItIsNarrow() {
+        #expect(OuroDisplayMetrics.stackWidth(.sm) == 448)
+        #expect(OuroDisplayMetrics.stackWidth(.md) == 512)
+        #expect(OuroDisplayMetrics.alwaysStacks(at: .accessibility1))
+        #expect(!OuroDisplayMetrics.alwaysStacks(at: .xxxLarge))
+    }
+
+    /// Side by side, the terms' column is web's `min(40%, 14rem)`.
+    @Test func theTermsColumnIsFortyPercentUpTo224() {
+        #expect(OuroDisplayMetrics.termColumnWidth(listWidth: 448) == 448 * 0.4)
+        #expect(OuroDisplayMetrics.termColumnWidth(listWidth: 900) == 224)
+    }
+
+    /// Core claim `name.spoken`: a pair is heard as one, the term then its details.
+    @Test func aPairIsHeardAsOne() {
+        #expect(OuroDisplayMetrics.spokenPair(term: "Prep time", details: "20 minutes") == "Prep time, 20 minutes")
+        #expect(OuroDisplayMetrics.spokenPair(term: "Notes", details: "") == "Notes")
+    }
+
+    /// A line is one point, two under increased contrast, as an outline.
+    @Test func aLineIsAnOutlinesWidth() {
+        #expect(OuroDisplayMetrics.lineWidth(contrast: .standard) == 1)
+        #expect(OuroDisplayMetrics.lineWidth(contrast: .increased) == 2)
+    }
+}
+
 @Suite struct TextFieldMetricsTests {
     /// Web's defaults: `type="text"`, `variant="outline"`, `size="md"`.
     @Test func aTextFieldDefaultsToWebsOutlineMedium() {
@@ -686,6 +715,21 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
     /// A row's words read on the page, an icon tile's symbol reads on its tile, and the lines between rows show, in
     /// every theme and mode: 3:1 under increased contrast, as other lines are.
+    @Test func separatorAndDescriptionListReadInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let list = OuroDescriptionListPalette(style: style)
+            let page = OuroColor.resolve(style.colors.background)
+            #expect(ratio(list.term, page) >= target(style), "\(name) term")
+            #expect(ratio(list.details, page) >= target(style), "\(name) details")
+            for tone in [nil] + OuroTone.allCases.map(Optional.some) {
+                let p = OuroSeparatorPalette(tone: tone, style: style)
+                #expect(ratio(p.label, p.surface) >= target(style), "\(name) \(String(describing: tone)) label")
+                #expect(ratio(p.line, p.surface) > 1, "\(name) \(String(describing: tone)) line")
+                if style.contrast == .increased { #expect(ratio(p.line, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) line") }
+            }
+        }
+    }
+
     @Test func segmentedControlAndCheckboxReadInEveryThemeAndMode() {
         for (name, style) in styles {
             let s = OuroSegmentedControlPalette(style: style)

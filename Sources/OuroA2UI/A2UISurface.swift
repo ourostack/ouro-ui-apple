@@ -116,17 +116,9 @@ struct A2UINodeView: View {
             }
         case "DescriptionList":
             let items = node.props["items"]?.array ?? []
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                    GridRow {
-                        Text(it["term"]?.string ?? "").foregroundStyle(colors.mutedForeground)
-                        Text(it["detail"]?.string ?? "").foregroundStyle(colors.foreground)
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-            }
+            OuroDescriptionList(items.map { OuroDescriptionItem($0["term"]?.string ?? "", $0["detail"]?.string ?? "") })
         case "Separator":
-            Rectangle().fill(colors.border).frame(height: 1).frame(maxWidth: .infinity).accessibilityHidden(true)
+            OuroSeparator()
         case "Alert":
             OuroBanner(node.text("title"), description: node.props["text"]?.string, tone: A2UIMetrics.tone(node.text("tone")))
         case "ActionButton":

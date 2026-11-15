@@ -18,7 +18,7 @@ struct GalleryApp: App {
 
 enum GalleryPage: String, CaseIterable, Identifiable {
     case colors = "Colours", pairs = "Pairs", feel = "Feel"
-    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", textFields = "Text fields", choices = "Choices", loading = "Loading", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
+    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", textFields = "Text fields", choices = "Choices", display = "Display", loading = "Loading", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
     var id: String { rawValue }
 
     init?(rawValue: String) {
@@ -30,6 +30,7 @@ enum GalleryPage: String, CaseIterable, Identifiable {
         case "badges", "badge": self = .badges
         case "cards", "card": self = .cards
         case "items", "item": self = .items
+        case "display", "separator", "separators", "descriptionlist": self = .display
         case "textfields", "textfield", "text-field": self = .textFields
         case "choices", "checkbox", "checkboxes", "segmented", "segmentedcontrol": self = .choices
         case "loading", "skeleton", "spinner", "progress": self = .loading
@@ -112,6 +113,7 @@ private struct ThemedPage: View {
                 case .badges: BadgesPage()
                 case .cards: CardsPage()
                 case .items: ItemsPage()
+                case .display: DisplayPage()
                 case .textFields: TextFieldsPage()
                 case .choices: ChoicesPage()
                 case .loading: LoadingPage()

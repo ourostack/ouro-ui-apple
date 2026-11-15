@@ -362,6 +362,25 @@ Third in the 1.0 order: rows are the job our apps hand-roll most (17 views, Spoo
 - **Not yet:** web's `ItemGroup` `empty` and `ordered`. A2UI's catalog `List` is a list of strings, so `OuroA2UI`
   keeps drawing it as text. Core's `appliesTo` doesn't list `item` yet.
 
+## OuroSeparator and OuroDescriptionList (2026-11-14)
+
+Eleventh and thirteenth in the 1.0 order, shipped together because `OuroA2UI` drew both with private views, so an
+agent's surface and an app's screen drew them differently. Now `A2UISurface` draws A2UI's `DescriptionList` and
+`Separator` with them.
+
+- **Separator.** Web's `orientation`, `tone` (primary, destructive, success or warning; `secondary` is a surface, so it
+  draws as no tone, as on web) and `label`, a word in the middle of a horizontal line ("or"). The line is the theme's
+  border, pushed to 3:1 under Increase Contrast like every line, and an outline's width (1 point, 2 under Increase
+  Contrast). Apple has no separator role (SwiftUI's `Divider` is silent), so the line is hidden from VoiceOver and a
+  label is read as text in its place; web's `decorative` has nothing left to switch, so it is not a parameter.
+- **DescriptionList.** Web's `items` (`OuroDescriptionItem(term, details)`, or details drawn as a view) and
+  `stackBelow` (`sm` 448 points, `md` 512). Like web's container query, the list's own width decides: the side-by-side
+  layout is offered at the breakpoint's width at least (`ViewThatFits`), so a list in a sheet stacks on an iPad. Side by
+  side the terms' column is web's `min(40%, 14rem)`, with a line between pairs. At the accessibility sizes it always
+  stacks (`text.reflows`, `aDescriptionListStacksWhereItIsNarrow`). A pair whose details are words is one VoiceOver
+  element, "Prep time, 20 minutes"; one whose details are a view keeps its parts, so a link in it stays a control.
+- **Not yet:** Spoonjoy's `ProfileFigures` (large numbers over small labels) is a stat, not a description list.
+
 ## OuroTextField (2026-11-14)
 
 Fourth in the 1.0 order: nine hand-drawn fields (Spoonjoy 6, Gatefold 2, Ouro MD 1).

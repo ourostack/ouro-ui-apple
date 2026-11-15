@@ -126,6 +126,22 @@ import Testing
         }
     }
 
+    /// A description list side by side, a plain line, a labelled one and a toned one.
+    @Test(arguments: Mode.allCases) func display(_ mode: Mode) throws {
+        try check("display", mode) {
+            VStack(alignment: .leading, spacing: 16) {
+                OuroDescriptionList([
+                    OuroDescriptionItem("Prep time", "20 minutes"),
+                    OuroDescriptionItem("Cook time", "4 hours"),
+                    OuroDescriptionItem("Serves", "6"),
+                ])
+                OuroSeparator()
+                OuroSeparator(label: "or")
+                OuroSeparator(label: "New since you left", tone: .primary)
+            }
+        }
+    }
+
     /// A field with a description, a password, a field with an error, a search, a large field and a plain one.
     /// ImageRenderer can't draw AppKit's text input, so the input shows as its placeholder; this proves the chrome
     /// around it (label, description, edge, error, buttons), and the gallery's UI tests prove the input.

@@ -38,8 +38,13 @@ public enum OuroPageHeaderMetrics {
 
     /// The title's text style: `largeTitle` for a page's `lg` title, `title` for `md`, `title2` for a section (level 2).
     public static func titleFont(size: OuroPageHeaderSize, level: Int) -> Font {
-        if level == 2 { return .title2.bold() }
-        return size == .lg ? .largeTitle.bold() : .title.bold()
+        titleFont(size: size, level: level, in: OuroTokens.pearl)
+    }
+
+    /// The title's font in a theme's heading font (``OuroTheme/heading``), bold, at the same text styles.
+    public static func titleFont(size: OuroPageHeaderSize, level: Int, in theme: OuroTheme) -> Font {
+        let style: Font.TextStyle = level == 2 ? .title2 : size == .lg ? .largeTitle : .title
+        return .ouroHeading(style, weight: 700, in: theme)
     }
 
     /// VoiceOver's heading level for the title: 1 for a page, 2 for a section, as web's `<h1>` and `<h2>`.
@@ -153,7 +158,7 @@ public struct OuroPageHeader<Actions: View, Media: View, Content: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(title)
-                .font(OuroPageHeaderMetrics.titleFont(size: size, level: level))
+                .font(OuroPageHeaderMetrics.titleFont(size: size, level: level, in: theme))
                 .foregroundStyle(Color(palette.title))
                 .lineLimit(OuroPageHeaderMetrics.titleLineLimit)
                 .fixedSize(horizontal: false, vertical: true)

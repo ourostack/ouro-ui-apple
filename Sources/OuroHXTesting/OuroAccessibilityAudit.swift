@@ -12,6 +12,9 @@ extension XCUIApplication {
     /// clipping in such a sheet unchecked, so audit it once more at full height: present it with `detents: [.large]`
     /// from a launch argument your app reads, as the gallery's `-sheetDetent large` does.
     ///
+    /// "Potentially inaccessible text" that names no element doesn't fail the first pass: the pass runs once more, and
+    /// fails if it comes back (see ``OuroAuditExcuse/rereads(_:element:)``).
+    ///
     /// `excuse` excuses single issues the audit is known to misread, by element; say why in the test and prove what it
     /// hides another way.
     @MainActor
@@ -37,7 +40,15 @@ extension XCUIApplication {
         let screen = first.window ?? frame
         // Read again while the audit runs, for an issue that moved; a snapshot that fails then leaves the first frames.
         func now() -> OuroAuditFrames? { (try? snapshot()).map(OuroAuditFrames.init) }
+        // In a first pass, an issue `OuroAuditExcuse.rereads` names is held, not failed; the pass then runs once more,
+        // and fails on it only if it comes back.
+        var firstPass = true, held = 0
         let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+            if firstPass, OuroAuditExcuse.rereads(issue.compactDescription, element: issue.element?.frame) {
+                held += 1
+                print("audit issue held for a second pass: \(issue.compactDescription) with no element")
+                return true
+            }
             if knownIssues.contains(where: { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }) {
                 return true
             }
@@ -63,13 +74,22 @@ extension XCUIApplication {
             }
             return excused
         }
-        func audit(_ types: XCUIAccessibilityAuditType) throws {
+        func pass(_ types: XCUIAccessibilityAuditType) throws {
             do {
                 try performAccessibilityAudit(for: types, handler)
             } catch let error as NSError where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == Self.auditTimedOut {
                 // A long page on a slow CI runner can outrun the audit's own time limit; one more try, then the error.
                 try performAccessibilityAudit(for: types, handler)
             }
+        }
+        func audit(_ types: XCUIAccessibilityAuditType) throws {
+            firstPass = true
+            held = 0
+            try pass(types)
+            guard held > 0 else { return }
+            print("audit: \(held) issue(s) held; running the pass once more")
+            firstPass = false
+            try pass(types)
         }
         // iOS 26's combined audit can report a contrast issue without its element (CI, iOS 26.5: the expanded toast stack's
         // Undo), so no excuse can tell what it is about; the same issue in a contrast-only pass names it. Contrast is

@@ -93,4 +93,13 @@ import Testing
             #expect(!OuroAuditExcuse.excuses(issue, element: CGRect(x: 16, y: 850, width: 120, height: 50), scaledSheets: [], toasts: [], screen: screen), "\(issue)")
         }
     }
+
+    @Test func onlyElementlessInaccessibleTextIsReread() {
+        #expect(OuroAuditExcuse.rereads("Potentially inaccessible text", element: nil))
+        #expect(OuroAuditExcuse.rereads("Potentially inaccessible text", element: .zero))
+        #expect(!OuroAuditExcuse.rereads("Potentially inaccessible text", element: CGRect(x: 16, y: 120, width: 260, height: 20)))
+        for issue in ["Contrast failed", "Text clipped", "Element has no description", "Hit area is too small"] {
+            #expect(!OuroAuditExcuse.rereads(issue, element: nil), "\(issue)")
+        }
+    }
 }

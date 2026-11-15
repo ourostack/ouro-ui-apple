@@ -441,9 +441,10 @@ jobs:
           pages="$(python3 -I scripts/ui-shards.py gallery pages "$SHARD")"
           echo "Shard $SHARD runs:"; echo "$only"; test -n "$pages" && echo "Audit pages: $pages"
           gallery() {
+            # A hung xcodebuild (its log quiet for 10 minutes) is stopped, and counts as the machine's failure (#164).
             # shellcheck disable=SC2086
-            xcodebuild test-without-building -xctestrun "$XCTESTRUN" \
-              -destination "id=$UDID" -resultBundlePath ".build/$1.xcresult" $only > ".build/$1.log" 2>&1
+            sh scripts/ci-quiet-watch.sh 600 ".build/$1.log" xcodebuild test-without-building -xctestrun "$XCTESTRUN" \
+              -destination "id=$UDID" -resultBundlePath ".build/$1.xcresult" $only
           }
           # A runner that loses testmanagerd, never bootstraps or can't find the simulator it just booted (#42) ran
           # nothing wrong in the app: that is the machine, so it gets one more run on a rebooted simulator, reported as an

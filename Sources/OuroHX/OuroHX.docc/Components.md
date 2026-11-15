@@ -1,6 +1,6 @@
 # Components
 
-Button, Badge, Card, Item, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, Card, Item, SegmentedControl, Checkbox, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -47,6 +47,8 @@ struct SettingsScreen: View {
 | `Badge` | ``OuroBadge`` | A short label or a count beside something else. Tones and variants (`solid`, `soft`, `outline`); secondary solid by default, as on web. It is words, not a control: a chip someone presses is an ``OuroButton`` at size `.sm`. |
 | `Card` | ``OuroCard`` | A surface that groups one thing: a title (a heading for VoiceOver), a description, an action beside them, a body and a footer. `outline` (the theme's card colour with an edge) or `plain`; `md` or `sm` padding. The action goes under the title at the accessibility sizes. No media slot yet. |
 | `Item`, `ItemGroup` | ``OuroItem``, ``OuroItemGroup`` | A row: a title, a description, leading media (an icon tile or a picture at `sm`, `md` or `lg`) and trailing actions. A row with `onPress` is one button, at least 44 points tall, and its actions stay their own. At the accessibility sizes the actions go under the words and a picture above them. A group names its rows with a label (a heading) and divides them (`divided`), frames them (`outline`) or neither (`plain`). |
+| `SegmentedControl` | ``OuroSegmentedControl`` | Two to five equal segments with a thumb that slides to the pressed one, for switching how a view shows its content. 44 points to touch; stacks at the accessibility sizes; a selection haptic. |
+| `Checkbox` | ``OuroCheckbox`` | A box and what checking it means, with `description`, `error`, `required` and `indeterminate` (a dash, "Mixed"). The whole row is a 44-point target; the tick draws, or fades under Reduce Motion. |
 | `Skeleton` | ``OuroSkeleton`` | The outline of what is loading, in its place: `rect`, `text` (lines, the last shorter), `circle`, `row` (an ``OuroItem``'s height) or `card`. Holds still for a second, then breathes; still under Reduce Motion. VoiceOver hears one "Loading". |
 | `Spinner` | ``OuroSpinner`` | The system's activity indicator at web's sizes (16, 20, 32 points), named by what it waits for. |
 | `Progress` | ``OuroProgress`` | How far along some work is: a label, a value from `min` to `max` (`nil` while unknown, which slides, or pulses under Reduce Motion), `showValue`, a tone. VoiceOver hears the label and the percentage. |
@@ -173,6 +175,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroSkeleton``, ``OuroSpinner`` and ``OuroProgress``: web's `Skeleton`, `Spinner` and `Progress`, and the loading states and bars Spoonjoy (`KitchenTableLoadingStateView`, `ArrivingFromLoading`, `CookingNowProgressRule`, `JourneyStillProgressViewStyle`), Gatefold (`OpeningPlaceholder`) and Ouro MD (`UpdateProgressView`) draw by hand.
 - ``OuroPageHeader``: web's `PageHeader`, and the headers Spoonjoy draws by hand (`KitchenMasthead`, `KitchenSectionHeader`, `KitchenTableHeader`, `KitchenEyebrowTracking` and three more).
 - ``OuroItem``: web's `Item`, and the rows Spoonjoy (`RecipeIndexRow`, `ShoppingReceiptRow`, `SettingsRowLabel` and nine more) and Gatefold (`SettingRow`, `PressedRow`, `StillRow` and two more) draw by hand.
+- ``OuroSegmentedControl`` and ``OuroCheckbox``: web's `SegmentedControl` and `Checkbox`, and the pickers and ticks the apps draw by hand.
 - ``OuroBanner``: Spoonjoy's `HeldChangeBanner` (a titled message with its way out) and web's `Alert`.
 - ``OuroSyncStatus``: web's `SyncStatus`, and Gatefold's `SyncStatusLine`, Spoonjoy's `OfflineStatusView` and Ouro MD's `DocumentStatusBar`.
 - The sheet and the toast follow web's `Sheet` and `Toaster`; neither app had a toast.
@@ -215,6 +218,15 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroItemGroupVariant``
 - ``OuroItemPalette``
 - ``OuroItemMetrics``
+
+### Choices
+
+- ``OuroSegmentedControl``
+- ``OuroSegment``
+- ``OuroSegmentedControlPalette``
+- ``OuroCheckbox``
+- ``OuroCheckboxPalette``
+- ``OuroChoiceMetrics``
 
 ### Loading
 

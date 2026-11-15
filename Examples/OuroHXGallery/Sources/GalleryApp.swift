@@ -18,7 +18,7 @@ struct GalleryApp: App {
 
 enum GalleryPage: String, CaseIterable, Identifiable {
     case colors = "Colours", pairs = "Pairs", feel = "Feel"
-    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", loading = "Loading", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
+    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", choices = "Choices", loading = "Loading", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
     var id: String { rawValue }
 
     init?(rawValue: String) {
@@ -30,6 +30,7 @@ enum GalleryPage: String, CaseIterable, Identifiable {
         case "badges", "badge": self = .badges
         case "cards", "card": self = .cards
         case "items", "item": self = .items
+        case "choices", "checkbox", "checkboxes", "segmented", "segmentedcontrol": self = .choices
         case "loading", "skeleton", "spinner", "progress": self = .loading
         case "pageheaders", "pageheader", "page-header": self = .pageHeaders
         case "empty", "emptystate": self = .empty
@@ -110,6 +111,7 @@ private struct ThemedPage: View {
                 case .badges: BadgesPage()
                 case .cards: CardsPage()
                 case .items: ItemsPage()
+                case .choices: ChoicesPage()
                 case .loading: LoadingPage()
                 case .pageHeaders: PageHeadersPage()
                 case .empty: EmptyStatesPage()

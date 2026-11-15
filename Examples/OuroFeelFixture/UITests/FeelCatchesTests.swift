@@ -220,9 +220,23 @@ final class FeelCatchesTests: XCTestCase {
     /// Shapes once misread as missing ways back, none a bug (``KitchenPage`` in the app): a tab switch, a zoom push whose
     /// edge swipe starts lower, a popover of a stepper, and a menu with a submenu. The walk passes them all.
     func testWhatIsNotABrokenWayBack() {
-        let (app, feel) = launch("kitchen", bug: false)
+        var (app, feel) = launch("kitchen", bug: false)
         XCTAssertTrue(app.buttons["kitchen.seeAll"].waitForExistence(timeout: 30))
-        let result = feel.record(feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1), name: "kitchen")
+        var result = feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1)
+        // On a loaded free runner the simulator can drop every gesture sent to the zoomed recipe, through the walk's own
+        // relaunch too (#112, and #193 on PR #189: twelve gestures, all moved=false, back button hittable). The walk then
+        // says it could not check, and nothing else is wrong; walk once more on a fresh launch. A real miss comes back.
+        let untouched = { (r: FeelResult) in
+            !r.passed && r.findings.allSatisfy { $0.note || ($0.unchecked && $0.what.contains("the touch never reached the app")) }
+        }
+        if untouched(result) {
+            print("[ouro-feel] no gesture reached the zoomed recipe; walking once more on a fresh launch (#193)")
+            app.terminate()
+            (app, feel) = launch("kitchen", bug: false)
+            XCTAssertTrue(app.buttons["kitchen.seeAll"].waitForExistence(timeout: 30))
+            result = feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1)
+        }
+        result = feel.record(result, name: "kitchen")
         XCTAssertTrue(result.passed, "none of these is a broken way back:\n\(result.text)")
         XCTAssertTrue(result.findings.contains { $0.what.contains("kitchen.seeAll") && $0.what.contains("switched to") },
                       "See all is a tab switch:\n\(result.text)")

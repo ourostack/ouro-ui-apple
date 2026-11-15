@@ -79,11 +79,16 @@ final class FeelCatchesTests: XCTestCase {
             // recorder that failed: on loaded runners one film had a 4.2 s frame, and another 13 frames, one of them
             // 32.7 s long, which ran it past its cap. A shorter freeze still fails the settle check: this push settles
             // in about 0.4 s, and one 0.5 s frame on main made it 0.9 s against the 0.8 s limit (run 43710948223). A
-            // passing film's longest frame was 0.26 s. It is filmed once more from a fresh launch; a second frozen film
-            // still fails, and so does a recorder that stalls while its frames keep coming.
+            // passing film's longest frame was 0.26 s. It is filmed again from a fresh launch; a third frozen film still
+            // fails.
             let longestFrame = { (f: FeelFilm) in zip(f.frames, f.frames.dropFirst()).map { $1.t - $0.t }.max() ?? 0 }
-            if longestFrame(film) > 0.3 {
-                print("[ouro-feel] the push film froze for \(longestFrame(film)) s; filming it once more")
+            // A film that ran to the recorder's 20 s limit without the page in any frame is a simulator that froze too:
+            // on main, a refilmed push stalled at 23.9 s with no page in it, and the page was on screen after (run
+            // 43731737949). It is filmed again, up to three films in all. A recorder that stalls while the page is in
+            // its frames is never refilmed, so the recorder's own failures still fail.
+            let froze = { (f: FeelFilm) in longestFrame(f) > 0.3 || (f.stalledAt != nil && f.track("transition.title").isEmpty) }
+            for _ in 0..<2 where froze(film) {
+                print("[ouro-feel] the push film froze (longest frame \(longestFrame(film)) s, stalled at \(film.stalledAt.map { "\($0) s" } ?? "never")); filming it once more")
                 app.terminate()
                 (app, feel, film) = filmed()
             }

@@ -20,26 +20,23 @@ extension XCUIApplication {
         knownIssues: [String] = [],
         excuse: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil
     ) throws {
-        func scaledSheetFrames() -> [CGRect] {
-            descendants(matching: .any)
-                .matching(identifier: OuroSheetMetrics.accessibilityIdentifier)
-                .allElementsBoundByIndex
-                .filter { sheet in
-                    let close = sheet.buttons.matching(identifier: OuroSheetMetrics.closeIdentifier).firstMatch
-                    return close.exists && OuroSheetMetrics.isDrawnScaled(closeButtonHeight: close.frame.height)
-                }
-                .map(\.frame)
-        }
-        let scaledSheets = scaledSheetFrames()
-        func toastFrames() -> (regions: [CGRect], contents: [CGRect]) {
-            let toasts = [OuroToastMetrics.regionIdentifier, OuroToastMetrics.toastIdentifier].flatMap { id in
-                descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex
+        // The sheets, the toasts and the window are read from one snapshot of the app, not from element queries. A query
+        // that times out on a loaded runner records a test failure that nothing can catch or retry (CI, iPhone, the
+        // buttons page at the largest text size: "Failed to resolve query: Timed out while evaluating UI query", main
+        // runs 43731240135 and 43732729372); a snapshot throws, so it gets two more tries before its error is thrown.
+        func firstSnapshot(attempt: Int = 1) throws -> any XCUIElementSnapshot {
+            do { return try snapshot() } catch {
+                if attempt == Self.snapshotTries { throw error }
+                Thread.sleep(forTimeInterval: 5)
+                return try firstSnapshot(attempt: attempt + 1)
             }
-            // The toasts' own elements, so page content a toast covers wholly is told from the toast's words.
-            return (toasts.map(\.frame), toasts.flatMap { $0.descendants(matching: .any).allElementsBoundByIndex.map(\.frame) })
         }
-        let (toasts, toastContents) = toastFrames()
-        let screen = windows.firstMatch.exists ? windows.firstMatch.frame : frame
+        let first = OuroAuditFrames(try firstSnapshot())
+        let scaledSheets = first.scaledSheets
+        let (toasts, toastContents) = (first.toasts, first.toastContents)
+        let screen = first.window ?? frame
+        // Read again while the audit runs, for an issue that moved; a snapshot that fails then leaves the first frames.
+        func now() -> OuroAuditFrames? { (try? snapshot()).map(OuroAuditFrames.init) }
         let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
             if knownIssues.contains(where: { issue.compactDescription.contains($0) || issue.detailedDescription.contains($0) }) {
                 return true
@@ -47,14 +44,15 @@ extension XCUIApplication {
             if excuse?(issue) == true { return true }
             // A sheet can move while the audit runs (iOS 27: a medium-detent sheet with the keyboard up rose 33 points
             // during its text-size check), so clipped text is also judged against where the sheets are now.
-            let sheetsNow = issue.compactDescription.contains("Text clipped") ? scaledSheets + scaledSheetFrames() : scaledSheets
+            let sheetsNow = issue.compactDescription.contains("Text clipped") ? scaledSheets + (now()?.scaledSheets ?? []) : scaledSheets
             // Toasts move too (one times out, a stack expands), so contrast is also judged against where they are now:
             // a toast's own words match its elements before or now, and still fail.
             var toastsNow = toasts, contentsNow = toastContents
             if issue.auditType == .contrast {
-                let now = toastFrames()
-                toastsNow += now.regions
-                contentsNow += now.contents
+                if let now = now() {
+                    toastsNow += now.toasts
+                    contentsNow += now.toastContents
+                }
             }
             let excused = OuroAuditExcuse.excuses(issue.compactDescription, element: issue.element?.frame, scaledSheets: sheetsNow, toasts: toastsNow, toastContents: contentsNow, screen: screen)
             if !excused {
@@ -87,5 +85,39 @@ extension XCUIApplication {
 
     /// The audit's "Audit failed to complete in time" error code.
     static let auditTimedOut = -56
+
+    /// How many times the audit tries to snapshot the app before it gives up.
+    static let snapshotTries = 3
+}
+
+/// Where the sheets, the toasts and the window are in one snapshot of the app, for the audit's excuses.
+@MainActor
+struct OuroAuditFrames {
+    /// Each `.ouroSheet` that iOS draws scaled, judged by its close button's height.
+    var scaledSheets: [CGRect] = []
+    /// Each toast region and toast.
+    var toasts: [CGRect] = []
+    /// Every element inside a toast region or toast, so page content a toast covers wholly is told from its words.
+    var toastContents: [CGRect] = []
+    /// The app's first window.
+    var window: CGRect?
+
+    init(_ app: any XCUIElementSnapshot) {
+        window = app.children.first { $0.elementType == .window }?.frame
+        func descendants(_ e: any XCUIElementSnapshot) -> [any XCUIElementSnapshot] { e.children.flatMap { [$0] + descendants($0) } }
+        for e in descendants(app) {
+            if e.identifier == OuroSheetMetrics.accessibilityIdentifier,
+               let close = descendants(e).first(where: { $0.elementType == .button && $0.identifier == OuroSheetMetrics.closeIdentifier }),
+               OuroSheetMetrics.isDrawnScaled(closeButtonHeight: close.frame.height) {
+                scaledSheets.append(e.frame)
+            }
+        }
+        for id in [OuroToastMetrics.regionIdentifier, OuroToastMetrics.toastIdentifier] {
+            for e in descendants(app) where e.identifier == id {
+                toasts.append(e.frame)
+                toastContents += descendants(e).map { $0.frame }
+            }
+        }
+    }
 }
 #endif

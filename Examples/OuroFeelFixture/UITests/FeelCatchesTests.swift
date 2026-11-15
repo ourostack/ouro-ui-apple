@@ -363,7 +363,9 @@ final class FeelCatchesTests: XCTestCase {
             // Both builds show page 2 at once; the bug's sync pulls it back only once the clock advances.
             let turn = FeelPlaceStep("next page") { feel in
                 let page = feel.app.staticTexts["fight.page"]
-                XCTAssertTrue(self.tapUntil(feel.app.buttons["fight.next"]) { page.exists && page.label == "Page 2" }, "Next never took")
+                // Any page past the first: on a loaded runner a tap can take after tapUntil's 5 s wait, and the tap
+                // sent after it takes too (Page 3). That is still Next taking, and each build's sync still follows it.
+                XCTAssertTrue(self.tapUntil(feel.app.buttons["fight.next"]) { page.exists && page.label != "Page 1" }, "Next never took")
             }
             let result = feel.placeFights([turn], reads: 6, between: tick(app), read: fightPlace(app))
             if isBugBuild(app) {

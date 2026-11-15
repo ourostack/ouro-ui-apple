@@ -105,28 +105,6 @@ final class FeelCatchesTests: XCTestCase {
     func testInsideTheWindow() {
         both("window") { app, feel in
             let result = feel.insideWindow()
-            if !result.passed, let root = try? app.snapshot() {
-                // The step log keeps only [ouro-feel] lines: the scroll views and covers as accessibility reports them.
-                func dump(_ node: any XCUIElementSnapshot, _ depth: Int) {
-                    let type = node.elementType
-                    if [.scrollView, .table, .collectionView, .other, .button].contains(type), node.frame.width > 0,
-                       type != .other || node.children.contains(where: { $0.elementType == .button || $0.elementType == .scrollView }) {
-                        print("[ouro-feel] tree \(String(repeating: "  ", count: depth))\(type.rawValue) '\(node.identifier)' \(node.frame)")
-                    }
-                    for child in node.children { dump(child, depth + 1) }
-                }
-                dump(root, 0)
-                XCUIDevice.shared.orientation = .landscapeLeft
-                Thread.sleep(forTimeInterval: 3)
-                let (window, found) = feel.controls()
-                print("[ouro-feel] landscape window \(window)")
-                for c in found where c.key.hasPrefix("window.cover") {
-                    print("[ouro-feel] landscape \(c.key) \(c.frame) scroll \(String(describing: c.scroll)) across \(c.scrollsHorizontally) outer \(String(describing: c.outerScroll))")
-                }
-                if let land = try? app.snapshot() { dump(land, 0) }
-                XCUIDevice.shared.orientation = .portrait
-                Thread.sleep(forTimeInterval: 2)
-            }
             if !isBugBuild(app) {
                 XCTAssertTrue(app.buttons["window.cover.4"].exists || app.descendants(matching: .any)["window.cover.4"].exists,
                               "the row runs off the side, so the check is asked about a cover past the edge")

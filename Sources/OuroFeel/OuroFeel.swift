@@ -92,8 +92,13 @@ public struct OuroFeel {
         func sideways(_ node: any XCUIElementSnapshot) -> Bool {
             let f = node.frame
             guard f.width > f.height * 1.5 else { return false }
+            // A scroll view inside is a world of its own: a landscape shelf (a vertical list, wide in landscape) is not
+            // sideways because the "Reading Now" row inside it runs off the side (#67).
             func extends(_ n: any XCUIElementSnapshot) -> Bool {
-                n.children.contains { $0.frame.maxX > f.maxX + 1 || $0.frame.minX < f.minX - 1 || extends($0) }
+                n.children.contains {
+                    $0.frame.maxX > f.maxX + 1 || $0.frame.minX < f.minX - 1
+                        || (!Self.scrollTypes.contains($0.elementType) && extends($0))
+                }
             }
             return extends(node)
         }

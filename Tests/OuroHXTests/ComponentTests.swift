@@ -195,6 +195,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroItemMetrics.defaultGroupVariant == .divided)
     }
 
+    /// An ordered group's rows say where they are, as web's `<ol>` does: the first of five is "1 of 5".
+    @Test func anOrderedRowSaysWhereItIs() {
+        #expect(OuroItemMetrics.position(0, of: 5) == "1 of 5")
+        #expect(OuroItemMetrics.position(4, of: 5) == "5 of 5")
+    }
+
     /// Web's `py-3` and `py-2`, its media sides (`size-10`, `size-16`, `size-28`) and its `px-4` inside an outline.
     @Test func anItemHasWebsSpacing() {
         #expect(OuroItemMetrics.verticalPadding(.md) == 12)

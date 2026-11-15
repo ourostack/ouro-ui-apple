@@ -10,6 +10,10 @@ public struct FeelElement: Codable, Equatable, Sendable {
     public var scroll: CGRect?
     /// Whether that scroll view scrolls sideways (a carousel) rather than up and down.
     public var scrollsHorizontally: Bool
+    /// When that scroll view scrolls sideways inside one that scrolls up and down (a "Reading Now" row on a shelf), the
+    /// frame of the outer one: a cover past the window's side is the row's to excuse, and past its top or bottom the
+    /// shelf's (#67).
+    public var outerScroll: CGRect? = nil
 
     public init(key: String, type: String, frame: CGRect, scroll: CGRect? = nil, scrollsHorizontally: Bool = false) {
         self.key = key
@@ -39,12 +43,19 @@ public enum FeelLayout {
         for control in controls where control.frame.width > 0 && control.frame.height > 0 {
             counted += 1
             if slack.contains(control.frame) { continue }
-            if let scroll = control.scroll, slack.contains(scroll) {
+            if let scroll = control.scroll {
                 let carousel = control.scrollsHorizontally && scroll.height < window.height * 0.6
-                let across = carousel
-                    ? control.frame.minY >= slack.minY && control.frame.maxY <= slack.maxY
-                    : control.frame.minX >= slack.minX && control.frame.maxX <= slack.maxX
-                if across { continue }
+                if slack.contains(scroll) {
+                    let across = carousel
+                        ? control.frame.minY >= slack.minY && control.frame.maxY <= slack.maxY
+                        : control.frame.minX >= slack.minX && control.frame.maxX <= slack.maxX
+                    if across { continue }
+                } else if carousel, let outer = control.outerScroll, slack.contains(outer),
+                          scroll.minX >= slack.minX, scroll.maxX <= slack.maxX {
+                    // A carousel the shelf around it has scrolled partly out of view (landscape, say): its sides are
+                    // its own to scroll, and its top and bottom the shelf's.
+                    continue
+                }
             }
             findings.append(FeelFinding(what: "\(control.type) \"\(control.key)\" at \(describe(control.frame)) is outside the "
                 + "\(describe(window)) window in \(pose)"))

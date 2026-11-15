@@ -86,14 +86,14 @@ final class FeelCatchesTests: XCTestCase {
     }
 
     /// The bug build's panel off the side fails; the covers of a "Reading Now" row (a horizontal ScrollView inside a
-    /// vertical one) run off the side in both builds, and are a carousel's, never outside the window (#67).
+    /// vertical one) run off the side in both builds, and in landscape below the window's bottom too, and are a
+    /// carousel's in a scrolled shelf, never outside the window (#67).
     func testInsideTheWindow() {
         both("window") { app, feel in
             let result = feel.insideWindow()
             if !isBugBuild(app) {
                 XCTAssertTrue(app.buttons["window.cover.4"].exists || app.descendants(matching: .any)["window.cover.4"].exists,
                               "the row runs off the side, so the check is asked about a cover past the edge")
-                if !result.passed { print("[ouro-feel] window page hierarchy:\n\(app.debugDescription)") }
             } else {
                 XCTAssertFalse(result.findings.contains { $0.what.contains("window.cover") }, "no cover is outside the window:\n\(result.text)")
             }

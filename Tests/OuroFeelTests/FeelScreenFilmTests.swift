@@ -122,3 +122,29 @@ private func textured(offsets: [Int], pageAt: (Int) -> Int = { _ in 0 }) -> Feel
         return FeelScreenFrame(t: Double(i) / 10, width: w, height: h, gray: gray)
     })
 }
+
+@Suite struct ScreenContactSheetTests {
+    private func frame(_ v: UInt8, at i: Int, size: Int = 4) -> FeelScreenFrame {
+        FeelScreenFrame(t: Double(i) / 10, width: size, height: size, gray: Array(repeating: v, count: size * size))
+    }
+
+    /// Five 4x4 samples, three to a row: two rows, each sample above its strip, white under a rest, black under a flash.
+    @Test func laysSamplesOutWithTheirRestsMarked() throws {
+        let film = FeelScreenFilm(frames: [10, 10, 200, 10, 10].enumerated().map { frame($1, at: $0) })
+        let sheet = try #require(film.contactSheet(columns: 3, gap: 2, mark: 3))
+        #expect(sheet.width == 3 * 4 + 2 * 2)
+        #expect(sheet.height == 2 * (4 + 3) + 2)
+        func px(_ x: Int, _ y: Int) -> UInt8 { sheet.gray[y * sheet.width + x] }
+        #expect(px(0, 0) == 10)
+        #expect(px(12, 0) == 200, "the third sample, at the end of the first row")
+        #expect(px(0, 9) == 10, "the fourth sample starts the second row")
+        #expect(px(0, 4) == 255, "a rest's sample is marked white")
+        #expect(px(12, 4) == 0, "the flash is marked black")
+        #expect(px(4, 0) == 128, "the gap between samples")
+    }
+
+    @Test func anEmptyOrMixedFilmHasNoSheet() {
+        #expect(FeelScreenFilm(frames: []).contactSheet() == nil)
+        #expect(FeelScreenFilm(frames: [frame(10, at: 0), frame(10, at: 1, size: 5)]).contactSheet() == nil)
+    }
+}

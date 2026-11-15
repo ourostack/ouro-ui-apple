@@ -35,6 +35,20 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// ``both(_:_:builds:file:line:_:)`` for a check judged from a screen film: a failing run also saves the film's
+    /// contact sheet beside its report (#73).
+    private func both(screens page: String, file: StaticString = #filePath, line: UInt = #line,
+                      _ check: (XCUIApplication, OuroFeel) -> (FeelResult, FeelScreenFilm)) {
+        for bug in [true, false] {
+            let (app, feel) = launch(page, bug: bug)
+            let (raw, film) = check(app, feel)
+            let result = feel.record(raw, name: "\(page)-\(bug ? "bug" : "fixed")", screenFilm: film)
+            XCTAssertEqual(result.passed, !bug, "\(page) with bug=\(bug):\n\(result.text)", file: file, line: line)
+            if bug { XCTAssertNotNil(film.contactSheet(), "the failing film has a contact sheet to save", file: file, line: line) }
+            app.terminate()
+        }
+    }
+
     private func isBugBuild(_ app: XCUIApplication) -> Bool {
         guard let i = app.launchArguments.firstIndex(of: "-bug"), i + 1 < app.launchArguments.count else { return false }
         return app.launchArguments[i + 1] == "1"
@@ -300,7 +314,7 @@ final class FeelCatchesTests: XCTestCase {
     /// Flicker of the whole screen, judged from screenshots on the app's own clock: no element names the page. The bug's
     /// page turns, goes back for three ticks and turns again; the fixed page turns once.
     func testScreenFlicker() {
-        both("screen-flicker") { app, feel in
+        both(screens: "screen-flicker") { app, feel in
             let play = app.buttons["screenflicker.play"]
             _ = play.waitForExistence(timeout: 10)
             let film = feel.screenFilm(steps: 14, tick: 0.1, clock: "screenflicker.clock",
@@ -310,20 +324,20 @@ final class FeelCatchesTests: XCTestCase {
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("came back to it") }, result.text)
             }
-            return (result, nil)
+            return (result, film)
         }
     }
 
     /// The first page shown after an open holds, judged from screenshots: the bug's cover goes onto another page that
     /// then jumps to his; the fixed cover holds until his page shows.
     func testRevealHolds() {
-        both("reveal") { app, feel in
+        both(screens: "reveal") { app, feel in
             let open = app.buttons["reveal.open"]
             _ = open.waitForExistence(timeout: 10)
             // The cover is up until Open: its picture is what the film's cover must look like.
             guard let cover = feel.screenPicture(clock: "reveal.clock") else {
                 return (FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "", failing: { _ in "" },
-                                          findings: [.couldNotCheck("no screenshot of the cover")]), nil)
+                                          findings: [.couldNotCheck("no screenshot of the cover")]), FeelScreenFilm(frames: []))
             }
             // 2.4 s: the fixed build's page shows 0.7 s after Open takes, and a loaded runner can take Open late (main,
             // 2026-11-15: a 1.4 s film ended on the cover, "film for longer"). The bug build's jump comes 0.4 s after its
@@ -335,7 +349,7 @@ final class FeelCatchesTests: XCTestCase {
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("was replaced") }, result.text)
             }
-            return (result, nil)
+            return (result, film)
         }
     }
 

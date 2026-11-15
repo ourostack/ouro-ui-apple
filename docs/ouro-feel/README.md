@@ -383,6 +383,11 @@ let film = feel.screenFilm(steps: 12, tick: 0.1, clock: "reader.clock",
 feel.expect(film.flickers())
 ```
 
+**Seeing what was judged.** Record a screen film's result with `feel.record(result, name:, screenFilm: film)`. When it
+fails, a contact sheet is saved beside the report, as an attachment and in `OURO_FEEL_REPORT_DIR`: every sample in
+order, a white strip under each sample that is part of a rest and a black one under each on its way or flashing
+(`film.contactSheet()`), with the film's JSON.
+
 ### The first page shown after an open holds
 
 `film.revealHolds(cover:until:)` is jump after landing at an open, judged from the same screen film as whole-screen

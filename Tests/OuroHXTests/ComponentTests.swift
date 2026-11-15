@@ -195,6 +195,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroItemMetrics.defaultGroupVariant == .divided)
     }
 
+    /// An ordered group's rows say where they are, as web's `<ol>` does: the first of five is "1 of 5".
+    @Test func anOrderedRowSaysWhereItIs() {
+        #expect(OuroItemMetrics.position(0, of: 5) == "1 of 5")
+        #expect(OuroItemMetrics.position(4, of: 5) == "5 of 5")
+    }
+
     /// Web's `py-3` and `py-2`, its media sides (`size-10`, `size-16`, `size-28`) and its `px-4` inside an outline.
     @Test func anItemHasWebsSpacing() {
         #expect(OuroItemMetrics.verticalPadding(.md) == 12)
@@ -257,6 +263,33 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroLoadingMetrics.fraction(nil, min: 0, max: 100) == nil)
         #expect(OuroLoadingMetrics.fraction(5, min: 10, max: 10) == nil)
         #expect(OuroLoadingMetrics.valueText(nil, min: 0, max: 100) == "Loading")
+    }
+}
+
+@Suite struct SyncStatusTests {
+    /// Core claims `name.spoken` and `announce.urgency`: a problem is spoken when it starts and saved once it clears;
+    /// every other save is silent.
+    @Test func onlyProblemsAndRecoveriesAreSpoken() {
+        let words = OuroSyncStatusLabels()
+        #expect(OuroSyncStatusMetrics.announcement(from: .saved, to: .offline, labels: words) == words.offline)
+        #expect(OuroSyncStatusMetrics.announcement(from: .saving, to: .error, labels: words) == words.error)
+        #expect(OuroSyncStatusMetrics.announcement(from: .error, to: .saved, labels: words) == "Saved")
+        #expect(OuroSyncStatusMetrics.announcement(from: .saved, to: .saving, labels: words) == nil)
+        #expect(OuroSyncStatusMetrics.announcement(from: .saving, to: .saved, labels: words) == nil)
+        #expect(OuroSyncStatusMetrics.announcement(from: .offline, to: .offline, labels: words) == nil)
+    }
+
+    /// Core claim `motion.reduced`: the saving arrows hold still under Reduce Motion.
+    @Test func theArrowsHoldStillUnderReduceMotion() {
+        #expect(OuroSyncStatusMetrics.spins(.saving, reduceMotion: false))
+        #expect(!OuroSyncStatusMetrics.spins(.saving, reduceMotion: true))
+        #expect(!OuroSyncStatusMetrics.spins(.saved, reduceMotion: false))
+    }
+
+    /// Each state has its own symbol, so none rests on colour.
+    @Test func everyStateHasItsOwnSymbol() {
+        #expect(Set(OuroSyncState.allCases.map(\.systemImage)).count == OuroSyncState.allCases.count)
+        #expect(OuroSyncState.allCases.filter(\.isProblem) == [.offline, .error])
     }
 }
 
@@ -572,6 +605,15 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
     /// A row's words read on the page, an icon tile's symbol reads on its tile, and the lines between rows show, in
     /// every theme and mode: 3:1 under increased contrast, as other lines are.
+    @Test func syncStatusReadsInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroSyncStatusPalette(style: style)
+            let page = OuroColor.resolve(style.colors.background)
+            for s in OuroSyncState.allCases { #expect(ratio(p.color(s), page) >= target(style), "\(name) \(s)") }
+            #expect(ratio(p.retry, page) >= target(style), "\(name) retry")
+        }
+    }
+
     @Test func itemTextReadsInEveryThemeAndMode() {
         for (name, style) in styles {
             let p = OuroItemPalette(style: style)

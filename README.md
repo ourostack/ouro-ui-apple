@@ -34,7 +34,7 @@ Ouro UI is one system with a web half and an Apple half, and each half has a sid
 
 | | Web ([ourostack/ouro-ui](https://github.com/ourostack/ouro-ui)) | Apple (this package) |
 |---|---|---|
-| People (Ouro HX) | React components you copy into your app with the shadcn CLI | `OuroHX`: `OuroButton`, `OuroBadge`, `OuroCard`, `OuroItem`, `OuroSkeleton`, `OuroSpinner`, `OuroProgress`, `OuroPageHeader`, `OuroEmptyState`, `OuroBanner`, `.ouroSheet` and toasts, the spring, the press, haptics and six themes; `OuroFeel` checks how it feels |
+| People (Ouro HX) | React components you copy into your app with the shadcn CLI | `OuroHX`: `OuroButton`, `OuroBadge`, `OuroCard`, `OuroItem`, `OuroSkeleton`, `OuroSpinner`, `OuroProgress`, `OuroPageHeader`, `OuroEmptyState`, `OuroBanner`, `OuroSyncStatus`, `.ouroSheet` and toasts, the spring, the press, haptics and six themes; `OuroFeel` checks how it feels |
 | Agents (Ouro AX) | a kit for command lines, HTTP APIs and MCP servers, and an X-ray that calls them from outside | `OuroAX` outcomes shaped like web's, an X-ray for an app's App Intents (`ouro-ax-xray`), and `OuroReins` to drive its screens |
 | Both, from one declaration | a command line, MCP and WebMCP tools and a web control | an App Intent, a SwiftUI button and a Reins action |
 
@@ -48,7 +48,7 @@ Ouro UI's [one action model](https://github.com/ourostack/ouro-ui-core/blob/main
 
 | Product | For | What it has |
 |---|---|---|
-| `OuroHX` | your app | the components: `OuroButton` (solid, soft, outline, plain, glass; rounded or pill), `OuroBadge` (solid, soft, outline), `OuroCard` (outline or plain), `OuroItem` and `OuroItemGroup` (rows and lists of them), `OuroSkeleton`, `OuroSpinner` and `OuroProgress` (loading, known and unknown), `OuroPageHeader` (a page's or section's title, eyebrow, description, actions and picture), `OuroEmptyState`, `OuroBanner`, `.ouroSheet`, and toasts (`.ouroToaster()` at the root, then `@Environment(\.ouroToast)`); `.ouroTheme(.pearl)`, `ouroColors` and radii in the environment; `OuroColor` (contrast, increased contrast, adaptive colours); `OuroMotion` (core's spring and curves, polite under Reduce Motion); `OuroHaptics` (one named table of moments); `OuroFoldPosture` and `OuroFoldReader` (tabletop, book, closed) |
+| `OuroHX` | your app | the components: `OuroButton` (solid, soft, outline, plain, glass; rounded or pill), `OuroBadge` (solid, soft, outline), `OuroCard` (outline or plain), `OuroItem` and `OuroItemGroup` (rows and lists of them), `OuroSkeleton`, `OuroSpinner` and `OuroProgress` (loading, known and unknown), `OuroPageHeader` (a page's or section's title, eyebrow, description, actions and picture), `OuroEmptyState`, `OuroBanner`, `OuroSyncStatus` (saved, saving, offline, not saved, with Retry), `.ouroSheet`, and toasts (`.ouroToaster()` at the root, then `@Environment(\.ouroToast)`); `.ouroTheme(.pearl)`, `ouroColors` and radii in the environment; `OuroColor` (contrast, increased contrast, adaptive colours); `OuroMotion` (core's spring and curves, polite under Reduce Motion); `OuroHaptics` (one named table of moments); `OuroFoldPosture` and `OuroFoldReader` (tabletop, book, closed) |
 | `OuroHXTesting` | your tests | `OuroSnapshot` (light, dark, increased contrast), `ouroAccessibilityAudit`, `OuroDuoHinge` (fold the Duo simulator from a UI test) |
 | `OuroAX` | your app | `OuroAX.Outcome` and `OuroAX.Problem` (web's `ax-outcome` and `ax-problem`, field for field), exit codes, entity queries with fuzzy matching, `OuroAXOutcomeIntent`, `OuroAXPackage` |
 | `OuroAXTesting` | your tests | Siri evaluation wordings and pass rates; the App Intents X-ray's checks, reports and Siri scenario sets (`AXXray`) |
@@ -233,9 +233,24 @@ The Siri AI Developer Preview needs the Xcode 27.3 beta SDK. Until you build wit
 
 CI's `siri-ai-sdk` job compiles them as soon as its image has Xcode 27.3.
 
+## Source stability
+
+Ouro UI for Apple follows [semantic versioning](https://semver.org), on
+[swift-argument-parser's model](https://github.com/apple/swift-argument-parser#project-status). The public API is
+every public declaration, not starting with an underscore, in the library products (`OuroHX`, `OuroHXTesting`,
+`OuroAX`, `OuroAXTesting`, `OuroAXTestingProbe`, `OuroFeel`, `OuroFeelCore`, `OuroFeelRecorder`, `OuroReins`,
+`OuroA2UI`). From 1.0.0, a change that breaks a caller's source waits for 2.0; a minor release may add API, deprecate
+it, or raise the toolchain it needs. Not covered: the executables' output, the gallery, snapshots and what the
+components look like, which follow the design and may change in any release.
+
+Every pull request runs `scripts/api-break.sh`, which compares the API with the last release tag through
+[`swift package diagnose-api-breaking-changes`](https://github.com/swiftlang/swift-package-manager/blob/main/Sources/PackageManagerDocs/Documentation.docc/Package/PackageDiagnoseAPIBreakingChange.md).
+From 0.9.0 a break fails it, unless the pull request's title starts `Breaking:`; before that it is reported in the
+run's summary.
+
 ## CI
 
-- **Free GitHub-hosted runners** (`ubuntu-latest`, `macos-26`) run on every pull request and push: core provenance, `swift build` and `swift test`, the skills linter, the iOS Simulator build, DocC and the gallery. Their Xcode 26 has no iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the Siri AI parts compile out behind SDK checks (`#if canImport(SwiftUICore, _version: 8.0.85)` and `canImport`), never compiler checks: Xcode 27.0 and 27.1 have Swift 6.4 but older SDKs.
+- **Free GitHub-hosted runners** (`ubuntu-latest`, `macos-26`) run on every pull request and push: core provenance, `swift build` and `swift test`, the skills linter, the iOS Simulator build, DocC and the gallery. The gallery's UI tests run on an iPhone on pull requests, and on an iPhone and a 13-inch iPad on `main` and releases. Their Xcode 26 has no iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the Siri AI parts compile out behind SDK checks (`#if canImport(SwiftUICore, _version: 8.0.85)` and `canImport`), never compiler checks: Xcode 27.0 and 27.1 have Swift 6.4 but older SDKs.
 - **The billed `xcode-27` runner** runs only what needs Xcode 27 or an iOS 27 OS: the Xcode 27 build and test, builds with Xcode 27.0's and 27.1's older SDKs (which also print each SDK's SwiftUICore version), the fixture X-ray lanes and the Siri AI compile lane. It runs on pushes to `main` and on published releases, never on pull requests; `xray-apps.yml` runs on releases only. Its spending is capped by a $15-a-month Actions budget on this repository, and usage stops at the cap.
 - **When the free image ships Xcode 27,** drop the lane: point those jobs at `macos-26` (or `macos-latest`), delete their `if:` gates, and remove this paragraph.
 - No self-hosted runners.

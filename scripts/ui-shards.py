@@ -59,8 +59,8 @@ SUITES = {
                           "ComponentClaimTests/testATallSheetOpensAtItsTopAtTheLargestSize": 17.5,
                           "ComponentClaimTests/testAToastWithAnActionWaits": 16.6,
                           "FeelTests/testAToastStackArrivesWithoutJumpsGhostsOrALongSettle": 11.0},
-                # badges, items, pageheaders and loading: not measured yet; banners' time, a page of the same size, until a run measures it.
-                "pages": {"empty": 39.2, "banners": 35.0, "badges": 35.0, "items": 35.0, "pageheaders": 35.0, "loading": 35.0}},
+                # badges, items, pageheaders, sync and loading: not measured yet; banners' time, a page of the same size, until a run measures it.
+                "pages": {"empty": 39.2, "banners": 35.0, "badges": 35.0, "items": 35.0, "pageheaders": 35.0, "sync": 35.0, "loading": 35.0}},
         },
     },
     "feel": {

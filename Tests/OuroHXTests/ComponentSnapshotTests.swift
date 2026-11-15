@@ -143,6 +143,15 @@ import Testing
         }
     }
 
+    /// Every sync state, with Retry on the problems.
+    @Test(arguments: Mode.allCases) func syncStatus(_ mode: Mode) throws {
+        try check("sync-status", mode) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(OuroSyncState.allCases, id: \.self) { s in OuroSyncStatus(s) {} }
+            }
+        }
+    }
+
     /// A page header with an eyebrow, a description, badges and actions; a large one; and a section with a divider.
     @Test(arguments: Mode.allCases) func pageHeader(_ mode: Mode) throws {
         try check("page-header", mode) {

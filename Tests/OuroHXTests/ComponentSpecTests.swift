@@ -28,7 +28,7 @@ import Testing
     /// Each spec's metrics as this package has them.
     static let apple: [String: [String: Double]] = [
         "badge": ["minHeight": OuroBadgeMetrics.minimumHeight, "paddingX": OuroBadgeMetrics.horizontalPadding],
-        "button": ["minTarget": OuroButtonMetrics.minimumTarget(on: .touch), "pressScale": OuroTokens.Press.scale],
+        "button": ["minTarget": OuroButtonSize.minimumTarget(on: .touch), "pressScale": OuroTokens.Press.scale],
         "card": [
             "paddingMd": OuroCardMetrics.padding(size: .md, variant: .outline),
             "paddingSm": OuroCardMetrics.padding(size: .sm, variant: .outline),
@@ -78,7 +78,7 @@ import Testing
         #expect(Set(Self.apple.keys).isDisjoint(with: Self.notYetBuilt))
     }
 
-    @Test(arguments: apple.keys.sorted()) func appleDrawsTheSpecsNumbers(_ name: String) throws {
+    @Test(arguments: ComponentSpecTests.apple.keys.sorted()) func appleDrawsTheSpecsNumbers(_ name: String) throws {
         let spec = try Self.load(name)
         #expect(spec.name == name)
         #expect(spec.platforms["apple"] != nil, "\(name): the spec has no apple platform")

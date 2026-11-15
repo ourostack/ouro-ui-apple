@@ -31,6 +31,8 @@ public final class ReinsSocketServer: @unchecked Sendable {
     private let session: ReinsSession
     private let lock = NSLock()
     private var listener: Int32 = -1
+    /// The write end of the pipe that wakes the accept loop to stop.
+    private var wake: Int32 = -1
     private var clients = Set<Int32>()
     /// One request at a time across all connections.
     private let serial = DispatchSemaphore(value: 1)
@@ -89,9 +91,19 @@ public final class ReinsSocketServer: @unchecked Sendable {
             close(fd)
             throw POSIXError(.init(rawValue: code) ?? .EIO)
         }
+        var ends: [Int32] = [-1, -1]
+        guard pipe(&ends) == 0 else {
+            let code = errno
+            close(fd)
+            unlink(path)
+            throw POSIXError(.init(rawValue: code) ?? .EIO)
+        }
+        // The accept loop can leave on its own (and close the read end) before stop() writes: no SIGPIPE for that.
+        _ = fcntl(ends[1], F_SETNOSIGPIPE, 1)
         listener = fd
+        wake = ends[1]
         FileHandle.standardError.write(Data("ouro-reins: serving on \(path)\n".utf8))
-        Thread.detachNewThread { [self] in acceptLoop(fd) }
+        Thread.detachNewThread { [self] in acceptLoop(fd, wake: ends[0]) }
     }
 
     /// Whether a server is accepting at `address` now.
@@ -105,25 +117,48 @@ public final class ReinsSocketServer: @unchecked Sendable {
     }
 
     /// Stops accepting, closes open connections and removes the socket file.
+    ///
+    /// Each descriptor is closed only by the thread that uses it, never from here: a descriptor closed under another
+    /// thread gets its number reused at once, and that thread then acts on whatever socket took it. In a test run with
+    /// several servers, a stopped server's accept loop took a connection meant for another server and closed it, or a
+    /// shutdown here reached a connection that had since taken a closed one's number (#102). So this wakes the accept
+    /// loop, which closes the listener itself, and shuts connections down while their threads can't close them.
     public func stop() {
         lock.lock()
         let fd = listener
-        let open = clients
+        let wake = wake
         listener = -1
+        self.wake = -1
+        for client in clients { shutdown(client, SHUT_RDWR) }
         clients = []
         lock.unlock()
         guard fd >= 0 else { return }
-        shutdown(fd, SHUT_RDWR)
-        close(fd)
-        for client in open { shutdown(client, SHUT_RDWR) }
         unlink(path)
+        var byte: UInt8 = 1
+        _ = write(wake, &byte, 1)
+        close(wake)
     }
 
-    private func acceptLoop(_ fd: Int32) {
+    private func acceptLoop(_ fd: Int32, wake: Int32) {
+        defer {
+            close(fd)
+            close(wake)
+        }
         while true {
+            // Accept only when a connection is waiting, and leave once stop() writes to the pipe.
+            var watched = [pollfd(fd: fd, events: Int16(POLLIN), revents: 0), pollfd(fd: wake, events: Int16(POLLIN), revents: 0)]
+            if poll(&watched, 2, -1) < 0 {
+                if errno == EINTR { continue }
+                return
+            }
+            if watched[1].revents != 0 { return }
+            guard watched[0].revents & Int16(POLLIN) != 0 else {
+                if watched[0].revents != 0 { return }
+                continue
+            }
             let client = accept(fd, nil, nil)
             if client < 0 {
-                if errno == EINTR { continue }
+                if errno == EINTR || errno == EAGAIN || errno == ECONNABORTED { continue }
                 return
             }
             var on: Int32 = 1
@@ -137,17 +172,21 @@ public final class ReinsSocketServer: @unchecked Sendable {
             let accepting = listener == fd
             if accepting { clients.insert(client) }
             lock.unlock()
-            guard accepting else { close(client); return }
+            guard accepting else {
+                close(client)
+                return
+            }
             Thread.detachNewThread { [self] in serve(client) }
         }
     }
 
     private func serve(_ client: Int32) {
+        // Closed under the lock, so stop() never shuts down this number after it has gone to another socket.
         defer {
             lock.lock()
             clients.remove(client)
-            lock.unlock()
             close(client)
+            lock.unlock()
         }
         var pending: [UInt8] = []
         var buffer = [UInt8](repeating: 0, count: 4096)

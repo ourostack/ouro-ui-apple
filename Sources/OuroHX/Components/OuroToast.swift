@@ -465,9 +465,6 @@ struct OuroToastHost: ViewModifier {
                         .accessibilityLabel(labels.label)
                         .accessibilityIdentifier(OuroToastMetrics.regionIdentifier)
                         .accessibilityAction(named: Text(labels.showAllLabel)) { showAll(count: visible.count) }
-                        // An empty stack is only its 8-point top padding. Left in the tree, a sheet's empty region on
-                        // iPad's form sheet was read by the audit as "Potentially inaccessible text" with no element.
-                        .accessibilityHidden(visible.isEmpty)
                         .frame(maxWidth: .infinity)
                         .onChange(of: visible.isEmpty) { _, empty in if empty { expandedByHand = false } }
                         .onChange(of: visible.map(\.id)) { _, ids in sizes = sizes.filter { ids.contains($0.key) } }

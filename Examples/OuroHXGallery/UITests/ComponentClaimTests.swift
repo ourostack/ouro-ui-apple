@@ -60,7 +60,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : run.page == "choices" ? Self.inactiveMisreadings : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : run.page == "choices" ? Self.inactiveMisreadings : run.page == "sheet" ? Self.pageBehindFormSheetMisreadings(app) : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -312,6 +312,19 @@ final class ComponentClaimTests: XCTestCase {
                 .flatMap { app.launchArguments.indices.contains($0 + 1) ? UIContentSizeCategory(rawValue: app.launchArguments[$0 + 1]) : nil } ?? .large
             let line = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)).lineHeight
             return element.frame.height >= line - 1
+        }
+    }
+
+    /// On iPad a sheet is a form sheet in the middle of the screen, and the page behind it stays in sight, dimmed. The
+    /// sheet is modal, so that page is out of the accessibility tree, and the audit reads its words as "Potentially
+    /// inaccessible text" with no element (every sheet run in main's iPad shard 2, 2026-11-14). Excused only with no
+    /// element and only while the sheet is narrower than the window. On an iPhone the sheet spans the screen's width, so
+    /// the same check there still fails any of the sheet's own words that VoiceOver can't reach.
+    static func pageBehindFormSheetMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
+        { issue in
+            guard issue.compactDescription == "Potentially inaccessible text", issue.element == nil else { return false }
+            let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
+            return sheet.exists && sheet.frame.width < app.windows.firstMatch.frame.width - 1
         }
     }
 

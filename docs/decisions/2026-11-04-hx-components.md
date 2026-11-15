@@ -383,6 +383,26 @@ The first two controls that hold a value, ninth and tenth in the 1.0 order.
 - **Not yet:** web's `CheckboxGroup` (a labelled group with one error), `readOnly`, and form `name`/`value`, which
   have no SwiftUI form to submit to.
 
+## OuroSkeleton, OuroSpinner and OuroProgress (2026-11-14)
+
+Seventh and eighth in the 1.0 order, shipped together because they are one job, waiting: the loading half of the 13
+hand-drawn states `OuroEmptyState` doesn't cover, and six progress bars and timers.
+
+- **Skeleton.** Web's shapes: `rect`, `text` (`lines`, the last at 60%, each a line box of its text style), `circle`
+  (`side`), `row` (an ``OuroItem`` row's height, `count` of them) and `card`. Its fill is the theme's `muted` raised to
+  1.3:1 on the page, so a placeholder is seen in every theme while staying quiet. Like web it holds still for a
+  second, so a fast load never flickers, then breathes; under Reduce Motion, or with `shimmer: false`, it holds still
+  (`motion.reduced`, `aSkeletonHoldsStillUnderReduceMotion`). VoiceOver hears one "Loading" for the group.
+- **Spinner.** The system's activity indicator, as the HIG asks, at web's 16, 20 and 32 points, tinted by an optional
+  tone and named by what it waits for (web's `label`, "Loading" by default).
+- **Progress.** Web's `label`, `value` (`nil` is indeterminate), `min`, `max`, `tone`, `hideLabel`, `showValue` and
+  `indeterminateText`. It is drawn, not the system's linear bar, so the filled part reaches 3:1 on its track and the
+  page in every tone and theme (WCAG 1.4.11, `loadingReadsInEveryThemeAndMode`), which the system's tinted bar does
+  not promise. VoiceOver hears the label and a whole percentage (`aBarSaysHowFarAlong`). An unknown value slides a
+  segment, or pulses under Reduce Motion.
+- **Not yet:** web's `format` (a value in units, not a percentage) and Spoonjoy's ring timer, which is a `timer`, not
+  in 1.0.
+
 ## OuroSyncStatus (2026-11-14)
 
 Twelfth in the 1.0 order: the offline and sync lines Gatefold (`SyncStatusLine`), Spoonjoy (`OfflineStatusView`) and

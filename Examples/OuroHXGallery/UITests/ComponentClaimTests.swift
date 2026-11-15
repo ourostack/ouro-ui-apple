@@ -388,11 +388,21 @@ final class ComponentClaimTests: XCTestCase {
         // Kept until dismissed: a busy CI runner took longer than its five seconds to reach the Dismiss tap (#14,
         // 2026-11-06), so the toast had gone by itself.
         let app = launch("sheet", open: false, extra: ["-toastSeconds", "0"])
-        app.buttons["Filters"].tap()
-        XCTAssertTrue(app.buttons["Remember these"].waitForExistence(timeout: 3))
-        app.buttons["Remember these"].tap()
-        XCTAssertTrue(app.staticTexts["Filters remembered"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Filters remembered"].isHittable, "the toast is behind the sheet")
+        // A busy runner can drop the Filters tap or open the sheet late (#85): tap again once if no sheet came in 10 s.
+        let remember = app.buttons["Remember these"]
+        for attempt in 1...2 where !remember.exists {
+            if attempt > 1 { print("[ouro-hx] retap: Filters opened no sheet within 10 s, so it was tapped again (#85)") }
+            app.buttons["Filters"].tap()
+            _ = remember.waitForExistence(timeout: 10)
+        }
+        XCTAssertTrue(remember.exists, "Filters opened no sheet")
+        remember.tap()
+        let toast = app.staticTexts["Filters remembered"]
+        XCTAssertTrue(toast.waitForExistence(timeout: 5))
+        // Hittable once its arrival has settled: a toast caught mid-arrival is not hittable yet (#85), while one behind
+        // the sheet never is.
+        let above = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: toast)
+        XCTAssertEqual(XCTWaiter().wait(for: [above], timeout: 3), .completed, "the toast is behind the sheet")
         app.buttons.matching(identifier: "Dismiss").firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Filters remembered"].waitForNonExistence(timeout: Self.closeBudget), "its Dismiss closes it")
         app.terminate()

@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "display", "pageheaders", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "display", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -144,6 +144,15 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["Prep time, 20 minutes"].exists, "display: a pair is not heard as one")
         XCTAssertTrue(app.staticTexts["Diet"].exists && app.descendants(matching: .any)["Vegan"].exists, "display: a pair with a view lost its parts")
         XCTAssertTrue(app.staticTexts["or"].exists, "display: a separator's label is not text")
+        app.terminate()
+        app = launch("sync")
+        // The line is words a reader can find; Retry is its own button, and pressing it saves.
+        XCTAssertTrue(app.staticTexts["Not saved: the server refused the changes"].exists, "sync: the error is not text")
+        let retry = app.buttons["Retry"]
+        XCTAssertTrue(retry.exists, "sync: no Retry button")
+        retry.tap()
+        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 4), "sync: Retry did not save")
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'checkmark'")).firstMatch.exists, "sync: the symbol is spoken")
         app.terminate()
         app = launch("pageheaders")
         // A header's title is a heading; its actions are buttons; its picture is not spoken.

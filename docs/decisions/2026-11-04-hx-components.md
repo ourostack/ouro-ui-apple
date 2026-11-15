@@ -381,6 +381,22 @@ agent's surface and an app's screen drew them differently. Now `A2UISurface` dra
   element, "Prep time, 20 minutes"; one whose details are a view keeps its parts, so a link in it stays a control.
 - **Not yet:** Spoonjoy's `ProfileFigures` (large numbers over small labels) is a stat, not a description list.
 
+## OuroSyncStatus (2026-11-14)
+
+Twelfth in the 1.0 order: the offline and sync lines Gatefold (`SyncStatusLine`), Spoonjoy (`OfflineStatusView`) and
+Ouro MD (`DocumentStatusBar`) draw by hand, three of the eight hand-rolled banners.
+
+- Web's `status` (`saved`, `saving`, `offline`, `error`), `labels` and `onRetry`. Each state has its own SF Symbol, so
+  none rests on colour; the colours are web's mixes, raised to 5:1 on the page. The saving arrows turn with
+  `symbolEffect(.rotate)` and hold still under Reduce Motion.
+- VoiceOver hears it only when a problem starts (after web's 1.5 seconds, so it follows what the control that caused
+  it says) and when saved follows a problem, at the polite priority; every other save is silent
+  (`onlyProblemsAndRecoveriesAreSpoken`). Retry is its own button, 44 points to touch.
+- It keeps the size of its longest state, every state laid out unseen behind the current one, so a change never
+  moves the page. With `onRetry` that is Retry's 44 points.
+- **Not yet:** web moves focus to the line when Retry goes away while focused; SwiftUI has no focus to lose there,
+  as VoiceOver stays on the line's position.
+
 ## OuroPageHeader (2026-11-14)
 
 Sixth in the 1.0 order: seven hand-drawn section headers and mastheads, all in Spoonjoy.

@@ -171,12 +171,29 @@ extension OuroFeel {
     /// on an iPad runs in compatibility mode, in a window smaller than the screen, and there the snapshot's frames don't
     /// match the screen's, so the clock was blanked where it isn't (#73, item 2). XCUIElement's frames are the screen's,
     /// so the main window's frame from each gives the mapping.
+    ///
+    /// Only the snapshot is read when its main window fills the screen, as on an iPhone. An XCUIElement query that times
+    /// out on a loaded runner fails the test with nothing to catch (#209), so the windows are queried only when the
+    /// mapping is needed, and once for each window and screen size.
     func screenMapping() -> (CGRect) -> CGRect {
         guard let root = try? app.snapshot() else { return { $0 } }
         let inSnapshot = Self.mainWindow(root)
+        let screen = XCUIScreen.main.screenshot().image.size
+        if Self.fills(inSnapshot, screen: screen) { return { $0 } }
+        let key = "\(inSnapshot) \(screen)"
+        if let onScreen = Self.windowsOnScreen[key] { return Self.mapping(from: inSnapshot, to: onScreen) }
         let windows = app.windows.allElementsBoundByIndex.map(\.frame)
         guard let onScreen = windows.max(by: { $0.width * $0.height < $1.width * $1.height }) else { return { $0 } }
+        Self.windowsOnScreen[key] = onScreen
         return Self.mapping(from: inSnapshot, to: onScreen)
+    }
+
+    /// The main window's frame on the screen, by its frame in the snapshot and the screen's size, once queried.
+    @MainActor static var windowsOnScreen: [String: CGRect] = [:]
+
+    /// Whether `window` covers a `screen`-sized screen, to within a point.
+    static func fills(_ window: CGRect, screen: CGSize) -> Bool {
+        abs(window.minX) <= 1 && abs(window.minY) <= 1 && abs(window.width - screen.width) <= 1 && abs(window.height - screen.height) <= 1
     }
 
     /// The map that takes rect `a` onto rect `b`; none when they're the same or either is empty.

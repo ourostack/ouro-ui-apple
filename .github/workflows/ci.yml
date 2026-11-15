@@ -13,7 +13,8 @@ on:
 # request and push. The billed xcode-27 runner (capped at $15 a month for this repository; usage stops at the cap) runs
 # only what needs Xcode 27 or an iOS 27 OS, on pushes to main and on published releases. The X-ray lanes also run on a
 # pull request that touches the X-ray, Ouro Feel, their fixtures or this workflow (the `paths` job), so a break is
-# caught before merge rather than on main. The same job runs the simulator jobs (gallery, Feel fixture) on a pull
+# caught before merge rather than on main. The gallery's fold tests on an iPhone Duo (gallery-duo) also run on the
+# billed runner, on main and releases only, never on pull requests. The same job runs the simulator jobs (gallery, Feel fixture) on a pull
 # request only when it changes what they link; main and releases run them always, and the gallery's report-only
 # hitch probe runs only there. A red main is fixed by whoever merged the change that turned it red (AGENTS.md).
 # Drop the xcode-27 lanes once macos-26 or macos-latest ships Xcode 27: move those steps onto that image and delete the

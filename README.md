@@ -222,6 +222,9 @@ That reads the app's compiled App Intents metadata and lints its skills bundle, 
 its queries, Spotlight index, onscreen annotations and errors behave, run the behaviour stage too: it needs a test
 bundle (AppIntentsTesting runs only there) and an Xcode whose AppIntentsTesting matches the OS it runs on.
 `scripts/xray-probe.sh` makes a simulator, runs [Templates/XrayProbe](Templates/XrayProbe) and merges the result.
+If your app indexes its content on its first launch, have it write a file in its data container when that is done,
+and pass the file's path with `--ready-file` (the fixture writes `Documents/ouro-ax-ready`), so a slow machine never
+probes the index before it has been given anything.
 The report says what each lane proved, and that none of it proves what Siri will do; for that, write a Siri scenario
 set ([Examples/SiriScenarios](Examples/SiriScenarios)) and run its generated tests on a 27.3 beta device. The whys
 are in [docs/decisions/2026-11-03-ax-xray.md](docs/decisions/2026-11-03-ax-xray.md).

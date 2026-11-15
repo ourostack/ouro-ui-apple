@@ -6,17 +6,20 @@
 #
 #   sh scripts/xray-probe.sh --app <path.app> --out <dir> [--platform ios|macos] [--runtime 27.1]
 #     [--device-type "iPhone Duo"] [--commit <sha>] [--name <name>] [--disposable]
-#     [--sign-identity <sha1> --team <id> [--keychain <path>]] [--seed-dir <dir>]
+#     [--sign-identity <sha1> --team <id> [--keychain <path>]] [--seed-dir <dir>] [--ready-file <path>]
 #
 # On macOS, AppIntentsTesting runs only for a test bundle signed by the app's own team (error 800 otherwise).
 # --sign-identity names an Apple Development identity of that team: the probe bundle is signed with it, and so is the
 # app (re-signed in place, so pass a copy you can change). Without it the macOS stage reports its claims as skipped.
 # --seed-dir (macOS) opens every file in <dir> with the app first, so a document app has synthetic content to find.
+# --ready-file (iOS) names a file, relative to the app's data container, that the app writes once its first launch has
+# made and indexed its content. The first launch then waits up to 60 s for it rather than a fixed 8 s, so a loaded
+# machine doesn't probe an app whose content Spotlight has not been given yet (#165).
 #
 # Run it with DEVELOPER_DIR set to an Xcode whose AppIntentsTesting matches the OS it runs on, and build the app with
 # the same Xcode. XRAY names the ouro-ax-xray binary (default: .build/release/ouro-ax-xray).
 set -eu
-app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""; sign_identity=""; team=""; keychain=""; seed_dir=""
+app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""; sign_identity=""; team=""; keychain=""; seed_dir=""; ready_file=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --app) app="$2"; shift 2 ;;
@@ -31,6 +34,7 @@ while [ $# -gt 0 ]; do
     --team) team="$2"; shift 2 ;;
     --keychain) keychain="$2"; shift 2 ;;
     --seed-dir) seed_dir="$2"; shift 2 ;;
+    --ready-file) ready_file="$2"; shift 2 ;;
     *) echo "xray-probe: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -79,9 +83,23 @@ if [ "$platform" = "ios" ]; then
     done
   }
   # The first launch lets the app create its content and index it, as a person's first launch would.
+  # With --ready-file it lasts until the app says its content is made and indexed, up to 60 s.
   first_launch() {
+    if [ -n "$ready_file" ]; then
+      ready="$(xcrun simctl get_app_container "$udid" "$bundle_id" data)/$ready_file"
+      rm -f "$ready"
+    fi
     xcrun simctl launch "$udid" "$bundle_id" >/dev/null
     sleep 8
+    if [ -n "$ready_file" ]; then
+      i=0
+      while [ ! -e "$ready" ] && [ "$i" -lt 104 ]; do sleep 0.5; i=$((i + 1)); done
+      if [ -e "$ready" ]; then
+        echo "xray-probe: the app said it was ready $((8 + i / 2)) s after its first launch"
+      else
+        echo "xray-probe: the app never wrote $ready_file in 60 s; probing anyway" >&2
+      fi
+    fi
     stop_app
   }
   first_launch

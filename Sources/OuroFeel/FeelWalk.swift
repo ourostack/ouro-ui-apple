@@ -505,6 +505,18 @@ extension OuroFeel {
                                                           .searchField, .textView, .segmentedControl, .slider, .stepper,
                                                           .menuButton, .popUpButton, .image]
 
+    /// The keys of everything on screen that is not enabled: a menu's section header, a plain Text row in a menu.
+    func disabledKeys() -> Set<String> {
+        guard let root = try? app.snapshot() else { return [] }
+        var keys = Set<String>()
+        func walk(_ node: any XCUIElementSnapshot) {
+            if !node.isEnabled { let key = Self.key(node); if !key.isEmpty { keys.insert(key) } }
+            node.children.forEach(walk)
+        }
+        walk(root)
+        return keys
+    }
+
     /// The frames of the popovers on screen: their chrome holds no element of its own.
     func popoverFrames() -> [CGRect] {
         guard let root = try? app.snapshot() else { return [] }
@@ -575,8 +587,11 @@ extension OuroFeel {
         // The topmost item that is safe to pick, never a part of a stepper or slider. One that opens a submenu leaves
         // the menu up with new items in it: the pick is then made in the submenu, once.
         let parts = Self.controlParts(appeared)
+        // A menu's section header and a plain Text row are disabled menu items: picking one does nothing and the menu
+        // rightly stays open (Gatefold's Account menu, #68). Only an enabled item is a pick.
+        let disabled = disabledKeys()
         func pickable(_ shown: [String: (frame: CGRect, type: XCUIElement.ElementType)], orBack: Bool = false) -> (key: String, value: (frame: CGRect, type: XCUIElement.ElementType))? {
-            shown.filter { [.button, .menuItem, .cell].contains($0.value.type) && !parts.contains($0.key)
+            shown.filter { [.button, .menuItem, .cell].contains($0.value.type) && !parts.contains($0.key) && !disabled.contains($0.key)
                 && !FeelSafety.isDangerous($0.key) && (orBack || !FeelWayBack.saysBack($0.key)) }
                 .min { $0.value.frame.minY < $1.value.frame.minY }
         }
@@ -587,7 +602,7 @@ extension OuroFeel {
             // Leave it closed, as a person would, so the walk carries on without a relaunch.
             if let p = outside, showing() { point(p.x, p.y).tap(); _ = wait(timeout) { !showing() } }
             return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses,
-                                    noPickBecause: parts.isEmpty ? "nothing in it is safe to pick (each item reads as destructive)"
+                                    noPickBecause: parts.isEmpty ? "nothing in it is safe to pick (each item is disabled or reads as destructive)"
                                         : "it holds only a stepper or slider, which it stays open to adjust")
         }
         var pickDismisses: Bool?

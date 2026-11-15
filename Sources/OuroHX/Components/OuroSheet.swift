@@ -46,6 +46,17 @@ public enum OuroSheetMetrics {
     /// or has one detent, has none, as on Apple's own.
     public static func showsGrabber(detents: Set<PresentationDetent>?) -> Bool { (detents?.count ?? 0) > 1 }
 
+    /// The detents a sheet rests at, in `posture`. Without `detents` it fits its content (`fitted`). Held as a
+    /// tabletop, it rests on the lower half, the part flat on the table: no taller than that half, so it never
+    /// crosses the fold and what is above stays in view, and its content scrolls when there is more. Spoonjoy's cook
+    /// mode puts its controls below the fold for the same reason. Every other posture keeps the sheet's own detents.
+    public static func detents(_ detents: Set<PresentationDetent>?, fitted: CGFloat, posture: OuroFoldPosture) -> Set<PresentationDetent> {
+        if let split = posture.tabletop {
+            return [.height(detents == nil ? min(fitted, split.second.height) : split.second.height)]
+        }
+        return detents ?? [.height(fitted)]
+    }
+
     /// A bottom inset larger than this, in points, is the keyboard rather than the home indicator's safe area.
     static let keyboardInset: CGFloat = 100
     /// The room kept above a focused field as a whole-sheet scroll brings it into view, in points.
@@ -185,6 +196,7 @@ private struct OuroSheetModifier<SheetContent: View, Footer: View>: ViewModifier
     let sheetContent: () -> SheetContent
     let footer: () -> Footer
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.ouroFoldPosture) private var posture
     /// The presentation, mirrored from `isPresented` so that under Reduce Motion it can change without animation.
     @State private var shown = false
 
@@ -199,6 +211,7 @@ private struct OuroSheetModifier<SheetContent: View, Footer: View>: ViewModifier
             .sheet(isPresented: $shown, onDismiss: onDismiss) {
                 OuroSheetBody(title: title, description: description, hideTitle: hideTitle, detents: detents, closeLabel: closeLabel, close: { withTransaction(OuroSheetMetrics.transaction(reduceMotion: reduceMotion)) { shown = false } }, content: sheetContent, footer: footer)
                     .environment(\.ouroTouchTarget, OuroSheetMetrics.touchTarget)
+                    .environment(\.ouroFoldPosture, posture)
             }
     }
 }
@@ -217,6 +230,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.ouroFoldPosture) private var posture
     @State private var header: CGFloat = 60
     @State private var bodyHeight: CGFloat = 200
     @State private var footerHeight: CGFloat = 0
@@ -245,6 +259,7 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
 
     /// Header, body and actions row, measured as laid out.
     private var fittedHeight: CGFloat { max(160, header + bodyHeight + footerHeight + 16) }
+    private var restingDetents: Set<PresentationDetent> { OuroSheetMetrics.detents(detents, fitted: fittedHeight, posture: posture) }
     /// At the accessibility sizes the whole sheet scrolls, title and actions too, not only its body.
     private var wholeSheetScrolls: Bool { typeSize.isAccessibilitySize }
 
@@ -425,8 +440,8 @@ struct OuroSheetBody<Content: View, Footer: View>: View {
         // macOS has no detents and sizes a sheet to its content's ideal size, which a ScrollView doesn't give.
         .frame(minWidth: 360, minHeight: min(fittedHeight, 640))
         #endif
-        .presentationDetents(detents ?? [.height(fittedHeight)])
-        .presentationDragIndicator(OuroSheetMetrics.showsGrabber(detents: detents) ? .visible : .hidden)
+        .presentationDetents(restingDetents)
+        .presentationDragIndicator(OuroSheetMetrics.showsGrabber(detents: restingDetents) ? .visible : .hidden)
         // Toasts sent while the sheet is open show above it, not behind it.
         .modifier(OuroToastHost())
         .modifier(SheetBackground(surface: Color(p.surface), rim: Color(p.title).opacity(OuroSheetMetrics.rimOpacity(scheme: scheme))))

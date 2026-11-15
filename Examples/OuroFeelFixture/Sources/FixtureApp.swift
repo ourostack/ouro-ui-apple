@@ -27,6 +27,9 @@ struct FixtureApp: App {
             case "stray": StrayPage()
             case "fight": FightPage()
             case "keyboard": KeyboardPage()
+            case "scroll-reader": ScrollReaderPage()
+            case "cover": CoverPage()
+            case "idle": IdlePage()
             default: NavPage()
             }
         }
@@ -865,6 +868,173 @@ struct KeyboardPage: View {
         .task {
             try? await Task.sleep(for: .milliseconds(300))
             focused = true
+        }
+    }
+}
+
+/// Place kept through stray input, in a reader that scrolls (as Gatefold's scroll mode, build 39). One chapter at a
+/// time in a scroll view; a swipe to the left goes to the next chapter and one to the right comes back. The place
+/// (`scroll.place`) is the chapter and the first line in view. It opens at line 20 of chapter 1. Fixed: a tap on the
+/// status bar does nothing (`scrollsToTop` off), and coming back to a chapter returns to the line you left it at. The
+/// bugs, as Ari found them: the status bar tap scrolls to the chapter's start, and coming back lands at the chapter's
+/// end.
+struct ScrollReaderPage: View {
+    @State private var place = ""
+    var body: some View {
+        ScrollReader(place: $place, bug: bug)
+            .overlay(alignment: .bottomLeading) {
+                Text(place).font(.caption).padding(8).background(.thinMaterial)
+                    .accessibilityIdentifier("scroll.place").allowsHitTesting(false)
+            }
+    }
+}
+
+struct ScrollReader: UIViewRepresentable {
+    @Binding var place: String
+    let bug: Bool
+    static let lines = 80
+    static let lineHeight: CGFloat = 32
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scroll = UIScrollView()
+        scroll.accessibilityIdentifier = "scroll.reader"
+        scroll.scrollsToTop = bug
+        scroll.alwaysBounceHorizontal = false
+        scroll.delegate = context.coordinator
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor, constant: -24),
+            // Content exactly as wide as the view, so nothing scrolls sideways and a swipe across is only a swipe.
+            scroll.contentLayoutGuide.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
+        ])
+        for _ in 0..<Self.lines {
+            let label = UILabel()
+            label.heightAnchor.constraint(equalToConstant: Self.lineHeight).isActive = true
+            stack.addArrangedSubview(label)
+        }
+        context.coordinator.stack = stack
+        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+            let swipe = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swiped(_:)))
+            swipe.direction = direction
+            swipe.delegate = context.coordinator
+            scroll.addGestureRecognizer(swipe)
+        }
+        // After SwiftUI has built the view: setting the place binding while it builds may be dropped.
+        DispatchQueue.main.async { context.coordinator.show(chapter: 1, in: scroll, line: 20) }
+        return scroll
+    }
+
+    func updateUIView(_ scroll: UIScrollView, context: Context) { context.coordinator.parent = self }
+
+    @MainActor final class Coordinator: NSObject, UIScrollViewDelegate, UIGestureRecognizerDelegate {
+        var parent: ScrollReader
+        weak var stack: UIStackView?
+        var chapter = 1
+        /// The line each chapter was left at, for the fixed build's way back.
+        var left: [Int: Int] = [:]
+        init(_ parent: ScrollReader) { self.parent = parent }
+
+        func line(_ scroll: UIScrollView) -> Int { Int((scroll.contentOffset.y / ScrollReader.lineHeight).rounded(.down)) + 1 }
+
+        func show(chapter: Int, in scroll: UIScrollView, line: Int) {
+            self.chapter = chapter
+            for (i, view) in (stack?.arrangedSubviews ?? []).enumerated() {
+                (view as? UILabel)?.text = "Chapter \(chapter), line \(i + 1)"
+            }
+            scroll.layoutIfNeeded()
+            let most = max(0, scroll.contentSize.height - scroll.bounds.height)
+            scroll.contentOffset.y = min(most, CGFloat(line - 1) * ScrollReader.lineHeight)
+            report(scroll)
+        }
+
+        func report(_ scroll: UIScrollView) {
+            let place = "chapter \(chapter) line \(line(scroll))"
+            if parent.place != place { parent.place = place }
+        }
+
+        func scrollViewDidScroll(_ scroll: UIScrollView) { report(scroll) }
+
+        @objc func swiped(_ swipe: UISwipeGestureRecognizer) {
+            guard let scroll = swipe.view as? UIScrollView else { return }
+            let next = swipe.direction == .left ? chapter + 1 : chapter - 1
+            guard next >= 1 else { return }
+            left[chapter] = line(scroll)
+            // The bug comes back to a chapter at its end; the fixed build to the line you left it at.
+            let land = swipe.direction == .right ? (parent.bug ? ScrollReader.lines : left[next] ?? 1) : (left[next] ?? 1)
+            show(chapter: next, in: scroll, line: land)
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+    }
+}
+
+/// Covered content, and a text column inside the window. A running head over a column of lines and a Close button.
+/// Fixed: the head and Close sit below the status bar and the column starts below them. The bugs, as Gatefold build 39
+/// on the iPhone Duo: the head sits over the column's first line, Close sits under the status bar, and the column
+/// slides most of the way past the window's side.
+struct CoverPage: View {
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(1...12, id: \.self) { Text("Line \($0) of the page").accessibilityIdentifier("cover.line.\($0)") }
+                }
+                .padding(.horizontal, 24)
+                .frame(width: geo.size.width, alignment: .leading)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("cover.column")
+                .offset(x: bug ? geo.size.width * 0.6 : 0, y: bug ? 64 : 110)
+                Text("Chapter One").font(.caption.bold())
+                    .frame(maxWidth: .infinity, minHeight: 28)
+                    .background(.background)
+                    .accessibilityIdentifier("cover.head")
+                    .offset(y: bug ? 56 : 64)
+                if !bug {
+                    Button("Close") {}.accessibilityIdentifier("cover.close").padding(.horizontal, 24).offset(y: 24)
+                }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            // The bug's Close ignores the safe area and sits at the very top, under the status bar.
+            if bug {
+                Button("Close") {}.accessibilityIdentifier("cover.close").padding(.horizontal, 24).padding(.top, 6)
+                    .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+/// Still while idle. A Close button and the status bar. Fixed: nothing changes with no input. The bug, as Gatefold's
+/// reader on the open iPhone Duo (2026-11-15): with no touch, the status bar and Close take turns three times a
+/// second, and Close jumps from one side to the other.
+struct IdlePage: View {
+    @State private var flip = false
+    var body: some View {
+        VStack {
+            HStack {
+                if !flip { Button("Close") {}.accessibilityIdentifier("idle.close") }
+                Spacer()
+                if flip { Button("Close") {}.accessibilityIdentifier("idle.close") }
+            }
+            .padding(24)
+            Text("A page with nothing to do").accessibilityIdentifier("idle.page")
+            Spacer()
+        }
+        .statusBarHidden(flip)
+        .task {
+            guard bug else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(330))
+                flip.toggle()
+            }
         }
     }
 }

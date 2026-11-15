@@ -61,11 +61,12 @@ final class FeelCatchesTests: XCTestCase {
                 return (app, feel, film)
             }
             var (app, feel, film) = filmed()
-            // A film cut short after one frame held for seconds is a simulator that froze, not a recorder that
-            // failed: the first test on a loaded runner once filmed 13 frames, one of them 32.7 s long. It is filmed
-            // once more from a fresh launch. A recorder that stalls while its frames keep coming still fails.
+            // A film with one frame held for over a second is a simulator that froze, not a push that snapped or a
+            // recorder that failed: on loaded runners one film had a 4.2 s frame, and another 13 frames, one of them
+            // 32.7 s long, which ran it past its cap. It is filmed once more from a fresh launch; a second frozen film
+            // still fails, and so does a recorder that stalls while its frames keep coming.
             let longestFrame = { (f: FeelFilm) in zip(f.frames, f.frames.dropFirst()).map { $1.t - $0.t }.max() ?? 0 }
-            if film.stalledAt != nil, longestFrame(film) > 5 {
+            if longestFrame(film) > 1 {
                 print("[ouro-feel] the push film froze for \(longestFrame(film)) s; filming it once more")
                 app.terminate()
                 (app, feel, film) = filmed()

@@ -32,6 +32,9 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
     /// screenshots can be taken, so an uneven gap between them is how reads go, not a skipped tick, and is not a reason
     /// it cannot be checked. Nil or false for a film on an app's clock.
     public var byReads: Bool?
+    /// The cover, shot with the film's own size and blanking just before its action, by the `screenFilm(cover:…)`
+    /// overloads of `OuroFeel`; nil otherwise. ``revealHolds(until:stable:merge:run:)`` judges the film against it.
+    public var cover: FeelScreenFrame?
 
     public init(frames: [FeelScreenFrame], stalledAt: Double? = nil, timedBy: String? = nil) {
         self.frames = frames

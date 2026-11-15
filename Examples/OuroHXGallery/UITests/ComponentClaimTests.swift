@@ -244,6 +244,23 @@ final class ComponentClaimTests: XCTestCase {
         app.terminate()
     }
 
+    /// Whether the keyboard came up for the sheet's name field, which the page focuses on its own. On a freshly booted
+    /// CI simulator it sometimes never came up (#81: "No matches found for ... Keyboard" on shard 1's first test), so a
+    /// keyboard not up in 10 s gets one tap on the field, as a person would give it, and 10 s more.
+    func keyboardUp(_ app: XCUIApplication) -> Bool {
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.waitForExistence(timeout: 10) { return true }
+        let field = app.descendants(matching: .any).matching(identifier: "sheet.name").firstMatch
+        guard field.waitForExistence(timeout: 5) else { return false }
+        let note = "the keyboard was not up 10 s after the sheet opened, so its name field was tapped (#81)"
+        print("[ouro-hx] \(note)")
+        let attachment = XCTAttachment(string: note)
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        field.tap()
+        return keyboard.waitForExistence(timeout: 10)
+    }
+
     /// Claim text.reflows in a sheet with two fields, the upper one focused, at the largest size: as the keyboard comes
     /// up the whole sheet scrolls only as far toward its actions as keeps the field being typed in wholly in sight.
     /// At the default size the fitted sheet, which iOS lifts clear of the keyboard, shows everything: its title, both
@@ -255,7 +272,7 @@ final class ComponentClaimTests: XCTestCase {
                 let name = "\(size ?? "default") \(scheme)"
                 let app = launch("sheet", open: false, size: size, scheme: scheme, extra: ["-sheetKeyboard", "1", "-sheetNotes", "1"])
                 let keyboard = app.keyboards.firstMatch
-                XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "\(name): the keyboard is not up")
+                XCTAssertTrue(keyboardUp(app), "\(name): the keyboard is not up")
                 let field = app.descendants(matching: .any).matching(identifier: "sheet.name").firstMatch
                 XCTAssertTrue(field.waitForExistence(timeout: 5), "\(name): no name field")
                 // Settled: the field stops moving once the keyboard has arrived (unmoved over two looks).
@@ -295,7 +312,7 @@ final class ComponentClaimTests: XCTestCase {
                 let name = "\(size ?? "default")\(detent ? " large detent" : "") \(scheme)"
                 let app = launch("sheet", open: false, size: size, scheme: scheme, extra: ["-sheetKeyboard", "1"] + (detent ? ["-sheetDetent", "large"] : []))
                 let keyboard = app.keyboards.firstMatch
-                XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "\(name): the keyboard is not up")
+                XCTAssertTrue(keyboardUp(app), "\(name): the keyboard is not up")
                 let action = app.buttons["Create cookbook"].firstMatch
                 XCTAssertTrue(action.waitForExistence(timeout: 5), "\(name): no Create cookbook")
                 // Settled: the action stops moving once the keyboard has arrived (unmoved over two looks).

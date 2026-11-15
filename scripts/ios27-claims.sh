@@ -27,8 +27,12 @@ case "$runtime" in *iOS-27*) ;; *) echo "ios27-claims: $udid runs $runtime, not 
 } > "$log"
 (cd Examples/OuroHXGallery && xcodegen generate >/dev/null)
 status=0
+# The result bundle sits beside the log (its screen recordings and screenshots say what a failure looked like); a
+# bundle from an earlier run is moved aside, or xcodebuild refuses to write the new one.
+bundle="${log%.txt}.xcresult"
+if [ -e "$bundle" ]; then mv "$bundle" "$bundle.$(date +%s)"; fi
 xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -destination "id=$udid" \
-  -derivedDataPath .build/gallery CODE_SIGNING_ALLOWED=NO -only-testing:OuroHXGalleryUITests/ComponentClaimTests >> "$log" 2>&1 || status=$?
+  -derivedDataPath .build/gallery -resultBundlePath "$bundle" CODE_SIGNING_ALLOWED=NO -only-testing:OuroHXGalleryUITests/ComponentClaimTests >> "$log" 2>&1 || status=$?
 grep -E "Test Case .*(passed|failed)" "$log" | sed 's/.*ComponentClaimTests //' || true
 if [ "$status" -eq 0 ]; then echo "ios27-claims: every claim passed on $runtime ($log)"; else echo "ios27-claims: FAILED on $runtime ($log)" >&2; fi
 exit "$status"

@@ -416,15 +416,13 @@ final class FeelCatchesTests: XCTestCase {
         both("reveal-reads") { app, feel in
             let open = app.buttons["revealreads.open"]
             _ = open.waitForExistence(timeout: 10)
-            guard let cover = feel.screenPicture() else {
-                return (FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "", failing: { _ in "" },
-                                          findings: [.couldNotCheck("no screenshot of the cover")]), nil)
-            }
-            // At least 7 s: the bug's jump comes 4 s after Open, and a loaded runner can take the tap late.
-            let film = feel.screenFilm(atLeast: 7) { open.tap() }
+            // At least 7 s: the bug's jump comes 4 s after Open, and a loaded runner can take the tap late. The film
+            // shoots its own cover first, with its own settings, while the cover is up (#73, item 5).
+            let film = feel.screenFilm(cover: true, atLeast: 7) { open.tap() }
             XCTAssertEqual(film.byReads, true)
+            XCTAssertNotNil(film.cover, "the film shot its cover")
             XCTAssertTrue(film.timedBy?.contains("reads") ?? false, film.timedBy ?? "no timedBy")
-            let result = film.revealHolds(cover: cover)
+            let result = film.revealHolds()
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("was replaced") }, result.text)
             }

@@ -46,13 +46,20 @@ public enum OuroSheetMetrics {
     /// or has one detent, has none, as on Apple's own.
     public static func showsGrabber(detents: Set<PresentationDetent>?) -> Bool { (detents?.count ?? 0) > 1 }
 
+    /// How far iOS 26 floats a sheet in from the screen's edges when it is shorter than the screen, in points: a
+    /// `.height` detent's sheet ends this far above the bottom (measured on an iPhone Duo held as a tabletop, Xcode 27.1:
+    /// x 8, and 8 short of the bottom).
+    public static let floatingInset: CGFloat = 8
+
     /// The detents a sheet rests at, in `posture`. Without `detents` it fits its content (`fitted`). Held as a
-    /// tabletop, it rests on the lower half, the part flat on the table: no taller than that half, so it never
-    /// crosses the fold and what is above stays in view, and its content scrolls when there is more. Spoonjoy's cook
-    /// mode puts its controls below the fold for the same reason. Every other posture keeps the sheet's own detents.
+    /// tabletop, it rests on the lower half, the part flat on the table: no taller than that half less the
+    /// ``floatingInset`` it floats above the bottom, so its top never crosses the fold and what is above stays in view,
+    /// and its content scrolls when there is more. Spoonjoy's cook mode puts its controls below the fold for the same
+    /// reason. Every other posture keeps the sheet's own detents.
     public static func detents(_ detents: Set<PresentationDetent>?, fitted: CGFloat, posture: OuroFoldPosture) -> Set<PresentationDetent> {
         if let split = posture.tabletop {
-            return [.height(detents == nil ? min(fitted, split.second.height) : split.second.height)]
+            let room = max(0, split.second.height - floatingInset)
+            return [.height(detents == nil ? min(fitted, room) : room)]
         }
         return detents ?? [.height(fitted)]
     }

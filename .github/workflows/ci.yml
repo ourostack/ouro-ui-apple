@@ -417,10 +417,10 @@ jobs:
       - name: Unpack the build
         env:
           SHARD: ${{ matrix.shard }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          mkdir -p .build/gallery/Build
-          tar -xf .build/gallery-products.tar -C .build/gallery/Build
+          sh scripts/ci-unpack-build.sh .build/gallery-products.tar .build/gallery/Build "${{ steps.artifact.outputs.name }}"
           set -- .build/gallery/Build/Products/*.xctestrun
           xctestrun="$1"; test -f "$xctestrun"
           echo "XCTESTRUN=$PWD/$xctestrun" >> "$GITHUB_ENV"
@@ -514,6 +514,83 @@ jobs:
           if [ "$GALLERY" = false ]; then echo "This change doesn't touch what the gallery links."; exit 0; fi
           if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and every shard passed, on each device."; exit 0; fi
           echo "::error::Build $BUILD, shards $SHARDS"; exit 1
+
+  gallery-duo:
+    name: Gallery on an iPhone Duo, folded (xcode-27, Xcode 27.1)
+    # FoldPostureTests on an iPhone Duo simulator whose hinge Device Hub really moves: `ouro-devicehub serve` answers the
+    # test's requests (OuroDuoHinge). It checks the sheet, item and card in a book and a tabletop (Folding.md). Only
+    # xcode-27 has the iPhone Duo (iOS 27.1 runtimes) and the hinge APIs (Xcode 27.1's SDK). It is billed, so it runs
+    # on main, releases and a manual dispatch only, never on a pull request, which keeps it inside the runner's monthly
+    # cap. As Gatefold's Duo tour, it drives Device Hub's window on the runner.
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      OURO_SIM_FAMILY: Duo
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Xcode 27.1 for this job only
+        run: |
+          set -eu
+          for app in /Applications/Xcode_*.app; do
+            v="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
+            if [ "$v" = "27.1" ] || [ "$v" = "27.1.0" ]; then echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"; echo "Using $app ($v)"; exit 0; fi
+          done
+          ls -d /Applications/Xcode_*.app; exit 1
+      - name: An iPhone Duo, booting while the gallery builds
+        run: |
+          set -eu
+          python3 -I scripts/ci-simulator.py --selftest
+          python3 -I scripts/ci-simulator.py start ouro-hx-duo
+      - name: Build the gallery, its UI tests and ouro-devicehub
+        run: |
+          set -eo pipefail
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          (cd Examples/OuroHXGallery && xcodegen generate)
+          xcodebuild build-for-testing -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath .build/duo CODE_SIGNING_ALLOWED=NO \
+            OTHER_SWIFT_FLAGS='$(inherited) -DOURO_REQUIRE_HINGE' 2>&1 | tail -30
+          swift build -c release --product ouro-devicehub
+          echo "HUB=$(swift build -c release --show-bin-path)/ouro-devicehub" >> "$GITHUB_ENV"
+      - name: The iPhone Duo finished booting
+        timeout-minutes: 16
+        run: python3 -I scripts/ci-simulator.py wait ouro-hx-duo 240
+      - name: Open Device Hub
+        run: |
+          set -eu
+          open -a "$(xcode-select -p)/../Applications/DeviceHub.app"
+          sleep 20
+          "$HUB" dump
+      - name: FoldPostureTests, the hinge moved by Device Hub
+        timeout-minutes: 25
+        run: |
+          set -u
+          dir="$RUNNER_TEMP/duo"; mkdir -p "$dir"
+          "$HUB" serve "$dir" > "$RUNNER_TEMP/devicehub.log" 2>&1 &
+          serve=$!
+          status=0
+          TEST_RUNNER_OURO_DUO_POSTURE_DIR="$dir" xcodebuild test-without-building \
+            -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -destination "id=$UDID" \
+            -derivedDataPath .build/duo -only-testing:OuroHXGalleryUITests/FoldPostureTests \
+            -resultBundlePath .build/duo.xcresult > .build/duo.log 2>&1 || status=$?
+          kill "$serve" 2>/dev/null || true
+          grep -E "error|failed|passed|skipped|Executed|TEST" .build/duo.log | tail -60
+          echo "Device Hub driver:"; tail -20 "$RUNNER_TEMP/devicehub.log"
+          # A skip means the request directory never reached the test, so nothing was folded: that fails here.
+          if grep -q "Test Case .* skipped" .build/duo.log; then echo "::error::FoldPostureTests skipped: the hinge never reached it"; exit 1; fi
+          exit $status
+      - id: upload-duo
+        # A diagnostic copy of a result already decided above: a storage outage must not turn the job red (#35).
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery-duo
+          path: |
+            .build/duo.xcresult
+            .build/duo.log
+            ${{ runner.temp }}/duo/shots
+            ${{ runner.temp }}/devicehub.log
 
   xray:
     name: X-ray the fixture app (${{ matrix.name }})
@@ -725,10 +802,12 @@ jobs:
           name: ${{ steps.artifact.outputs.name }}
           path: .build
       - name: Unpack the build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          mkdir -p .build/feel-fixture/Build .build/feel-reports
-          tar -xf .build/feel-products.tar -C .build/feel-fixture/Build
+          mkdir -p .build/feel-reports
+          sh scripts/ci-unpack-build.sh .build/feel-products.tar .build/feel-fixture/Build "${{ steps.artifact.outputs.name }}"
           set -- .build/feel-fixture/Build/Products/*.xctestrun
           xctestrun="$1"; test -f "$xctestrun"
           echo "XCTESTRUN=$PWD/$xctestrun" >> "$GITHUB_ENV"

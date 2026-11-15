@@ -13,6 +13,10 @@ on:
         description: "Treat these shards' runners as broken, to prove the requeue (#74), space-separated: gallery-<shard>-<iPhone|iPad>, feel-<shard>"
         required: false
         default: ""
+      slow_shard:
+        description: "Treat these Ouro Feel shards' runners as too slow, to prove the slow-runner requeue (#199), space-separated: feel-<shard>"
+        required: false
+        default: ""
 
 # Where each check runs. Free hosted runners (ubuntu-latest, macos-26) run everything their Xcode 26 can: on every pull
 # request and push. The billed xcode-27 runner (capped at $15 a month for this repository; usage stops at the cap) runs
@@ -606,8 +610,8 @@ jobs:
     # xcode-27 has the iPhone Duo (iOS 27.1 runtimes) and the hinge APIs (Xcode 27.1's SDK). It is billed, so it runs
     # on main, releases and a manual dispatch only, never on a pull request, which keeps it inside the runner's monthly
     # cap. As Gatefold's Duo tour, it drives Device Hub's window on the runner.
-    # A dispatch that only proves the requeue (`break_shard`, #74) skips it.
-    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.break_shard == '')
+    # A dispatch that only proves the requeue (`break_shard`, #74, or `slow_shard`, #199) skips it.
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.break_shard == '' && inputs.slow_shard == '')
     runs-on: xcode-27
     timeout-minutes: 45
     env:
@@ -925,8 +929,12 @@ jobs:
         if: env.OURO_BROKEN_RUNNER != '1'
         env:
           SHARD: ${{ matrix.shard }}
+          SLOW: ${{ inputs.slow_shard }}
         run: |
           set -u
+          python3 -I scripts/ci-slow-watch.py --selftest
+          # A manual run that asks for it (`slow_shard`) takes the first measured test to end as too slow, on the first run only.
+          if [ "${OURO_REQUEUED:-0}" != 1 ] && echo " $SLOW " | grep -q " feel-$SHARD "; then export OURO_SLOW_FORCE=1; fi
           if [ "$SHARD" = ipad ]; then
             only="-only-testing:OuroFeelFixtureUITests/FeelCatchesTests/testTheClockIsBlankedInPortrait -only-testing:OuroFeelFixtureUITests/FeelCatchesTests/testTheClockIsBlankedInLandscape"
           else
@@ -934,15 +942,28 @@ jobs:
           fi
           echo "Shard $SHARD runs:"; echo "$only"
           fixture() {
+            # A runner far slower than the measured times stops here, to be requeued, rather than run out of time (#199).
+            : > .build/feel-fixture.log
+            python3 -I scripts/ci-slow-watch.py feel .build/feel-fixture.log .build/feel-slow.txt & watch=$!
             # shellcheck disable=SC2086
             xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
               -resultBundlePath .build/feel-fixture.xcresult $only 2>&1 | tee .build/feel-fixture.log |
               { grep --line-buffered -E "\[ouro-feel\]|error|failed|passed|Executed|TEST" || true; }
             # Shown as it runs, so a hung run still shows how far it got; the full log is uploaded below. The status is
             # xcodebuild's own, not the filter's.
-            return "${PIPESTATUS[0]}"
+            local code="${PIPESTATUS[0]}"
+            kill "$watch" 2>/dev/null || true
+            return "$code"
+          }
+          # Stopped as too slow: the runner's fault, so a fresh runner, keeping this attempt's log and bundle.
+          slow() {
+            [ -s .build/feel-slow.txt ] || return 0
+            mv .build/feel-fixture.log ".build/feel-fixture-attempt-$1.log"
+            if [ -e .build/feel-fixture.xcresult ]; then mv .build/feel-fixture.xcresult ".build/feel-fixture-attempt-$1.xcresult"; fi
+            sh scripts/ci-broken-runner.sh "Ouro Feel shard $SHARD: $(cat .build/feel-slow.txt)"; exit $?
           }
           status=0; fixture || status=$?
+          slow 1
           # A simulator service that went away mid-run doesn't come back on this runner (#74): a fresh runner.
           if [ "$status" -ne 0 ] && cause="$(sh scripts/ci-ui-infra.sh .build/feel-fixture.log .build/feel-fixture.xcresult)" && echo "$cause" | grep -qE "wrote nothing|active applications|Unable to find a device"; then
             if [ -e .build/feel-fixture.xcresult ]; then mv .build/feel-fixture.xcresult .build/feel-fixture-attempt-1.xcresult; fi
@@ -961,6 +982,7 @@ jobs:
             xcrun simctl boot "$UDID"
             xcrun simctl bootstatus "$UDID" -b >/dev/null
             status=0; fixture || status=$?
+            slow 2
             # The machine again, after the reboot: a fresh runner, not a third run here.
             if [ "$status" -ne 0 ] && cause="$(sh scripts/ci-ui-infra.sh .build/feel-fixture.log .build/feel-fixture.xcresult)"; then
               mv .build/feel-fixture.log .build/feel-fixture-attempt-2.log

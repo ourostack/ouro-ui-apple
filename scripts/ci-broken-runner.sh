@@ -1,5 +1,6 @@
 #!/bin/sh
-# CI only: a shard's runner has a broken simulator service (#74), so requeue the shard on a fresh runner.
+# CI only: a shard's runner has a broken simulator service (#74), or is far too slow (#199), so requeue the shard on a
+# fresh runner.
 #
 #   sh scripts/ci-broken-runner.sh "<what went wrong>"
 #
@@ -12,9 +13,9 @@
 set -u
 why="$1"
 if [ "${OURO_REQUEUED:-0}" = 1 ]; then
-  echo "::error title=Simulator could not start::$why, on the fresh runner this shard was requeued on too. This runner's simulator service is broken; no app code ran (#74)."
+  echo "::error title=Runner failed again::$why, on the fresh runner this shard was requeued on too. The runner failed, not the app; rerun it on a fresh runner (#74)."
   exit 1
 fi
 echo "OURO_BROKEN_RUNNER=1" >> "$GITHUB_ENV"
-echo "::warning title=Broken runner (requeued)::$why. This shard ran no test to completion here; it runs again on a fresh runner once the other shards finish (#74)."
+echo "::warning title=Broken runner (requeued)::$why. This shard stopped here, and its results here don't count; it runs again on a fresh runner once the other shards finish (#74)."
 echo "ouro-ci: broken runner, requeue this shard (#74)"

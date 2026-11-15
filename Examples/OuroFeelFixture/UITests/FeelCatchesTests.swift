@@ -165,6 +165,23 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// The system keyboard is not the app's: with a search field focused, the walk follows none of its keys. A hosted
+    /// simulator's Emoji key was once followed, and its picker judged as an overlay that ignores taps outside (#60).
+    func testTheKeyboardIsNotWalked() throws {
+        let (app, feel) = launch("keyboard", bug: false)
+        XCTAssertTrue(app.textFields["keyboard.field"].waitForExistence(timeout: 30))
+        // A simulator with a hardware keyboard attached shows no software keyboard, and then there is nothing to skip.
+        try XCTSkipUnless(app.keyboards.firstMatch.waitForExistence(timeout: 10), "no software keyboard on this simulator")
+        let result = feel.record(feel.wayBack(follow: FeelFollow(types: [.button]), depth: 1), name: "keyboard")
+        for key in ["Emoji", "Dictate", "Next keyboard"] {
+            XCTAssertFalse(result.text.contains(key), "the keyboard's \(key) key was walked:\n\(result.text)")
+        }
+        XCTAssertTrue(result.findings.contains { $0.what.contains("keyboard.recipe") } || (result.measures["screens"] ?? 0) >= 1,
+                      "the app's own Recipe link was walked:\n\(result.text)")
+        XCTAssertTrue(result.passed, "a search field with the keyboard up has no broken way back:\n\(result.text)")
+        app.terminate()
+    }
+
     /// Shapes once misread as missing ways back, none a bug (``KitchenPage`` in the app): a tab switch, a zoom push whose
     /// edge swipe starts lower, a popover of a stepper, and a menu with a submenu. The walk passes them all.
     func testWhatIsNotABrokenWayBack() {

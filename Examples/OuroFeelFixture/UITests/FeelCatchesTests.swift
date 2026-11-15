@@ -280,7 +280,10 @@ final class FeelCatchesTests: XCTestCase {
                 return (FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "", failing: { _ in "" },
                                           findings: [.couldNotCheck("no screenshot of the cover")]), nil)
             }
-            let film = feel.screenFilm(steps: 14, tick: 0.1, clock: "reveal.clock",
+            // 2.4 s: the fixed build's page shows 0.7 s after Open takes, and a loaded runner can take Open late (main,
+            // 2026-11-15: a 1.4 s film ended on the cover, "film for longer"). The bug build's jump comes 0.4 s after its
+            // first page, so a longer film still sees it.
+            let film = feel.screenFilm(steps: 24, tick: 0.1, clock: "reveal.clock",
                                        advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { open.tap() }
             XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
             let result = film.revealHolds(cover: cover)

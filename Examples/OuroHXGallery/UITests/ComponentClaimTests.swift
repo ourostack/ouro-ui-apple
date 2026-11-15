@@ -218,8 +218,12 @@ final class ComponentClaimTests: XCTestCase {
         // never showed is a tap that didn't take, so it is tapped once more before anything is judged (#91).
         // A retap is never silent: it is logged and attached, so a dropped tap shows in the run.
         let undo = app.buttons["Undo"], saved = app.staticTexts["Recipe saved"]
-        func tapUntil(_ button: String, shows toast: XCUIElement) {
-            for attempt in 1...2 where !toast.exists {
+        // Whether the toast showed is what the wait saw, not a later look: a plain toast leaves on its own after a few
+        // seconds, and on a loaded runner the idle wait after a tap took 4.4 s, so "Recipe saved" was found and then
+        // gone 50 ms later, before an `exists` check (main, run 43731240135).
+        func tapUntil(_ button: String, shows toast: XCUIElement) -> Bool {
+            var shown = toast.exists
+            for attempt in 1...2 where !shown {
                 if attempt > 1 {
                     let note = "retap: \(button) showed no toast within 10 s, so it was tapped again (#91)"
                     print("[ouro-hx] \(note)")
@@ -228,13 +232,12 @@ final class ComponentClaimTests: XCTestCase {
                     add(attachment)
                 }
                 app.buttons[button].tap()
-                _ = toast.waitForExistence(timeout: 10)
+                shown = toast.waitForExistence(timeout: 10)
             }
+            return shown
         }
-        tapUntil("Delete", shows: undo)
-        XCTAssertTrue(undo.exists, "Delete never showed its Undo toast")
-        tapUntil("Save", shows: saved)
-        XCTAssertTrue(saved.exists, "Save never showed its toast")
+        XCTAssertTrue(tapUntil("Delete", shows: undo), "Delete never showed its Undo toast")
+        XCTAssertTrue(tapUntil("Save", shows: saved), "Save never showed its toast")
         XCTAssertTrue(saved.waitForNonExistence(timeout: 15), "a plain toast dismisses itself")
         sleep(1)
         XCTAssertTrue(app.buttons["Undo"].exists, "the toast with Undo stays")

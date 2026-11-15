@@ -79,11 +79,16 @@ final class FeelCatchesTests: XCTestCase {
             // recorder that failed: on loaded runners one film had a 4.2 s frame, and another 13 frames, one of them
             // 32.7 s long, which ran it past its cap. A shorter freeze still fails the settle check: this push settles
             // in about 0.4 s, and one 0.5 s frame on main made it 0.9 s against the 0.8 s limit (run 43710948223). A
-            // passing film's longest frame was 0.26 s. It is filmed once more from a fresh launch; a second frozen film
-            // still fails, and so does a recorder that stalls while its frames keep coming.
+            // passing film's longest frame was 0.26 s. It is filmed again from a fresh launch; a third frozen film still
+            // fails.
             let longestFrame = { (f: FeelFilm) in zip(f.frames, f.frames.dropFirst()).map { $1.t - $0.t }.max() ?? 0 }
-            if longestFrame(film) > 0.3 {
-                print("[ouro-feel] the push film froze for \(longestFrame(film)) s; filming it once more")
+            // A film that ran to the recorder's 20 s limit without the page in any frame is a simulator that froze too:
+            // on main, a refilmed push stalled at 23.9 s with no page in it, and the page was on screen after (run
+            // 43731737949). It is filmed again, up to three films in all. A recorder that stalls while the page is in
+            // its frames is never refilmed, so the recorder's own failures still fail.
+            let froze = { (f: FeelFilm) in longestFrame(f) > 0.3 || (f.stalledAt != nil && f.track("transition.title").isEmpty) }
+            for _ in 0..<2 where froze(film) {
+                print("[ouro-feel] the push film froze (longest frame \(longestFrame(film)) s, stalled at \(film.stalledAt.map { "\($0) s" } ?? "never")); filming it once more")
                 app.terminate()
                 (app, feel, film) = filmed()
             }
@@ -326,6 +331,42 @@ final class FeelCatchesTests: XCTestCase {
             }
             return (result, film)
         }
+    }
+
+    /// In landscape, the screen film still blanks the app's clock (#73): its label changes every tick, so a clock left
+    /// showing would make every tick a new state. With nothing else moving, every sample of the film is the same picture.
+    /// The check is not vacuous: unblanked, at this width, two ticks of the clock are different pictures.
+    func testTheClockIsBlankedInLandscape() {
+        let (app, feel) = launch("screen-flicker", bug: false)
+        defer { app.terminate(); XCUIDevice.shared.orientation = .portrait }
+        XCTAssertTrue(app.buttons["screenflicker.play"].waitForExistence(timeout: 10))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let clock = app.staticTexts["screenflicker.clock"]
+        let deadline = Date().addingTimeInterval(10)
+        func wide() -> Bool { let w = app.windows.firstMatch.frame; return clock.exists && w.width > w.height }
+        while !wide(), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
+        XCTAssertTrue(wide(), "the fixture never turned to landscape")
+        Thread.sleep(forTimeInterval: 1)
+        let tick = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
+        // Unblanked (no element is keyed "no-clock"), two ticks apart: the clock's digits show.
+        guard let before = feel.screenPicture(clock: "no-clock", width: 640) else { return XCTFail("no screenshot") }
+        tick(); tick()
+        Thread.sleep(forTimeInterval: 0.5)
+        guard let after = feel.screenPicture(clock: "no-clock", width: 640) else { return XCTFail("no screenshot") }
+        XCTAssertGreaterThan(FeelScreenFilm.difference(before, after) ?? 0, 0, "the clock's ticks don't show at this width, so the check below proves nothing")
+        let film = feel.screenFilm(steps: 6, tick: 0.1, clock: "screenflicker.clock", advance: tick, width: 640)
+        XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
+        XCTAssertGreaterThan(film.frames.first.map { $0.width } ?? 0, film.frames.first.map { $0.height } ?? 0, "the film is landscape")
+        // Where a sample differs from the first, in points, beside where the clock is: so a failure says what changed.
+        let first = film.frames[0], scale = app.windows.firstMatch.frame.width / CGFloat(first.width)
+        for (n, frame) in film.frames.enumerated().dropFirst() where FeelScreenFilm.difference(first, frame) != 0 {
+            var box = CGRect.null
+            for i in 0..<min(first.gray.count, frame.gray.count) where first.gray[i] != frame.gray[i] {
+                box = box.union(CGRect(x: CGFloat(i % first.width) * scale, y: CGFloat(i / first.width) * scale, width: scale, height: scale))
+            }
+            XCTFail("sample \(n) differs from the first at \(box) (points), the clock at \(clock.frame): the clock is not blanked in landscape")
+        }
+        feel.record(film.flickers(states: 1), name: "landscape-clock", screenFilm: film)
     }
 
     /// The first page shown after an open holds, judged from screenshots: the bug's cover goes onto another page that

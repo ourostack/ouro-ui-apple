@@ -1,5 +1,6 @@
 import OuroHX
 import OuroHXTesting
+import UIKit
 import XCTest
 
 /// Core's HX component claims (`components.claims.json`), proven on the running gallery. Each test names the claims
@@ -59,7 +60,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : run.page == "choices" ? Self.inactiveMisreadings : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : run.page == "choices" ? Self.inactiveMisreadings : run.page == "sheet" ? Self.pageBehindFormSheetMisreadings(app) : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -314,6 +315,19 @@ final class ComponentClaimTests: XCTestCase {
         }
     }
 
+    /// On iPad a sheet is a form sheet in the middle of the screen, and the page behind it stays in sight, dimmed. The
+    /// sheet is modal, so that page is out of the accessibility tree, and the audit reads its words as "Potentially
+    /// inaccessible text" with no element (every sheet run in main's iPad shard 2, 2026-11-14). Excused only with no
+    /// element and only while the sheet is narrower than the window. On an iPhone the sheet spans the screen's width, so
+    /// the same check there still fails any of the sheet's own words that VoiceOver can't reach.
+    static func pageBehindFormSheetMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
+        { issue in
+            guard issue.compactDescription == "Potentially inaccessible text", issue.element == nil else { return false }
+            let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
+            return sheet.exists && sheet.frame.width < app.windows.firstMatch.frame.width - 1
+        }
+    }
+
     static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
     }
@@ -547,13 +561,15 @@ final class ComponentClaimTests: XCTestCase {
                     app.terminate()
                     continue
                 }
-                // "Create cookbook" wraps onto two lines here; squeezed, its capsule stayed one line tall and the words
-                // spilled out. Two lines need at least twice a line's 44 points.
-                XCTAssertGreaterThanOrEqual(action.frame.height, 88, "\(name): the action's capsule is \(action.frame.height) tall for two lines")
+                // "Create cookbook" wraps onto two lines on a phone; squeezed, its capsule stayed one line tall and the
+                // words spilled out. Two lines need at least twice a line's 44 points. An iPad's form sheet is wide
+                // enough to hold it on one line, so there the capsule needs only one line's 44.
+                let actionHeight: CGFloat = UIDevice.current.userInterfaceIdiom == .phone ? 88 : 44
+                XCTAssertGreaterThanOrEqual(action.frame.height, actionHeight, "\(name): the action's capsule is \(action.frame.height) tall, under \(actionHeight)")
                 // The audit reads the title, the description and the action, scrolled to with the keyboard up, as "Text clipped",
                 // though both wrap in full; it also reads the clipping where the scroll's edge cuts the title. Excused,
                 // by where they are as the audit reads them: the two labels only while wholly in sight (the action
-                // only while its capsule holds two lines); anything cut by the sheet's edge, outside the sheet or not
+                // only while its capsule is as tall as its lines need); anything cut by the sheet's edge, outside the sheet or not
                 // the sheet's own.
                 // Everything else wholly in sight must pass. Clipped text and Dynamic Type only, like the default size,
                 // for the audit's time limit on CI; contrast and targets are audited without the keyboard elsewhere.
@@ -576,7 +592,7 @@ final class ComponentClaimTests: XCTestCase {
                         // The title too, now that the sheet stops with it in sight (where its top edge falls
                         // between lines): it wraps in full (taste round 8's largest-size captures).
                         case "Name it after what goes inside.", "New cookbook": return true
-                        case "Create cookbook": return frame.height >= 88
+                        case "Create cookbook": return frame.height >= actionHeight
                         default: return false
                         }
                     })

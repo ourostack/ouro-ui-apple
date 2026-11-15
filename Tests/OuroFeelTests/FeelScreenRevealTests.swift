@@ -31,6 +31,14 @@ private let cover = FeelScreenFrame(t: 0, width: 4, height: 4, gray: Array(repea
         #expect(film([0, 0, 120, 120]).revealHolds(cover: cover, until: -3).findings.contains { $0.unchecked })
     }
 
+    /// A rest that begins one sample before the mark is judged, though only frames at and after the mark confirm it: the
+    /// screen already showed it before the person acted, so it is the app's (#73, item 3).
+    @Test func aRestBeginningJustBeforeTheMarkIsJudged() {
+        let result = film([0, 0, 120, 120, 120, 200, 200, 200]).revealHolds(cover: cover, until: 6)
+        #expect(!result.passed, "\(result.text)")
+        #expect(result.findings.contains { $0.what.contains("was replaced") }, "\(result.text)")
+    }
+
     @Test func aCoverOfAnotherSizeCannotBeChecked() {
         let odd = FeelScreenFrame(t: 0, width: 5, height: 5, gray: Array(repeating: 0, count: 25))
         #expect(film([0, 0, 120, 120]).revealHolds(cover: odd).findings.contains { $0.unchecked && $0.what.contains("cover picture") })

@@ -102,6 +102,16 @@ final class FeelCatchesTests: XCTestCase {
                     for child in node.children { dump(child, depth + 1) }
                 }
                 dump(root, 0)
+                XCUIDevice.shared.orientation = .landscapeLeft
+                Thread.sleep(forTimeInterval: 3)
+                let (window, found) = feel.controls()
+                print("[ouro-feel] landscape window \(window)")
+                for c in found where c.key.hasPrefix("window.cover") {
+                    print("[ouro-feel] landscape \(c.key) \(c.frame) scroll \(String(describing: c.scroll)) across \(c.scrollsHorizontally) outer \(String(describing: c.outerScroll))")
+                }
+                if let land = try? app.snapshot() { dump(land, 0) }
+                XCUIDevice.shared.orientation = .portrait
+                Thread.sleep(forTimeInterval: 2)
             }
             if !isBugBuild(app) {
                 XCTAssertTrue(app.buttons["window.cover.4"].exists || app.descendants(matching: .any)["window.cover.4"].exists,

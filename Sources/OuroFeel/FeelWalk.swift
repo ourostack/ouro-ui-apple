@@ -556,11 +556,18 @@ extension OuroFeel {
                 outsideDismisses = wait(timeout) { !showing() }
             }
             // A tap that went through the overlay to the screen behind (a row it opened) is no dismissal: the screen
-            // it left is mostly gone. Say so, and let the walk recover.
+            // it left is mostly gone, and stays gone. Say so, and let the walk recover.
             if outsideDismisses == true {
-                let now = elements()
                 let content = before.filter { [.button, .cell, .link, .staticText].contains($0.value.type) && appeared[$0.key] == nil }
-                if !content.isEmpty, content.keys.filter({ now[$0] != nil }).count * 2 < content.count {
+                func mostlyGone() -> Bool {
+                    let now = elements()
+                    return content.keys.filter { now[$0] != nil }.count * 2 < content.count
+                }
+                // While a popover's exit finishes, the screen behind can stay hidden from accessibility (the popover
+                // holds it modal), longest on a loaded runner: a CI walk once read a stepper's popover, closed by a
+                // tap at the top of a short list, as a tap that landed behind. Only a screen that stays changed was
+                // left.
+                if !content.isEmpty, mostlyGone(), !wait(timeout, until: { !mostlyGone() }) {
                     return FeelOverlayTrial(name: name, appeared: true, outsideLandedBehind: true)
                 }
             }

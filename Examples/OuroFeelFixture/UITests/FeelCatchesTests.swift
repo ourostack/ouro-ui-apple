@@ -10,7 +10,9 @@ final class FeelCatchesTests: XCTestCase {
         super.setUp()
         continueAfterFailure = true
         #if os(iOS)
-        XCUIDevice.shared.orientation = .portrait
+        // Only when it isn't already: on a freshly booted CI simulator, setting the portrait it was already in timed out
+        // "waiting for confirmation of orientation change" and failed the shard's first test (#188).
+        if XCUIDevice.shared.orientation != .portrait { XCUIDevice.shared.orientation = .portrait }
         #endif
     }
 
@@ -218,9 +220,23 @@ final class FeelCatchesTests: XCTestCase {
     /// Shapes once misread as missing ways back, none a bug (``KitchenPage`` in the app): a tab switch, a zoom push whose
     /// edge swipe starts lower, a popover of a stepper, and a menu with a submenu. The walk passes them all.
     func testWhatIsNotABrokenWayBack() {
-        let (app, feel) = launch("kitchen", bug: false)
+        var (app, feel) = launch("kitchen", bug: false)
         XCTAssertTrue(app.buttons["kitchen.seeAll"].waitForExistence(timeout: 30))
-        let result = feel.record(feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1), name: "kitchen")
+        var result = feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1)
+        // On a loaded free runner the simulator can drop every gesture sent to the zoomed recipe, through the walk's own
+        // relaunch too (#112, and #193 on PR #189: twelve gestures, all moved=false, back button hittable). The walk then
+        // says it could not check, and nothing else is wrong; walk once more on a fresh launch. A real miss comes back.
+        let untouched = { (r: FeelResult) in
+            !r.passed && r.findings.allSatisfy { $0.note || ($0.unchecked && $0.what.contains("the touch never reached the app")) }
+        }
+        if untouched(result) {
+            print("[ouro-feel] no gesture reached the zoomed recipe; walking once more on a fresh launch (#193)")
+            app.terminate()
+            (app, feel) = launch("kitchen", bug: false)
+            XCTAssertTrue(app.buttons["kitchen.seeAll"].waitForExistence(timeout: 30))
+            result = feel.wayBack(follow: FeelFollow(types: [.button, .cell]), depth: 1)
+        }
+        result = feel.record(result, name: "kitchen")
         XCTAssertTrue(result.passed, "none of these is a broken way back:\n\(result.text)")
         XCTAssertTrue(result.findings.contains { $0.what.contains("kitchen.seeAll") && $0.what.contains("switched to") },
                       "See all is a tab switch:\n\(result.text)")
@@ -322,8 +338,21 @@ final class FeelCatchesTests: XCTestCase {
         both(screens: "screen-flicker") { app, feel in
             let play = app.buttons["screenflicker.play"]
             _ = play.waitForExistence(timeout: 10)
-            let film = feel.screenFilm(steps: 14, tick: 0.1, clock: "screenflicker.clock",
+            // Both builds turn the page three ticks after Play, so a film that rests in one state only is a Play that
+            // didn't take (CI, #185's run 43735965549: the bug build "never came back to a state it left"), never a page
+            // that held. It is filmed once more from a fresh launch; a second still film is judged as it is.
+            var film = FeelScreenFilm(frames: [])
+            for attempt in 1...2 {
+                if attempt > 1 {
+                    print("[ouro-feel] the screen film never left its first state, so Play didn't take; filming it once more (#188)")
+                    app.terminate()
+                    app.launch()
+                    _ = play.waitForExistence(timeout: 10)
+                }
+                film = feel.screenFilm(steps: 14, tick: 0.1, clock: "screenflicker.clock",
                                        advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+                if film.stalledAt != nil || film.states().count >= 2 { break }
+            }
             XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
             let result = film.flickers()
             if isBugBuild(app) {

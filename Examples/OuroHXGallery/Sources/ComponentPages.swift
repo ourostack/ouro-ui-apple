@@ -243,8 +243,8 @@ struct PageHeadersPage: View {
     }
 }
 
-/// Rows as an app uses them: a divided group with an icon tile, a picture, actions and a pressable row, and an
-/// outlined row on its own.
+/// Rows as an app uses them: a divided group with an icon tile, a picture, actions and a pressable row, an
+/// outlined row on its own, an ordered group and an empty one.
 struct ItemsPage: View {
     @Environment(\.ouroToast) private var toast
 
@@ -266,6 +266,11 @@ struct ItemsPage: View {
                 OuroItem("Lemons", description: "4", size: .sm)
             }
             OuroItem("Pantry", description: "12 items", systemImage: "basket", variant: .outline, onPress: { toast("Opening the pantry") })
+            OuroItemGroup("Steps", ordered: true) {
+                OuroItem("Toast the orzo in butter", size: .sm)
+                OuroItem("Add the stock and simmer", size: .sm)
+            }
+            OuroItemGroup("Cookbooks", empty: "No cookbooks yet.") {}
         }
     }
 }
@@ -301,6 +306,29 @@ struct ChoicesPage: View {
             OuroCheckbox("Email me new recipes", isOn: $email, description: "One a week, on Sundays.")
             OuroCheckbox("I agree to the terms", isOn: $agreed, error: agreed ? nil : "Agree to the terms to continue.", required: true)
             OuroCheckbox("Archived", isOn: .constant(true)).disabled(true)
+        }
+    }
+}
+
+struct SyncStatusPage: View {
+    @State private var state = OuroSyncState.error
+    @State private var retries = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            OuroSyncStatus(state) {
+                retries += 1
+                state = .saving
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    state = .saved
+                }
+            }
+            .accessibilityIdentifier("sync.live")
+            Divider()
+            ForEach(OuroSyncState.allCases, id: \.self) { s in
+                OuroSyncStatus(s, labels: OuroSyncStatusLabels(saved: "Recipe saved", saving: "Saving recipe…"))
+            }
         }
     }
 }

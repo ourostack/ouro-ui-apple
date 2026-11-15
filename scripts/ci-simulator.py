@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI only: an iPhone simulator that boots while the build runs.
+"""CI only: an iPhone simulator (an iPad with OURO_SIM_FAMILY=iPad) that boots while the build runs.
 
     python3 -I scripts/ci-simulator.py start <name>      # create one, start booting it, write UDID to $GITHUB_ENV
     python3 -I scripts/ci-simulator.py wait <name> [s]   # wait for $UDID to finish booting (default 300 s)
@@ -27,6 +27,16 @@ import time
 from pathlib import Path
 
 DEVICES = ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 16"]
+# The gallery's iPad lane (main and releases): the largest iPad, where a layout that doesn't fill the screen shows.
+IPAD_DEVICES = ["iPad Pro 13-inch (M5)", "iPad Pro 13-inch (M4)", "iPad Air 13-inch (M3)", "iPad Air 13-inch (M2)"]
+
+
+def devices(family=None):
+    """The device types to try, in order, for OURO_SIM_FAMILY (iPhone when unset)."""
+    family = family if family is not None else os.environ.get("OURO_SIM_FAMILY", "iPhone")
+    if family not in ("iPhone", "iPad"):
+        raise SystemExit(f"ci-simulator: OURO_SIM_FAMILY={family!r}. Fix: iPhone or iPad.")
+    return IPAD_DEVICES if family == "iPad" else DEVICES
 CREATE_LIMIT = 90
 LIST_LIMIT = 30  # it answers in seconds when CoreSimulator is healthy
 LIST_TRIES = 3
@@ -96,7 +106,7 @@ def create(name):
     sdk = subprocess.run(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"], capture_output=True, text=True,
                          check=True, timeout=60).stdout.strip()
     runtime = newest_ios_runtime(list_runtimes(), sdk)
-    for device in DEVICES:
+    for device in devices():
         try:
             out = simctl("create", name, device, runtime, timeout=CREATE_LIMIT)
         except subprocess.TimeoutExpired:
@@ -106,7 +116,7 @@ def create(name):
             udid = out.stdout.strip()
             print(f"Using {device} on {runtime}: {udid}")
             return udid
-    raise SystemExit(f"ci-simulator: could not create any of {DEVICES} on {runtime}")
+    raise SystemExit(f"ci-simulator: could not create any of {devices()} on {runtime}")
 
 
 def boot(udid):
@@ -182,6 +192,12 @@ def selftest():
         {"platform": "iOS", "isAvailable": False, "version": "27.0", "identifier": "iOS-27-0"},
         {"platform": "watchOS", "isAvailable": True, "version": "30.0", "identifier": "watchOS-30"},
     ]
+    assert devices("iPhone") == DEVICES and devices("iPad") == IPAD_DEVICES, "the family picks the device types"
+    try:
+        devices("ipad")
+        raise AssertionError("an unknown family must fail")
+    except SystemExit:
+        pass
     assert newest_ios_runtime(runtimes, "26.10") == "iOS-26-10", "numeric, available, iOS only"
     assert newest_ios_runtime(runtimes, "26.2") == "iOS-26-2", "never newer than the SDK"
     assert newest_ios_runtime(runtimes, "26.10.1") == "iOS-26-10", "patch versions don't matter"

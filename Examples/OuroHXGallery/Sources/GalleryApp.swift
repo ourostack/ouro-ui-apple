@@ -18,7 +18,7 @@ struct GalleryApp: App {
 
 enum GalleryPage: String, CaseIterable, Identifiable {
     case colors = "Colours", pairs = "Pairs", feel = "Feel"
-    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", choices = "Choices", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sheet = "Sheets", toasts = "Toasts"
+    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", choices = "Choices", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
     var id: String { rawValue }
 
     init?(rawValue: String) {
@@ -34,6 +34,7 @@ enum GalleryPage: String, CaseIterable, Identifiable {
         case "pageheaders", "pageheader", "page-header": self = .pageHeaders
         case "empty", "emptystate": self = .empty
         case "banners", "banner": self = .banners
+        case "sync", "syncstatus": self = .sync
         case "sheet", "sheets": self = .sheet
         case "toasts", "toast": self = .toasts
         default: return nil
@@ -113,6 +114,7 @@ private struct ThemedPage: View {
                 case .pageHeaders: PageHeadersPage()
                 case .empty: EmptyStatesPage()
                 case .banners: BannersPage()
+                case .sync: SyncStatusPage()
                 case .sheet: SheetsPage()
                 case .toasts: ToastsPage()
                 }

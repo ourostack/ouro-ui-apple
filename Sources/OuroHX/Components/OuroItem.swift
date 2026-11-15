@@ -47,6 +47,9 @@ public enum OuroItemMetrics {
     public static let defaultSize = OuroItemSize.md
     public static let defaultMediaSize = OuroItemMediaSize.sm
     public static let defaultGroupVariant = OuroItemGroupVariant.divided
+
+    /// What VoiceOver adds to a row of an `ordered` group, as web's `<ol>` gives its position: "2 of 5".
+    public static func position(_ index: Int, of count: Int) -> String { "\(index + 1) of \(count)" }
     /// No line limit on the title or the description at any size (core claim `text.reflows`).
     public static let titleLineLimit: Int? = nil
     public static let descriptionLineLimit: Int? = nil
@@ -287,18 +290,39 @@ extension OuroItem where Media == Image, Actions == EmptyView {
 /// A list of ``OuroItem`` rows, web's `ItemGroup`: a label above that names the list, and lines between the rows
 /// (`divided`), a bordered box around them (`outline`) or neither (`plain`).
 ///
-/// The label is a heading for VoiceOver, and the rows are one container it names.
+/// ```swift
+/// OuroItemGroup("Steps", ordered: true, empty: "No steps yet.") {
+///     ForEach(recipe.steps) { step in OuroItem(step.text) }
+/// }
+/// ```
+///
+/// The label is a heading for VoiceOver, and the rows are one container it names. With no rows the group shows
+/// `empty` in their place, a sentence or a view such as an ``OuroEmptyState``, outside the list. An `ordered`
+/// group's rows each say where they are ("2 of 5"), for rows whose order means something, such as steps.
 public struct OuroItemGroup<Content: View>: View {
     let label: String?
     let variant: OuroItemGroupVariant
+    let ordered: Bool
+    let empty: AnyView?
     let content: Content
     @Environment(\.ouroTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
 
-    public init(_ label: String? = nil, variant: OuroItemGroupVariant = OuroItemMetrics.defaultGroupVariant, @ViewBuilder content: () -> Content) {
+    public init(_ label: String? = nil, variant: OuroItemGroupVariant = OuroItemMetrics.defaultGroupVariant, ordered: Bool = false, empty: String? = nil, @ViewBuilder content: () -> Content) {
         self.label = label
         self.variant = variant
+        self.ordered = ordered
+        self.empty = empty.map { AnyView(OuroItemGroupEmptyText(words: $0)) }
+        self.content = content()
+    }
+
+    /// A group that shows a view, such as an ``OuroEmptyState``, when it has no rows.
+    public init<Empty: View>(_ label: String? = nil, variant: OuroItemGroupVariant = OuroItemMetrics.defaultGroupVariant, ordered: Bool = false, @ViewBuilder content: () -> Content, @ViewBuilder empty: () -> Empty) {
+        self.label = label
+        self.variant = variant
+        self.ordered = ordered
+        self.empty = AnyView(empty())
         self.content = content()
     }
 
@@ -314,25 +338,61 @@ public struct OuroItemGroup<Content: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
             }
-            VStack(alignment: .leading, spacing: 0) {
-                Group(subviews: content) { rows in
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                        row
-                        if variant != .plain, index < rows.count - 1 {
-                            Rectangle()
-                                .fill(Color(palette.line))
-                                .frame(height: width)
-                                .accessibilityHidden(true)
-                        }
-                    }
+            Group(subviews: content) { rows in
+                if rows.isEmpty {
+                    if let empty { empty }
+                } else {
+                    list(rows, palette: palette, width: width, shape: shape)
                 }
             }
-            .padding(.horizontal, variant == .outline ? OuroItemMetrics.outlineInset : 0)
-            .overlay {
-                if variant == .outline { shape.strokeBorder(Color(palette.line), lineWidth: width) }
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Text(label ?? ""))
         }
+    }
+
+    private func list(_ rows: SubviewsCollection, palette: OuroItemPalette, width: CGFloat, shape: RoundedRectangle) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                row.modifier(OuroItemPosition(words: ordered ? OuroItemMetrics.position(index, of: rows.count) : nil))
+                if variant != .plain, index < rows.count - 1 {
+                    Rectangle()
+                        .fill(Color(palette.line))
+                        .frame(height: width)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .padding(.horizontal, variant == .outline ? OuroItemMetrics.outlineInset : 0)
+        .overlay {
+            if variant == .outline { shape.strokeBorder(Color(palette.line), lineWidth: width) }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text(label ?? ""))
+    }
+}
+
+/// An ordered group's row position, spoken after the row as VoiceOver's custom content.
+private struct OuroItemPosition: ViewModifier {
+    let words: String?
+
+    func body(content: Content) -> some View {
+        if let words {
+            content.accessibilityCustomContent("Position", Text(words), importance: .high)
+        } else {
+            content
+        }
+    }
+}
+
+/// An ``OuroItemGroup``'s `empty` sentence, web's `text-sm text-muted-foreground`.
+private struct OuroItemGroupEmptyText: View {
+    let words: String
+    @Environment(\.ouroTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Text(words)
+            .font(.subheadline)
+            .foregroundStyle(Color(OuroItemPalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast)).description))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

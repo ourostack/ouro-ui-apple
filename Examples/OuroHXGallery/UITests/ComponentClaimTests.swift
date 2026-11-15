@@ -43,9 +43,30 @@ final class ComponentClaimTests: XCTestCase {
         }
     }
 
-    /// Xcode's "Audit failed to complete in time": the audit found nothing either way.
+    /// The audit ran out of time and found nothing either way: Xcode's "Audit failed to complete in time" (-56), or
+    /// XCTest's own "Timed out while running accessibility audit" (XCTFuture 1000).
     static func auditTimedOut(_ error: NSError) -> Bool {
-        error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56
+        (error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56)
+            || (error.domain == "com.apple.dt.XCTest.XCTFuture" && error.code == 1000)
+    }
+
+    /// Runs `audit`, and on a timeout runs it again after a pause, up to three runs in all. A loaded runner timed out
+    /// on two pages in a row, then on the sheet page twice running (main, run 43715261672), and the keyboard sheet's
+    /// clipped-text audit once (run 43710948223). Every finding and every other error fails at once; only a third
+    /// timeout fails as a timeout.
+    static func auditing(_ name: String, _ audit: () throws -> Void) {
+        for attempt in 1...3 {
+            do {
+                try audit()
+                return
+            } catch let error as NSError where auditTimedOut(error) {
+                if attempt == 3 { XCTFail("\(name), audited 3 times and timed out each time: \(error)") }
+                Thread.sleep(forTimeInterval: 5)
+            } catch {
+                XCTFail("\(name): \(error)")
+                return
+            }
+        }
     }
 
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,
@@ -62,11 +83,7 @@ final class ComponentClaimTests: XCTestCase {
                         let run = GalleryAuditRun(name: "\(claims.page)\(variant.suffix) \(size ?? "default") \(scheme)", size: size, extra: variant.extra)
                         let app = launch(claims.page, size: size, scheme: scheme, extra: variant.extra)
                         XCTContext.runActivity(named: run.name) { _ in
-                            do { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) } catch let error as NSError where Self.auditTimedOut(error) {
-                                // The audit ran out of time, on the machine's account rather than the page's (a loaded
-                                // CI runner did on two pages in a row): it runs once more, and a second timeout fails.
-                                do { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) } catch { XCTFail("\(run.name), audited twice: \(error)") }
-                            } catch { XCTFail("\(run.name): \(error)") }
+                            Self.auditing(run.name) { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) }
                         }
                         claims.afterAudit(app, run)
                         app.terminate()
@@ -297,7 +314,7 @@ final class ComponentClaimTests: XCTestCase {
                     // Clipped text only: the full audit, with the keyboard's own elements in the tree, outran its time
                     // limit on CI's hosted VM twice in four runs (even retried). Everything else on this page is
                     // audited without the keyboard in testEveryComponentPagePassesTheAccessibilityAudit.
-                    do { try app.ouroAccessibilityAudit(for: .textClipped, excuse: Self.keyboardsOwn) } catch { XCTFail("\(name) audit: \(error)") }
+                    Self.auditing("\(name) audit") { try app.ouroAccessibilityAudit(for: .textClipped, excuse: Self.keyboardsOwn) }
                     app.terminate()
                     continue
                 }

@@ -29,7 +29,7 @@ from pathlib import Path
 DEVICES = ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 16"]
 # The gallery's iPad lane (main and releases): the largest iPad, where a layout that doesn't fill the screen shows.
 IPAD_DEVICES = ["iPad Pro 13-inch (M5)", "iPad Pro 13-inch (M4)", "iPad Air 13-inch (M3)", "iPad Air 13-inch (M2)"]
-# The gallery's fold job (xcode-27 only: the iPhone Duo comes with the iOS 27.1 runtimes).
+# FoldPostureTests: the iPhone Duo comes only with the iOS 27.1 runtimes, so only beside Xcode 27.1 or later.
 DUO_DEVICES = ["iPhone Duo"]
 FAMILIES = {"iPhone": DEVICES, "iPad": IPAD_DEVICES, "Duo": DUO_DEVICES}
 

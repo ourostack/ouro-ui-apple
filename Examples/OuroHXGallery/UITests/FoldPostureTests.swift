@@ -2,9 +2,11 @@ import OuroHX
 import OuroHXTesting
 import XCTest
 
-/// The fold postures on a real iPhone Duo simulator, its hinge moved by Device Hub (`ouro-devicehub serve`). Runs only in
-/// CI's "Gallery on an iPhone Duo" job, which passes the request directory as `TEST_RUNNER_OURO_DUO_POSTURE_DIR`;
-/// anywhere else it skips. Folding.md says what each component does:
+/// The fold postures on a real iPhone Duo simulator, its hinge moved by Device Hub. Only Xcode 27.1 or later has the
+/// Duo, and only Device Hub can fold it, so this runs where both are: boot a Duo, open Device Hub, run
+/// `swift run ouro-devicehub serve "$DIR"` and pass `TEST_RUNNER_OURO_DUO_POSTURE_DIR="$DIR"` to
+/// `xcodebuild test -only-testing:OuroHXGalleryUITests/FoldPostureTests`. Without the directory it skips, so the
+/// gallery's shards (Xcode 26, no Duo) never run it. Folding.md says what each component does:
 ///
 /// - **Sheet.** Held as a tabletop, it rests on the lower half, below the fold, even when it asks for full height; open
 ///   flat it keeps its own height.

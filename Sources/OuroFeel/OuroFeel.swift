@@ -1,5 +1,6 @@
 #if canImport(XCTest) && (os(iOS) || os(macOS) || os(visionOS))
 public import CoreGraphics
+import ImageIO
 public import OuroFeelCore
 public import XCTest
 
@@ -72,6 +73,54 @@ public struct OuroFeel {
             if let film { try? film.json.write(to: base.appendingPathComponent("\(slug)-\(stamp)-film.json")) }
         }
         return result
+    }
+
+    /// Records a result judged from a screen film, as ``record(_:name:film:)`` does, and when it did not pass, also its
+    /// contact sheet (``FeelScreenFilm/contactSheet(columns:gap:mark:stable:merge:run:)``, a PNG of every sample with its
+    /// rests marked) and the film's JSON, attached and written to `OURO_FEEL_REPORT_DIR` beside the report (#73). A
+    /// check judged from pixels is easier to explain from the pictures it judged.
+    @discardableResult
+    public func record(_ input: FeelResult, name: String? = nil, screenFilm: FeelScreenFilm) -> FeelResult {
+        let result = record(input, name: name)
+        guard !result.passed else { return result }
+        let slug = (name ?? result.check).replacingOccurrences(of: " ", with: "-")
+        let png = screenFilm.contactSheet().flatMap(Self.png)
+        let json = (try? JSONEncoder().encode(screenFilm)) ?? Data()
+        XCTContext.runActivity(named: "Ouro Feel: \(result.check), the screen film") { activity in
+            if let png {
+                let sheet = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+                sheet.name = "ouro-feel-\(slug)-contact-sheet.png"
+                sheet.lifetime = .keepAlways
+                activity.add(sheet)
+            }
+            let raw = XCTAttachment(data: json, uniformTypeIdentifier: "public.json")
+            raw.name = "ouro-feel-\(slug)-screen-film.json"
+            raw.lifetime = .keepAlways
+            activity.add(raw)
+        }
+        if let dir = ProcessInfo.processInfo.environment["OURO_FEEL_REPORT_DIR"], !dir.isEmpty {
+            let base = URL(fileURLWithPath: dir)
+            try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+            let stamp = Int(Date().timeIntervalSince1970 * 1000)
+            if let png { try? png.write(to: base.appendingPathComponent("\(slug)-\(stamp)-contact-sheet.png")) }
+            try? json.write(to: base.appendingPathComponent("\(slug)-\(stamp)-screen-film.json"))
+        }
+        return result
+    }
+
+    /// A grayscale picture as PNG data; nil when it can't be drawn.
+    static func png(_ frame: FeelScreenFrame) -> Data? {
+        guard frame.width > 0, frame.height > 0, frame.gray.count == frame.width * frame.height,
+              let provider = CGDataProvider(data: Data(frame.gray) as CFData),
+              let image = CGImage(width: frame.width, height: frame.height, bitsPerComponent: 8, bitsPerPixel: 8,
+                                  bytesPerRow: frame.width, space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue), provider: provider,
+                                  decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else { return nil }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data as CFMutableData, "public.png" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
     // MARK: Reading the screen

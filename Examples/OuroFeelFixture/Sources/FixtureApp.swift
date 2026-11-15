@@ -23,6 +23,7 @@ struct FixtureApp: App {
             case "flicker": FlickerPage()
             case "screen-flicker": ScreenFlickerPage()
             case "reveal": RevealPage()
+            case "reveal-shelf": RevealPage(shelf: true)
             case "reveal-reads": RevealByReadsPage()
             case "stray": StrayPage()
             case "fight": FightPage()
@@ -707,17 +708,22 @@ struct ScreenFlickerPage: View {
 /// pixels: the page is a picture no element labels. Open starts the open; the cover stays until the page shows. Fixed:
 /// the cover holds until his page is placed, then shows it. The bug, as Gatefold build 20 relaunched on an iPad: the
 /// cover goes at once onto another page, which four ticks later jumps to his.
+///
+/// With `shelf` (#73, item 4), the screen before Open is a shelf, which looks nothing like the cover: Open puts the cover
+/// up, and it stays until the clock ticks. So the cover's picture must be taken while the cover is up, not before Open.
 struct RevealPage: View {
+    var shelf = false
     private let clock = FixtureClock.shared
     @State private var openedAt: Int?
 
     var body: some View {
         let k = openedAt.map { clock.ticks - $0 } ?? -1
         let shown: Int? = k < 0 ? nil : (bug ? (k < 3 ? nil : (k < 7 ? 1 : 2)) : (k < 7 ? nil : 2))
+        let onShelf = shelf && openedAt == nil
         VStack(spacing: 24) {
             RoundedRectangle(cornerRadius: 12)
-                .fill(shown == nil ? Color.black : (shown == 1 ? Color.teal : Color.purple))
-                .overlay(Text(shown.map { "Page \($0)" } ?? "").font(.system(size: 60, weight: .bold)).foregroundStyle(.white))
+                .fill(onShelf ? Color.orange : shown == nil ? Color.black : (shown == 1 ? Color.teal : Color.purple))
+                .overlay(Text(onShelf ? "Shelf" : shown.map { "Page \($0)" } ?? "").font(.system(size: 60, weight: .bold)).foregroundStyle(.white))
                 .frame(height: 360)
                 .padding(.horizontal, 24)
                 .accessibilityHidden(true)

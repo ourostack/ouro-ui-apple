@@ -444,6 +444,41 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// The same open, from a shelf that looks nothing like the cover (#73, item 4). The cover's picture is taken once
+    /// Open has put the cover up, before the clock moves it on, and the film is judged against that. Judged against the
+    /// shelf, the screen before Open, the film can't be checked, since no rest looks like it.
+    func testRevealHoldsFromACoverShotWhileItIsUp() {
+        both(screens: "reveal-shelf") { app, feel in
+            let open = app.buttons["reveal.open"]
+            _ = open.waitForExistence(timeout: 10)
+            func couldNotCheck(_ why: String) -> FeelResult {
+                FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "", failing: { _ in "" }, findings: [.couldNotCheck(why)])
+            }
+            guard let shelf = feel.screenPicture(clock: "reveal.clock") else { return (couldNotCheck("no screenshot of the shelf"), FeelScreenFilm(frames: [])) }
+            open.tap()
+            // Open has taken once the cover is up: the screen no longer looks like the shelf. The clock doesn't move
+            // until the film ticks it, so the cover stays up for its picture.
+            var cover = shelf
+            let deadline = Date().addingTimeInterval(10)
+            while (FeelScreenFilm.difference(shelf, cover) ?? 0) < 1, Date() < deadline {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+                if let now = feel.screenPicture(clock: "reveal.clock") { cover = now }
+            }
+            XCTAssertGreaterThan(FeelScreenFilm.difference(shelf, cover) ?? 0, 1, "the cover looks like the shelf, so this proves nothing")
+            let film = feel.screenFilm(steps: 24, tick: 0.1, clock: "reveal.clock",
+                                       advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick"))
+            XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
+            let fromShelf = film.revealHolds(cover: shelf)
+            XCTAssertTrue(fromShelf.findings.contains { $0.unchecked },
+                          "judged against the shelf, nothing looks like the cover: \(fromShelf.text)")
+            let result = film.revealHolds(cover: cover)
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("was replaced") }, result.text)
+            }
+            return (result, film)
+        }
+    }
+
     /// The same open as ``testRevealHolds`` for an app with no clock of its own (#94): the page runs on wall time and the
     /// film is one screenshot per XCUITest read, judged in reads. The bug's cover goes onto another page that then jumps
     /// to his; the fixed cover holds until his page shows.

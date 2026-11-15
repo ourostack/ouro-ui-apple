@@ -1,6 +1,6 @@
 # Components
 
-Button, Badge, Card, Item, Avatar, PageHeader, EmptyState, Banner, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, Card, Item, Avatar, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -51,6 +51,7 @@ struct SettingsScreen: View {
 | `PageHeader` | ``OuroPageHeader`` | The top of a page or a section: its title (a heading, level 1 or 2), an `eyebrow` above it, a `description` under it, more under that (badges, a byline), the page's actions beside it where they fit and under it where they don't, a picture above, and an optional `divider`. `md` or `lg`. |
 | `Empty` | ``OuroEmptyState`` | What a list or page shows when it has nothing in it. |
 | `Alert` | ``OuroBanner`` | An inline message in the page. On Apple an "alert" is SwiftUI's modal `.alert`, so it is a banner here. |
+| `SyncStatus` | ``OuroSyncStatus`` | One line that says where changes are: saved, saving, offline or not saved, each with its symbol, and Retry on a problem. Spoken only when a problem starts and when it clears; keeps its longest state's size. |
 | `Sheet` | `.ouroSheet(isPresented:title:…)` | A panel from the bottom edge with a title, a body, an actions row and a close button. |
 | `toast`, `Toaster` | `@Environment(\.ouroToast)`, `.ouroToaster()`, ``OuroToast`` | A short message that VoiceOver reads once and that dismisses itself. |
 
@@ -171,6 +172,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroPageHeader``: web's `PageHeader`, and the headers Spoonjoy draws by hand (`KitchenMasthead`, `KitchenSectionHeader`, `KitchenTableHeader`, `KitchenEyebrowTracking` and three more).
 - ``OuroItem``: web's `Item`, and the rows Spoonjoy (`RecipeIndexRow`, `ShoppingReceiptRow`, `SettingsRowLabel` and nine more) and Gatefold (`SettingRow`, `PressedRow`, `StillRow` and two more) draw by hand.
 - ``OuroBanner``: Spoonjoy's `HeldChangeBanner` (a titled message with its way out) and web's `Alert`.
+- ``OuroSyncStatus``: web's `SyncStatus`, and Gatefold's `SyncStatusLine`, Spoonjoy's `OfflineStatusView` and Ouro MD's `DocumentStatusBar`.
 - The sheet and the toast follow web's `Sheet` and `Toaster`; neither app had a toast.
 
 ## Topics
@@ -221,6 +223,14 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroAvatarPresence``
 - ``OuroAvatarPalette``
 - ``OuroAvatarMetrics``
+
+### Sync status
+
+- ``OuroSyncStatus``
+- ``OuroSyncState``
+- ``OuroSyncStatusLabels``
+- ``OuroSyncStatusPalette``
+- ``OuroSyncStatusMetrics``
 
 ### Page header
 

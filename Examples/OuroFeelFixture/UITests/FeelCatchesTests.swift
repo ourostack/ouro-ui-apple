@@ -328,6 +328,35 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// In landscape, the screen film still blanks the app's clock (#73): its label changes every tick, so a clock left
+    /// showing would make every tick a new state. With nothing else moving, every sample of the film is the same picture.
+    /// The check is not vacuous: unblanked, at this width, two ticks of the clock are different pictures.
+    func testTheClockIsBlankedInLandscape() {
+        let (app, feel) = launch("screen-flicker", bug: false)
+        defer { app.terminate(); XCUIDevice.shared.orientation = .portrait }
+        XCTAssertTrue(app.buttons["screenflicker.play"].waitForExistence(timeout: 10))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let clock = app.staticTexts["screenflicker.clock"]
+        let deadline = Date().addingTimeInterval(10)
+        func wide() -> Bool { let w = app.windows.firstMatch.frame; return clock.exists && w.width > w.height }
+        while !wide(), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
+        XCTAssertTrue(wide(), "the fixture never turned to landscape")
+        Thread.sleep(forTimeInterval: 1)
+        let tick = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
+        // Unblanked (no element is keyed "no-clock"), two ticks apart: the clock's digits show.
+        guard let before = feel.screenPicture(clock: "no-clock", width: 640) else { return XCTFail("no screenshot") }
+        tick(); tick()
+        Thread.sleep(forTimeInterval: 0.5)
+        guard let after = feel.screenPicture(clock: "no-clock", width: 640) else { return XCTFail("no screenshot") }
+        XCTAssertGreaterThan(FeelScreenFilm.difference(before, after) ?? 0, 0, "the clock's ticks don't show at this width, so the check below proves nothing")
+        let film = feel.screenFilm(steps: 6, tick: 0.1, clock: "screenflicker.clock", advance: tick, width: 640)
+        XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
+        XCTAssertGreaterThan(film.frames.first.map { $0.width } ?? 0, film.frames.first.map { $0.height } ?? 0, "the film is landscape")
+        for (n, frame) in film.frames.enumerated().dropFirst() {
+            XCTAssertEqual(FeelScreenFilm.difference(film.frames[0], frame), 0, "sample \(n) differs from the first: the clock is not blanked in landscape")
+        }
+    }
+
     /// The first page shown after an open holds, judged from screenshots: the bug's cover goes onto another page that
     /// then jumps to his; the fixed cover holds until his page shows.
     func testRevealHolds() {

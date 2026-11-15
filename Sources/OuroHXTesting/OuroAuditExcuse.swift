@@ -39,6 +39,15 @@ public enum OuroAuditExcuse {
         return false
     }
 
+    /// Whether an issue only defers to a second pass of the audit rather than failing in the first: "Potentially
+    /// inaccessible text" that names no element. The audit reads the screen's words from its pixels and its elements
+    /// from the app; on a slow runner the element read can come back empty, and then every word on the screen reads as
+    /// text with no element (CI, iOS 26.5, the buttons page at the largest text size, #191). Text that really is
+    /// missing from the accessibility tree comes back in the second pass, and fails there.
+    public static func rereads(_ issue: String, element: CGRect?) -> Bool {
+        issue.contains("Potentially inaccessible text") && (element?.isEmpty ?? true)
+    }
+
     private static func isToastsOwn(_ element: CGRect, toasts: [CGRect], contents: [CGRect]?) -> Bool {
         guard let contents else { return toasts.contains { $0.insetBy(dx: -1, dy: -1).contains(element) } }
         return contents.contains { abs($0.minX - element.minX) < 1 && abs($0.minY - element.minY) < 1

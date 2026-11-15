@@ -41,7 +41,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -223,6 +223,14 @@ final class ComponentClaimTests: XCTestCase {
     /// toast. So contrast on a glass button is measured from the screen's pixels instead (`inkContrast`).
     static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
+    }
+
+    /// An avatar's initials are drawn in its fixed-size tile, as web's are: they grow with Dynamic Type until they fill
+    /// it, then hold (`OuroAvatarMetrics.initialsMinimumScale`), so the audit reads them as "partially unsupported".
+    /// VoiceOver never reads them (the avatar is one image named by its person), and a tile that grew with the text
+    /// would break every row it sits in. Excused for one or two capital letters on the avatars page only.
+    static let avatarInitialsMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .dynamicType && (issue.element.map { $0.label.range(of: "^[A-Z]{1,2}$", options: .regularExpression) != nil } ?? false)
     }
 
     /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.

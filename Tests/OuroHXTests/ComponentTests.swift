@@ -237,6 +237,42 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct TextFieldMetricsTests {
+    /// Web's defaults: `type="text"`, `variant="outline"`, `size="md"`.
+    @Test func aTextFieldDefaultsToWebsOutlineMedium() {
+        #expect(OuroTextFieldMetrics.defaultType == .text)
+        #expect(OuroTextFieldMetrics.defaultVariant == .outline)
+        #expect(OuroTextFieldMetrics.defaultSize == .md)
+    }
+
+    /// Core claim `target.touch`: web's `h-11` and `h-14`, 44 and 56 points, with `px-3` and `rounded-lg`.
+    @Test func aTextFieldIsATouchTarget() {
+        #expect(OuroTextFieldMetrics.minimumHeight(.md) == 44)
+        #expect(OuroTextFieldMetrics.minimumHeight(.lg) == 56)
+        #expect(OuroTextFieldMetrics.horizontalPadding == 12)
+        #expect(OuroTextFieldMetrics.radius == .lg)
+    }
+
+    /// Each type sets autofill, and what must be typed exactly is never capitalised or corrected, as on web.
+    @Test func eachTypeSetsAutofillAndLiteralInput() {
+        #expect(OuroTextFieldMetrics.contentType(.email) == .emailAddress)
+        #expect(OuroTextFieldMetrics.contentType(.password) == .password)
+        #expect(OuroTextFieldMetrics.contentType(.tel) == .telephoneNumber)
+        #expect(OuroTextFieldMetrics.contentType(.url) == .url)
+        #expect(OuroTextFieldMetrics.contentType(.text) == nil)
+        for type in [OuroTextFieldType.email, .url, .password, .tel] { #expect(OuroTextFieldMetrics.isLiteral(type)) }
+        for type in [OuroTextFieldType.text, .search] { #expect(!OuroTextFieldMetrics.isLiteral(type)) }
+    }
+
+    /// Core claim `name.spoken`: VoiceOver hears the error first, then the description, after the field's name.
+    @Test func theHintReadsTheErrorThenTheDescription() {
+        #expect(OuroTextFieldMetrics.hint(description: "We send your recipes here.", error: nil) == "We send your recipes here.")
+        #expect(OuroTextFieldMetrics.hint(description: "We send your recipes here.", error: "Use an email address.") == "Error: Use an email address. We send your recipes here.")
+        #expect(OuroTextFieldMetrics.hint(description: nil, error: "") == nil)
+        #expect(OuroTextFieldMetrics.hint(description: nil, error: "Required") == "Error: Required.")
+    }
+}
+
 @Suite struct ChoiceMetricsTests {
     /// Core claim `target.touch`: a segment and a checkbox row are 44 points tall to touch, web's sizes with a pointer.
     @Test func segmentsAndCheckboxRowsAreTouchTargets() {
@@ -605,6 +641,20 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             if let border = p.border {
                 #expect(ratio(border, p.surface) > 1, "\(name) \(variant) border")
                 if style.contrast == .increased { #expect(ratio(border, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) border") }
+            }
+        }
+    }
+
+    /// A text field's label, text, placeholder, description and error read on the page, and its edge, focus ring and
+    /// error edge reach 3:1 so the box can be found (WCAG 1.4.11), in every theme and mode.
+    @Test func textFieldTextAndEdgesReadInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroTextFieldPalette(style: style)
+            for (part, colour) in [("label", p.label), ("text", p.text), ("placeholder", p.placeholder), ("description", p.description), ("error", p.error)] {
+                #expect(ratio(colour, p.surface) >= target(style), "\(name) \(part): \(ratio(colour, p.surface))")
+            }
+            for (part, colour) in [("edge", p.edge), ("focus", p.focus), ("invalid edge", p.invalidEdge)] {
+                #expect(ratio(colour, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) \(part): \(ratio(colour, p.surface))")
             }
         }
     }

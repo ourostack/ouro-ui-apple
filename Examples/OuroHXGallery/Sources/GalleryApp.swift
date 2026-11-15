@@ -142,7 +142,7 @@ private struct ThemedPage: View {
                     .frame(minHeight: 44)
             }
             .accessibilityIdentifier("gallery.theme")
-            Text("\(scheme == .dark ? "Dark" : "Light")\(contrast == .increased ? ", increased contrast" : "") · ouro-ui-core v0.3.0")
+            Text("\(scheme == .dark ? "Dark" : "Light")\(contrast == .increased ? ", increased contrast" : "") · ouro-ui-core v0.13.1")
                 .font(.subheadline)
                 .foregroundStyle(colors.mutedForeground)
         }

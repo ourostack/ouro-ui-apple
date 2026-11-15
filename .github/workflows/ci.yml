@@ -377,7 +377,9 @@ jobs:
     needs: [paths, gallery-build]
     if: needs.paths.outputs.gallery == 'true'
     runs-on: macos-26
-    timeout-minutes: 40
+    # One run of a shard takes about 19 minutes, and an infrastructure retry (below) runs it again: 40 minutes cancelled
+    # the retry partway (#162).
+    timeout-minutes: 60
     permissions:
       contents: read
       actions: read

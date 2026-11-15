@@ -12,6 +12,10 @@ person to rerun the job.
 This reruns the failed jobs on fresh runners, once (the run's first attempt only), and only when every failed job
 either carries that line or is a job that fails because one that did failed (the two required summary checks). A real
 failure next to a broken runner leaves the run as it is, for a person. Report-only jobs (the hitch probe) are ignored.
+
+Since #74's requeue, a gallery or Ouro Feel shard on a broken runner doesn't fail: it ends at once and its requeue job
+runs it on a fresh runner within the same run (scripts/ci-broken-runner.sh, scripts/ci-requeue-plan.py). This is the
+next layer: a requeued shard that lands on a second broken runner fails with the line above, and so do the X-ray lanes.
 """
 import json
 import re

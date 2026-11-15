@@ -155,6 +155,23 @@ import Testing
         }
     }
 
+    /// Skeletons in every shape, spinners and progress bars, known and unknown. (A spinner is the system's, which
+    /// ImageRenderer draws at rest.)
+    @Test(arguments: Mode.allCases) func loading(_ mode: Mode) throws {
+        try check("loading", mode) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top, spacing: 12) {
+                    OuroSkeleton(.circle, side: 40, shimmer: false)
+                    OuroSkeleton(.text, lines: 3, shimmer: false)
+                }
+                OuroSkeleton(shimmer: false).frame(height: 60)
+                OuroSkeleton(.row, shimmer: false)
+                OuroProgress("Uploading photos", value: 3, max: 8, showValue: true)
+                OuroProgress("Downloading update", value: 72, tone: .success, hideLabel: true)
+            }
+        }
+    }
+
     /// Every sync state, with Retry on the problems.
     @Test(arguments: Mode.allCases) func syncStatus(_ mode: Mode) throws {
         try check("sync-status", mode) {

@@ -255,6 +255,30 @@ struct AvatarsPage: View {
     }
 }
 
+/// Loading as an app shows it: a recipe's words and picture still arriving, rows and a card in their places, spinners
+/// beside what they wait for, and progress bars known and unknown.
+struct LoadingPage: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(alignment: .top, spacing: 12) {
+                OuroSkeleton(.circle, side: 48)
+                OuroSkeleton(.text, lines: 3)
+            }
+            OuroSkeleton().frame(height: 120)
+            OuroSkeleton(.row, count: 2)
+            OuroSkeleton(.card)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) { OuroSpinner(label: "Saving the draft", size: .sm); Text("Saving…").font(.subheadline) }
+                HStack(spacing: 8) { OuroSpinner(label: "Syncing pantry", tone: .primary); Text("Syncing your pantry").font(.subheadline) }
+                HStack(spacing: 8) { OuroSpinner(label: "Importing cookbook", size: .lg, tone: .success); Text("Importing").font(.subheadline) }
+            }
+            OuroProgress("Uploading photos", value: 3, max: 8, showValue: true)
+            OuroProgress("Downloading update", value: 72, tone: .success, showValue: true)
+            OuroProgress("Preparing your cookbook", value: nil)
+        }
+    }
+}
+
 /// Page headers as an app uses them: a recipe page with an eyebrow, a description, badges and actions; a large
 /// profile header with a picture; and a section header with a divider.
 struct PageHeadersPage: View {

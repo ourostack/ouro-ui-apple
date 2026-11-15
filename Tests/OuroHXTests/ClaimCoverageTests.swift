@@ -13,8 +13,9 @@ import Testing
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryControlIs44Points",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
         ],
-        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests", "Tests/OuroHXTests/ComponentTests.swift: SyncStatusTests"],
+        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests", "Tests/OuroHXTests/ComponentTests.swift: LoadingMetricsTests", "Tests/OuroHXTests/ComponentTests.swift: SyncStatusTests"],
         "name.spoken": [
+            "Tests/OuroHXTests/ComponentTests.swift: LoadingMetricsTests",
             "Tests/OuroHXTests/ComponentTests.swift: PageHeaderMetricsTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testVoiceOverLabels",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",

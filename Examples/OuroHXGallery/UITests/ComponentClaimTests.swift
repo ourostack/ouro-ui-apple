@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "textfields", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "textfields", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -138,6 +138,17 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.buttons["Cook"].exists, "items: the row's action is not its own button")
         XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
+        app.terminate()
+        app = launch("loading")
+        // A spinner says what it waits for; a bar says what it is and how far along; a skeleton says Loading once.
+        XCTAssertTrue(app.descendants(matching: .any)["Saving the draft"].firstMatch.exists, "loading: the spinner is not named")
+        // XCUI lists the bar and the views inside it under one name; the bar is the one with a value.
+        func bar(_ name: String) -> XCUIElement { app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND value != nil", name)).firstMatch }
+        let upload = bar("Uploading photos")
+        XCTAssertTrue(upload.exists, "loading: the bar is not named")
+        XCTAssertEqual(upload.value as? String, "38%", "loading: the bar's value is \(String(describing: upload.value))")
+        XCTAssertEqual(bar("Preparing your cookbook").value as? String, "Loading", "loading: an unknown value is not Loading")
+        XCTAssertGreaterThan(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Loading'")).count, 0, "loading: a skeleton is silent")
         app.terminate()
         app = launch("sync")
         // The line is words a reader can find; Retry is its own button, and pressing it saves.

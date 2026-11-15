@@ -273,6 +273,35 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct LoadingMetricsTests {
+    /// Web's defaults: a `rect` skeleton, an `md` spinner, a `primary` bar.
+    @Test func theLoadingComponentsDefaultToWebs() {
+        #expect(OuroLoadingMetrics.defaultSkeletonShape == .rect)
+        #expect(OuroLoadingMetrics.defaultSpinnerSize == .md)
+        #expect(OuroLoadingMetrics.defaultProgressTone == .primary)
+        #expect(OuroSpinnerSize.allCases.map(OuroLoadingMetrics.spinnerSide) == [16, 20, 32])
+        #expect(OuroLoadingMetrics.barHeight == 8)
+    }
+
+    /// Core claim `motion.reduced`: a placeholder breathes only with motion on and `shimmer` on, after a second.
+    @Test func aSkeletonHoldsStillUnderReduceMotion() {
+        #expect(OuroLoadingMetrics.breathes(shimmer: true, reduceMotion: false))
+        #expect(!OuroLoadingMetrics.breathes(shimmer: true, reduceMotion: true))
+        #expect(!OuroLoadingMetrics.breathes(shimmer: false, reduceMotion: false))
+        #expect(OuroLoadingMetrics.breatheDelay >= 1)
+    }
+
+    /// Core claim `name.spoken`: a bar's value is a whole percentage, clamped, or "Loading" while unknown.
+    @Test func aBarSaysHowFarAlong() {
+        #expect(OuroLoadingMetrics.valueText(3, min: 0, max: 8) == 0.375.formatted(.percent.precision(.fractionLength(0))))
+        #expect(OuroLoadingMetrics.fraction(150, min: 0, max: 100) == 1)
+        #expect(OuroLoadingMetrics.fraction(-5, min: 0, max: 100) == 0)
+        #expect(OuroLoadingMetrics.fraction(nil, min: 0, max: 100) == nil)
+        #expect(OuroLoadingMetrics.fraction(5, min: 10, max: 10) == nil)
+        #expect(OuroLoadingMetrics.valueText(nil, min: 0, max: 100) == "Loading")
+    }
+}
+
 @Suite struct SyncStatusTests {
     /// Core claims `name.spoken` and `announce.urgency`: a problem is spoken when it starts and saved once it clears;
     /// every other save is silent.
@@ -595,6 +624,21 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             }
             for (part, colour) in [("edge", p.edge), ("focus", p.focus), ("invalid edge", p.invalidEdge)] {
                 #expect(ratio(colour, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) \(part): \(ratio(colour, p.surface))")
+            }
+        }
+    }
+
+    /// A bar's words read on the page, its filled part reaches 3:1 on the track and the page in every tone, and a
+    /// placeholder is seen on the page, in every theme and mode.
+    @Test func loadingReadsInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroLoadingPalette(style: style)
+            #expect(ratio(p.label, p.surface) >= target(style), "\(name) label")
+            #expect(ratio(p.value, p.surface) >= target(style), "\(name) value")
+            #expect(ratio(p.placeholder, p.surface) >= OuroLoadingMetrics.placeholderContrast - 0.01, "\(name) placeholder")
+            for tone in OuroTone.allCases {
+                let fill = p.fill(tone, style: style)
+                #expect(ratio(fill, p.track) >= OuroColor.increasedLineContrast - 0.01, "\(name) \(tone) on the track: \(ratio(fill, p.track))")
             }
         }
     }

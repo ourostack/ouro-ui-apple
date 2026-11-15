@@ -237,6 +237,49 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 }
 
+@Suite struct AvatarMetricsTests {
+    /// Web's defaults: `size="md"`, `shape="circle"`, `color="colorful"`.
+    @Test func anAvatarDefaultsToWebsMediumColorfulCircle() {
+        #expect(OuroAvatarMetrics.defaultSize == .md)
+        #expect(OuroAvatarMetrics.defaultShape == .circle)
+        #expect(OuroAvatarMetrics.defaultColor == .colorful)
+    }
+
+    /// Web's sizes, 24 to 112 points, growing in order, with the presence dot growing with them.
+    @Test func anAvatarHasWebsSizes() {
+        #expect(OuroAvatarSize.allCases.map(OuroAvatarMetrics.side) == [24, 32, 40, 48, 64, 72, 112])
+        #expect(OuroAvatarSize.allCases.map(OuroAvatarMetrics.presenceSide) == [8, 9, 11, 13, 18, 20, 31])
+        #expect(!OuroAvatarMetrics.presenceHasGlyph(.sm))
+        #expect(OuroAvatarMetrics.presenceHasGlyph(.md))
+    }
+
+    /// Web's `initialsOf`: the first letters of the first and last words.
+    @Test func theInitialsAreTheFirstAndLastWords() {
+        #expect(OuroAvatarMetrics.initials("Ana Lind") == "AL")
+        #expect(OuroAvatarMetrics.initials("  Ana  Maria   Lind ") == "AL")
+        #expect(OuroAvatarMetrics.initials("rachel") == "R")
+        #expect(OuroAvatarMetrics.initials("Zoë Ångström") == "ZÅ")
+        #expect(OuroAvatarMetrics.initials("") == "")
+    }
+
+    /// The same hue web's `hueOf` picks, so a person has one colour on web and Apple (indexes from web's function in
+    /// Node), and ids that differ only in their last character still spread.
+    @Test func theHueIsWebs() {
+        let web = ["Ana Lind": 1, "Ari Mendelow": 2, "Rachel": 4, "chef_001": 1, "chef_002": 7, "Zoë Ångström": 1, "😀 Emoji": 2]
+        for (key, hue) in web { #expect(OuroAvatarMetrics.hue(key) == hue, "\(key)") }
+        #expect(OuroAvatarMetrics.hue("  ANA LIND ") == OuroAvatarMetrics.hue("Ana Lind"))
+        #expect(Set((0..<64).map { OuroAvatarMetrics.hue("chef_\($0)") }).count == 8)
+    }
+
+    /// Core claim `name.spoken`: the name, or `alt`, then the presence's words; a loading avatar says so.
+    @Test func anAvatarIsNamedByItsPerson() {
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Ana Lind")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presenceLabel: "Busy", loadingLabel: "Name loading") == "Ana Lind, Busy")
+        #expect(OuroAvatarMetrics.spokenName(name: nil, alt: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Name loading")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: "", presenceLabel: "Busy", loadingLabel: "Name loading") == "Busy")
+    }
+}
+
 @Suite struct DisplayMetricsTests {
     /// Core claim `text.reflows`: a list stacks below web's 28rem (or 32rem), by its own width, and always at the
     /// accessibility sizes, where the details keep the width.
@@ -670,6 +713,18 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             if let border = p.border {
                 #expect(ratio(border, p.surface) > 1, "\(name) \(variant) border")
                 if style.contrast == .increased { #expect(ratio(border, p.surface) >= OuroColor.increasedLineContrast - 0.01, "\(name) border") }
+            }
+        }
+    }
+
+    /// An avatar's initials read on its fill in every hue, colour, theme and mode.
+    @Test func avatarInitialsReadOnEveryHueInEveryThemeAndMode() {
+        for (name, style) in styles {
+            for color in OuroAvatarColor.allCases {
+                for hue in 0..<8 {
+                    let p = OuroAvatarPalette(color: color, hue: hue, style: style)
+                    #expect(ratio(p.label, p.fill) >= target(style), "\(name) \(color) \(hue): \(ratio(p.label, p.fill))")
+                }
             }
         }
     }

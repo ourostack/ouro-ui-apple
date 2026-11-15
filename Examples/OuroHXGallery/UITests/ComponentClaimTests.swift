@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "textfields", "choices", "display", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "textfields", "choices", "display", "avatars", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -59,7 +59,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "choices" ? Self.inactiveMisreadings : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : run.page == "choices" ? Self.inactiveMisreadings : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -173,6 +173,18 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertEqual(upload.value as? String, "38%", "loading: the bar's value is \(String(describing: upload.value))")
         XCTAssertEqual(bar("Preparing your cookbook").value as? String, "Loading", "loading: an unknown value is not Loading")
         XCTAssertGreaterThan(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Loading'")).count, 0, "loading: a skeleton is silent")
+        app.terminate()
+        app = launch("avatars")
+        // An avatar is an image named by its person, then its presence; its initials are drawn, not read; one beside
+        // its name is not read twice; one still loading says so.
+        XCTAssertTrue(app.images["Ana Lind"].exists, "avatars: no image named Ana Lind")
+        XCTAssertTrue(app.images["Ana Lind, busy"].exists, "avatars: the presence is not read after the name")
+        XCTAssertTrue(app.images["Name loading"].exists, "avatars: a loading avatar is silent")
+        // XCUI lists the drawn initials under the avatar even though the avatar ignores its children, so VoiceOver's
+        // reading is proven by the image's name above, not by the initials' absence here.
+        // The sizes row has its own Kenji Sato; the row beside the name is one element, read once.
+        XCTAssertEqual(app.images.matching(NSPredicate(format: "label == 'Kenji Sato'")).count, 1, "avatars: a name beside its avatar is read twice")
+        XCTAssertTrue(app.descendants(matching: .any)["Kenji Sato, 12 recipes"].firstMatch.exists, "avatars: a name beside its avatar is not one element")
         app.terminate()
         app = launch("sync")
         // The line is words a reader can find; Retry is its own button, and pressing it saves.
@@ -304,6 +316,14 @@ final class ComponentClaimTests: XCTestCase {
 
     static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
+    }
+
+    /// An avatar's initials are drawn in its fixed-size tile, as web's are: they grow with Dynamic Type until they fill
+    /// it, then hold (`OuroAvatarMetrics.initialsMinimumScale`), so the audit reads them as "partially unsupported".
+    /// VoiceOver never reads them (the avatar is one image named by its person), and a tile that grew with the text
+    /// would break every row it sits in. Excused for one or two capital letters on the avatars page only.
+    static let avatarInitialsMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .dynamicType && (issue.element.map { $0.label.range(of: "^[A-Z]{1,2}$", options: .regularExpression) != nil } ?? false)
     }
 
     /// The choices page's disabled segment and checkbox, faded as web fades them (`opacity-50`). WCAG 1.4.3 exempts

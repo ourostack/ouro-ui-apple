@@ -27,6 +27,11 @@ import Testing
 
     /// Each spec's metrics as this package has them.
     static let apple: [String: [String: Double]] = [
+        "avatar": [
+            "xs": OuroAvatarMetrics.side(.xs), "sm": OuroAvatarMetrics.side(.sm), "md": OuroAvatarMetrics.side(.md),
+            "lg": OuroAvatarMetrics.side(.lg), "xl": OuroAvatarMetrics.side(.xl), "xxl": OuroAvatarMetrics.side(.xxl),
+            "xxxl": OuroAvatarMetrics.side(.xxxl), "fill": OuroAvatarMetrics.fill, "inkMix": OuroAvatarMetrics.inkMix,
+        ],
         "badge": ["minHeight": OuroBadgeMetrics.minimumHeight, "paddingX": OuroBadgeMetrics.horizontalPadding],
         "button": ["minTarget": OuroButtonSize.minimumTarget(on: .touch), "pressScale": OuroTokens.Press.scale],
         "card": [
@@ -81,7 +86,7 @@ import Testing
 
     /// Specs vendored for components this package doesn't ship yet; each leaves this list in the pull request that
     /// adds the component and its row in `apple`.
-    static let notYetBuilt: Set<String> = ["avatar"]
+    static let notYetBuilt: Set<String> = []
 
     @Test func everyVendoredSpecIsComparedOrNotYetBuilt() {
         #expect(Set(Self.vendored) == Set(Self.apple.keys).union(Self.notYetBuilt))

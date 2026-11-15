@@ -1,0 +1,104 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "sync-status",
+  "version": "1.0.0",
+  "summary": "One line that says where a person's changes are: saved, saving, offline or not saved, with Retry on a problem.",
+  "role": "label",
+  "properties": [
+    {
+      "name": "status",
+      "type": "enum",
+      "required": true,
+      "values": [
+        "saved",
+        "saving",
+        "offline",
+        "error"
+      ],
+      "description": "saved once changes reached the server, saving while they travel, offline while they wait on this device, error when the server refused them."
+    },
+    {
+      "name": "onRetry",
+      "type": "action",
+      "description": "Shows Retry while offline or error, and is called when it is pressed."
+    }
+  ],
+  "slots": [],
+  "events": [
+    {
+      "name": "retry",
+      "description": "Retry was pressed."
+    }
+  ],
+  "states": [
+    {
+      "name": "rest",
+      "description": "Saved, offline or error, each with its own symbol and colour."
+    },
+    {
+      "name": "busy",
+      "description": "Saving: the arrows turn, and hold still under reduced motion."
+    }
+  ],
+  "tokens": {
+    "quiet": "muted-foreground",
+    "offline": "warning",
+    "error": "destructive",
+    "retry": "foreground"
+  },
+  "metrics": {
+    "speakDelayMs": 1500,
+    "retryTarget": 44
+  },
+  "claims": [
+    "announce.urgency",
+    "contrast.text",
+    "motion.reduced",
+    "name.spoken",
+    "target.touch"
+  ],
+  "accessibility": {
+    "name": "Its words; spoken only when a problem starts and when saved follows one.",
+    "web": "A <p> whose problems and recoveries are announced politely; Retry is a <button>.",
+    "apple": "Static text; problems and recoveries are posted as polite announcements, a problem after 1.5 seconds. Retry is a button.",
+    "windows": "UI Automation ControlType.Text with LiveSetting Polite for problems and recoveries; Retry is a Button."
+  },
+  "cases": [
+    {
+      "id": "offline",
+      "props": {
+        "status": "offline",
+        "onRetry": "retry"
+      },
+      "person": "A crossed-out cloud, \"Offline: changes are kept on this device\" in amber, and an underlined Retry.",
+      "agent": {
+        "role": "text",
+        "name": "Offline: changes are kept on this device",
+        "focusable": false,
+        "children": [
+          {
+            "role": "button",
+            "name": "Retry"
+          }
+        ]
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "SyncStatus (registry/ouro/components/ouro/sync-status)",
+      "deviations": [
+        "Focus moves to the line when Retry goes away while focused."
+      ]
+    },
+    "apple": {
+      "type": "OuroSyncStatus",
+      "deviations": [
+        "The state is OuroSyncState; labels are OuroSyncStatusLabels. VoiceOver keeps its place when Retry goes away, so no focus moves."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroSyncStatus (not yet built)"
+    }
+  }
+}

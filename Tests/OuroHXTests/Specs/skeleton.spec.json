@@ -1,0 +1,96 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "skeleton",
+  "version": "1.0.0",
+  "summary": "The outline of something that is loading, in the place it will arrive.",
+  "role": "label",
+  "properties": [
+    {
+      "name": "shape",
+      "type": "enum",
+      "values": [
+        "rect",
+        "text",
+        "circle",
+        "row",
+        "card"
+      ],
+      "default": "rect",
+      "description": "rect a block, text lines, circle an avatar, row a list row, card a card."
+    },
+    {
+      "name": "lines",
+      "type": "number",
+      "default": 1,
+      "description": "How many lines a text skeleton stands for; the last of several is shorter."
+    },
+    {
+      "name": "count",
+      "type": "number",
+      "default": 1,
+      "description": "How many rows or cards."
+    },
+    {
+      "name": "shimmer",
+      "type": "boolean",
+      "default": true,
+      "description": "Whether it breathes after a second of loading. Never under reduced motion."
+    }
+  ],
+  "slots": [],
+  "events": [],
+  "states": [
+    {
+      "name": "busy",
+      "description": "Still for a second, then breathing; still under reduced motion."
+    }
+  ],
+  "tokens": {
+    "fill": "muted",
+    "page": "background"
+  },
+  "metrics": {
+    "breatheDelaySeconds": 1,
+    "lastLineFraction": 0.6,
+    "placeholderContrast": 1.3
+  },
+  "claims": [
+    "motion.reduced",
+    "name.spoken"
+  ],
+  "accessibility": {
+    "name": "Loading, once for the group.",
+    "web": "A <span> with aria-hidden lines inside a busy region.",
+    "apple": "One element named Loading; its shapes are not read.",
+    "windows": "UI Automation ControlType.Text named Loading, not keyboard focusable."
+  },
+  "cases": [
+    {
+      "id": "three-lines",
+      "props": {
+        "shape": "text",
+        "lines": 3
+      },
+      "person": "Three grey bars, the last shorter.",
+      "agent": {
+        "role": "text",
+        "name": "Loading",
+        "focusable": false
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Skeleton (registry/ouro/components/ouro/skeleton)",
+      "deviations": [
+        "Sized with layout classes; native kits take a frame or a side."
+      ]
+    },
+    "apple": {
+      "type": "OuroSkeleton"
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroSkeleton (not yet built)"
+    }
+  }
+}

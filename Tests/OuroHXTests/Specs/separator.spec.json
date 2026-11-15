@@ -1,0 +1,93 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "separator",
+  "version": "1.0.0",
+  "summary": "A thin line between groups of content, horizontal or vertical, with a word in its middle or not.",
+  "role": "label",
+  "properties": [
+    {
+      "name": "orientation",
+      "type": "enum",
+      "values": [
+        "horizontal",
+        "vertical"
+      ],
+      "default": "horizontal",
+      "description": "horizontal spans its container's width; vertical stands as tall as its row."
+    },
+    {
+      "name": "tone",
+      "type": "enum",
+      "values": [
+        "primary",
+        "destructive",
+        "success",
+        "warning"
+      ],
+      "description": "Colours the line and the label, for an accent line such as where unread messages start."
+    },
+    {
+      "name": "label",
+      "type": "string",
+      "description": "A short word in the middle of a horizontal line, such as \"or\", read as text in its place."
+    }
+  ],
+  "slots": [],
+  "events": [],
+  "states": [
+    {
+      "name": "rest",
+      "description": "The border colour, or the tone's; the label muted, or in the tone."
+    }
+  ],
+  "tokens": {
+    "line": "border",
+    "accent": "{tone}",
+    "label": "muted-foreground"
+  },
+  "metrics": {
+    "lineWidth": 1,
+    "labelGap": 12
+  },
+  "claims": [
+    "contrast.text",
+    "name.spoken"
+  ],
+  "accessibility": {
+    "name": "None for a line; a label is read as text in its place.",
+    "web": "A <div role=\"separator\"> with its orientation, or role=\"none\" when decorative; with a label, the label is text and the lines role=\"none\".",
+    "apple": "Hidden from VoiceOver (Apple has no separator role, as SwiftUI's Divider has none); a label is static text.",
+    "windows": "UI Automation ControlType.Separator, or the label as ControlType.Text with the lines out of the control view."
+  },
+  "cases": [
+    {
+      "id": "or",
+      "props": {
+        "label": "or"
+      },
+      "person": "A line across with \"or\" in a gap at its middle.",
+      "agent": {
+        "role": "text",
+        "name": "or",
+        "focusable": false
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Separator (registry/ouro/components/ouro/separator)",
+      "deviations": [
+        "decorative switches the separator role off; native kits have no separator role to switch."
+      ]
+    },
+    "apple": {
+      "type": "OuroSeparator",
+      "deviations": [
+        "The line is always hidden from VoiceOver, so there is no decorative parameter."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroSeparator (not yet built)"
+    }
+  }
+}

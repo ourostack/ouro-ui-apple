@@ -59,6 +59,66 @@
       "Tests/OuroA2UITests/Conformance/recipe.catalog.json": {
         "from": "standard/hx/a2ui/conformance/recipe.catalog.json",
         "sha256": "8a915cdea3584232d173f1558ebebfde6d251d50849aa0c8498f640f070d0037"
+      },
+      "Tests/OuroHXTests/Specs/avatar.spec.json": {
+        "from": "standard/hx/components/avatar.spec.json",
+        "sha256": "466333297f1c2cb6ab97e18e46466130a18b200a2d8f8e43a0ea62b7fe062449"
+      },
+      "Tests/OuroHXTests/Specs/badge.spec.json": {
+        "from": "standard/hx/components/badge.spec.json",
+        "sha256": "150b1746628e3f89e8417eae30349d19f7d231791a004470d1ff42c7fd82580c"
+      },
+      "Tests/OuroHXTests/Specs/button.spec.json": {
+        "from": "standard/hx/components/button.spec.json",
+        "sha256": "8e7e7d6357268e204f32194462f8f949763be0fd0cf84138458c31ed35565cd9"
+      },
+      "Tests/OuroHXTests/Specs/card.spec.json": {
+        "from": "standard/hx/components/card.spec.json",
+        "sha256": "195f2ebcb4363d3fce015f3496065289732d1e9a2d05522b3123a6f745c186e9"
+      },
+      "Tests/OuroHXTests/Specs/checkbox.spec.json": {
+        "from": "standard/hx/components/checkbox.spec.json",
+        "sha256": "28565ffadfa8cf05e8063c413c786e3d517df276a748c9c26b83fa653028c2e1"
+      },
+      "Tests/OuroHXTests/Specs/description-list.spec.json": {
+        "from": "standard/hx/components/description-list.spec.json",
+        "sha256": "11cac2a8e2f6295f0206a1d23b2cf9ef10e3a252152b1cb1ec6e89e7f5874d69"
+      },
+      "Tests/OuroHXTests/Specs/item.spec.json": {
+        "from": "standard/hx/components/item.spec.json",
+        "sha256": "698c8ef847161729d0a284204777c733da64f083e864014167dcaed1d0a74f4b"
+      },
+      "Tests/OuroHXTests/Specs/page-header.spec.json": {
+        "from": "standard/hx/components/page-header.spec.json",
+        "sha256": "d39b378fe72e50ea44c1cbd49aa2e4bedf214fcbce3941e3e3eaddb0ef398e01"
+      },
+      "Tests/OuroHXTests/Specs/progress.spec.json": {
+        "from": "standard/hx/components/progress.spec.json",
+        "sha256": "7c17b85fa32650f8c8e3aa455fbb948fe6508fe6fd76955570df39fb718f5211"
+      },
+      "Tests/OuroHXTests/Specs/segmented-control.spec.json": {
+        "from": "standard/hx/components/segmented-control.spec.json",
+        "sha256": "12cbeec9c70056b1f8086ab792781ea0b70cf9959eed8e46e0270816a78488e8"
+      },
+      "Tests/OuroHXTests/Specs/separator.spec.json": {
+        "from": "standard/hx/components/separator.spec.json",
+        "sha256": "84062fb0ea4cce3afa952df1730b3548f37271c34f9bcca9653aacceab9ef9c6"
+      },
+      "Tests/OuroHXTests/Specs/skeleton.spec.json": {
+        "from": "standard/hx/components/skeleton.spec.json",
+        "sha256": "8cb91db633819d2fa8f9909f4ca27c82c9d2714cce51b251b9eadcf27eed5d5f"
+      },
+      "Tests/OuroHXTests/Specs/spinner.spec.json": {
+        "from": "standard/hx/components/spinner.spec.json",
+        "sha256": "23e4e33382b82add0e7f67ce79517373b139bab934617b715e617fd86919c67a"
+      },
+      "Tests/OuroHXTests/Specs/sync-status.spec.json": {
+        "from": "standard/hx/components/sync-status.spec.json",
+        "sha256": "02d8a83e542c544224e7a869acfe72ceb8934213dafb74e4f78344a463d1dd36"
+      },
+      "Tests/OuroHXTests/Specs/text-field.spec.json": {
+        "from": "standard/hx/components/text-field.spec.json",
+        "sha256": "afb911bd7e1cefcd2acadc19eed9378b972da12987b90a627c04113e4fbe991f"
       }
     }
   }

@@ -1,0 +1,163 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "item",
+  "version": "1.0.0",
+  "summary": "A row in a list: a title, a description, leading media and trailing actions; pressable when it opens something.",
+  "role": "group",
+  "properties": [
+    {
+      "name": "title",
+      "type": "string",
+      "required": true,
+      "description": "What the row is, such as a recipe's name."
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "A short line under the title."
+    },
+    {
+      "name": "variant",
+      "type": "enum",
+      "values": [
+        "plain",
+        "outline"
+      ],
+      "default": "plain",
+      "description": "plain has no frame, for rows in a group; outline is a bordered box for a row on its own."
+    },
+    {
+      "name": "size",
+      "type": "enum",
+      "values": [
+        "md",
+        "sm"
+      ],
+      "default": "md",
+      "description": "Space above and below the words: md 12, sm 8."
+    },
+    {
+      "name": "mediaSize",
+      "type": "enum",
+      "values": [
+        "icon",
+        "sm",
+        "md",
+        "lg"
+      ],
+      "default": "sm",
+      "description": "icon is a 40-point muted tile with a symbol, hidden from assistive technology; sm, md and lg are 40, 64 and 112-point pictures."
+    }
+  ],
+  "slots": [
+    {
+      "name": "media",
+      "description": "An icon or a picture before the words."
+    },
+    {
+      "name": "actions",
+      "description": "Controls after the words, such as a badge or a button. They go under the words at the largest text sizes."
+    }
+  ],
+  "events": [
+    {
+      "name": "press",
+      "description": "The row was pressed. A row with a press handler is one button named by its title, at least 44 points tall."
+    }
+  ],
+  "states": [
+    {
+      "name": "rest",
+      "description": "The variant's frame."
+    },
+    {
+      "name": "hover",
+      "description": "A pressable row under a pointer: a muted fill."
+    },
+    {
+      "name": "pressed",
+      "description": "A pressable row held down: the muted fill a step stronger."
+    },
+    {
+      "name": "focused",
+      "description": "A pressable row with keyboard focus: the platform's focus ring."
+    }
+  ],
+  "tokens": {
+    "title": "foreground",
+    "description": "muted-foreground",
+    "iconTile": "muted",
+    "icon": "muted-foreground",
+    "edge": "border",
+    "hover": "accent"
+  },
+  "metrics": {
+    "pressableMinHeight": 44,
+    "paddingMd": 12,
+    "paddingSm": 8,
+    "gap": 16,
+    "iconTile": 40,
+    "mediaSm": 40,
+    "mediaMd": 64,
+    "mediaLg": 112,
+    "outlineInset": 16
+  },
+  "claims": [
+    "name.spoken",
+    "text.reflows",
+    "contrast.text"
+  ],
+  "accessibility": {
+    "name": "Its title; a pressable row is described by its description too.",
+    "keyboard": "A pressable row is one tab stop; Enter and Space press it. Its actions are their own tab stops.",
+    "web": "A <div> (or li, article); with href the title's link stretches over the row.",
+    "apple": "With onPress, one button named by its title and description; its actions stay their own controls.",
+    "windows": "Pressable: UI Automation ControlType.Button with the Invoke pattern, named by its title, help text its description. Otherwise ControlType.Group named by its title. Actions keep their own controls."
+  },
+  "cases": [
+    {
+      "id": "pressable-with-badge",
+      "props": {
+        "title": "Braised short ribs",
+        "description": "3 hours, serves six",
+        "mediaSize": "icon"
+      },
+      "slots": {
+        "actions": "New"
+      },
+      "person": "A row with a flame tile, the title and description, and a New badge at the end.",
+      "agent": {
+        "role": "button",
+        "name": "Braised short ribs",
+        "focusable": true
+      }
+    },
+    {
+      "id": "static-row",
+      "props": {
+        "title": "Lemon orzo",
+        "description": "25 minutes"
+      },
+      "person": "A plain row with the title and description.",
+      "agent": {
+        "role": "group",
+        "name": "Lemon orzo",
+        "focusable": false
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Item (registry/ouro/components/ouro/item)",
+      "deviations": [
+        "With href the whole row is one link; native rows take a press handler instead."
+      ]
+    },
+    "apple": {
+      "type": "OuroItem, in an OuroItemGroup"
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroItem, a templated WinUI Control"
+    }
+  }
+}

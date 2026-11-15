@@ -1,0 +1,142 @@
+{
+  "$schema": "./component.schema.json",
+  "name": "progress",
+  "version": "1.0.0",
+  "summary": "How far along some work is, with its name above.",
+  "role": "label",
+  "properties": [
+    {
+      "name": "label",
+      "type": "string",
+      "required": true,
+      "description": "What is in progress; the bar's spoken name."
+    },
+    {
+      "name": "value",
+      "type": "number",
+      "description": "How far along, from min to max. Absent while unknown: the bar is indeterminate."
+    },
+    {
+      "name": "min",
+      "type": "number",
+      "default": 0,
+      "description": "The value at the start."
+    },
+    {
+      "name": "max",
+      "type": "number",
+      "default": 100,
+      "description": "The value when the work is done."
+    },
+    {
+      "name": "tone",
+      "type": "enum",
+      "values": [
+        "primary",
+        "secondary",
+        "destructive",
+        "success",
+        "warning"
+      ],
+      "default": "primary",
+      "description": "The filled part's colour role."
+    },
+    {
+      "name": "hideLabel",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the label's words; the bar keeps it as its name."
+    },
+    {
+      "name": "showValue",
+      "type": "boolean",
+      "default": false,
+      "description": "Writes the value beside the label."
+    },
+    {
+      "name": "indeterminateText",
+      "type": "string",
+      "default": "Loading",
+      "description": "What is spoken while the value is unknown."
+    }
+  ],
+  "slots": [],
+  "events": [],
+  "states": [
+    {
+      "name": "rest",
+      "description": "Filled to its value."
+    },
+    {
+      "name": "busy",
+      "description": "Value unknown: a sliding segment, or a pulse under reduced motion."
+    }
+  ],
+  "tokens": {
+    "fill": "{tone}",
+    "track": "muted",
+    "label": "foreground",
+    "value": "muted-foreground"
+  },
+  "metrics": {
+    "barHeight": 8,
+    "fillContrast": 3
+  },
+  "claims": [
+    "contrast.text",
+    "name.spoken",
+    "text.reflows"
+  ],
+  "accessibility": {
+    "name": "Its label; its value is a whole percentage, or the indeterminate text.",
+    "web": "A <div role=\"progressbar\"> with aria-valuenow, aria-valuemin and aria-valuemax, named by its label.",
+    "apple": "One element named by its label, its value a percentage, updating frequently.",
+    "windows": "UI Automation ControlType.ProgressBar with the RangeValue pattern, named by its label."
+  },
+  "cases": [
+    {
+      "id": "known",
+      "props": {
+        "label": "Uploading photos",
+        "value": 3,
+        "max": 8,
+        "showValue": true
+      },
+      "person": "Uploading photos with 38% at its end, over a bar a little over a third full.",
+      "agent": {
+        "role": "progressbar",
+        "name": "Uploading photos",
+        "focusable": false
+      }
+    },
+    {
+      "id": "unknown",
+      "props": {
+        "label": "Preparing your cookbook"
+      },
+      "person": "A bar with a segment sliding along it.",
+      "agent": {
+        "role": "progressbar",
+        "name": "Preparing your cookbook",
+        "focusable": false
+      }
+    }
+  ],
+  "platforms": {
+    "web": {
+      "type": "Progress (registry/ouro/components/ouro/progress)",
+      "deviations": [
+        "value is null while unknown; format writes the value in units."
+      ]
+    },
+    "apple": {
+      "type": "OuroProgress",
+      "deviations": [
+        "value is nil while unknown; no format yet, so the value is always a percentage."
+      ]
+    },
+    "windows": {
+      "type": "Ouro.UI.Windows.OuroProgress (not yet built)"
+    }
+  }
+}

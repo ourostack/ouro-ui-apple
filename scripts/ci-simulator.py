@@ -14,8 +14,10 @@ returns at once, so `xcodebuild build-for-testing` runs while the simulator boot
 limit (spoonjoy-apple#218: create hung 6 min; bootstatus exited 134 and 142) is the machine, not the app: it deletes
 that device, creates a fresh one, boots it with the same limit and writes the new UDID, as a warning titled
 "Infrastructure retry". A second failure fails the step. `simctl create` has its own 90 s limit and cleanup calls 30 s,
-for the same reason. `simctl list runtimes` gets 3 tries of 30 s with CoreSimulator restarted (20 s limit) between them (#74).
-Worst case for `wait <name> 240`: boot 240 + cleanup 60 + list 130 + create 270 + boot 240 = 940 s, inside a
+for the same reason. `simctl list runtimes` gets 2 tries of 20 s with CoreSimulator restarted (20 s limit) between them, so
+a runner whose simulator service is broken is known within about a minute; the workflow then requeues the shard on a
+fresh runner (scripts/ci-broken-runner.sh, #74). A third try on the same runner never recovered one.
+Worst case for `wait <name> 240`: boot 240 + cleanup 60 + list 60 + create 270 + boot 240 = 870 s, inside a
 16-minute step limit.
 """
 import json
@@ -41,8 +43,8 @@ def devices(family=None):
         raise SystemExit(f"ci-simulator: OURO_SIM_FAMILY={family!r}. Fix: iPhone, iPad or Duo.")
     return FAMILIES[family]
 CREATE_LIMIT = 90
-LIST_LIMIT = 30  # it answers in seconds when CoreSimulator is healthy
-LIST_TRIES = 3
+LIST_LIMIT = 20  # it answers in seconds when CoreSimulator is healthy
+LIST_TRIES = 2
 KICK_LIMIT = 20
 
 
@@ -232,7 +234,7 @@ def selftest():
         if len(calls) < 3:
             raise subprocess.TimeoutExpired(args, timeout)
         return ok
-    assert list_runtimes(flaky, lambda: kicks.append(1)) == runtimes and len(calls) == 3 and len(kicks) == 2, \
+    assert list_runtimes(flaky, lambda: kicks.append(1), tries=3) == runtimes and len(calls) == 3 and len(kicks) == 2, \
         "two hangs, two restarts, then the list"
 
     def hung(*args, timeout):
@@ -240,15 +242,15 @@ def selftest():
     kicks.clear()
     try:
         list_runtimes(hung, lambda: kicks.append(1))
-        raise AssertionError("three hangs must fail")
+        raise AssertionError("two hangs must fail")
     except SystemExit as e:
-        assert "could not start" in str(e) and len(kicks) == 2, "no restart after the last try"
+        assert "could not start" in str(e) and len(kicks) == 1, "no restart after the last try"
     answers = iter([subprocess.CompletedProcess([], 0, "", ""), subprocess.CompletedProcess([], 1, "", "boom"), ok])
-    assert list_runtimes(lambda *a, timeout: next(answers), lambda: None) == runtimes, \
+    assert list_runtimes(lambda *a, timeout: next(answers), lambda: None, tries=3) == runtimes, \
         "empty output and a failed exit are retried too"
     try:
         list_runtimes(lambda *a, timeout: subprocess.CompletedProcess([], 1, "", "service gone"), lambda: None)
-        raise AssertionError("three failures must fail")
+        raise AssertionError("two failures must fail")
     except SystemExit as e:
         assert "service gone" in str(e), "the error carries simctl's own words"
     print("ci-simulator: selftest passed")

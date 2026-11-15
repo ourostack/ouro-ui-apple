@@ -8,6 +8,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      break_shard:
+        description: "Treat these shards' runners as broken, to prove the requeue (#74), space-separated: gallery-<shard>-<iPhone|iPad>, feel-<shard>"
+        required: false
+        default: ""
 
 # Where each check runs. Free hosted runners (ubuntu-latest, macos-26) run everything their Xcode 26 can: on every pull
 # request and push. The billed xcode-27 runner (capped at $15 a month for this repository; usage stops at the cap) runs
@@ -391,20 +396,31 @@ jobs:
         device: ${{ fromJSON(github.event_name == 'pull_request' && '["iPhone"]' || '["iPhone", "iPad"]') }}
     env:
       OURO_SIM_FAMILY: ${{ matrix.device }}
-    steps:
+    # A runner whose simulator service is broken (#74) is known within about a minute: the shard marks it
+    # (scripts/ci-broken-runner.sh), skips its other steps and ends, and gallery-requeue runs it on a fresh runner.
+    steps: &gallery-shard-steps
       - uses: actions/checkout@v4
       - name: A simulator for this shard, booting while the build downloads
+        env:
+          BREAK: ${{ inputs.break_shard }}
+          SHARD: ${{ matrix.shard }}
         run: |
           set -eu
           python3 -I scripts/ci-simulator.py --selftest
-          python3 -I scripts/ci-simulator.py start ouro-hx-ui
+          if [ "${OURO_REQUEUED:-0}" != 1 ] && echo " $BREAK " | grep -q " gallery-$SHARD-$OURO_SIM_FAMILY "; then
+            sh scripts/ci-broken-runner.sh "A manual run asked to treat this runner as broken"
+          else
+            python3 -I scripts/ci-simulator.py start ouro-hx-ui || sh scripts/ci-broken-runner.sh "The simulator could not be created"
+          fi
       - id: key
+        if: env.OURO_BROKEN_RUNNER != '1'
         name: The build this shard tests, by commit and Xcode
         run: |
           set -eu
           xcode="$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//; s/^Xcode-//; s/-Build-version-/-/')"
           echo "prefix=gallery-tests-$GITHUB_SHA-xcode-$xcode-attempt-" >> "$GITHUB_OUTPUT"
       - id: artifact
+        if: env.OURO_BROKEN_RUNNER != '1'
         name: The build is ready
         # Finds this attempt's build, or the earlier attempt's after "re-run failed jobs".
         timeout-minutes: 30
@@ -412,10 +428,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: sh scripts/ci-wait-for-build.sh "${{ steps.key.outputs.prefix }}" "Gallery build for testing"
       - uses: actions/download-artifact@v4
+        if: env.OURO_BROKEN_RUNNER != '1'
         with:
           name: ${{ steps.artifact.outputs.name }}
           path: .build
       - name: Unpack the build
+        if: env.OURO_BROKEN_RUNNER != '1'
         env:
           SHARD: ${{ matrix.shard }}
           GH_TOKEN: ${{ github.token }}
@@ -430,9 +448,11 @@ jobs:
       # Booted and settled before the tests start, as the X-ray probe does: a cold boot under the first test was where
       # the runner lost testmanagerd (main, run 42166414006). A boot that hangs or aborts gets one fresh device.
       - name: The simulator finished booting
+        if: env.OURO_BROKEN_RUNNER != '1'
         timeout-minutes: 16
-        run: python3 -I scripts/ci-simulator.py wait ouro-hx-ui 240
+        run: python3 -I scripts/ci-simulator.py wait ouro-hx-ui 240 || sh scripts/ci-broken-runner.sh "The simulator did not boot, on two devices"
       - name: Gallery UI tests, shard ${{ matrix.shard }}
+        if: env.OURO_BROKEN_RUNNER != '1'
         env:
           SHARD: ${{ matrix.shard }}
         run: |
@@ -456,6 +476,13 @@ jobs:
           name="gallery-ui-$SHARD-$OURO_SIM_FAMILY"
           status=0; gallery "$name" || status=$?
           grep -E "error|failed|passed|Executed|TEST" ".build/$name.log" | tail -80
+          # A simulator service that went away mid-run doesn't come back on this runner (#74): requeue the shard on a
+          # fresh one rather than rebooting here.
+          if [ "$status" -ne 0 ] && cause="$(infra "$name")" && echo "$cause" | grep -qE "wrote nothing|active applications|Unable to find a device"; then
+            if [ -e ".build/$name.xcresult" ]; then mv ".build/$name.xcresult" ".build/$name-attempt-1.xcresult"; fi
+            mv ".build/$name.log" ".build/$name-attempt-1.log"
+            sh scripts/ci-broken-runner.sh "Gallery UI shard $SHARD: \"$cause\""; exit $?
+          fi
           if [ "$status" -ne 0 ] && cause="$(infra "$name")"; then
             echo "::warning title=Infrastructure retry::Gallery UI shard $SHARD: \"$cause\". Rebooting the simulator and running it once more; the first attempt's log, and its result bundle where one was written, are kept as $name-attempt-1."
             # A runner that never bootstrapped may have left no bundle; one that did must move it, or xcodebuild
@@ -467,6 +494,12 @@ jobs:
             xcrun simctl bootstatus "$UDID" -b >/dev/null
             status=0; gallery "$name" || status=$?
             grep -E "error|failed|passed|Executed|TEST" ".build/$name.log" | tail -80
+            # The machine again, after the reboot: a fresh runner, not a third run here.
+            if [ "$status" -ne 0 ] && cause="$(infra "$name")"; then
+              mv ".build/$name.log" ".build/$name-attempt-2.log"
+              if [ -e ".build/$name.xcresult" ]; then mv ".build/$name.xcresult" ".build/$name-attempt-2.xcresult"; fi
+              sh scripts/ci-broken-runner.sh "Gallery UI shard $SHARD, after a reboot: \"$cause\""; exit $?
+            fi
           fi
           if [ "$status" -eq 0 ]; then
             # A shard that ran nothing, or an audit that ran no page, would pass on nothing: what ran must be the plan.
@@ -486,18 +519,62 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gallery-ui-xcresult-${{ matrix.shard }}-${{ matrix.device }}
+          name: gallery-ui-xcresult-${{ matrix.shard }}-${{ matrix.device }}${{ env.OURO_REQUEUED == '1' && '-requeued' || '' }}
           path: .build/gallery-ui-${{ matrix.shard }}-${{ matrix.device }}.tgz
           if-no-files-found: ignore
       - if: always() && steps.upload4.outcome == 'failure'
         run: echo "::warning::The gallery-ui-xcresult-${{ matrix.shard }}-${{ matrix.device }} artifact did not upload (see the step's log); the job's result stands without it."
+
+  gallery-requeue-plan:
+    name: Gallery shards a broken runner stopped (#74)
+    # Lists the gallery shards that marked their runner broken (scripts/ci-broken-runner.sh), from their annotations.
+    needs: [paths, gallery-shard]
+    if: always() && needs.paths.outputs.gallery == 'true' && needs.gallery-shard.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 -I scripts/ci-requeue-plan.py --selftest
+          python3 -I scripts/ci-requeue-plan.py gallery "${{ github.run_id }}"
+
+  gallery-requeue:
+    name: Gallery UI shard ${{ matrix.shard }} of 4 on ${{ matrix.device }}, requeued on a fresh runner (free macos-26, Xcode 26)
+    # The same steps as gallery-shard, on a fresh runner, for each shard a broken runner stopped (#74). A second broken
+    # runner fails here, and ci-rerun-broken-runner.py reruns it once the run ends.
+    needs: [paths, gallery-build, gallery-requeue-plan]
+    if: always() && needs.gallery-requeue-plan.result == 'success' && needs.gallery-requeue-plan.outputs.shards != '[]'
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.gallery-requeue-plan.outputs.shards) }}
+    env:
+      OURO_SIM_FAMILY: ${{ matrix.device }}
+      OURO_REQUEUED: "1"
+    steps: *gallery-shard-steps
 
   gallery-ui:
     name: Gallery UI tests, the component claims (free macos-26, Xcode 26)
     # The required check. It passes only when the build and every shard passed, or when the change does not touch the
     # gallery. It runs even when they fail or the run is cancelled (`always()`), so a red or cancelled shard can never
     # leave this check skipped, which GitHub counts as a pass.
-    needs: [paths, gallery-build, gallery-shard]
+    # A shard a broken runner stopped counts only through its requeue on a fresh runner (#74).
+    needs: [paths, gallery-build, gallery-shard, gallery-requeue-plan, gallery-requeue]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -508,13 +585,19 @@ jobs:
           GALLERY: ${{ needs.paths.outputs.gallery }}
           BUILD: ${{ needs.gallery-build.result }}
           SHARDS: ${{ needs.gallery-shard.result }}
+          PLAN: ${{ needs.gallery-requeue-plan.result }}
+          REQUEUED: ${{ needs.gallery-requeue-plan.outputs.shards }}
+          REQUEUE: ${{ needs.gallery-requeue.result }}
         run: |
           set -eu
-          echo "paths=$PATHS gallery=$GALLERY build=$BUILD shards=$SHARDS"
+          echo "paths=$PATHS gallery=$GALLERY build=$BUILD shards=$SHARDS plan=$PLAN requeued=$REQUEUED requeue=$REQUEUE"
           if [ "$PATHS" != success ]; then echo "::error::The paths job ended $PATHS"; exit 1; fi
           if [ "$GALLERY" = false ]; then echo "This change doesn't touch what the gallery links."; exit 0; fi
-          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and every shard passed, on each device."; exit 0; fi
-          echo "::error::Build $BUILD, shards $SHARDS"; exit 1
+          if [ "$BUILD" != success ] || [ "$SHARDS" != success ]; then echo "::error::Build $BUILD, shards $SHARDS"; exit 1; fi
+          if [ "$PLAN" != success ]; then echo "::error::Could not tell which shards a broken runner stopped (plan $PLAN)"; exit 1; fi
+          if [ "$REQUEUED" = "[]" ]; then echo "The build and every shard passed, on each device."; exit 0; fi
+          if [ "$REQUEUE" = success ]; then echo "Every shard passed, on each device; $REQUEUED passed on fresh runners after a broken one (#74)."; exit 0; fi
+          echo "::error::$REQUEUED were requeued after a broken runner, and the requeue ended $REQUEUE"; exit 1
 
   gallery-duo:
     name: Gallery on an iPhone Duo, folded (xcode-27, Xcode 27.1)
@@ -523,7 +606,8 @@ jobs:
     # xcode-27 has the iPhone Duo (iOS 27.1 runtimes) and the hinge APIs (Xcode 27.1's SDK). It is billed, so it runs
     # on main, releases and a manual dispatch only, never on a pull request, which keeps it inside the runner's monthly
     # cap. As Gatefold's Duo tour, it drives Device Hub's window on the runner.
-    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    # A dispatch that only proves the requeue (`break_shard`, #74) skips it.
+    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.break_shard == '')
     runs-on: xcode-27
     timeout-minutes: 45
     env:
@@ -781,29 +865,41 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3]
-    steps:
+    # A broken simulator service (#74) requeues the shard on a fresh runner, as the gallery's shards do.
+    steps: &feel-shard-steps
       - uses: actions/checkout@v4
       - name: A fresh simulator for this shard, booting while the build downloads
+        env:
+          BREAK: ${{ inputs.break_shard }}
+          SHARD: ${{ matrix.shard }}
         run: |
           set -eu
-          python3 -I scripts/ci-simulator.py start ouro-feel-ci
+          if [ "${OURO_REQUEUED:-0}" != 1 ] && echo " $BREAK " | grep -q " feel-$SHARD "; then
+            sh scripts/ci-broken-runner.sh "A manual run asked to treat this runner as broken"
+          else
+            python3 -I scripts/ci-simulator.py start ouro-feel-ci || sh scripts/ci-broken-runner.sh "The simulator could not be created"
+          fi
       - id: key
+        if: env.OURO_BROKEN_RUNNER != '1'
         name: The build this shard tests, by commit and Xcode
         run: |
           set -eu
           xcode="$(xcodebuild -version | tr -s ' \n' '-' | sed 's/-$//; s/^Xcode-//; s/-Build-version-/-/')"
           echo "prefix=feel-tests-$GITHUB_SHA-xcode-$xcode-attempt-" >> "$GITHUB_OUTPUT"
       - id: artifact
+        if: env.OURO_BROKEN_RUNNER != '1'
         name: The build is ready
         timeout-minutes: 30
         env:
           GH_TOKEN: ${{ github.token }}
         run: sh scripts/ci-wait-for-build.sh "${{ steps.key.outputs.prefix }}" "Ouro Feel fixture build for testing"
       - uses: actions/download-artifact@v4
+        if: env.OURO_BROKEN_RUNNER != '1'
         with:
           name: ${{ steps.artifact.outputs.name }}
           path: .build
       - name: Unpack the build
+        if: env.OURO_BROKEN_RUNNER != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -818,9 +914,11 @@ jobs:
       # Booted and settled before the tests: left to xcodebuild, the first test's setUp can reach a simulator whose
       # accessibility is not up yet ("Failed to get list of active applications", kAXError -25218).
       - name: The simulator finished booting
+        if: env.OURO_BROKEN_RUNNER != '1'
         timeout-minutes: 16
-        run: python3 -I scripts/ci-simulator.py wait ouro-feel-ci 240
+        run: python3 -I scripts/ci-simulator.py wait ouro-feel-ci 240 || sh scripts/ci-broken-runner.sh "The simulator did not boot, on two devices"
       - name: Fixture UI tests, shard ${{ matrix.shard }} (a fresh simulator; only its first test starts cold, so reports say "not labelled")
+        if: env.OURO_BROKEN_RUNNER != '1'
         env:
           SHARD: ${{ matrix.shard }}
         run: |
@@ -837,6 +935,12 @@ jobs:
             return "${PIPESTATUS[0]}"
           }
           status=0; fixture || status=$?
+          # A simulator service that went away mid-run doesn't come back on this runner (#74): a fresh runner.
+          if [ "$status" -ne 0 ] && cause="$(sh scripts/ci-ui-infra.sh .build/feel-fixture.log .build/feel-fixture.xcresult)" && echo "$cause" | grep -qE "wrote nothing|active applications|Unable to find a device"; then
+            if [ -e .build/feel-fixture.xcresult ]; then mv .build/feel-fixture.xcresult .build/feel-fixture-attempt-1.xcresult; fi
+            mv .build/feel-fixture.log .build/feel-fixture-attempt-1.log
+            sh scripts/ci-broken-runner.sh "Ouro Feel shard $SHARD: \"$cause\""; exit $?
+          fi
           # The machine, not the app (scripts/ci-ui-infra.sh, #84): one more run on a rebooted simulator, as the
           # gallery's shards get. The retry reruns the whole shard, so a real failure still fails.
           if [ "$status" -ne 0 ] && cause="$(sh scripts/ci-ui-infra.sh .build/feel-fixture.log .build/feel-fixture.xcresult)"; then
@@ -849,6 +953,12 @@ jobs:
             xcrun simctl boot "$UDID"
             xcrun simctl bootstatus "$UDID" -b >/dev/null
             status=0; fixture || status=$?
+            # The machine again, after the reboot: a fresh runner, not a third run here.
+            if [ "$status" -ne 0 ] && cause="$(sh scripts/ci-ui-infra.sh .build/feel-fixture.log .build/feel-fixture.xcresult)"; then
+              mv .build/feel-fixture.log .build/feel-fixture-attempt-2.log
+              if [ -e .build/feel-fixture.xcresult ]; then mv .build/feel-fixture.xcresult .build/feel-fixture-attempt-2.xcresult; fi
+              sh scripts/ci-broken-runner.sh "Ouro Feel shard $SHARD, after a reboot: \"$cause\""; exit $?
+            fi
           fi
           # A shard that ran nothing would pass on nothing: what ran must be the plan.
           if [ "$status" -eq 0 ]; then python3 -I scripts/ui-shards.py feel ran "$SHARD" .build/feel-fixture.xcresult || status=1; fi
@@ -867,18 +977,57 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ouro-feel-fixture-reports-${{ matrix.shard }}
+          name: ouro-feel-fixture-reports-${{ matrix.shard }}${{ env.OURO_REQUEUED == '1' && '-requeued' || '' }}
           path: .build/feel-reports
           if-no-files-found: ignore
       - if: always() && steps.upload6.outcome == 'failure'
         run: echo "::warning::The ouro-feel-fixture-reports-${{ matrix.shard }} artifact did not upload (see the step's log); the job's result stands without it."
+
+  feel-requeue-plan:
+    name: Ouro Feel shards a broken runner stopped (#74)
+    needs: [paths, feel-shard]
+    if: always() && needs.paths.outputs.feel == 'true' && needs.feel-shard.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 -I scripts/ci-requeue-plan.py feel "${{ github.run_id }}"
+
+  feel-requeue:
+    name: Ouro Feel shard ${{ matrix.shard }} of 3, requeued on a fresh runner (free macos-26, Xcode 26)
+    # The same steps as feel-shard, on a fresh runner, for each shard a broken runner stopped (#74).
+    needs: [paths, feel-build, feel-requeue-plan]
+    if: always() && needs.feel-requeue-plan.result == 'success' && needs.feel-requeue-plan.outputs.shards != '[]'
+    runs-on: macos-26
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.feel-requeue-plan.outputs.shards) }}
+    env:
+      OURO_REQUEUED: "1"
+    steps: *feel-shard-steps
 
   feel-fixture:
     name: Ouro Feel catches every genre's bug (free macos-26, Xcode 26)
     # The required check. It passes only when the build and every shard passed, or when the change does not touch Ouro
     # Feel or its fixture. It runs even when they fail or the run is cancelled (`always()`), so a red or cancelled
     # shard can never leave this check skipped, which GitHub counts as a pass.
-    needs: [paths, feel-build, feel-shard]
+    # A shard a broken runner stopped counts only through its requeue on a fresh runner (#74).
+    needs: [paths, feel-build, feel-shard, feel-requeue-plan, feel-requeue]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -889,10 +1038,16 @@ jobs:
           FEEL: ${{ needs.paths.outputs.feel }}
           BUILD: ${{ needs.feel-build.result }}
           SHARDS: ${{ needs.feel-shard.result }}
+          PLAN: ${{ needs.feel-requeue-plan.result }}
+          REQUEUED: ${{ needs.feel-requeue-plan.outputs.shards }}
+          REQUEUE: ${{ needs.feel-requeue.result }}
         run: |
           set -eu
-          echo "paths=$PATHS feel=$FEEL build=$BUILD shards=$SHARDS"
+          echo "paths=$PATHS feel=$FEEL build=$BUILD shards=$SHARDS plan=$PLAN requeued=$REQUEUED requeue=$REQUEUE"
           if [ "$PATHS" != success ]; then echo "::error::The paths job ended $PATHS"; exit 1; fi
           if [ "$FEEL" = false ]; then echo "This change doesn't touch Ouro Feel or its fixture."; exit 0; fi
-          if [ "$BUILD" = success ] && [ "$SHARDS" = success ]; then echo "The build and all three shards passed."; exit 0; fi
-          echo "::error::Build $BUILD, shards $SHARDS"; exit 1
+          if [ "$BUILD" != success ] || [ "$SHARDS" != success ]; then echo "::error::Build $BUILD, shards $SHARDS"; exit 1; fi
+          if [ "$PLAN" != success ]; then echo "::error::Could not tell which shards a broken runner stopped (plan $PLAN)"; exit 1; fi
+          if [ "$REQUEUED" = "[]" ]; then echo "The build and all three shards passed."; exit 0; fi
+          if [ "$REQUEUE" = success ]; then echo "Every shard passed; $REQUEUED passed on fresh runners after a broken one (#74)."; exit 0; fi
+          echo "::error::$REQUEUED were requeued after a broken runner, and the requeue ended $REQUEUE"; exit 1

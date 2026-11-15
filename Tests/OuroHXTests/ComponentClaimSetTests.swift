@@ -1,7 +1,7 @@
 import OuroHXTesting
 import Testing
 
-/// The HX component claims vendored from ouro-ui-core v0.3.0 (`components.claims.json`, pinned in
+/// The HX component claims vendored from ouro-ui-core v0.13.1 (`components.claims.json`, pinned in
 /// core-provenance.json) load, with the eight claims core's page lists.
 @Suite struct ComponentClaimSetTests {
     @Test func theVendoredSetLoads() throws {

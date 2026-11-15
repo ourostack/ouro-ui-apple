@@ -350,8 +350,8 @@ final class FeelCatchesTests: XCTestCase {
                 return (FeelResult.judged(check: FeelGenre.jumpAfterLanding.rawValue, passing: "", failing: { _ in "" },
                                           findings: [.couldNotCheck("no screenshot of the cover")]), nil)
             }
-            // At least 4 s: the bug's jump comes 1.8 s after Open, and a loaded runner can take the tap late.
-            let film = feel.screenFilm(atLeast: 4) { open.tap() }
+            // At least 7 s: the bug's jump comes 4 s after Open, and a loaded runner can take the tap late.
+            let film = feel.screenFilm(atLeast: 7) { open.tap() }
             XCTAssertEqual(film.byReads, true)
             XCTAssertTrue(film.timedBy?.contains("reads") ?? false, film.timedBy ?? "no timedBy")
             let result = film.revealHolds(cover: cover)

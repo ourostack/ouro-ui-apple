@@ -726,9 +726,10 @@ struct RevealPage: View {
 }
 
 /// The first page shown after an open, for an app with no clock of its own (#94): the same open as ``RevealPage``, run on
-/// wall time as UIKit and reader engines do, filmed by XCUITest's reads. Fixed: the cover holds 1.2 s, then his page
-/// shows. The bug: the cover goes after 0.3 s onto another page, which 1.5 s later jumps to his. Each state lasts long
-/// enough for several reads on a loaded runner.
+/// wall time as UIKit and reader engines do, filmed by XCUITest's reads. Fixed: the cover holds 1.5 s, then his page
+/// shows. The bug: the cover goes after 1.5 s onto another page, which 2.5 s later jumps to his. Each state lasts long
+/// enough for several reads on a loaded runner, where one read can take half a second (#169's first run saw a 0.3 s
+/// cover never rest).
 struct RevealByReadsPage: View {
     @State private var shown: Int?
     @State private var opened = false
@@ -746,10 +747,10 @@ struct RevealByReadsPage: View {
                 opened = true
                 Task { @MainActor in
                     if bug {
-                        try? await Task.sleep(for: .seconds(0.3)); shown = 1
-                        try? await Task.sleep(for: .seconds(1.5)); shown = 2
+                        try? await Task.sleep(for: .seconds(1.5)); shown = 1
+                        try? await Task.sleep(for: .seconds(2.5)); shown = 2
                     } else {
-                        try? await Task.sleep(for: .seconds(1.2)); shown = 2
+                        try? await Task.sleep(for: .seconds(1.5)); shown = 2
                     }
                 }
             }.accessibilityIdentifier("revealreads.open")

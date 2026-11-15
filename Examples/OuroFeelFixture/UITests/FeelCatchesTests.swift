@@ -10,7 +10,9 @@ final class FeelCatchesTests: XCTestCase {
         super.setUp()
         continueAfterFailure = true
         #if os(iOS)
-        XCUIDevice.shared.orientation = .portrait
+        // Only when it isn't already: on a freshly booted CI simulator, setting the portrait it was already in timed out
+        // "waiting for confirmation of orientation change" and failed the shard's first test (#188).
+        if XCUIDevice.shared.orientation != .portrait { XCUIDevice.shared.orientation = .portrait }
         #endif
     }
 
@@ -322,8 +324,21 @@ final class FeelCatchesTests: XCTestCase {
         both(screens: "screen-flicker") { app, feel in
             let play = app.buttons["screenflicker.play"]
             _ = play.waitForExistence(timeout: 10)
-            let film = feel.screenFilm(steps: 14, tick: 0.1, clock: "screenflicker.clock",
-                                       advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+            func filmed() -> FeelScreenFilm {
+                feel.screenFilm(steps: 14, tick: 0.1, clock: "screenflicker.clock",
+                                advance: FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")) { play.tap() }
+            }
+            var film = filmed()
+            // Both builds turn the page three ticks after Play, so a film that rests in one state only is a Play that
+            // didn't take (CI, #185's run 43735965549: the bug build "never came back to a state it left"), never a page that held.
+            // It is filmed once more from a fresh launch; a second still film is judged as it is.
+            if film.stalledAt == nil, film.states().count < 2 {
+                print("[ouro-feel] the screen film never left its first state, so Play didn't take; filming it once more (#188)")
+                app.terminate()
+                app.launch()
+                _ = play.waitForExistence(timeout: 10)
+                film = filmed()
+            }
             XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
             let result = film.flickers()
             if isBugBuild(app) {

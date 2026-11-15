@@ -25,6 +25,19 @@ check "an app launch the simulator timed out, and an app it never handed back" r
   "<unknown>:0: error: -[FeelCatchesTests testLateOrLingeringChrome] : Failed to get background assertion for target app with pid 0: No failure details provided"
 check "a launch timeout next to a real assertion" fail \
   "<unknown>:0: error: -[G testA] : Failed to launch <X> via Xcode: Timed out while launching application via Xcode." "$E"
+check "xcodebuild hung and the watch stopped it (#164)" retry \
+  "<unknown>:0: error: -[G testA] : Failed to launch <X> via Xcode: Timed out while launching application via Xcode." \
+  "Details:  DTServiceHub - Error resuming pid 6807 'Error Domain=DTXMessage Code=1 \"Failed to send signal 19 to process 6807: 3\"'" \
+  "ci-quiet-watch: xcodebuild wrote nothing for 600 s; stopped it (#164)"
 check "a real assertion" fail "$E" "** TEST FAILED **"
 check "a run that passed" fail "** TEST SUCCEEDED **"
+# The watch itself: a command that goes quiet is stopped with 124 and the line above; one that finishes keeps its status.
+OURO_QUIET_WATCH_NAP=1 sh "$here/ci-quiet-watch.sh" 2 "$work/quiet.log" sh -c 'echo started; exec sleep 30'; got=$?
+if [ "$got" -eq 124 ] && grep -q "wrote nothing for 2 s" "$work/quiet.log" && sh "$here/ci-ui-infra.sh" "$work/quiet.log" >/dev/null; then
+  echo "ok: a quiet command is stopped and earns its retry"
+else echo "FAIL: a quiet command (status $got)"; failures=$((failures + 1)); fi
+OURO_QUIET_WATCH_NAP=1 sh "$here/ci-quiet-watch.sh" 5 "$work/busy.log" sh -c 'echo one; sleep 2; echo two; exit 3'; got=$?
+if [ "$got" -eq 3 ] && grep -q two "$work/busy.log" && ! grep -q "wrote nothing" "$work/busy.log"; then
+  echo "ok: a command that finishes keeps its status and output"
+else echo "FAIL: a command that finishes (status $got)"; failures=$((failures + 1)); fi
 test "$failures" -eq 0

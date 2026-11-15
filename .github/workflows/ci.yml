@@ -653,6 +653,7 @@ jobs:
           app="$(find .build/fixture/Build/Products -maxdepth 2 -name XrayFixture.app | head -1)"
           set -- --app "$app" --out .build/xray --platform ${{ matrix.platform }} \
             --runtime "${{ matrix.runtime }}" --device-type "${{ matrix.device }}" --commit "$GITHUB_SHA" --disposable
+          if [ "${{ matrix.platform }}" = ios ]; then set -- "$@" --ready-file Documents/ouro-ax-ready; fi
           if [ -n "${SIGN_IDENTITY:-}" ]; then set -- "$@" --sign-identity "$SIGN_IDENTITY" --team "$SIGN_TEAM" --keychain "$SIGN_KEYCHAIN"; fi
           sh scripts/xray-probe.sh "$@"
       - name: The probe saw the fixture's notes and its refusals

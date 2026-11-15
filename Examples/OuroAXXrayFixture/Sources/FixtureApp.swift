@@ -17,7 +17,12 @@ struct FixtureApp: App {
     var body: some Scene {
         WindowGroup {
             NotesView()
-                .task { try? await CSSearchableIndex.default().indexAppEntities(FixtureStore.notes) }
+                .task {
+                    try? await CSSearchableIndex.default().indexAppEntities(FixtureStore.notes)
+                    // Says the notes are indexed, for `xray-probe.sh --ready-file Documents/ouro-ax-ready` (#165).
+                    let ready = URL.documentsDirectory.appending(path: "ouro-ax-ready")
+                    try? Data().write(to: ready)
+                }
         }
     }
 }

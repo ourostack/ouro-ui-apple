@@ -420,9 +420,17 @@ final class ComponentClaimTests: XCTestCase {
         let toast = app.staticTexts["Filters remembered"]
         XCTAssertTrue(toast.waitForExistence(timeout: 5))
         // Hittable once its arrival has settled: a toast caught mid-arrival is not hittable yet (#85), while one behind
-        // the sheet never is.
-        let above = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: toast)
-        XCTAssertEqual(XCTWaiter().wait(for: [above], timeout: 3), .completed, "the toast is behind the sheet")
+        // the sheet never is. `isHittable` is read only once the toast has a frame inside the window: mid-arrival, with
+        // no frame there, reading it fails the test ("Activation point invalid", #194) instead of answering false.
+        let window = app.windows.firstMatch.frame
+        var above = false
+        let deadline = Date().addingTimeInterval(5)
+        repeat {
+            let frame = toast.exists ? toast.frame : .null
+            if !frame.isEmpty, window.contains(CGPoint(x: frame.midX, y: frame.midY)), toast.isHittable { above = true; break }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+        XCTAssertTrue(above, "the toast is behind the sheet, at \(toast.frame)")
         app.buttons.matching(identifier: "Dismiss").firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Filters remembered"].waitForNonExistence(timeout: Self.closeBudget), "its Dismiss closes it")
         app.terminate()

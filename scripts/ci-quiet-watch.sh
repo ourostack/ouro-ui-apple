@@ -15,7 +15,8 @@ quiet="$1"; log="$2"; shift 2
 "$@" >> "$log" 2>&1 &
 pid=$!
 nap="${OURO_QUIET_WATCH_NAP:-15}"
-changed() { stat -f %m "$log" 2>/dev/null || stat -c %Y "$log"; }
+# GNU stat first: its -f reads the file system, not the file.
+changed() { stat -c %Y "$log" 2>/dev/null || stat -f %m "$log"; }
 while kill -0 "$pid" 2>/dev/null; do
   sleep "$nap"
   if [ $(($(date +%s) - $(changed))) -ge "$quiet" ] && kill -0 "$pid" 2>/dev/null; then

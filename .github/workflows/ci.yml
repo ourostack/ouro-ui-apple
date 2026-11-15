@@ -417,10 +417,10 @@ jobs:
       - name: Unpack the build
         env:
           SHARD: ${{ matrix.shard }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          mkdir -p .build/gallery/Build
-          tar -xf .build/gallery-products.tar -C .build/gallery/Build
+          sh scripts/ci-unpack-build.sh .build/gallery-products.tar .build/gallery/Build "${{ steps.artifact.outputs.name }}"
           set -- .build/gallery/Build/Products/*.xctestrun
           xctestrun="$1"; test -f "$xctestrun"
           echo "XCTESTRUN=$PWD/$xctestrun" >> "$GITHUB_ENV"
@@ -725,10 +725,12 @@ jobs:
           name: ${{ steps.artifact.outputs.name }}
           path: .build
       - name: Unpack the build
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          mkdir -p .build/feel-fixture/Build .build/feel-reports
-          tar -xf .build/feel-products.tar -C .build/feel-fixture/Build
+          mkdir -p .build/feel-reports
+          sh scripts/ci-unpack-build.sh .build/feel-products.tar .build/feel-fixture/Build "${{ steps.artifact.outputs.name }}"
           set -- .build/feel-fixture/Build/Products/*.xctestrun
           xctestrun="$1"; test -f "$xctestrun"
           echo "XCTESTRUN=$PWD/$xctestrun" >> "$GITHUB_ENV"

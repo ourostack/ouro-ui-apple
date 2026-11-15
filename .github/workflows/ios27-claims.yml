@@ -58,6 +58,18 @@ jobs:
           name: ios27-claims
           path: .build/ios27-claims.txt
           if-no-files-found: warn
+      - name: Pack the result bundle
+        if: always()
+        run: test -d .build/ios27-claims.xcresult && tar -czf .build/ios27-claims-xcresult.tgz -C .build ios27-claims.xcresult || true
+      - name: Keep the result bundle
+        # For a failure's screen recording; the release attaches only the log.
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios27-claims-xcresult
+          path: .build/ios27-claims-xcresult.tgz
+          if-no-files-found: ignore
       - name: Delete the simulator
         if: always() && env.UDID != ''
         run: xcrun simctl delete "$UDID" || true

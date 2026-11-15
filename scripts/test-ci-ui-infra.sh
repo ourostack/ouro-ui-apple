@@ -20,6 +20,11 @@ check "only screenshot timeouts (#43)" retry \
   "<unknown>:0: error: -[G testA] : Failed to get screenshot: Timed out while requesting screenshot"
 check "a screenshot timeout next to a real assertion" fail \
   "<unknown>:0: error: -[G testA] : Failed to get screenshot: Timed out while requesting screenshot" "$E"
+check "an app launch the simulator timed out, and an app it never handed back" retry \
+  "<unknown>:0: error: -[FeelCatchesTests testAPushUnderATabBar] : Failed to launch <XCUIApplicationImpl: 0x1 bot.ouro.feel.fixture> via Xcode: Timed out while launching application via Xcode." \
+  "<unknown>:0: error: -[FeelCatchesTests testLateOrLingeringChrome] : Failed to get background assertion for target app with pid 0: No failure details provided"
+check "a launch timeout next to a real assertion" fail \
+  "<unknown>:0: error: -[G testA] : Failed to launch <X> via Xcode: Timed out while launching application via Xcode." "$E"
 check "a real assertion" fail "$E" "** TEST FAILED **"
 check "a run that passed" fail "** TEST SUCCEEDED **"
 test "$failures" -eq 0

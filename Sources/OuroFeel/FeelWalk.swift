@@ -533,8 +533,11 @@ extension OuroFeel {
         }
         let points = [CGPoint(x: w.midX, y: w.maxY - 40), CGPoint(x: w.minX + 20, y: w.midY), CGPoint(x: w.maxX - 20, y: w.midY),
                       CGPoint(x: w.midX, y: w.midY), CGPoint(x: w.midX, y: w.minY + 70)] + grid
-        func free(of avoided: [CGRect]) -> CGPoint? {
-            points.first { p in !area.contains(p) && !avoided.contains { $0.insetBy(dx: -4, dy: -4).contains(p) } }
+        func free(of avoided: [CGRect], besides tried: CGPoint? = nil) -> CGPoint? {
+            points.first { p in
+                !area.contains(p) && !avoided.contains { $0.insetBy(dx: -4, dy: -4).contains(p) }
+                    && tried.map { hypot(p.x - $0.x, p.y - $0.y) > 60 } != false
+            }
         }
         // A long list or a full-bleed image can leave no such place; then only the keyed controls are avoided, and a
         // tap that lands on the screen behind is caught below.
@@ -545,6 +548,13 @@ extension OuroFeel {
             // The walk's own timeout for a dismissal or a return: on a slow runner a popover's exit can outlast 3 s,
             // and a slow dismissal is still a dismissal (#48).
             outsideDismisses = wait(timeout) { !showing() }
+            // A loaded runner can drop one synthesized tap (seen in CI on a sort menu that closed on the next run). One
+            // more, somewhere else outside it, tells a dropped tap from an overlay that ignores taps outside; an
+            // overlay that never closes fails as before.
+            if outsideDismisses == false, let again = free(of: controls, besides: p) {
+                point(again.x, again.y).tap()
+                outsideDismisses = wait(timeout) { !showing() }
+            }
             // A tap that went through the overlay to the screen behind (a row it opened) is no dismissal: the screen
             // it left is mostly gone. Say so, and let the walk recover.
             if outsideDismisses == true {
@@ -841,11 +851,25 @@ extension OuroFeel {
                 state("\(name) did not return")
                 return (false, moved)
             }
-            if !attempt("edge swipe", .horizontal, { edgeSwipe() }).returned,
-               !attempt("edge swipe lower", .horizontal, { edgeSwipe(lower: true) }).returned,
-               !attempt("slower edge swipe", .horizontal, { edgeSwipe(slower: true) }).returned,
-               !attempt("swipe down", .vertical, { swipeDown() }).returned {
-                _ = attempt("slower swipe down", .vertical) { swipeDown(slower: true) }
+            func attempts() {
+                if !attempt("edge swipe", .horizontal, { edgeSwipe() }).returned,
+                   !attempt("edge swipe lower", .horizontal, { edgeSwipe(lower: true) }).returned,
+                   !attempt("slower edge swipe", .horizontal, { edgeSwipe(slower: true) }).returned,
+                   !attempt("swipe down", .vertical, { swipeDown() }).returned {
+                    _ = attempt("slower swipe down", .vertical) { swipeDown(slower: true) }
+                }
+            }
+            attempts()
+            // Not one gesture moved the screen at all: a loaded runner that dropped every synthesized drag, not a screen
+            // without a way back (one of those follows the finger, then settles). Seen on a zoom push in CI, where the
+            // same screen returned on the next run. Once, from a fresh launch, the gestures are sent again; a screen
+            // that still never moves is reported as before, as one that could not be checked.
+            if gesture == nil, !arrived,
+               recover(entry, path + [key], because: "to send the gestures back from \(label) again after none of them moved it", &walk) {
+                steps.append("nothing moved; relaunched \(at())")
+                landed()
+                state("landed again")
+                attempts()
             }
             let diagnostic = steps.joined(separator: "; ")
             print("[ouro-feel] gesture back from \(name.joined(separator: " › ")): \(gesture ?? "none"); \(diagnostic)")

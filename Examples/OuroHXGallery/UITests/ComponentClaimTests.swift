@@ -22,7 +22,25 @@ final class ComponentClaimTests: XCTestCase {
         // Let sheets and toasts finish arriving.
         sleep(2)
         if open { GalleryPageClaims.named(page)?.settle(app) }
+        waitForTheScreenToHoldStill(app)
         return app
+    }
+
+    /// The first launch on a fresh simulator can still be fading the page in after two seconds, and the audit then
+    /// reads its words at part opacity as failing contrast (PR #150's shard 3, 2026-11-15: the buttons page's title and
+    /// version line, default size, light, the run's first launch). So the audit waits until two screenshots half a
+    /// second apart are the same, for at most `timeout` seconds: a page that never holds still (a blinking caret) is
+    /// audited when the time is up, as before.
+    private func waitForTheScreenToHoldStill(_ app: XCUIApplication, timeout: TimeInterval = 6) {
+        let window = app.windows.firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        var last = window.screenshot().pngRepresentation
+        while Date() < deadline {
+            usleep(500_000)
+            let now = window.screenshot().pngRepresentation
+            if now == last { return }
+            last = now
+        }
     }
 
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,

@@ -587,8 +587,16 @@ extension OuroFeel {
         if !showing() {
             reopen()
             pause(0.8)
+            // A loaded runner can drop the reopening tap as it can any other (#92): one more before giving up, and a
+            // trial with no pick is then reported as unchecked by name.
             if !wait(timeout, until: showing) {
-                return FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: nil)
+                reopen()
+                pause(0.8)
+            }
+            if !wait(timeout, until: showing) {
+                var trial = FeelOverlayTrial(name: name, appeared: true, outsideDismisses: outsideDismisses, pickDismisses: nil)
+                trial.reopenFailed = true
+                return trial
             }
         }
         // The topmost item that is safe to pick, never a part of a stepper or slider. One that opens a submenu leaves

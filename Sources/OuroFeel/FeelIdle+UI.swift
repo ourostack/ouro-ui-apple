@@ -1,0 +1,80 @@
+#if canImport(XCTest) && (os(iOS) || os(macOS) || os(visionOS))
+public import CoreGraphics
+public import OuroFeelCore
+public import XCTest
+
+extension OuroFeel {
+    // MARK: Still while idle
+
+    /// Still while idle (part of the flicker genre): in each pose, with no input for `seconds`, no enabled control and
+    /// nothing named in `watch` (identifiers or labels of chrome that is no control: a running head, a page number)
+    /// appears, goes or moves, and the status bar neither shows nor hides. Looks at the screen as often as accessibility
+    /// snapshots allow (at most every `every` seconds). Call it once the screen has landed. A screen that flips its
+    /// chrome several times a second, as Gatefold's reader did on the open iPhone Duo, fails on the first few looks.
+    public func stillWhileIdle(for seconds: TimeInterval = 3, every: TimeInterval = 0.1, watch: [String] = [],
+                               poses: [FeelPose] = [.current]) -> FeelResult {
+        var results: [FeelResult] = []
+        for pose in poses {
+            pose.apply(self)
+            var samples: [FeelIdleSample] = []
+            let start = Date()
+            while Date().timeIntervalSince(start) < seconds {
+                let began = Date()
+                samples.append(idleSample(at: began.timeIntervalSince(start), watch: Set(watch)))
+                let rest = every - Date().timeIntervalSince(began)
+                if rest > 0 { pause(rest) }
+            }
+            results.append(FeelIdle.check(samples, pose: pose.name))
+        }
+        #if os(iOS)
+        if poses.contains(where: { $0.orientation != nil }) { FeelPose.portrait.apply(self) }
+        #endif
+        guard results.count > 1 else { return results.first ?? FeelIdle.check([], pose: "no pose") }
+        let failed = results.filter { !$0.passed }.count
+        let changes = results.reduce(0) { $0 + ($1.measures["changes"] ?? 0) }
+        return FeelResult.judged(check: FeelGenre.flicker.rawValue,
+                                 passing: "still while idle in \(results.count) poses",
+                                 failing: { _ in "not still while idle in \(failed) of \(results.count) poses" },
+                                 measures: ["poses": Double(results.count), "changes": changes],
+                                 findings: results.flatMap(\.findings))
+    }
+
+    func idleSample(at: Double, watch: Set<String>) -> FeelIdleSample {
+        var elements: [String: CGRect] = [:]
+        if let root = try? app.snapshot() {
+            func walk(_ node: any XCUIElementSnapshot) {
+                let type = node.elementType, identifier = node.identifier, label = node.label
+                let named = watch.contains(identifier) || watch.contains(label)
+                if named || (Self.controlTypes.contains(type) && node.isEnabled) {
+                    var key = named && !watch.contains(identifier) ? label : Self.key(node)
+                    // Two controls with one name (two "Close" buttons) are told apart by order.
+                    if elements[key] != nil {
+                        var n = 2
+                        while elements["\(key) #\(n)"] != nil { n += 1 }
+                        key = "\(key) #\(n)"
+                    }
+                    if node.frame.width > 0 && node.frame.height > 0 { elements[key] = node.frame }
+                }
+                for child in node.children { walk(child) }
+            }
+            walk(root)
+        }
+        return FeelIdleSample(at: at, elements: elements, statusBar: statusBarShows())
+    }
+
+    /// Whether the status bar shows now; nil where there is none to read.
+    func statusBarShows() -> Bool? {
+        #if os(iOS)
+        for bar in [app.statusBars.firstMatch, XCUIApplication(bundleIdentifier: "com.apple.springboard").statusBars.firstMatch] {
+            if bar.exists {
+                let f = bar.frame
+                return f.width > 0 && f.height > 0
+            }
+        }
+        return false
+        #else
+        return nil
+        #endif
+    }
+}
+#endif

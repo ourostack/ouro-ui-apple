@@ -463,6 +463,86 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// Place kept through stray input in a reader that scrolls: a tap at the top edge (the status bar) and a swipe
+    /// across and back, among the other stray steps. The bug build's status bar tap scrolls to the chapter's start, and
+    /// coming back from the next chapter lands at this one's end, as Gatefold build 39's scroll mode did.
+    func testPlaceKeptThroughAStatusBarTapAndASwipeAcrossAndBack() {
+        both("scroll-reader") { app, feel in
+            let place = app.staticTexts["scroll.place"]
+            XCTAssertTrue(place.waitForExistence(timeout: 10))
+            let result = feel.placeHeld(across: FeelPlaceStep.strayReading, read: { place.label })
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("tap at the top edge") }, result.text)
+                XCTAssertTrue(result.detections.contains { $0.what.hasPrefix("swipe across and back") }, result.text)
+                XCTAssertFalse(result.detections.contains { $0.what.hasPrefix("stray tap") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// The fixed build's swipe across really reaches the next chapter, so the round trip's pass is a trip that came
+    /// back, not a swipe that never arrived.
+    func testTheSwipeAcrossReachesTheNextChapter() {
+        let (app, _) = launch("scroll-reader", bug: false)
+        let place = app.staticTexts["scroll.place"]
+        XCTAssertTrue(place.waitForExistence(timeout: 10))
+        let start = place.label
+        let w = app.windows.firstMatch.frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: w.minX + w.width * 0.8, dy: w.midY))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: w.minX + w.width * 0.2, dy: w.midY)), withVelocity: .fast, thenHoldForDuration: 0)
+        let away = NSPredicate { _, _ in place.label.hasPrefix("chapter 2") }
+        XCTAssertEqual(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: away, object: nil)], timeout: 10), .completed,
+                       "the swipe across reached chapter 2 (was \(start), now \(place.label))")
+        app.terminate()
+    }
+
+    /// Covered content: the bug build's running head sits over the first line and its Close button under the status
+    /// bar; the fixed build's sit clear.
+    func testCoveredContent() {
+        both("cover") { app, feel in
+            XCTAssertTrue(app.staticTexts["cover.line.1"].waitForExistence(timeout: 10))
+            let result = feel.uncovered(by: ["cover.head", "cover.close"])
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("\"cover.head\" covers") }, result.text)
+                // Only when the system reported the status bar along the window's top; otherwise the report notes it,
+                // and this says so in the log rather than passing quietly.
+                if result.findings.contains(where: { $0.note && $0.what.contains("status bar") }) {
+                    print("[ouro-feel] cover-bug: the status bar was not read, so Close under it was not judged")
+                } else {
+                    XCTAssertTrue(result.detections.contains { $0.what.contains("\"cover.close\"") && $0.what.contains("status bar") },
+                                  result.text)
+                }
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Inside the window, for what you read too: the bug build's text column slides past the window's side while
+    /// every control stays inside.
+    func testInsideTheWindowAlsoChecksTheTextColumn() {
+        both("cover") { app, feel in
+            XCTAssertTrue(app.staticTexts["cover.line.1"].waitForExistence(timeout: 10))
+            let result = feel.insideWindow(poses: [.current], also: ["cover.column"])
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("cover.column") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Still while idle: the bug build's Close and status bar take turns three times a second with no input.
+    func testStillWhileIdle() {
+        both("idle") { app, feel in
+            XCTAssertTrue(app.staticTexts["idle.page"].waitForExistence(timeout: 10))
+            let result = feel.stillWhileIdle(for: 3)
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("\"idle.close\"") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
     /// One tick of the fixture's clock, then a wait for the app to show it, so each read is one tick later however slow
     /// the runner.
     private func tick(_ app: XCUIApplication) -> () -> Void {

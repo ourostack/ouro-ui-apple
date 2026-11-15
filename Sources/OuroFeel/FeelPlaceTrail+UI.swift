@@ -100,6 +100,31 @@ extension FeelPlaceStep {
     /// sends the same one). Use it on a screen where that swipe is not a way back, such as a book open full screen.
     public static let edgeSwipe = FeelPlaceStep("edge swipe") { feel in feel.edgeSwipe() }
 
+    /// A tap at the very top of the window, where the status bar is. iOS scrolls a scroll view to its top on that tap
+    /// (`scrollsToTop`), so in a reader that scrolls it jumps you to the start of the chapter; on a screen with no
+    /// status bar it is a stray tap at the top edge. `x` is a fraction of the window's width; the default stays clear
+    /// of a Dynamic Island in the middle. From Gatefold build 39, where this tap lost Ari's place.
+    public static func topEdgeTap(x: CGFloat = 0.2) -> FeelPlaceStep {
+        FeelPlaceStep("tap at the top edge (the status bar)") { feel in
+            let w = feel.windowFrame
+            feel.point(w.minX + w.width * x, w.minY + min(8, w.height * 0.01)).tap()
+        }
+    }
+
+    /// A swipe across the middle of the window to the left, then one back to the right. On a page that scrolls up and
+    /// down a sideways swipe is stray; on a paged one it turns the page and turns it back. Either way you end where you
+    /// started: a reader that changes chapter on the first swipe must bring you back to your place on the second, not
+    /// to the chapter's start or end. From Gatefold build 39, where this round trip lost Ari's place in scroll mode.
+    public static let swipeAcrossAndBack = FeelPlaceStep("swipe across and back") { feel in
+        let w = feel.windowFrame
+        let y = w.midY
+        feel.point(w.minX + w.width * 0.8, y).press(forDuration: 0.05, thenDragTo: feel.point(w.minX + w.width * 0.2, y),
+                                                    withVelocity: .fast, thenHoldForDuration: 0)
+        feel.pause(1.5)
+        feel.point(w.minX + w.width * 0.2, y).press(forDuration: 0.05, thenDragTo: feel.point(w.minX + w.width * 0.8, y),
+                                                    withVelocity: .fast, thenHoldForDuration: 0)
+    }
+
     /// Nothing at all: the reads after it catch a late reply (a cloud sync, a restore) that moves the place while you
     /// are idle.
     public static let noInput = FeelPlaceStep("no input") { _ in }
@@ -130,8 +155,12 @@ extension FeelPlaceStep {
     #if os(iOS)
     /// A stray tap in the middle, an edge swipe and a trip to the Home Screen.
     public static let stray = [strayTap(), edgeSwipe, background]
+    /// For a reader: ``stray`` plus a tap at the top edge (the status bar) and a swipe across and back, the two that
+    /// lost Ari's place in Gatefold build 39.
+    public static let strayReading = [strayTap(), topEdgeTap(), swipeAcrossAndBack, edgeSwipe, background]
     #else
     public static let stray = [strayTap(), edgeSwipe]
+    public static let strayReading = [strayTap(), topEdgeTap(), swipeAcrossAndBack, edgeSwipe]
     #endif
 }
 #endif

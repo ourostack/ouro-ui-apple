@@ -96,10 +96,20 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 (`FeelGenre`). Guide: [docs/ouro-feel/README.md](docs/ouro-feel/README.md). Decision:
 `docs/decisions/2026-11-05-ouro-feel.md`.
 
+- **Every app built with Ouro UI runs Ouro Feel in CI.** It links `OuroFeel` into its UI test target and runs a Feel
+  walk of every primary screen in every device posture it supports (iPhone Duo: closed, open in portrait, open on its
+  side; iPad: portrait and landscape), and a reader runs it in every reading mode. An app without it is missing a
+  check, not done. Gatefold build 39 shipped jank Feel could have caught, because it never linked it.
+- **A jank report is first a missing check.** Write the Feel check that would have caught it and see it fail; then the
+  app's fix makes it pass. If no genre covers the report, add the check here with a fixture page (below).
 - **Before a taste review, run the checks.** A reviewer never re-tests by hand a genre Feel covers; what is left for a
   person is [docs/ouro-feel/taste-rubric.md](docs/ouro-feel/taste-rubric.md).
 - **Genres and their checks:** the way back (`feel.wayBack`), overlay dismissal (`feel.overlays`), inside the window
-  (`feel.insideWindow`), tap landing (`feel.tapLanding`, `feel.osBaseline`), double-draw, jump after landing, late
+  (`feel.insideWindow`, with `also:` for what you read, and `feel.uncovered` for chrome over the text or under the
+  status bar), place kept through stray input (`feel.placeHeld`, with `FeelPlaceStep.strayReading` for a reader:
+  the top-edge tap and a swipe across and back), navigation that fights you (`feel.placeFights`), still while idle
+  (`feel.stillWhileIdle`, in the flicker genre), tap landing (`feel.tapLanding`, `feel.osBaseline`), double-draw,
+  jump after landing, late
   or lingering chrome, snap with no transition and settle time (`feel.film` then `doubleDraws`, `jumps`, `chrome`,
   `snaps`, `settles`), place stability (`feel.place`), and hitches as a measure (`FeelHitches`, `measureHitches`).
 - **Copy-paste:** `let feel = OuroFeel(app); feel.expect(feel.wayBack(from: [.launch]))`. `expect` fails the test;

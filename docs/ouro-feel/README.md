@@ -39,6 +39,19 @@ JSON to `OURO_FEEL_REPORT_DIR` (pass `TEST_RUNNER_OURO_FEEL_REPORT_DIR=<dir>` to
 the check failed. `feel.record(result)` does the same without failing, for a test that expects a known bug to be
 caught.
 
+## Every app runs it
+
+Every app built with Ouro UI links `OuroFeel` into its UI test target and runs a Feel walk in CI: every primary
+screen, in every device posture the app supports (on an iPhone Duo: closed, open in portrait and open on its side; on
+an iPad: portrait and landscape), with every check below that fits the screen. A reader also runs its place checks in
+each reading mode (paged and scrolling).
+
+When a person reports jank, the first job is the missing check: write the Feel check (or the step) that would have
+caught it, see it fail on the bug, then fix the app and see it pass. If no genre here covers it, add the check to
+Ouro Feel, with a page in the fixture that has the bug behind `-bug 1` (see Proof). Gatefold build 39 is why: none of
+its four reports (a swipe and a top-edge tap that lost the place, a header over the text, a text column off the side)
+was caught, because Gatefold never linked Ouro Feel.
+
 ## The genres
 
 Each check covers one genre of jank (`FeelGenre`). The way back is the app-wide one: give it your entry points and it
@@ -49,7 +62,7 @@ overlays to check; the motion and place checks watch the elements and steps you 
 |---|---|---|
 | the way back | Every screen you reach has a visible way back and a gesture back, and both return you where you were. | `feel.wayBack(from:follow:depth:)` |
 | overlay dismissal | Every sidebar, popover and menu goes away with a tap outside it, and once you pick something in it. | `feel.overlays(_:)` |
-| inside the window | Every control sits wholly inside the window, in every orientation and after turning the device and back. | `feel.insideWindow(poses:)`; also on every screen `wayBack` reaches |
+| inside the window | Every control and what you read sits wholly inside the window, in every orientation and after turning the device and back; no header, bar or control covers the text or sits under the status bar. | `feel.insideWindow(poses:also:)`, `feel.uncovered(by:content:poses:)`; also on every screen `wayBack` reaches |
 | tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
 | double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
 | jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)`; at an open, from pixels, `feel.screenFilm(...).revealHolds(cover:until:)` |
@@ -57,8 +70,8 @@ overlays to check; the motion and place checks watch the elements and steps you 
 | snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
 | place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
-| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)` |
-| place kept through stray input | A stray tap, an edge swipe that goes nowhere, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)` |
+| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. With no input, nothing changes at all. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)`; with no input, `feel.stillWhileIdle(for:watch:poses:)` |
+| place kept through stray input | A stray tap (the middle, the top edge), an edge swipe that goes nowhere, a swipe across and back, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)`; for a reader, `across: FeelPlaceStep.strayReading` |
 | navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:between:read:)` |
 | hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `film.hitches()`, `feel.measureHitches(in:)` |
 
@@ -172,6 +185,40 @@ read the finding. When the app stays portrait as the device turns, the report ad
 feel.expect(feel.insideWindow())                     // portrait, landscape, portrait again
 feel.expect(feel.insideWindow(poses: [.current]))    // just as it is
 ```
+
+With `also:`, the elements you name (identifiers or labels) must lie inside the window too: what you read, such as a
+page's text column, which is no control. Gatefold build 39's text column slid past the side of the open iPhone Duo
+while every control stayed inside. A named element not on screen in a pose could not be checked there. Name one
+element (a page's frame), not something a pager repeats on every page, whose copies past the side would count as
+outside.
+
+```swift
+feel.expect(feel.insideWindow(poses: [.current], also: ["reader.page"]))
+```
+
+### Covered content
+
+Proves (part of the inside-the-window genre): none of the chrome you name (headers, bars, buttons that float over the
+page) covers any of the content, and none sits under the status bar. The content is what you name in `content:`, or,
+by default, every static text and image on screen that is not chrome or inside it. Frames that overlap by a point or
+less do not count. Content may scroll under the status bar; only chrome must keep clear of it. Content outside the
+window is left to `insideWindow`, since a paginated book keeps its next column past the side on purpose. The status
+bar is read from the system only when it lies along the top of the app's window; when it is hidden (a reader with its
+controls away) or reported in another orientation's coordinates, the report notes that chrome under it was not
+checked, and the rest is still judged. A chrome element, a named piece of content or the `within` element that is
+not on screen could not be checked, so name only what shows in the poses you pass. `within:` limits the content to
+what is inside one element (a reader's page), so a test probe or a toast elsewhere is not counted. Content with no
+identifier is named in the report by a fingerprint of its words, never the words.
+
+The default content suits a reader. On a list whose rows scroll under a translucent bar you name as chrome, a row
+passing under the bar would count as covered: name the content, or use `within:`.
+
+```swift
+feel.expect(feel.uncovered(by: ["reader.runningHead", "reader.close"], within: "reader.page"))
+```
+
+From Gatefold build 39: its running head sat over the first line of text on the folded iPhone Duo, and its controls
+sat under the status bar on the open one.
 
 ### Tap landing
 
@@ -388,6 +435,22 @@ fails, a contact sheet is saved beside the report, as an attachment and in `OURO
 order, a white strip under each sample that is part of a rest and a black one under each on its way or flashing
 (`film.contactSheet()`), with the film's JSON.
 
+### Still while idle
+
+Proves (part of the flicker genre): with no input for a few seconds (`for:`, 3 by default), no enabled control and
+nothing named in `watch:` (chrome that is no control, such as a running head) appears, goes or moves by more than half
+a point, and the status bar neither shows nor hides. It looks at the screen as often as accessibility snapshots allow,
+so a loop of a few changes a second fails within the first few looks. Call it once the screen has landed. A status bar
+the system does not report is noted, and the controls are still watched.
+
+```swift
+feel.expect(feel.stillWhileIdle(for: 3, watch: ["reader.runningHead"]))
+```
+
+From Gatefold's reader on the open iPhone Duo (2026-11-15): with no touch, its close button and the status bar took
+turns several times a second, and the controls jumped between two places. Showing or hiding the status bar changes the
+safe area, which moved the chrome, which flipped the status bar again.
+
 ### The first page shown after an open holds
 
 `film.revealHolds(cover:until:)` is jump after landing at an open, judged from the same screen film as whole-screen
@@ -451,6 +514,17 @@ or hides its controls; pass `at:` where the middle is a deliberate control), `.e
 for a screen where it is not a way back) and `.background`. Add `.noInput` to catch a late reply that moves the place
 while you are idle, and `.sheetDismissed("Contents", sheet: "contents.title") { app in … }` for a sheet opened and
 swiped away (a sheet that never opened or closed could not be checked).
+
+Two more steps are for a reader, and `FeelPlaceStep.strayReading` adds them to the stray ones:
+
+- `.topEdgeTap()` taps the very top of the window, where the status bar is. iOS scrolls a scroll view to its top on
+  that tap (`scrollsToTop`), so a reader that scrolls jumps to the start of the chapter. Turn it off on the reading
+  view.
+- `.swipeAcrossAndBack` swipes left across the middle, then right. On a page that scrolls up and down a sideways swipe
+  is stray; on a paged one it turns the page and back. Either way you must end where you started: a reader that
+  changes chapter on the first swipe must bring you back to your place, not to the chapter's start or end.
+
+Both lost Ari's place in Gatefold build 39's scroll mode.
 
 `feel.placeFights(_:reads:hold:read:)` runs your own moves. After each one the place must land (the first place two
 reads in a row agree on, so a page that shows a place for one read on its way is fine), where you chose when the move

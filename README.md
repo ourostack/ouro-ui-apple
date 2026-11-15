@@ -262,6 +262,12 @@ run's summary.
 - **When the free image ships Xcode 27,** drop the lane: point those jobs at `macos-26` (or `macos-latest`), delete their `if:` gates, and remove this paragraph.
 - No self-hosted runners.
 
+## Apps run Ouro Feel
+
+Every app built with Ouro UI links `OuroFeel` into its UI tests and runs a Feel walk of every primary screen, in every
+device posture it supports, in CI ([the guide](docs/ouro-feel/README.md#every-app-runs-it)). A jank report from a
+person is first a missing check: write the check that would have caught it, see it fail, then fix the app.
+
 ## Working on it
 
 Read [AGENTS.md](AGENTS.md): where core lives, how a token bump works, and why names match web. Decisions are in

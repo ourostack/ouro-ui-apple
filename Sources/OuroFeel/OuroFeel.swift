@@ -132,7 +132,11 @@ public struct OuroFeel {
     static let scrollTypes: Set<XCUIElement.ElementType> = [.scrollView, .table, .collectionView, .webView]
 
     /// The app's window and every control in it, from one accessibility snapshot.
-    public func controls() -> (window: CGRect, controls: [FeelElement]) {
+    public func controls() -> (window: CGRect, controls: [FeelElement]) { controls(also: []) }
+
+    /// The app's window, every control in it, and every element whose identifier or label is in `also` (a page's text
+    /// column, which is no control), from one accessibility snapshot.
+    public func controls(also: Set<String>) -> (window: CGRect, controls: [FeelElement]) {
         guard let root = try? app.snapshot() else { return (.zero, []) }
         let window = Self.mainWindow(root)
         var found: [FeelElement] = []
@@ -154,9 +158,13 @@ public struct OuroFeel {
         // `outer` is the nearest scroll view outside `scroll` that scrolls up and down, for a carousel inside a list.
         func walk(_ node: any XCUIElementSnapshot, scroll: CGRect?, across: Bool, outer: CGRect?) {
             let type = node.elementType
-            if Self.controlTypes.contains(type), node.isEnabled {
-                var element = FeelElement(key: Self.key(node), type: Self.name(type), frame: node.frame, scroll: scroll,
-                                          scrollsHorizontally: across)
+            let control = Self.controlTypes.contains(type) && node.isEnabled
+            let named = !also.isEmpty && (also.contains(node.identifier) || also.contains(node.label))
+            if control || named {
+                // Keyed by the name asked for, so a request by label finds it even when it has an identifier.
+                let key = named && !also.contains(node.identifier) ? node.label : Self.key(node)
+                var element = FeelElement(key: key, type: control ? Self.name(type) : "element", frame: node.frame,
+                                          scroll: scroll, scrollsHorizontally: across)
                 element.outerScroll = across ? outer : nil
                 found.append(element)
             }
@@ -243,12 +251,26 @@ public struct OuroFeel {
 
     /// Every enabled control's frame lies inside the window, in each pose. On iOS the default turns the device to
     /// landscape and back, checking portrait, landscape and portrait again (the round trip that broke Gatefold build 19).
-    public func insideWindow(poses: [FeelPose] = FeelPose.roundTrip) -> FeelResult {
+    public func insideWindow(poses: [FeelPose] = FeelPose.roundTrip) -> FeelResult { insideWindow(poses: poses, also: []) }
+
+    /// ``insideWindow(poses:)``, and the elements named in `also` (identifiers or labels) must lie inside the window
+    /// too: what you read, such as a page's text column, which is no control. Gatefold build 39's text column slid
+    /// past the side of the open iPhone Duo while every control stayed inside. A named element that is not on screen
+    /// in a pose could not be checked there. Name one element (a page's frame), not something a pager repeats on every
+    /// page: its copies past the side would be counted outside the window.
+    public func insideWindow(poses: [FeelPose] = FeelPose.roundTrip, also: [String]) -> FeelResult {
         var results: [FeelResult] = []
         for pose in poses {
             pose.apply(self)
-            let (window, found) = controls()
+            let (window, found) = controls(also: Set(also))
             var result = FeelLayout.check(found, window: window, pose: pose.name)
+            let seen = Set(found.filter { $0.frame.width > 0 && $0.frame.height > 0 }.map(\.key))
+            let missing = also.filter { !seen.contains($0) }
+            if !missing.isEmpty {
+                result.findings += missing.map { .couldNotCheck("\"\($0)\" was not on screen in \(pose.name)") }
+                result = FeelResult.judged(check: result.check, passing: result.summary, failing: { _ in result.summary },
+                                           measures: result.measures, findings: result.findings)
+            }
             #if os(iOS)
             // An app that stays portrait (an iPhone app without landscape) is fine, but say so: its "landscape" was not one.
             if let note = FeelLayout.stayedPortrait(window: window, pose: pose.name, deviceLandscape: pose.orientation?.isLandscape == true) {

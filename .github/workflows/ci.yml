@@ -850,10 +850,12 @@ jobs:
           if-no-files-found: error
 
   feel-shard:
-    name: Ouro Feel shard ${{ matrix.shard }} of 3 (free macos-26, Xcode 26)
+    name: ${{ matrix.shard == 'ipad' && 'Ouro Feel on an iPad, the iPhone fixture in compatibility mode' || format('Ouro Feel shard {0} of 3', matrix.shard) }} (free macos-26, Xcode 26)
     # FeelCatchesTests split three ways by measured time (scripts/ui-shards.py); each test launches its own app, so
     # order does not matter. Each shard starts once the build has passed (as the gallery's shards do, for the same
     # reason), boots its simulator while it fetches the build's products, then tests them.
+    # The `ipad` lane runs only the clock-blanking tests on an iPad, where the fixture, an iPhone app, runs in
+    # compatibility mode in a window smaller than the screen, to prove a screen film still blanks the clock (#73, item 2).
     needs: [paths, feel-build]
     if: needs.paths.outputs.feel == 'true'
     runs-on: macos-26
@@ -864,7 +866,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, ipad]
+    env:
+      OURO_SIM_FAMILY: ${{ matrix.shard == 'ipad' && 'iPad' || 'iPhone' }}
     # A broken simulator service (#74) requeues the shard on a fresh runner, as the gallery's shards do.
     steps: &feel-shard-steps
       - uses: actions/checkout@v4
@@ -923,7 +927,11 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           set -u
-          only="$(python3 -I scripts/ui-shards.py feel args "$SHARD")"
+          if [ "$SHARD" = ipad ]; then
+            only="-only-testing:OuroFeelFixtureUITests/FeelCatchesTests/testTheClockIsBlankedInPortrait -only-testing:OuroFeelFixtureUITests/FeelCatchesTests/testTheClockIsBlankedInLandscape"
+          else
+            only="$(python3 -I scripts/ui-shards.py feel args "$SHARD")"
+          fi
           echo "Shard $SHARD runs:"; echo "$only"
           fixture() {
             # shellcheck disable=SC2086
@@ -961,7 +969,10 @@ jobs:
             fi
           fi
           # A shard that ran nothing would pass on nothing: what ran must be the plan.
-          if [ "$status" -eq 0 ]; then python3 -I scripts/ui-shards.py feel ran "$SHARD" .build/feel-fixture.xcresult || status=1; fi
+          if [ "$status" -eq 0 ] && [ "$SHARD" = ipad ]; then
+            ran="$(xcrun xcresulttool get test-results summary --path .build/feel-fixture.xcresult | python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(d["totalTestCount"], d["passedTests"])')"
+            if [ "$ran" != "2 2" ]; then echo "::error::The iPad lane ran and passed \"$ran\" (tests, passed), not its 2 clock tests"; status=1; fi
+          elif [ "$status" -eq 0 ]; then python3 -I scripts/ui-shards.py feel ran "$SHARD" .build/feel-fixture.xcresult || status=1; fi
           exit "$status"
       - if: always()
         name: Pack the reports and result bundle
@@ -1004,7 +1015,7 @@ jobs:
         run: python3 -I scripts/ci-requeue-plan.py feel "${{ github.run_id }}"
 
   feel-requeue:
-    name: Ouro Feel shard ${{ matrix.shard }} of 3, requeued on a fresh runner (free macos-26, Xcode 26)
+    name: ${{ matrix.shard == 'ipad' && 'Ouro Feel on an iPad' || format('Ouro Feel shard {0} of 3', matrix.shard) }}, requeued on a fresh runner (free macos-26, Xcode 26)
     # The same steps as feel-shard, on a fresh runner, for each shard a broken runner stopped (#74).
     needs: [paths, feel-build, feel-requeue-plan]
     if: always() && needs.feel-requeue-plan.result == 'success' && needs.feel-requeue-plan.outputs.shards != '[]'
@@ -1019,6 +1030,7 @@ jobs:
         include: ${{ fromJSON(needs.feel-requeue-plan.outputs.shards) }}
     env:
       OURO_REQUEUED: "1"
+      OURO_SIM_FAMILY: ${{ matrix.shard == 'ipad' && 'iPad' || 'iPhone' }}
     steps: *feel-shard-steps
 
   feel-fixture:
@@ -1048,6 +1060,6 @@ jobs:
           if [ "$FEEL" = false ]; then echo "This change doesn't touch Ouro Feel or its fixture."; exit 0; fi
           if [ "$BUILD" != success ] || [ "$SHARDS" != success ]; then echo "::error::Build $BUILD, shards $SHARDS"; exit 1; fi
           if [ "$PLAN" != success ]; then echo "::error::Could not tell which shards a broken runner stopped (plan $PLAN)"; exit 1; fi
-          if [ "$REQUEUED" = "[]" ]; then echo "The build and all three shards passed."; exit 0; fi
+          if [ "$REQUEUED" = "[]" ]; then echo "The build, all three shards and the iPad lane passed."; exit 0; fi
           if [ "$REQUEUE" = success ]; then echo "Every shard passed; $REQUEUED passed on fresh runners after a broken one (#74)."; exit 0; fi
           echo "::error::$REQUEUED were requeued after a broken runner, and the requeue ended $REQUEUE"; exit 1

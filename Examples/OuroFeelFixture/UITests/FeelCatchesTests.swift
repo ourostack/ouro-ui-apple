@@ -366,15 +366,29 @@ final class FeelCatchesTests: XCTestCase {
     /// showing would make every tick a new state. With nothing else moving, every sample of the film is the same picture.
     /// The check is not vacuous: unblanked, at this width, two ticks of the clock are different pictures.
     func testTheClockIsBlankedInLandscape() {
+        clockIsBlanked(landscape: true)
+    }
+
+    /// The same in portrait. On an iPhone the other screen films prove it too; on an iPad the fixture, an iPhone app,
+    /// runs in compatibility mode, in a window smaller than the screen, and CI's iPad lane runs this and the landscape
+    /// test there to prove the blanking lands on the clock (#73, item 2).
+    func testTheClockIsBlankedInPortrait() {
+        clockIsBlanked(landscape: false)
+    }
+
+    private func clockIsBlanked(landscape: Bool) {
         let (app, feel) = launch("screen-flicker", bug: false)
         defer { app.terminate(); XCUIDevice.shared.orientation = .portrait }
         XCTAssertTrue(app.buttons["screenflicker.play"].waitForExistence(timeout: 10))
-        XCUIDevice.shared.orientation = .landscapeLeft
         let clock = app.staticTexts["screenflicker.clock"]
-        let deadline = Date().addingTimeInterval(10)
-        func wide() -> Bool { let w = app.windows.firstMatch.frame; return clock.exists && w.width > w.height }
-        while !wide(), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
-        XCTAssertTrue(wide(), "the fixture never turned to landscape")
+        let way = landscape ? "landscape" : "portrait"
+        if landscape {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            let deadline = Date().addingTimeInterval(10)
+            func wide() -> Bool { let w = app.windows.firstMatch.frame; return clock.exists && w.width > w.height }
+            while !wide(), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
+            XCTAssertTrue(wide(), "the fixture never turned to landscape")
+        }
         Thread.sleep(forTimeInterval: 1)
         let tick = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
         // Unblanked (no element is keyed "no-clock"), two ticks apart: the clock's digits show.
@@ -385,17 +399,20 @@ final class FeelCatchesTests: XCTestCase {
         XCTAssertGreaterThan(FeelScreenFilm.difference(before, after) ?? 0, 0, "the clock's ticks don't show at this width, so the check below proves nothing")
         let film = feel.screenFilm(steps: 6, tick: 0.1, clock: "screenflicker.clock", advance: tick, width: 640)
         XCTAssertNil(film.stalledAt, "the app's clock answered every tick")
-        XCTAssertGreaterThan(film.frames.first.map { $0.width } ?? 0, film.frames.first.map { $0.height } ?? 0, "the film is landscape")
+        if landscape {
+            XCTAssertGreaterThan(film.frames.first.map { $0.width } ?? 0, film.frames.first.map { $0.height } ?? 0, "the film is landscape")
+        }
         // Where a sample differs from the first, in points, beside where the clock is: so a failure says what changed.
-        let first = film.frames[0], scale = app.windows.firstMatch.frame.width / CGFloat(first.width)
+        guard let first = film.frames.first else { return XCTFail("the film has no samples") }
+        let scale = app.windows.firstMatch.frame.width / CGFloat(first.width)
         for (n, frame) in film.frames.enumerated().dropFirst() where FeelScreenFilm.difference(first, frame) != 0 {
             var box = CGRect.null
             for i in 0..<min(first.gray.count, frame.gray.count) where first.gray[i] != frame.gray[i] {
                 box = box.union(CGRect(x: CGFloat(i % first.width) * scale, y: CGFloat(i / first.width) * scale, width: scale, height: scale))
             }
-            XCTFail("sample \(n) differs from the first at \(box) (points), the clock at \(clock.frame): the clock is not blanked in landscape")
+            XCTFail("sample \(n) differs from the first at \(box) (points), the clock at \(clock.frame), window \(app.windows.firstMatch.frame): the clock is not blanked in \(way)")
         }
-        feel.record(film.flickers(states: 1), name: "landscape-clock", screenFilm: film)
+        feel.record(film.flickers(states: 1), name: "\(way)-clock", screenFilm: film)
     }
 
     /// The first page shown after an open holds, judged from screenshots: the bug's cover goes onto another page that

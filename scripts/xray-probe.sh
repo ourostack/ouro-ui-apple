@@ -106,9 +106,13 @@ if [ "$platform" = "ios" ]; then
   plan="$("$xray" plan --app "$app" $disposable)"
   ios_probe() {
     TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE="$([ -n "$disposable" ] && echo 1 || echo 0)" TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
+      sh "$here/scripts/ci-quiet-watch.sh" "$probe_quiet" "$1" \
       xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-iOS -destination "id=$udid" -retry-tests-on-failure -test-iterations 2 \
-      -derivedDataPath "$here/.build/xray-probe-ios" > "$1" 2>&1
+      -derivedDataPath "$here/.build/xray-probe-ios"
   }
+  # A probe whose log goes quiet this long is stopped: after SpringBoard crashed during its launch, one hung with no
+  # output until the step's limit (#207). The longest quiet gap in passing probe logs was 257 s.
+  probe_quiet="${OURO_XRAY_QUIET:-480}"
   set +e
   ios_probe "$out/probe.log"
   status=$?
@@ -116,9 +120,10 @@ if [ "$platform" = "ios" ]; then
   # before any test started ("never finished bootstrapping"), or an app XCTest could not launch (no process ID, or it
   # never reached the foreground; see XrayProbeTests), or a launch XCTest's own wait for the foreground held until the
   # test timed out and the runner restarted with nothing left to run (main's X-ray on iOS 27.0, 2026-11-15). Reboot the
-  # simulator and run once more; the first log is kept beside the report.
+  # simulator and run once more; the first log is kept beside the report. So does a launch during which SpringBoard
+  # crashed, and a probe stopped for going quiet before it reached the app (#207).
   if ! grep -q OURO-AX-PROBE-BEGIN "$out/probe.log" \
-      && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch.*process ID|OURO-AX-PROBE-UNREACHED|Restarting after unexpected exit, crash, or test timeout" "$out/probe.log"; then
+      && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch.*process ID|OURO-AX-PROBE-UNREACHED|Restarting after unexpected exit, crash, or test timeout|Critical process SpringBoard crashed|xcodebuild wrote nothing for [0-9]+ s" "$out/probe.log"; then
     echo "xray-probe: the probe never reached the app (see probe-first-try.log); rebooting the simulator and trying once more"
     if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::warning::xray-probe: the first probe run never reached the app; retried once (see probe-first-try.log)"; fi
     mv "$out/probe.log" "$out/probe-first-try.log"

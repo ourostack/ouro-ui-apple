@@ -154,12 +154,13 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.buttons["List"].isSelected, "choices: the pressed segment is not selected")
         grid.tap()
         XCTAssertTrue(grid.isSelected, "choices: pressing a segment does not select it")
-        let terms = app.descendants(matching: .any)["I agree to the terms, required"]
+        // XCUI lists a checkbox's toggle, its button and its words under one name; VoiceOver hears only the toggle.
+        let terms = app.descendants(matching: .toggle)["I agree to the terms, required"]
         XCTAssertTrue(terms.exists, "choices: the checkbox is not named with required")
         XCTAssertEqual(terms.value as? String, "Not checked", "choices: the checkbox's value is \(String(describing: terms.value))")
         terms.tap()
         XCTAssertEqual(terms.value as? String, "Checked", "choices: checking does not check")
-        XCTAssertEqual(app.descendants(matching: .any)["Whole basket"].value as? String, "Mixed", "choices: a partial select-all is not mixed")
+        XCTAssertEqual(app.descendants(matching: .toggle)["Whole basket"].value as? String, "Mixed", "choices: a partial select-all is not mixed")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)

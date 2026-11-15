@@ -90,14 +90,15 @@ private let wide = CGSize(width: 800, height: 600)
     private let tabletop = OuroFoldPosture.resolve(size: tall, hinge: .partiallyOpen(angleDegrees: 90), regions: [])
 
     @Test func aFittedSheetInATabletopIsNoTallerThanTheLowerHalf() throws {
-        let lower = try #require(tabletop.tabletop).second.height
+        // The lower half, less the inset iOS 26 floats a shorter sheet above the bottom: its top stays below the fold.
+        let lower = try #require(tabletop.tabletop).second.height - OuroSheetMetrics.floatingInset
         #expect(OuroSheetMetrics.detents(nil, fitted: 600, posture: tabletop) == [.height(lower)])
         // A short sheet keeps its own height: it already fits below the fold.
         #expect(OuroSheetMetrics.detents(nil, fitted: 200, posture: tabletop) == [.height(200)])
     }
 
     @Test func aSheetWithDetentsInATabletopRestsOnTheLowerHalf() throws {
-        let lower = try #require(tabletop.tabletop).second.height
+        let lower = try #require(tabletop.tabletop).second.height - OuroSheetMetrics.floatingInset
         #expect(OuroSheetMetrics.detents([.medium, .large], fitted: 300, posture: tabletop) == [.height(lower)])
         #expect(!OuroSheetMetrics.showsGrabber(detents: OuroSheetMetrics.detents([.medium, .large], fitted: 300, posture: tabletop)))
     }

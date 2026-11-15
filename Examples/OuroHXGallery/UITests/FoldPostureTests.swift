@@ -82,7 +82,17 @@ final class FoldPostureTests: XCTestCase {
                 // ComponentClaimTests.
                 let excused = GalleryPageClaims.named(page)?.excuse(app)
                 let excuse: (XCUIAccessibilityAuditIssue) -> Bool = { $0.element?.identifier == "fold.posture" || excused?($0) == true }
-                do { try app.ouroAccessibilityAudit(excuse: excuse) } catch { XCTFail("\(page) in a book: \(error)") }
+                // On the Duo (Xcode 27.1), XCUITest's screenshots come back black while Device Hub shows the app
+                // (run 43730530316): contrast measured on a black picture means nothing, so it is left out here and
+                // said so. The gallery's own audit checks contrast on every page, on iPhone and iPad.
+                var types = XCUIAccessibilityAuditType.all
+                if Self.screenshotIsBlack() {
+                    types.remove(.contrast)
+                    let note = XCTAttachment(string: "\(page): XCUITest's screenshot of the Duo is black, so this audit leaves out contrast")
+                    note.lifetime = .keepAlways
+                    add(note)
+                }
+                do { try app.ouroAccessibilityAudit(for: types, excuse: excuse) } catch { XCTFail("\(page) in a book: \(error)") }
             }
             app.terminate()
         }
@@ -113,5 +123,15 @@ final class FoldPostureTests: XCTestCase {
         // Back as it was: flat, then three more quarter turns.
         try hinge.set(.open)
         for _ in 0..<3 { try hinge.rotateRight() }
+    }
+
+    /// Whether XCUITest's screenshot of the screen is black throughout: drawn at 16x16, no pixel above 8 of 255.
+    static func screenshotIsBlack() -> Bool {
+        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return false }
+        var bytes = [UInt8](repeating: 0, count: 16 * 16)
+        guard let context = CGContext(data: &bytes, width: 16, height: 16, bitsPerComponent: 8, bytesPerRow: 16,
+                                      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: 16, height: 16))
+        return bytes.allSatisfy { $0 <= 8 }
     }
 }

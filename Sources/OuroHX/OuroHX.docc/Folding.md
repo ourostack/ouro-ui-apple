@@ -24,8 +24,9 @@ behind `#available`; on earlier systems it always gives `.single`. ``OuroHinge/b
 follow the fold:
 
 - **Sheet.** Held as a tabletop, an `.ouroSheet` rests on the lower half, the part flat on the table: never taller
-  than that half, so it doesn't cross the fold and what is above stays in view; its content scrolls when there is
-  more (``OuroSheetMetrics/detents(_:fitted:posture:)``). In a book, closed or on one page it keeps its own detents.
+  than that half less the 8 points iOS 26 floats a shorter sheet above the bottom
+  (``OuroSheetMetrics/floatingInset``), so its top doesn't cross the fold and what is above stays in view; its content
+  scrolls when there is more (``OuroSheetMetrics/detents(_:fitted:posture:)``). In a book, closed or on one page it keeps its own detents.
 - **Item and card** have no posture of their own. Place them in a pane (`split.first` or `split.second`) and they
   lay out in that pane's width, as they do in any narrow container: rows keep their actions beside the words and
   stack them only at the accessibility sizes, and a card's action moves under its title the same way.

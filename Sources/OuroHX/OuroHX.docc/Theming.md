@@ -16,6 +16,14 @@ Colour names are HX's CSS variables in camel case, so `--primary-foreground` is 
 shadows `Swift.Duration`; outside it does not. Write `Swift.Duration` in an extension of `OuroTokens` if you ever need
 both (see `docs/decisions/2026-11-03-package-shape.md`).
 
+## An app's brand colour
+
+``OuroTheme/withPrimary(light:dark:lightLabel:darkLabel:)`` keeps a theme and changes only its primary in each mode,
+with the focus rings and sidebar colours that follow it. The label on the primary is white or ink, whichever reads
+better, unless you give one. So `OuroTokens.pearl.withPrimary(light: ribbon, dark: nightRibbon)` is Pearl with the
+app's buttons, and Increase Contrast still raises it as it does Pearl's. ``OuroColors/withPrimary(_:label:)`` does the
+same for one mode.
+
 ## Headings
 
 ``OuroTheme/heading`` is the theme's `--font-heading` stack. The kit sets its titles in it where web does: the empty

@@ -25,7 +25,7 @@ every other agent that comes knocking.
 iOS 18 and macOS 15 or later, Swift 6.1 (Xcode 16.3 or later). Newer things (the iPhone Duo's hinge, Siri AI) switch on by themselves where the
 OS has them.
 
-**Status:** pre-1.0, on v0.6.x; the newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). What 1.0 needs (eighteen components, claims, platforms, API stability and adoption) is in [docs/decisions/2026-11-14-apple-1-0.md](docs/decisions/2026-11-14-apple-1-0.md). Meets core [v0.13.1](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.13.1): the tokens and the claim sets (AX's
+**Status:** pre-1.0, on v0.6.x; the newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). What 1.0 needs (eighteen components, claims, platforms, API stability and adoption) is in [docs/decisions/2026-11-14-apple-1-0.md](docs/decisions/2026-11-14-apple-1-0.md). Meets core [v0.14.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.14.0): the tokens and the claim sets (AX's
 `apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
 
 ## One system with web

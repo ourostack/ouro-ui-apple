@@ -32,16 +32,15 @@ extension OuroFeel {
     public func screenFilm(cover: Bool, steps: Int, tick: TimeInterval, clock: String, advance: () -> Void,
                            width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = [], stall: TimeInterval = 30,
                            during action: (() -> Void)? = nil) -> FeelScreenFilm {
-        let coverPicture = cover ? screenPicture(clock: clock, width: width, statusBand: statusBand, ignoring: ignoring) : nil
-        var film = clockFilm(steps: steps, tick: tick, clock: clock, advance: advance, width: width, statusBand: statusBand,
-                             ignoring: ignoring, stall: stall, during: action)
-        film.cover = coverPicture
-        return film
+        var coverClock = CGRect.null
+        let coverPicture = cover ? screenPicture(clock: clock, width: width, statusBand: statusBand, ignoring: ignoring, clockOnScreen: &coverClock) : nil
+        return clockFilm(steps: steps, tick: tick, clock: clock, advance: advance, width: width, statusBand: statusBand,
+                         ignoring: ignoring, stall: stall, during: action, cover: coverPicture, coverClock: coverClock)
     }
 
     func clockFilm(steps: Int, tick: TimeInterval, clock: String, advance: () -> Void, width: Int,
                    statusBand: CGFloat, ignoring: [CGRect], stall: TimeInterval,
-                   during action: (() -> Void)?) -> FeelScreenFilm {
+                   during action: (() -> Void)?, cover: FeelScreenFrame? = nil, coverClock: CGRect = .null) -> FeelScreenFilm {
         let timedBy = "the app's own clock (\"\(clock)\", \(String(format: "%g", tick)) s a tick), one screenshot per tick"
         func sample(atLeast least: Int) -> (count: Int, clockFrame: CGRect)? {
             let deadline = Date().addingTimeInterval(stall)
@@ -55,25 +54,40 @@ extension OuroFeel {
         action?()
         let onScreen = screenMapping()
         guard let (base, clockFrame) = sample(atLeast: .min) else {
-            return FeelScreenFilm(frames: [], stalledAt: 0, timedBy: timedBy)
+            var film = FeelScreenFilm(frames: [], stalledAt: 0, timedBy: timedBy)
+            film.cover = cover
+            return film
         }
         var frames: [FeelScreenFrame] = []
+        // Every place the clock's blank fell, so each sample can be blanked at all of them once the film ends.
+        var clocks = coverClock, screen = CGSize.zero
         func shoot(at t: Double, clockFrame: CGRect) -> Bool {
             let shot = XCUIScreen.main.screenshot().image
             let points = shot.size
-            let blank = [CGRect(x: 0, y: 0, width: points.width, height: statusBand), onScreen(clockFrame).insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring.map(onScreen)
+            let clockBlank = onScreen(clockFrame).insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)
+            let blank = [CGRect(x: 0, y: 0, width: points.width, height: statusBand), clockBlank] + ignoring.map(onScreen)
             guard let frame = Self.thumbnail(shot, width: width, blank: blank, t: t) else { return false }
             frames.append(frame)
+            clocks = clocks.union(clockBlank)
+            screen = points
             return true
         }
-        guard shoot(at: 0, clockFrame: clockFrame) else { return FeelScreenFilm(frames: [], stalledAt: 0, timedBy: timedBy) }
+        // The clock's frame can shift a little between ticks. Where a thumbnail pixel spans more than a point (on an
+        // iPad, a 640-pixel film of a 1032-point screen), a blank that moved a fraction of a point shows as a change at
+        // its edge (#73, item 2). So every sample is blanked at every place the clock was.
+        func film(stalledAt: Double? = nil) -> FeelScreenFilm {
+            var film = FeelScreenFilm(frames: frames.map { Self.blanking(clocks, in: $0, screen: screen) }, stalledAt: stalledAt, timedBy: timedBy)
+            film.cover = cover.map { Self.blanking(clocks, in: $0, screen: screen) }
+            return film
+        }
+        guard shoot(at: 0, clockFrame: clockFrame) else { return film(stalledAt: 0) }
         for step in 1...max(1, steps) {
             advance()
             guard let (n, frame) = sample(atLeast: base + step), shoot(at: Double(n - base) * tick, clockFrame: frame) else {
-                return FeelScreenFilm(frames: frames, stalledAt: Double(step - 1) * tick, timedBy: timedBy)
+                return film(stalledAt: Double(step - 1) * tick)
             }
         }
-        return FeelScreenFilm(frames: frames, timedBy: timedBy)
+        return film()
     }
 
     /// Films the whole screen for an app with no clock of its own (#94): one screenshot per XCUITest read, as fast as
@@ -130,10 +144,16 @@ extension OuroFeel {
     /// ``FeelScreenFilm/revealHolds(cover:until:stable:merge:run:)``, taken while it is surely up. Nil when there is no
     /// screenshot to take.
     public func screenPicture(clock: String, width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelScreenFrame? {
+        var clockOnScreen = CGRect.null
+        return screenPicture(clock: clock, width: width, statusBand: statusBand, ignoring: ignoring, clockOnScreen: &clockOnScreen)
+    }
+
+    func screenPicture(clock: String, width: Int, statusBand: CGFloat, ignoring: [CGRect], clockOnScreen: inout CGRect) -> FeelScreenFrame? {
         let onScreen = screenMapping()
-        let clockFrame = onScreen(self.seen([clock]).seen.first { $0.key == clock }?.frame ?? .zero)
+        let clockFrame = self.seen([clock]).seen.first { $0.key == clock }.map { onScreen($0.frame) } ?? .zero
         let shot = XCUIScreen.main.screenshot().image
-        let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockFrame.insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring.map(onScreen)
+        clockOnScreen = clockFrame.insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)
+        let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockOnScreen] + ignoring.map(onScreen)
         return Self.thumbnail(shot, width: width, blank: blank, t: 0)
     }
 
@@ -172,6 +192,19 @@ extension OuroFeel {
     /// How far past its accessibility frame the clock's label is blanked, in points. In landscape on an iPhone the drawn
     /// digits sat up to 5 points above the frame the snapshot gave (#172), so 4 points let each tick show.
     static let clockMargin: CGFloat = 8
+
+    /// `frame` with `rect` (in points of a `screen`-sized screenshot, top down) painted black, out to whole pixels as
+    /// ``thumbnail(_:width:blank:t:)`` paints it.
+    static func blanking(_ rect: CGRect, in frame: FeelScreenFrame, screen: CGSize) -> FeelScreenFrame {
+        guard !rect.isNull, !rect.isEmpty, screen.width > 0, screen.height > 0 else { return frame }
+        let sx = CGFloat(frame.width) / screen.width, sy = CGFloat(frame.height) / screen.height
+        let x0 = max(0, Int((rect.minX * sx).rounded(.down))), x1 = min(frame.width, Int((rect.maxX * sx).rounded(.up)))
+        let y0 = max(0, Int((rect.minY * sy).rounded(.down))), y1 = min(frame.height, Int((rect.maxY * sy).rounded(.up)))
+        guard x0 < x1, y0 < y1 else { return frame }
+        var out = frame
+        for y in y0..<y1 { for x in x0..<x1 { out.gray[y * frame.width + x] = 0 } }
+        return out
+    }
 
     /// A screenshot as a `width`-pixel grayscale thumbnail, with each rect of `blank` (in points, top down) painted
     /// black. Drawn through UIKit, so a landscape screenshot's orientation is honoured and the rects land where they are.

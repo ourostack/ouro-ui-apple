@@ -247,7 +247,7 @@ struct AvatarsPage: View {
                 OuroAvatar(name: "Kenji Sato", alt: "", size: .md)
                 VStack(alignment: .leading) {
                     Text("Kenji Sato").font(.headline)
-                    Text("12 recipes").font(.subheadline).foregroundStyle(.secondary)
+                    Text("12 recipes").font(.subheadline)
                 }
             }
             .accessibilityElement(children: .combine)

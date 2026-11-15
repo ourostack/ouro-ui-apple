@@ -271,6 +271,8 @@ public struct OuroAvatar: View {
                     .font(.system(size: OuroAvatarMetrics.fontSize(size) * typeScale, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(OuroAvatarMetrics.initialsMinimumScale / typeScale)
+                    // Drawn, never read: the avatar is one image named by its person.
+                    .accessibilityHidden(true)
             }
         }
         .foregroundStyle(Color(palette.label))

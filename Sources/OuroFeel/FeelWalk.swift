@@ -165,9 +165,10 @@ extension OuroFeel {
     func followable(_ follow: FeelFollow) -> [String] {
         guard let root = try? app.snapshot() else { return [] }
         let window = Self.mainWindow(root)
+        let keyboardTop = Self.keyboardTop(root)
         var keys: [String] = []
         func walk(_ node: any XCUIElementSnapshot, switcher: Bool) {
-            guard node.elementType != .keyboard else { return }
+            guard node.elementType != .keyboard, !Self.isSystemKeyboardKey(node, keyboardTop: keyboardTop) else { return }
             let key = Self.key(node)
             // Never the screen's own way back (following it would walk backwards), and never a control that switches
             // what this screen shows (a tab, a segment, a menu), which is not a new screen to find a way back from.
@@ -182,6 +183,29 @@ extension OuroFeel {
         walk(root, switcher: false)
         return keys
     }
+
+    /// The top of the system keyboard on screen, if one is up.
+    static func keyboardTop(_ root: any XCUIElementSnapshot) -> CGFloat? {
+        var top: CGFloat?
+        func walk(_ node: any XCUIElementSnapshot) {
+            if node.elementType == .keyboard, node.frame.width > 0 { top = min(top ?? .infinity, node.frame.minY); return }
+            node.children.forEach(walk)
+        }
+        walk(root)
+        return top
+    }
+
+    /// The system keyboard's own keys, which are not the app's to walk (#60): a hosted simulator's Emoji key was once
+    /// followed and its picker judged as an overlay. Some keys sit outside the `.keyboard` element (the row under the
+    /// keys, the input assistant), so anything without an identifier at or below the keyboard's top counts, and so do
+    /// the keyboard's named keys when no keyboard element is reported at all.
+    static func isSystemKeyboardKey(_ node: any XCUIElementSnapshot, keyboardTop: CGFloat?) -> Bool {
+        guard node.identifier.isEmpty else { return false }
+        if let keyboardTop, node.frame.height > 0, node.frame.midY >= keyboardTop { return true }
+        return systemKeyLabels.contains(node.label)
+    }
+
+    static let systemKeyLabels: Set<String> = ["Emoji", "Next keyboard", "Dictate", "Dictation", "Select keyboard"]
 
     func element(_ key: String) -> XCUIElement {
         app.descendants(matching: .any).keyed(key)

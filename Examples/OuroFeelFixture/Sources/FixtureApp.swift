@@ -25,6 +25,7 @@ struct FixtureApp: App {
             case "reveal": RevealPage()
             case "stray": StrayPage()
             case "fight": FightPage()
+            case "keyboard": KeyboardPage()
             default: NavPage()
             }
         }
@@ -775,6 +776,33 @@ struct FightPage: View {
             if let p = pending, now >= p.at { page = p.page; pending = nil }
             if let v = veilUntil, now >= v { page = 30 + queued; queued = 0; veilUntil = nil }
             if let c = cloudAt, now >= c { if bug { page = 5 } else { offer = 5 }; cloudAt = nil }
+        }
+    }
+}
+
+/// A search field focused at launch, so the system keyboard is up while the walk runs: its keys (Emoji, Dictate, the
+/// next-keyboard key) are not the app's, and the walk must follow none of them (#60). "Recipe" pushes a page with a
+/// way back, so the walk has a screen of the app's own to check.
+struct KeyboardPage: View {
+    @State private var query = ""
+    @FocusState private var focused: Bool
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                TextField("Search", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($focused)
+                    .accessibilityIdentifier("keyboard.field")
+                NavigationLink("Recipe") { Text("Tomato Toast").accessibilityIdentifier("keyboard.recipe.title") }
+                    .accessibilityIdentifier("keyboard.recipe")
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Search")
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(300))
+            focused = true
         }
     }
 }

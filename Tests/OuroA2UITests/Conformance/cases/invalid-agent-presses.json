@@ -38,7 +38,7 @@
         "code": "INVALID_FUNCTION_CALL",
         "functionCallId": "c2",
         "path": "/1/callRendererFunction/callFunction",
-        "message": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
+        "message": "Order ingredients: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
         "refusal": {
           "ax": "outcome/1",
           "action": "recipe order",
@@ -49,7 +49,7 @@
           },
           "target": null,
           "state": "refused",
-          "summary": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
+          "summary": "Order ingredients: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app.",
           "postcondition": {
             "checked": false,
             "holds": null,
@@ -63,7 +63,7 @@
             "thing": "recipe order",
             "problem": "You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app",
             "fix": null,
-            "message": "recipe order: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app."
+            "message": "Order ingredients: You can't place an order or pay for the person; only they can. Ask the person, who does it with Order ingredients on the recipe in the app."
           }
         }
       }

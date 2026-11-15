@@ -362,6 +362,63 @@ Third in the 1.0 order: rows are the job our apps hand-roll most (17 views, Spoo
 - **Not yet:** web's `ItemGroup` `empty` and `ordered`. A2UI's catalog `List` is a list of strings, so `OuroA2UI`
   keeps drawing it as text. Core's `appliesTo` doesn't list `item` yet.
 
+## OuroSegmentedControl and OuroCheckbox (2026-11-14)
+
+The first two controls that hold a value, ninth and tenth in the 1.0 order.
+
+- **Segmented control.** Drawn, not SwiftUI's `.segmented` picker, because the system's is 32 points tall on iPhone
+  and core's `target.touch` asks 44 (web's segments are 44 to touch, 36 with a pointer, and so are these). Web's
+  `label`, `hideLabel`, `items` (`OuroSegment(label, value:, disabled:)`), `fullWidth`; the value is any `Hashable`
+  through a binding. Segments are as wide as the longest label (or share the width with `fullWidth`); the thumb is
+  the page's colour on the muted track (web's 16% foreground mix in dark) and slides on the `layout` spring, or
+  crossfades under Reduce Motion; a selection haptic plays. Under Increase Contrast the thumb gets a 3:1 edge so the
+  pressed segment never rests on a shadow. At the accessibility sizes the segments stack. VoiceOver hears the label,
+  then each segment as a button, the pressed one selected; web's radio group has no SwiftUI equivalent.
+- **Checkbox.** Drawn too: iOS has no checkbox. Web's `label`, `hideLabel`, `description`, `error`, `required` and
+  `indeterminate`; `disabled` is SwiftUI's `.disabled(_:)`. The box is web's 20 points to touch and 16 with a pointer,
+  the whole row its 44-point target. Checking fills the box, then draws web's tick along its path over core's `draw`
+  duration after `fast`; under Reduce Motion it fades. Its empty edge, its fill and its tick are graphics, so they
+  reach 3:1 (WCAG 1.4.11); its words reach 5:1. VoiceOver hears the label (", required"), the state as its value
+  ("Checked", "Not checked", "Mixed") with the toggle trait, and the error then the description as its hint.
+- **Not yet:** web's `CheckboxGroup` (a labelled group with one error), `readOnly`, and form `name`/`value`, which
+  have no SwiftUI form to submit to.
+
+## OuroSkeleton, OuroSpinner and OuroProgress (2026-11-14)
+
+Seventh and eighth in the 1.0 order, shipped together because they are one job, waiting: the loading half of the 13
+hand-drawn states `OuroEmptyState` doesn't cover, and six progress bars and timers.
+
+- **Skeleton.** Web's shapes: `rect`, `text` (`lines`, the last at 60%, each a line box of its text style), `circle`
+  (`side`), `row` (an ``OuroItem`` row's height, `count` of them) and `card`. Its fill is the theme's `muted` raised to
+  1.3:1 on the page, so a placeholder is seen in every theme while staying quiet. Like web it holds still for a
+  second, so a fast load never flickers, then breathes; under Reduce Motion, or with `shimmer: false`, it holds still
+  (`motion.reduced`, `aSkeletonHoldsStillUnderReduceMotion`). VoiceOver hears one "Loading" for the group.
+- **Spinner.** The system's activity indicator, as the HIG asks, at web's 16, 20 and 32 points, tinted by an optional
+  tone and named by what it waits for (web's `label`, "Loading" by default).
+- **Progress.** Web's `label`, `value` (`nil` is indeterminate), `min`, `max`, `tone`, `hideLabel`, `showValue` and
+  `indeterminateText`. It is drawn, not the system's linear bar, so the filled part reaches 3:1 on its track and the
+  page in every tone and theme (WCAG 1.4.11, `loadingReadsInEveryThemeAndMode`), which the system's tinted bar does
+  not promise. VoiceOver hears the label and a whole percentage (`aBarSaysHowFarAlong`). An unknown value slides a
+  segment, or pulses under Reduce Motion.
+- **Not yet:** web's `format` (a value in units, not a percentage) and Spoonjoy's ring timer, which is a `timer`, not
+  in 1.0.
+
+## OuroSyncStatus (2026-11-14)
+
+Twelfth in the 1.0 order: the offline and sync lines Gatefold (`SyncStatusLine`), Spoonjoy (`OfflineStatusView`) and
+Ouro MD (`DocumentStatusBar`) draw by hand, three of the eight hand-rolled banners.
+
+- Web's `status` (`saved`, `saving`, `offline`, `error`), `labels` and `onRetry`. Each state has its own SF Symbol, so
+  none rests on colour; the colours are web's mixes, raised to 5:1 on the page. The saving arrows turn with
+  `symbolEffect(.rotate)` and hold still under Reduce Motion.
+- VoiceOver hears it only when a problem starts (after web's 1.5 seconds, so it follows what the control that caused
+  it says) and when saved follows a problem, at the polite priority; every other save is silent
+  (`onlyProblemsAndRecoveriesAreSpoken`). Retry is its own button, 44 points to touch.
+- It keeps the size of its longest state, every state laid out unseen behind the current one, so a change never
+  moves the page. With `onRetry` that is Retry's 44 points.
+- **Not yet:** web moves focus to the line when Retry goes away while focused; SwiftUI has no focus to lose there,
+  as VoiceOver stays on the line's position.
+
 ## OuroPageHeader (2026-11-14)
 
 Sixth in the 1.0 order: seven hand-drawn section headers and mastheads, all in Spoonjoy.

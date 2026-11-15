@@ -215,6 +215,30 @@ struct CardsPage: View {
     }
 }
 
+/// Loading as an app shows it: a recipe's words and picture still arriving, rows and a card in their places, spinners
+/// beside what they wait for, and progress bars known and unknown.
+struct LoadingPage: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(alignment: .top, spacing: 12) {
+                OuroSkeleton(.circle, side: 48)
+                OuroSkeleton(.text, lines: 3)
+            }
+            OuroSkeleton().frame(height: 120)
+            OuroSkeleton(.row, count: 2)
+            OuroSkeleton(.card)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) { OuroSpinner(label: "Saving the draft", size: .sm); Text("Saving…").font(.subheadline) }
+                HStack(spacing: 8) { OuroSpinner(label: "Syncing pantry", tone: .primary); Text("Syncing your pantry").font(.subheadline) }
+                HStack(spacing: 8) { OuroSpinner(label: "Importing cookbook", size: .lg, tone: .success); Text("Importing").font(.subheadline) }
+            }
+            OuroProgress("Uploading photos", value: 3, max: 8, showValue: true)
+            OuroProgress("Downloading update", value: 72, tone: .success, showValue: true)
+            OuroProgress("Preparing your cookbook", value: nil)
+        }
+    }
+}
+
 /// Page headers as an app uses them: a recipe page with an eyebrow, a description, badges and actions; a large
 /// profile header with a picture; and a section header with a divider.
 struct PageHeadersPage: View {
@@ -243,8 +267,8 @@ struct PageHeadersPage: View {
     }
 }
 
-/// Rows as an app uses them: a divided group with an icon tile, a picture, actions and a pressable row, and an
-/// outlined row on its own.
+/// Rows as an app uses them: a divided group with an icon tile, a picture, actions and a pressable row, an
+/// outlined row on its own, an ordered group and an empty one.
 struct ItemsPage: View {
     @Environment(\.ouroToast) private var toast
 
@@ -266,11 +290,73 @@ struct ItemsPage: View {
                 OuroItem("Lemons", description: "4", size: .sm)
             }
             OuroItem("Pantry", description: "12 items", systemImage: "basket", variant: .outline, onPress: { toast("Opening the pantry") })
+            OuroItemGroup("Steps", ordered: true) {
+                OuroItem("Toast the orzo in butter", size: .sm)
+                OuroItem("Add the stock and simmer", size: .sm)
+            }
+            OuroItemGroup("Cookbooks", empty: "No cookbooks yet.") {}
         }
     }
 }
 
 /// Lays badges out in a row that wraps, as they do under a title at large text sizes.
+struct ChoicesPage: View {
+    @State private var view = "list"
+    @State private var units = "metric"
+    @State private var basket = [true, false, true]
+    @State private var email = true
+    @State private var agreed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            OuroSegmentedControl("View", selection: $view, hideLabel: true, items: [
+                OuroSegment("List", value: "list"),
+                OuroSegment("Grid", value: "grid"),
+                OuroSegment("Board", value: "board", disabled: true),
+            ])
+            OuroSegmentedControl("Units", selection: $units, fullWidth: true, items: [
+                OuroSegment("Metric", value: "metric"),
+                OuroSegment("US", value: "us"),
+            ])
+            VStack(alignment: .leading, spacing: 0) {
+                OuroCheckbox("Whole basket", isOn: Binding(
+                    get: { basket.allSatisfy { $0 } },
+                    set: { all in basket = basket.map { _ in all } }
+                ), indeterminate: basket.contains(true) && !basket.allSatisfy { $0 })
+                ForEach(Array(["Lemons", "Orzo", "Peas"].enumerated()), id: \.offset) { i, name in
+                    OuroCheckbox(name, isOn: $basket[i]).padding(.leading, 32)
+                }
+            }
+            OuroCheckbox("Email me new recipes", isOn: $email, description: "One a week, on Sundays.")
+            OuroCheckbox("I agree to the terms", isOn: $agreed, error: agreed ? nil : "Agree to the terms to continue.", required: true)
+            OuroCheckbox("Archived", isOn: .constant(true)).disabled(true)
+        }
+    }
+}
+
+struct SyncStatusPage: View {
+    @State private var state = OuroSyncState.error
+    @State private var retries = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            OuroSyncStatus(state) {
+                retries += 1
+                state = .saving
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    state = .saved
+                }
+            }
+            .accessibilityIdentifier("sync.live")
+            Divider()
+            ForEach(OuroSyncState.allCases, id: \.self) { s in
+                OuroSyncStatus(s, labels: OuroSyncStatusLabels(saved: "Recipe saved", saving: "Saving recipe…"))
+            }
+        }
+    }
+}
+
 struct OuroBadgeFlow: Layout {
     var spacing: CGFloat = 6
 

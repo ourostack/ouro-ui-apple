@@ -6,7 +6,7 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "pageheaders", "empty", "banners", "sheet", "toasts"]
+    static let pages = ["buttons", "badges", "cards", "items", "choices", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -41,7 +41,7 @@ final class ComponentClaimTests: XCTestCase {
                     let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
                     let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
                     XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : nil
+                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "choices" ? Self.inactiveMisreadings : nil
                         do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
                     }
                     if run.page == "buttons" {
@@ -139,6 +139,26 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
         XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
         app.terminate()
+        app = launch("loading")
+        // A spinner says what it waits for; a bar says what it is and how far along; a skeleton says Loading once.
+        XCTAssertTrue(app.descendants(matching: .any)["Saving the draft"].firstMatch.exists, "loading: the spinner is not named")
+        // XCUI lists the bar and the views inside it under one name; the bar is the one with a value.
+        func bar(_ name: String) -> XCUIElement { app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND value != nil", name)).firstMatch }
+        let upload = bar("Uploading photos")
+        XCTAssertTrue(upload.exists, "loading: the bar is not named")
+        XCTAssertEqual(upload.value as? String, "38%", "loading: the bar's value is \(String(describing: upload.value))")
+        XCTAssertEqual(bar("Preparing your cookbook").value as? String, "Loading", "loading: an unknown value is not Loading")
+        XCTAssertGreaterThan(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Loading'")).count, 0, "loading: a skeleton is silent")
+        app.terminate()
+        app = launch("sync")
+        // The line is words a reader can find; Retry is its own button, and pressing it saves.
+        XCTAssertTrue(app.staticTexts["Not saved: the server refused the changes"].exists, "sync: the error is not text")
+        let retry = app.buttons["Retry"]
+        XCTAssertTrue(retry.exists, "sync: no Retry button")
+        retry.tap()
+        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 4), "sync: Retry did not save")
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'checkmark'")).firstMatch.exists, "sync: the symbol is spoken")
+        app.terminate()
         app = launch("pageheaders")
         // A header's title is a heading; its actions are buttons; its picture is not spoken.
         let heading = app.staticTexts["Lemon orzo with peas"]
@@ -146,6 +166,21 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Lemon orzo with peas'")).allElementsBoundByIndex.contains { $0.elementType == .staticText }, "pageheaders: the title is not text")
         XCTAssertTrue(app.buttons["Cook"].exists && app.buttons["Share"].exists, "pageheaders: an action is not a button")
         XCTAssertTrue(app.staticTexts["Shopping list"].exists, "pageheaders: no section title")
+        app.terminate()
+        app = launch("choices")
+        // A segment is a button, the pressed one selected; a checkbox says its name, its state, and changes it.
+        let grid = app.buttons["Grid"]
+        XCTAssertTrue(grid.exists, "choices: no Grid segment")
+        XCTAssertTrue(app.buttons["List"].isSelected, "choices: the pressed segment is not selected")
+        grid.tap()
+        XCTAssertTrue(grid.isSelected, "choices: pressing a segment does not select it")
+        // XCUI lists a checkbox's toggle, its button and its words under one name; VoiceOver hears only the toggle.
+        let terms = app.descendants(matching: .toggle)["I agree to the terms, required"]
+        XCTAssertTrue(terms.exists, "choices: the checkbox is not named with required")
+        XCTAssertEqual(terms.value as? String, "Not checked", "choices: the checkbox's value is \(String(describing: terms.value))")
+        terms.tap()
+        XCTAssertEqual(terms.value as? String, "Checked", "choices: checking does not check")
+        XCTAssertEqual(app.descendants(matching: .toggle)["Whole basket"].value as? String, "Mixed", "choices: a partial select-all is not mixed")
         app.terminate()
         app = launch("empty")
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)
@@ -214,6 +249,14 @@ final class ComponentClaimTests: XCTestCase {
     /// toast. So contrast on a glass button is measured from the screen's pixels instead (`inkContrast`).
     static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
         issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
+    }
+
+    /// The choices page's disabled segment and checkbox, faded as web fades them (`opacity-50`). WCAG 1.4.3 exempts
+    /// text in an inactive control, so contrast is excused for them, by name and only on that page; every enabled
+    /// segment and box on it is still audited.
+    static let inactiveExamples: Set<String> = ["Board", "Archived"]
+    static let inactiveMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+        issue.auditType == .contrast && (issue.element.map { !$0.isEnabled || ComponentClaimTests.inactiveExamples.contains($0.label) } ?? false)
     }
 
     /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.

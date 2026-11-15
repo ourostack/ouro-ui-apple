@@ -195,6 +195,12 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroItemMetrics.defaultGroupVariant == .divided)
     }
 
+    /// An ordered group's rows say where they are, as web's `<ol>` does: the first of five is "1 of 5".
+    @Test func anOrderedRowSaysWhereItIs() {
+        #expect(OuroItemMetrics.position(0, of: 5) == "1 of 5")
+        #expect(OuroItemMetrics.position(4, of: 5) == "5 of 5")
+    }
+
     /// Web's `py-3` and `py-2`, its media sides (`size-10`, `size-16`, `size-28`) and its `px-4` inside an outline.
     @Test func anItemHasWebsSpacing() {
         #expect(OuroItemMetrics.verticalPadding(.md) == 12)
@@ -228,6 +234,93 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroItemMetrics.liftsMedia(.lg, at: .accessibility1))
         #expect(OuroItemMetrics.liftsMedia(.sm, at: .accessibility1))
         #expect(!OuroItemMetrics.liftsMedia(.icon, at: .accessibility5))
+    }
+}
+
+@Suite struct ChoiceMetricsTests {
+    /// Core claim `target.touch`: a segment and a checkbox row are 44 points tall to touch, web's sizes with a pointer.
+    @Test func segmentsAndCheckboxRowsAreTouchTargets() {
+        #expect(OuroChoiceMetrics.segmentHeight(.touch) == 44)
+        #expect(OuroChoiceMetrics.segmentHeight(.pointer) == 36)
+        #expect(OuroChoiceMetrics.rowMinHeight(.touch) == 44)
+        #expect(OuroChoiceMetrics.boxSide(.touch) == 20)
+        #expect(OuroChoiceMetrics.boxSide(.pointer) == 16)
+    }
+
+    /// Core claim `name.spoken`: a checkbox is heard by its label (with required), its state, then its error and
+    /// description.
+    @Test func aCheckboxSaysWhatItIsAndWhereItStands() {
+        #expect(OuroChoiceMetrics.checkboxName("I agree to the terms", required: true) == "I agree to the terms, required")
+        #expect(OuroChoiceMetrics.checkboxValue(isOn: true, indeterminate: false) == "Checked")
+        #expect(OuroChoiceMetrics.checkboxValue(isOn: false, indeterminate: false) == "Not checked")
+        #expect(OuroChoiceMetrics.checkboxValue(isOn: true, indeterminate: true) == "Mixed")
+        #expect(OuroChoiceMetrics.hint(error: "Agree to continue.", description: "Read them first.") == "Agree to continue. Read them first.")
+        #expect(OuroChoiceMetrics.hint(error: nil, description: "One a week.") == "One a week.")
+    }
+
+    /// Core claims `motion.reduced` and `text.reflows`: the tick fades rather than draws under Reduce Motion, and
+    /// segments stack at the accessibility sizes.
+    @Test func nothingDrawsUnderReduceMotionAndSegmentsStackWhenLarge() {
+        #expect(OuroChoiceMetrics.tickDraws(reduceMotion: false))
+        #expect(!OuroChoiceMetrics.tickDraws(reduceMotion: true))
+        #expect(OuroChoiceMetrics.stacksSegments(at: .accessibility1))
+        #expect(!OuroChoiceMetrics.stacksSegments(at: .large))
+    }
+}
+
+@Suite struct LoadingMetricsTests {
+    /// Web's defaults: a `rect` skeleton, an `md` spinner, a `primary` bar.
+    @Test func theLoadingComponentsDefaultToWebs() {
+        #expect(OuroLoadingMetrics.defaultSkeletonShape == .rect)
+        #expect(OuroLoadingMetrics.defaultSpinnerSize == .md)
+        #expect(OuroLoadingMetrics.defaultProgressTone == .primary)
+        #expect(OuroSpinnerSize.allCases.map(OuroLoadingMetrics.spinnerSide) == [16, 20, 32])
+        #expect(OuroLoadingMetrics.barHeight == 8)
+    }
+
+    /// Core claim `motion.reduced`: a placeholder breathes only with motion on and `shimmer` on, after a second.
+    @Test func aSkeletonHoldsStillUnderReduceMotion() {
+        #expect(OuroLoadingMetrics.breathes(shimmer: true, reduceMotion: false))
+        #expect(!OuroLoadingMetrics.breathes(shimmer: true, reduceMotion: true))
+        #expect(!OuroLoadingMetrics.breathes(shimmer: false, reduceMotion: false))
+        #expect(OuroLoadingMetrics.breatheDelay >= 1)
+    }
+
+    /// Core claim `name.spoken`: a bar's value is a whole percentage, clamped, or "Loading" while unknown.
+    @Test func aBarSaysHowFarAlong() {
+        #expect(OuroLoadingMetrics.valueText(3, min: 0, max: 8) == 0.375.formatted(.percent.precision(.fractionLength(0))))
+        #expect(OuroLoadingMetrics.fraction(150, min: 0, max: 100) == 1)
+        #expect(OuroLoadingMetrics.fraction(-5, min: 0, max: 100) == 0)
+        #expect(OuroLoadingMetrics.fraction(nil, min: 0, max: 100) == nil)
+        #expect(OuroLoadingMetrics.fraction(5, min: 10, max: 10) == nil)
+        #expect(OuroLoadingMetrics.valueText(nil, min: 0, max: 100) == "Loading")
+    }
+}
+
+@Suite struct SyncStatusTests {
+    /// Core claims `name.spoken` and `announce.urgency`: a problem is spoken when it starts and saved once it clears;
+    /// every other save is silent.
+    @Test func onlyProblemsAndRecoveriesAreSpoken() {
+        let words = OuroSyncStatusLabels()
+        #expect(OuroSyncStatusMetrics.announcement(from: .saved, to: .offline, labels: words) == words.offline)
+        #expect(OuroSyncStatusMetrics.announcement(from: .saving, to: .error, labels: words) == words.error)
+        #expect(OuroSyncStatusMetrics.announcement(from: .error, to: .saved, labels: words) == "Saved")
+        #expect(OuroSyncStatusMetrics.announcement(from: .saved, to: .saving, labels: words) == nil)
+        #expect(OuroSyncStatusMetrics.announcement(from: .saving, to: .saved, labels: words) == nil)
+        #expect(OuroSyncStatusMetrics.announcement(from: .offline, to: .offline, labels: words) == nil)
+    }
+
+    /// Core claim `motion.reduced`: the saving arrows hold still under Reduce Motion.
+    @Test func theArrowsHoldStillUnderReduceMotion() {
+        #expect(OuroSyncStatusMetrics.spins(.saving, reduceMotion: false))
+        #expect(!OuroSyncStatusMetrics.spins(.saving, reduceMotion: true))
+        #expect(!OuroSyncStatusMetrics.spins(.saved, reduceMotion: false))
+    }
+
+    /// Each state has its own symbol, so none rests on colour.
+    @Test func everyStateHasItsOwnSymbol() {
+        #expect(Set(OuroSyncState.allCases.map(\.systemImage)).count == OuroSyncState.allCases.count)
+        #expect(OuroSyncState.allCases.filter(\.isProblem) == [.offline, .error])
     }
 }
 
@@ -516,6 +609,21 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         }
     }
 
+    /// A bar's words read on the page, its filled part reaches 3:1 on the track and the page in every tone, and a
+    /// placeholder is seen on the page, in every theme and mode.
+    @Test func loadingReadsInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroLoadingPalette(style: style)
+            #expect(ratio(p.label, p.surface) >= target(style), "\(name) label")
+            #expect(ratio(p.value, p.surface) >= target(style), "\(name) value")
+            #expect(ratio(p.placeholder, p.surface) >= OuroLoadingMetrics.placeholderContrast - 0.01, "\(name) placeholder")
+            for tone in OuroTone.allCases {
+                let fill = p.fill(tone, style: style)
+                #expect(ratio(fill, p.track) >= OuroColor.increasedLineContrast - 0.01, "\(name) \(tone) on the track: \(ratio(fill, p.track))")
+            }
+        }
+    }
+
     /// A page header's title, eyebrow and description read on the page in every theme and mode.
     @Test func pageHeaderTextReadsInEveryThemeAndMode() {
         for (name, style) in styles {
@@ -528,6 +636,31 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
     /// A row's words read on the page, an icon tile's symbol reads on its tile, and the lines between rows show, in
     /// every theme and mode: 3:1 under increased contrast, as other lines are.
+    @Test func segmentedControlAndCheckboxReadInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let s = OuroSegmentedControlPalette(style: style)
+            #expect(ratio(s.selected, s.thumb) >= target(style), "\(name) pressed segment")
+            #expect(ratio(s.unselected, s.track) >= target(style), "\(name) segment")
+            if let edge = s.thumbEdge { #expect(ratio(edge, s.track) >= OuroColor.increasedLineContrast - 0.01, "\(name) thumb edge") }
+            let c = OuroCheckboxPalette(style: style)
+            #expect(ratio(c.label, c.surface) >= target(style), "\(name) checkbox label")
+            #expect(ratio(c.description, c.surface) >= target(style), "\(name) checkbox description")
+            #expect(ratio(c.error, c.surface) >= target(style), "\(name) checkbox error")
+            #expect(ratio(c.tick, c.fill) >= 2.99, "\(name) tick")
+            #expect(ratio(c.edge, c.surface) >= 2.99, "\(name) box edge")
+            #expect(ratio(c.fill, c.surface) >= 2.99, "\(name) checked box")
+        }
+    }
+
+    @Test func syncStatusReadsInEveryThemeAndMode() {
+        for (name, style) in styles {
+            let p = OuroSyncStatusPalette(style: style)
+            let page = OuroColor.resolve(style.colors.background)
+            for s in OuroSyncState.allCases { #expect(ratio(p.color(s), page) >= target(style), "\(name) \(s)") }
+            #expect(ratio(p.retry, page) >= target(style), "\(name) retry")
+        }
+    }
+
     @Test func itemTextReadsInEveryThemeAndMode() {
         for (name, style) in styles {
             let p = OuroItemPalette(style: style)

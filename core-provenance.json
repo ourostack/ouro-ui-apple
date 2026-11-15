@@ -1,12 +1,12 @@
 {
-  "coreTag": "v0.8.0",
+  "coreTag": "v0.13.1",
   "files": {
-    "Sources/OuroHX/Tokens/OuroTokens.swift": "bcb4bbfe030f8f8f30dcd6f724b05f7c4066fd1fea3087c22a5acffc13cdf05e",
+    "Sources/OuroHX/Tokens/OuroTokens.swift": "eede225b0796441341bbd1f53782c47c2dbba5e3547e42d39118dab378d3a902",
     "Sources/OuroAXTesting/Resources/apple.claims.json": "4216bfdce2983fb95a722b208cdb944315e87d5b8b5b7d0056b8edcb2208254d",
-    "Sources/OuroHXTesting/Resources/components.claims.json": "0da8e34c5044add8e120d4e1265e6bfac0b53941ad9b8a9b5c5bcb4a19e1d31e"
+    "Sources/OuroHXTesting/Resources/components.claims.json": "d634ea48cae87fb445bc2e072d0a4def5eb289bf5767a6aef4aa6cdd79fb5aa3"
   },
   "tree": {
-    "coreTag": "v0.9.0",
+    "coreTag": "v0.13.1",
     "files": {
       "Tests/OuroA2UITests/Conformance/cases/action-buttons.json": {
         "from": "standard/hx/a2ui/conformance/cases/action-buttons.json",
@@ -22,7 +22,7 @@
       },
       "Tests/OuroA2UITests/Conformance/cases/invalid-agent-presses.json": {
         "from": "standard/hx/a2ui/conformance/cases/invalid-agent-presses.json",
-        "sha256": "40e862b038cbf4c738771cc87fe9b02b5c08a267caca9601d95fced3d90b635d"
+        "sha256": "f50ca5d84fdbb60a383c1eed4f7fff9787e3bf8d40d080de1c2466fb483785fe"
       },
       "Tests/OuroA2UITests/Conformance/cases/invalid-free-button.json": {
         "from": "standard/hx/a2ui/conformance/cases/invalid-free-button.json",
@@ -30,7 +30,7 @@
       },
       "Tests/OuroA2UITests/Conformance/cases/invalid-person-only-input.json": {
         "from": "standard/hx/a2ui/conformance/cases/invalid-person-only-input.json",
-        "sha256": "c029fd37eafc73b7a692d7ec485f6a219dfb8fb0d5abd1af386c346755dc842c"
+        "sha256": "238e3ce6cf63f5dead54f5cb622feecad460e52e29fcf85f87f44f46f7e5af47"
       },
       "Tests/OuroA2UITests/Conformance/cases/invalid-styling.json": {
         "from": "standard/hx/a2ui/conformance/cases/invalid-styling.json",
@@ -54,11 +54,11 @@
       },
       "Tests/OuroA2UITests/Conformance/catalog.json": {
         "from": "standard/hx/a2ui/catalog.json",
-        "sha256": "b000946f4763d29384f40d1a9cd5c91b20a51fcda4268c120a0b774cffdb37dd"
+        "sha256": "b7c56dcd250c3ae72bbfff0caa4ae454bc02319f4661becad92cb4936525579c"
       },
       "Tests/OuroA2UITests/Conformance/recipe.catalog.json": {
         "from": "standard/hx/a2ui/conformance/recipe.catalog.json",
-        "sha256": "14679a142646e11a4d20de8771966cf870388447833a3474f49ec0dfd6957a4e"
+        "sha256": "8a915cdea3584232d173f1558ebebfde6d251d50849aa0c8498f640f070d0037"
       }
     }
   }

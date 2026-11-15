@@ -16,8 +16,9 @@ private let close = CGRect(x: 16, y: 60, width: 44, height: 44)
 
     @Test func chromeThatTakesTurnsWithTheStatusBarFails() {
         // As Gatefold's reader on the open Duo: the close button and the status bar take turns, several times a second.
-        let samples = (0..<10).map { i in
-            FeelIdleSample(at: Double(i) * 0.2, elements: i % 2 == 0 ? ["reader.close": close] : [:], statusBar: i % 2 == 1)
+        let samples = (0..<10).map { (i: Int) -> FeelIdleSample in
+            let elements: [String: CGRect] = i % 2 == 0 ? ["reader.close": close] : [:]
+            return FeelIdleSample(at: Double(i) * 0.2, elements: elements, statusBar: i % 2 == 1)
         }
         let result = FeelIdle.check(samples, pose: "open, portrait")
         #expect(!result.passed)
@@ -27,7 +28,10 @@ private let close = CGRect(x: 16, y: 60, width: 44, height: 44)
 
     @Test func aControlThatJumpsFails() {
         let moved = close.offsetBy(dx: 300, dy: -40)
-        let samples = (0..<6).map { i in FeelIdleSample(at: Double(i) * 0.2, elements: ["x": i % 2 == 0 ? close : moved], statusBar: nil) }
+        let samples = (0..<6).map { (i: Int) -> FeelIdleSample in
+            let frame: CGRect = i % 2 == 0 ? close : moved
+            return FeelIdleSample(at: Double(i) * 0.2, elements: ["x": frame], statusBar: nil)
+        }
         let result = FeelIdle.check(samples, pose: "p")
         #expect(!result.passed)
         #expect(result.detections.count == 1)
@@ -35,8 +39,9 @@ private let close = CGRect(x: 16, y: 60, width: 44, height: 44)
     }
 
     @Test func halfAPointIsNotAMove() {
-        let samples = (0..<6).map { i in
-            FeelIdleSample(at: Double(i) * 0.2, elements: ["x": close.offsetBy(dx: i % 2 == 0 ? 0 : 0.4, dy: 0)], statusBar: nil)
+        let samples = (0..<6).map { (i: Int) -> FeelIdleSample in
+            let dx: CGFloat = i % 2 == 0 ? 0 : 0.4
+            return FeelIdleSample(at: Double(i) * 0.2, elements: ["x": close.offsetBy(dx: dx, dy: 0)], statusBar: nil)
         }
         #expect(FeelIdle.check(samples, pose: "p").passed)
     }

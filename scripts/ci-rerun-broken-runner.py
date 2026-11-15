@@ -22,7 +22,8 @@ import re
 import subprocess
 import sys
 
-MARK = re.compile(r"no app code ran \(#74\)")
+# ci-simulator.py's own line, and ci-broken-runner.sh's for a requeued shard on a second bad runner (broken or slow, #199).
+MARK = re.compile(r"no app code ran \(#74\)|not the app; rerun it on a fresh runner \(#74\)")
 # Required checks that fail only because a job they wait for failed.
 SUMMARIES = {"Gallery UI tests, the component claims (free macos-26, Xcode 26)", "Ouro Feel catches every genre's bug (free macos-26, Xcode 26)"}
 REPORT_ONLY = ("Gallery hitch probe",)
@@ -80,6 +81,8 @@ def selftest():
     summary = "Gallery UI tests, the component claims (free macos-26, Xcode 26)"
     assert decide([(shard, hung), (summary, "")])[0], "a broken runner and its summary are rerun"
     assert decide([("Ouro Feel shard 1 of 3 (free macos-26, Xcode 26)", hung)])[0], "a Feel shard too"
+    slow = "##[error]Ouro Feel shard 2: FeelCatchesTests/testX ran 535 s, 26 times its measured 20.6 s: the runner is too slow, on the fresh runner this shard was requeued on too. The runner failed, not the app; rerun it on a fresh runner (#74)."
+    assert decide([("Ouro Feel shard 2 of 3, requeued on a fresh runner (free macos-26, Xcode 26)", slow)])[0], "a second slow runner too"
     assert decide([(shard, hung), ("Gallery hitch probe (main and releases, report only)", "error")])[0], "a report-only job doesn't block"
     assert not decide([(shard, hung), ("Gallery UI shard 2 of 4 on iPhone (free macos-26, Xcode 26)", "error: -[G testA] : failed")])[0], "a real failure beside it is left"
     assert not decide([(shard, "error: -[G testA] : failed"), (summary, "")])[0], "a real failure alone is left"

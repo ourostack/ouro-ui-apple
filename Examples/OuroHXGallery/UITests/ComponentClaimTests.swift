@@ -1,5 +1,6 @@
 import OuroHX
 import OuroHXTesting
+import UIKit
 import XCTest
 
 /// Core's HX component claims (`components.claims.json`), proven on the running gallery. Each test names the claims
@@ -547,13 +548,15 @@ final class ComponentClaimTests: XCTestCase {
                     app.terminate()
                     continue
                 }
-                // "Create cookbook" wraps onto two lines here; squeezed, its capsule stayed one line tall and the words
-                // spilled out. Two lines need at least twice a line's 44 points.
-                XCTAssertGreaterThanOrEqual(action.frame.height, 88, "\(name): the action's capsule is \(action.frame.height) tall for two lines")
+                // "Create cookbook" wraps onto two lines on a phone; squeezed, its capsule stayed one line tall and the
+                // words spilled out. Two lines need at least twice a line's 44 points. An iPad's form sheet is wide
+                // enough to hold it on one line, so there the capsule needs only one line's 44.
+                let actionHeight: CGFloat = UIDevice.current.userInterfaceIdiom == .phone ? 88 : 44
+                XCTAssertGreaterThanOrEqual(action.frame.height, actionHeight, "\(name): the action's capsule is \(action.frame.height) tall, under \(actionHeight)")
                 // The audit reads the title, the description and the action, scrolled to with the keyboard up, as "Text clipped",
                 // though both wrap in full; it also reads the clipping where the scroll's edge cuts the title. Excused,
                 // by where they are as the audit reads them: the two labels only while wholly in sight (the action
-                // only while its capsule holds two lines); anything cut by the sheet's edge, outside the sheet or not
+                // only while its capsule is as tall as its lines need); anything cut by the sheet's edge, outside the sheet or not
                 // the sheet's own.
                 // Everything else wholly in sight must pass. Clipped text and Dynamic Type only, like the default size,
                 // for the audit's time limit on CI; contrast and targets are audited without the keyboard elsewhere.
@@ -576,7 +579,7 @@ final class ComponentClaimTests: XCTestCase {
                         // The title too, now that the sheet stops with it in sight (where its top edge falls
                         // between lines): it wraps in full (taste round 8's largest-size captures).
                         case "Name it after what goes inside.", "New cookbook": return true
-                        case "Create cookbook": return frame.height >= 88
+                        case "Create cookbook": return frame.height >= actionHeight
                         default: return false
                         }
                     })

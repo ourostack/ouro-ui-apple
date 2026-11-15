@@ -65,8 +65,10 @@ struct ButtonsPage: View {
                 OuroButton("Medium") {}
                 OuroButton("Large", size: .lg) {}
                 OuroButton("Pill", variant: .soft, shape: .pill) {}
-                OuroButton("Glass pill", systemImage: "sparkles", variant: .glass, shape: .pill) {}
             }
+            // The glass pill on a row of its own: on iPad's wide row it sat beside the soft pill, and its shadow
+            // darkened the soft pill's fill just enough for the audit to fail that label's contrast.
+            OuroButton("Glass pill", systemImage: "sparkles", variant: .glass, shape: .pill) {}
             FlowRow {
                 OuroButton("Save", loading: saving, loadingLabel: "Saving recipe") {
                     saving = true

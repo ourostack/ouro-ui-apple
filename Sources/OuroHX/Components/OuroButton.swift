@@ -131,10 +131,12 @@ public struct OuroButtonPalette: Sendable {
             label = OuroInk.readable(toneText, on: background, style)
             border = nil
         case .glass:
-            // Glass shows the page through it, so the label is measured against the page.
+            // Glass shows the page through it, so the label is measured against the page, with a margin: the glass
+            // lifts the page a little toward white, and a label made at exactly the target read just under it.
             self.fill = nil
             surface = background
-            label = OuroInk.readable(tone == .primary ? OuroInk.r(c.foreground) : toneText, on: background, style)
+            label = OuroColor.push(tone == .primary ? OuroInk.r(c.foreground) : toneText, against: background,
+                                   to: OuroInk.target(style) + OuroButtonMetrics.glassLabelMargin)
             border = nil
         }
     }
@@ -154,6 +156,10 @@ public enum OuroButtonMetrics {
     /// A pill's end radius for a button `height` points tall: half of it, a capsule, at every text size, up to 44
     /// points, so a label wrapped onto several lines becomes a rounded rectangle rather than an oval.
     public static func pillRadius(height: CGFloat) -> CGFloat { min(height / 2, 44) }
+
+    /// How far past the text target a glass button's label is pushed against the page. The glass lifts what is under
+    /// it a little toward white, so a label made at exactly 5:1 against the page read 4.90:1 on the glass on iPad.
+    public static let glassLabelMargin = 0.5
 
     /// How much of the page tints a glass button on iOS 27, whose glass lifts what is under it toward white.
     public static func glassPageTint(scheme: ColorScheme) -> Double { scheme == .dark ? 0.6 : 0.35 }

@@ -44,7 +44,9 @@ Meerkat mode: look around first. Before you design or build something new (a com
   vendored as `Sources/OuroHXTesting/Resources/components.claims.json`. A new claim starts in core. Every claim needs
   a named Swift test, listed in `Tests/OuroHXTests/ClaimCoverageTests.swift`, which fails on a claim with none.
 - A component change runs the unit tests, the snapshots (`__Snapshots__/macOS-<major>`) and the gallery UI tests
-  (README, "The gallery"), and adds its page to the gallery.
+  (README, "The gallery"), and adds its page to the gallery: one file in `Examples/OuroHXGallery/Sources/Pages/`
+  (a `GalleryComponentPage` subclass) and one in `UITests/Pages/` (a `GalleryPageClaims` subclass with its VoiceOver
+  checks and any audit excuse). Both register themselves; don't add the page to a shared list.
 - Spacing follows web's metrics until core has spacing tokens. Decisions: `docs/decisions/2026-11-04-hx-components.md`.
 
 ## Shipping an app to the App Store

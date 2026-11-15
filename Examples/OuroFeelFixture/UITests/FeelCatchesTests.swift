@@ -44,19 +44,33 @@ final class FeelCatchesTests: XCTestCase {
     /// appears in one frame, a snap. XCUITest's idle wait cannot hide the push, since the app records it.
     func testAPushFilmedInTheApp() {
         for bug in [false, true] {
-            // The first tap on Open is ignored on purpose: a tap that doesn't take must be noticed and retried, never
-            // judged as a page that was never on screen (#84).
-            let (app, feel) = launch("transition", bug: bug, ["-missTaps", "1"])
-            let open = app.buttons["transition.open"]
-            XCTAssertTrue(open.waitForExistence(timeout: 30))
-            let title = app.staticTexts["transition.title"]
-            var film = feel.recordedFilm(["transition.title"]) { open.tap() }
-            // A tap that didn't take films a list with no page: the title is in no frame and not on screen after. One
-            // that took late is on screen now, and isn't retried, since the push it filmed is already gone. A stalled
-            // recording is never retried, so the recorder's own failures still fail.
-            for _ in 0..<2 where film.stalledAt == nil && film.track("transition.title").isEmpty && !title.exists {
-                film = feel.recordedFilm(["transition.title"]) { open.tap() }
+            func filmed() -> (XCUIApplication, OuroFeel, FeelFilm) {
+                // The first tap on Open is ignored on purpose: a tap that doesn't take must be noticed and retried,
+                // never judged as a page that was never on screen (#84).
+                let (app, feel) = launch("transition", bug: bug, ["-missTaps", "1"])
+                let open = app.buttons["transition.open"]
+                XCTAssertTrue(open.waitForExistence(timeout: 30))
+                let title = app.staticTexts["transition.title"]
+                var film = feel.recordedFilm(["transition.title"]) { open.tap() }
+                // A tap that didn't take films a list with no page: the title is in no frame and not on screen after.
+                // One that took late is on screen now, and isn't retried, since the push it filmed is already gone. A
+                // stalled recording is never retried here, so the recorder's own failures still fail.
+                for _ in 0..<2 where film.stalledAt == nil && film.track("transition.title").isEmpty && !title.exists {
+                    film = feel.recordedFilm(["transition.title"]) { open.tap() }
+                }
+                return (app, feel, film)
             }
+            var (app, feel, film) = filmed()
+            // A film cut short after one frame held for seconds is a simulator that froze, not a recorder that
+            // failed: the first test on a loaded runner once filmed 13 frames, one of them 32.7 s long. It is filmed
+            // once more from a fresh launch. A recorder that stalls while its frames keep coming still fails.
+            let longestFrame = { (f: FeelFilm) in zip(f.frames, f.frames.dropFirst()).map { $1.t - $0.t }.max() ?? 0 }
+            if film.stalledAt != nil, longestFrame(film) > 5 {
+                print("[ouro-feel] the push film froze for \(longestFrame(film)) s; filming it once more")
+                app.terminate()
+                (app, feel, film) = filmed()
+            }
+            let title = app.staticTexts["transition.title"]
             XCTAssertFalse(film.track("transition.title").isEmpty, title.exists
                 ? "the push landed after the film ended, so it was not filmed"
                 : "Open never took, so no push was filmed")
@@ -79,8 +93,7 @@ final class FeelCatchesTests: XCTestCase {
                 feel.expect(settle)
                 XCTAssertGreaterThanOrEqual(xs.count, 8, "the push was filmed frame by frame: \(xs.sorted())")
             }
-            let longest = zip(film.frames, film.frames.dropFirst()).map { $1.t - $0.t }.max() ?? 0
-            print("[ouro-feel] recorded push (bug \(bug)): \(film.frames.count) frames, \(xs.count) places of the title, cadence \(film.cadence), longest frame \(longest)")
+            print("[ouro-feel] recorded push (bug \(bug)): \(film.frames.count) frames, \(xs.count) places of the title, cadence \(film.cadence), longest frame \(longestFrame(film))")
             app.terminate()
         }
     }

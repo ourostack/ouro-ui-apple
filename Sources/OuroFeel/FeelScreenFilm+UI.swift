@@ -11,8 +11,8 @@ extension OuroFeel {
     /// `stall` seconds.
     ///
     /// The clock's own label changes every tick, so its frame is blanked, along with the top `statusBand` points (the
-    /// status bar's time and battery) and every rect in `ignoring` (in the window's points: a slip the app means to show
-    /// and take away again).
+    /// status bar's time and battery) and every rect in `ignoring` (in the app's points, as ``seen(_:)`` gives them: a slip the app means
+    /// to show and take away again).
     ///
     /// Only what follows the app's clock is filmed deterministically. Motion on wall time (a web view's CSS or WebKit's
     /// own fades) is caught at whatever point each screenshot lands; film such content from a recording instead.
@@ -53,6 +53,7 @@ extension OuroFeel {
             return nil
         }
         action?()
+        let onScreen = screenMapping()
         guard let (base, clockFrame) = sample(atLeast: .min) else {
             return FeelScreenFilm(frames: [], stalledAt: 0, timedBy: timedBy)
         }
@@ -60,7 +61,7 @@ extension OuroFeel {
         func shoot(at t: Double, clockFrame: CGRect) -> Bool {
             let shot = XCUIScreen.main.screenshot().image
             let points = shot.size
-            let blank = [CGRect(x: 0, y: 0, width: points.width, height: statusBand), clockFrame.insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring
+            let blank = [CGRect(x: 0, y: 0, width: points.width, height: statusBand), onScreen(clockFrame).insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring.map(onScreen)
             guard let frame = Self.thumbnail(shot, width: width, blank: blank, t: t) else { return false }
             frames.append(frame)
             return true
@@ -102,13 +103,14 @@ extension OuroFeel {
                            during action: (() -> Void)? = nil) -> FeelScreenFilm {
         let coverPicture = cover ? screenPicture(width: width, statusBand: statusBand, ignoring: ignoring) : nil
         var frames: [FeelScreenFrame] = []
+        let onScreen = screenMapping()
         action?()
         let start = Date()
         let settle = max(2, settle)
         while frames.count < max(1, reads) {
             let shot = XCUIScreen.main.screenshot().image
             let t = Date().timeIntervalSince(start)
-            let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring
+            let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring.map(onScreen)
             guard let frame = Self.thumbnail(shot, width: width, blank: blank, t: t) else { break }
             frames.append(frame)
             if t >= atLeast, frames.count >= settle {
@@ -128,9 +130,10 @@ extension OuroFeel {
     /// ``FeelScreenFilm/revealHolds(cover:until:stable:merge:run:)``, taken while it is surely up. Nil when there is no
     /// screenshot to take.
     public func screenPicture(clock: String, width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelScreenFrame? {
-        let clockFrame = self.seen([clock]).seen.first { $0.key == clock }?.frame ?? .zero
+        let onScreen = screenMapping()
+        let clockFrame = onScreen(self.seen([clock]).seen.first { $0.key == clock }?.frame ?? .zero)
         let shot = XCUIScreen.main.screenshot().image
-        let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockFrame.insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring
+        let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand), clockFrame.insetBy(dx: -Self.clockMargin, dy: -Self.clockMargin)] + ignoring.map(onScreen)
         return Self.thumbnail(shot, width: width, blank: blank, t: 0)
     }
 
@@ -139,8 +142,31 @@ extension OuroFeel {
     /// ``FeelScreenFilm/revealHolds(cover:until:stable:merge:run:)``, taken while it is surely up. Nil when there is no
     /// screenshot to take.
     public func screenPicture(width: Int = 160, statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelScreenFrame? {
+        let onScreen = screenMapping()
         let shot = XCUIScreen.main.screenshot().image
-        return Self.thumbnail(shot, width: width, blank: [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring, t: 0)
+        return Self.thumbnail(shot, width: width, blank: [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring.map(onScreen), t: 0)
+    }
+
+    /// Turns a frame from the app's snapshot into the screenshot's points. They're the same on an iPhone. An iPhone app
+    /// on an iPad runs in compatibility mode, in a window smaller than the screen, and there the snapshot's frames don't
+    /// match the screen's, so the clock was blanked where it isn't (#73, item 2). XCUIElement's frames are the screen's,
+    /// so the main window's frame from each gives the mapping.
+    func screenMapping() -> (CGRect) -> CGRect {
+        guard let root = try? app.snapshot() else { return { $0 } }
+        let inSnapshot = Self.mainWindow(root)
+        let windows = app.windows.allElementsBoundByIndex.map(\.frame)
+        guard let onScreen = windows.max(by: { $0.width * $0.height < $1.width * $1.height }) else { return { $0 } }
+        return Self.mapping(from: inSnapshot, to: onScreen)
+    }
+
+    /// The map that takes rect `a` onto rect `b`; none when they're the same or either is empty.
+    static func mapping(from a: CGRect, to b: CGRect) -> (CGRect) -> CGRect {
+        guard a.width > 0, a.height > 0, b.width > 0, b.height > 0, a != b else { return { $0 } }
+        let sx = b.width / a.width, sy = b.height / a.height
+        return { r in
+            r.isNull ? r : CGRect(x: b.minX + (r.minX - a.minX) * sx, y: b.minY + (r.minY - a.minY) * sy,
+                                  width: r.width * sx, height: r.height * sy)
+        }
     }
 
     /// How far past its accessibility frame the clock's label is blanked, in points. In landscape on an iPhone the drawn

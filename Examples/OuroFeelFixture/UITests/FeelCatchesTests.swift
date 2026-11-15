@@ -385,9 +385,11 @@ final class FeelCatchesTests: XCTestCase {
         if landscape {
             XCUIDevice.shared.orientation = .landscapeLeft
             let deadline = Date().addingTimeInterval(10)
-            func wide() -> Bool { let w = app.windows.firstMatch.frame; return clock.exists && w.width > w.height }
+            // The screen turns. On an iPad the fixture, an iPhone app in compatibility mode, keeps a portrait window in
+            // the middle of the landscape screen, so the window's own shape says nothing.
+            func wide() -> Bool { let s = XCUIScreen.main.screenshot().image.size; return clock.exists && s.width > s.height }
             while !wide(), Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.2)) }
-            XCTAssertTrue(wide(), "the fixture never turned to landscape")
+            XCTAssertTrue(wide(), "the screen never turned to landscape")
         }
         Thread.sleep(forTimeInterval: 1)
         let tick = FeelClock.darwinNotification("bot.ouro.feel.fixture.tick")
@@ -404,13 +406,15 @@ final class FeelCatchesTests: XCTestCase {
         }
         // Where a sample differs from the first, in points, beside where the clock is: so a failure says what changed.
         guard let first = film.frames.first else { return XCTFail("the film has no samples") }
-        let scale = app.windows.firstMatch.frame.width / CGFloat(first.width)
+        let scale = XCUIScreen.main.screenshot().image.size.width / CGFloat(first.width)
+        let (snapshotWindow, seen) = feel.seen(["screenflicker.clock"])
+        let snapshotClock = seen.first?.frame ?? .null
         for (n, frame) in film.frames.enumerated().dropFirst() where FeelScreenFilm.difference(first, frame) != 0 {
             var box = CGRect.null
             for i in 0..<min(first.gray.count, frame.gray.count) where first.gray[i] != frame.gray[i] {
                 box = box.union(CGRect(x: CGFloat(i % first.width) * scale, y: CGFloat(i / first.width) * scale, width: scale, height: scale))
             }
-            XCTFail("sample \(n) differs from the first at \(box) (points), the clock at \(clock.frame), window \(app.windows.firstMatch.frame): the clock is not blanked in \(way)")
+            XCTFail("sample \(n) differs from the first at \(box) (screen points), the clock at \(clock.frame), window \(app.windows.firstMatch.frame); in the app's snapshot, the clock at \(snapshotClock), window \(snapshotWindow): the clock is not blanked in \(way)")
         }
         feel.record(film.flickers(states: 1), name: "\(way)-clock", screenFilm: film)
     }

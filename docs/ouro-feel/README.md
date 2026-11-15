@@ -429,6 +429,16 @@ let film = feel.screenFilm(atLeast: 4) { app.buttons["Open"].tap() }
 feel.expect(film.revealHolds(cover: cover))
 ```
 
+Or let the film shoot its own cover. With `cover: true`, either screen film first takes a picture of the screen as it
+is, before the action, with the film's own size and blanking, and keeps it in `film.cover`. `film.revealHolds()` then
+judges against it. A cover taken separately with other settings can only make the judge say "could not check", so
+this way the two always compare. Start the film while the cover is up.
+
+```swift
+let film = feel.screenFilm(cover: true, atLeast: 4) { app.buttons["Open"].tap() }
+feel.expect(film.revealHolds())
+```
+
 ### Place kept through stray input, and navigation that fights you
 
 Both read the place after every action and keep only fingerprints (`FeelPlaceTrail`), judged in reads, never seconds.

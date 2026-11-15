@@ -96,10 +96,11 @@ if [ "$platform" = "ios" ]; then
   status=$?
   # A probe that never reached the app ran nothing, and xcodebuild's own retry does not help: a test runner that crashed
   # before any test started ("never finished bootstrapping"), or an app XCTest could not launch (no process ID, or it
-  # never reached the foreground; see XrayProbeTests). Reboot the simulator and run once more; the first log is kept
-  # beside the report.
+  # never reached the foreground; see XrayProbeTests), or a launch XCTest's own wait for the foreground held until the
+  # test timed out and the runner restarted with nothing left to run (main's X-ray on iOS 27.0, 2026-11-15). Reboot the
+  # simulator and run once more; the first log is kept beside the report.
   if ! grep -q OURO-AX-PROBE-BEGIN "$out/probe.log" \
-      && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch.*process ID|OURO-AX-PROBE-UNREACHED" "$out/probe.log"; then
+      && grep -qE "never finished bootstrapping|does not have a process ID|Failed to launch.*process ID|OURO-AX-PROBE-UNREACHED|Restarting after unexpected exit, crash, or test timeout" "$out/probe.log"; then
     echo "xray-probe: the probe never reached the app (see probe-first-try.log); rebooting the simulator and trying once more"
     if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::warning::xray-probe: the first probe run never reached the app; retried once (see probe-first-try.log)"; fi
     mv "$out/probe.log" "$out/probe-first-try.log"

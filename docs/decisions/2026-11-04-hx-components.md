@@ -389,6 +389,22 @@ Fourth in the 1.0 order: nine hand-drawn fields (Spoonjoy 6, Gatefold 2, Ouro MD
   gallery excuses that one issue on the textfields page only while the field is at least a line of its text tall at
   the size the run uses (`singleLineFieldMisreadings`), so a field that stopped growing with Dynamic Type still fails.
 
+## OuroSyncStatus (2026-11-14)
+
+Twelfth in the 1.0 order: the offline and sync lines Gatefold (`SyncStatusLine`), Spoonjoy (`OfflineStatusView`) and
+Ouro MD (`DocumentStatusBar`) draw by hand, three of the eight hand-rolled banners.
+
+- Web's `status` (`saved`, `saving`, `offline`, `error`), `labels` and `onRetry`. Each state has its own SF Symbol, so
+  none rests on colour; the colours are web's mixes, raised to 5:1 on the page. The saving arrows turn with
+  `symbolEffect(.rotate)` and hold still under Reduce Motion.
+- VoiceOver hears it only when a problem starts (after web's 1.5 seconds, so it follows what the control that caused
+  it says) and when saved follows a problem, at the polite priority; every other save is silent
+  (`onlyProblemsAndRecoveriesAreSpoken`). Retry is its own button, 44 points to touch.
+- It keeps the size of its longest state, every state laid out unseen behind the current one, so a change never
+  moves the page. With `onRetry` that is Retry's 44 points.
+- **Not yet:** web moves focus to the line when Retry goes away while focused; SwiftUI has no focus to lose there,
+  as VoiceOver stays on the line's position.
+
 ## OuroPageHeader (2026-11-14)
 
 Sixth in the 1.0 order: seven hand-drawn section headers and mastheads, all in Spoonjoy.

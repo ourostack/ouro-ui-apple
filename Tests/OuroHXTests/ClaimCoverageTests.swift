@@ -13,7 +13,7 @@ import Testing
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryControlIs44Points",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testEveryComponentPagePassesTheAccessibilityAudit",
         ],
-        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests"],
+        "motion.reduced": ["Tests/OuroHXTests/ComponentTests.swift: ComponentMotionTests", "Tests/OuroHXTests/ComponentTests.swift: SyncStatusTests"],
         "name.spoken": [
             "Tests/OuroHXTests/ComponentTests.swift: PageHeaderMetricsTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testVoiceOverLabels",
@@ -32,7 +32,7 @@ import Testing
             "Tests/OuroHXTests/ComponentTests.swift: ContrastTests",
             "Tests/OuroHXTests/ComponentSnapshotTests.swift: ComponentSnapshotTests",
         ],
-        "announce.urgency": ["Tests/OuroHXTests/ComponentTests.swift: AnnouncementTests"],
+        "announce.urgency": ["Tests/OuroHXTests/ComponentTests.swift: AnnouncementTests", "Tests/OuroHXTests/ComponentTests.swift: SyncStatusTests"],
         "toast.action-stays": [
             "Tests/OuroHXTests/ComponentTests.swift: ToastTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAToastWithAnActionWaits",

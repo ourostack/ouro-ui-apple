@@ -52,6 +52,8 @@ public struct OuroEmptyState<Action: View>: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Off for still renders (``SwiftUICore/View/ouroArrivals(_:)``), which would otherwise draw the arrival's clear first frame.
+    @Environment(\.ouroArrivals) private var arrivals
     /// The symbol's size, which grows with Dynamic Type like the title under it.
     @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
     @State private var arrived = false
@@ -131,7 +133,7 @@ public struct OuroEmptyState<Action: View>: View {
         // It cascades in as it arrives: the symbol bounces once, and each line rises into place a beat after the one
         // above (not under Reduce Motion).
         .onAppear {
-            guard arrives, !reduceMotion else { return }
+            guard arrives, arrivals, !reduceMotion else { return }
             var still = Transaction()
             still.disablesAnimations = true
             withTransaction(still) { settled = false }

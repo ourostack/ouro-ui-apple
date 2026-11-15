@@ -92,23 +92,32 @@ public struct OuroFeel {
         func sideways(_ node: any XCUIElementSnapshot) -> Bool {
             let f = node.frame
             guard f.width > f.height * 1.5 else { return false }
+            // A scroll view inside is a world of its own: a landscape shelf (a vertical list, wide in landscape) is not
+            // sideways because the "Reading Now" row inside it runs off the side (#67).
             func extends(_ n: any XCUIElementSnapshot) -> Bool {
-                n.children.contains { $0.frame.maxX > f.maxX + 1 || $0.frame.minX < f.minX - 1 || extends($0) }
+                n.children.contains {
+                    $0.frame.maxX > f.maxX + 1 || $0.frame.minX < f.minX - 1
+                        || (!Self.scrollTypes.contains($0.elementType) && extends($0))
+                }
             }
             return extends(node)
         }
-        func walk(_ node: any XCUIElementSnapshot, scroll: CGRect?, across: Bool) {
+        // `outer` is the nearest scroll view outside `scroll` that scrolls up and down, for a carousel inside a list.
+        func walk(_ node: any XCUIElementSnapshot, scroll: CGRect?, across: Bool, outer: CGRect?) {
             let type = node.elementType
             if Self.controlTypes.contains(type), node.isEnabled {
-                found.append(FeelElement(key: Self.key(node), type: Self.name(type), frame: node.frame, scroll: scroll,
-                                         scrollsHorizontally: across))
+                var element = FeelElement(key: Self.key(node), type: Self.name(type), frame: node.frame, scroll: scroll,
+                                          scrollsHorizontally: across)
+                element.outerScroll = across ? outer : nil
+                found.append(element)
             }
             let isScroll = Self.scrollTypes.contains(type)
+            let inner = isScroll ? (scroll.flatMap { across ? outer : $0 } ?? outer) : outer
             for child in node.children {
-                walk(child, scroll: isScroll ? node.frame : scroll, across: isScroll ? sideways(node) : across)
+                walk(child, scroll: isScroll ? node.frame : scroll, across: isScroll ? sideways(node) : across, outer: inner)
             }
         }
-        walk(root, scroll: nil, across: false)
+        walk(root, scroll: nil, across: false, outer: nil)
         return (window, found)
     }
 

@@ -626,6 +626,22 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         let next = FeelElement(key: "card 5", type: "button", frame: CGRect(x: 900, y: 110, width: 140, height: 140), scroll: strip, scrollsHorizontally: true)
         #expect(FeelLayout.check([next], window: phone, pose: "portrait").passed)
     }
+
+    /// #67: a "Reading Now" row inside a shelf that scrolls up and down, in landscape, where the shelf has the row
+    /// partly below the window's bottom and its last covers past the side.
+    @Test func aCarouselInsideAScrolledListExcusesItsCoversBelowAndBeside() {
+        let landscape = CGRect(x: 0, y: 0, width: 874, height: 402)
+        let shelf = CGRect(x: 0, y: 0, width: 874, height: 402)
+        let row = CGRect(x: 0, y: 384, width: 874, height: 220)
+        var cover = FeelElement(key: "cover 6", type: "button", frame: CGRect(x: 908, y: 384, width: 150, height: 220), scroll: row, scrollsHorizontally: true)
+        #expect(!FeelLayout.check([cover], window: landscape, pose: "landscape").passed, "with no shelf around it, the row is off the window")
+        cover.outerScroll = shelf
+        #expect(FeelLayout.check([cover], window: landscape, pose: "landscape").passed)
+        // A row pushed off the side is never excused by the shelf.
+        var shifted = cover
+        shifted.scroll = CGRect(x: 600, y: 384, width: 874, height: 220)
+        #expect(!FeelLayout.check([shifted], window: landscape, pose: "landscape").passed)
+    }
 }
 
 @Suite struct SafetyTests {

@@ -39,6 +39,33 @@ var bug: Bool { UserDefaults.standard.bool(forKey: "bug") }
 struct WindowPage: View {
     @State private var on = false
     var body: some View {
+        ZStack {
+            // A shelf with a "Reading Now" row, as Gatefold's: a horizontal ScrollView of covers inside a vertical
+            // one. Covers past the side are a carousel's, in both builds (#67).
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Color.clear.frame(height: 340)
+                    Text("Reading Now").font(.headline).padding(.horizontal)
+                    ScrollView(.horizontal) {
+                        LazyHStack(spacing: 16) {
+                            ForEach(1...6, id: \.self) { i in
+                                Button { } label: {
+                                    RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.4))
+                                        .frame(width: 150, height: 220)
+                                        .overlay(Text("Book \(i)"))
+                                }
+                                .accessibilityIdentifier("window.cover.\(i)")
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+            panel
+        }
+    }
+
+    private var panel: some View {
         GeometryReader { geo in
             VStack(alignment: .leading, spacing: 16) {
                 Text("Fine-Tune").font(.headline)

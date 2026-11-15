@@ -31,13 +31,16 @@ final class ComponentClaimTests: XCTestCase {
     /// version line, default size, light, the run's first launch). So the audit waits until two screenshots half a
     /// second apart are the same, for at most `timeout` seconds: a page that never holds still (a blinking caret) is
     /// audited when the time is up, as before.
+    ///
+    /// It compares screenshots of the screen, not of the app's window: straight after launch on a loaded runner the
+    /// window can be missing, and a missing element's screenshot fails the test with nothing to catch (#211).
     private func waitForTheScreenToHoldStill(_ app: XCUIApplication, timeout: TimeInterval = 6) {
-        let window = app.windows.firstMatch
+        _ = app.windows.firstMatch.waitForExistence(timeout: timeout)
         let deadline = Date().addingTimeInterval(timeout)
-        var last = window.screenshot().pngRepresentation
+        var last = XCUIScreen.main.screenshot().pngRepresentation
         while Date() < deadline {
             usleep(500_000)
-            let now = window.screenshot().pngRepresentation
+            let now = XCUIScreen.main.screenshot().pngRepresentation
             if now == last { return }
             last = now
         }

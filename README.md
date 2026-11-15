@@ -187,9 +187,13 @@ and [2026-11-14-composed-ui-own-tree.md](https://github.com/ourostack/ouro-ui-co
 ## The gallery
 
 `Examples/OuroHXGallery` shows every token of every theme in light, dark and increased contrast, and every component
-(the Buttons, Empty states, Banners, Sheets and Toasts pages). Its UI tests (`OuroHXGalleryUITests`) prove the
-component claims on the running app: `performAccessibilityAudit` on each component page at the default and the largest
-accessibility text size, in light and dark, plus 44-point frames, VoiceOver names and the close controls.
+on a page of its own. Its UI tests (`OuroHXGalleryUITests`) prove the component claims on the running app:
+`performAccessibilityAudit` on each component page at the default and the largest accessibility text size, in light and
+dark, plus 44-point frames, VoiceOver names and the close controls.
+
+Each component's page is one file in `Sources/Pages/` and its claims are one file in `UITests/Pages/`; each registers
+itself, so a new component adds two files and edits no shared list. `python3 -I scripts/ui-shards.py check` fails when
+a page has one and not the other.
 
 ```sh
 cd Examples/OuroHXGallery && xcodegen generate && cd ../..

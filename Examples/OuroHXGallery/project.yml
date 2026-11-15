@@ -11,7 +11,7 @@ targets:
   OuroHXGallery:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources: [Sources, Shared]
     dependencies:
       - package: OuroUIApple
         product: OuroHX
@@ -30,7 +30,7 @@ targets:
   OuroHXGalleryUITests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [UITests]
+    sources: [UITests, Shared]
     dependencies:
       - target: OuroHXGallery
       - package: OuroUIApple

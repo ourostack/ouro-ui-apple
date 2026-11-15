@@ -9,39 +9,49 @@ struct GalleryApp: App {
         WindowGroup {
             GalleryScreen(
                 theme: OuroThemeName(rawValue: UserDefaults.standard.string(forKey: "theme") ?? "") ?? .pearl,
-                page: GalleryPage(rawValue: UserDefaults.standard.string(forKey: "page") ?? "") ?? .colors
+                page: GalleryPage(named: UserDefaults.standard.string(forKey: "page") ?? "") ?? .colors
             )
             .preferredColorScheme(UserDefaults.standard.string(forKey: "scheme") == "dark" ? .dark : UserDefaults.standard.string(forKey: "scheme") == "light" ? .light : nil)
         }
     }
 }
 
-enum GalleryPage: String, CaseIterable, Identifiable {
-    case colors = "Colours", pairs = "Pairs", feel = "Feel"
-    case buttons = "Buttons", badges = "Badges", cards = "Cards", items = "Items", textFields = "Text fields", choices = "Choices", display = "Display", avatars = "Avatars", loading = "Loading", pageHeaders = "Page headers", empty = "Empty states", banners = "Banners", sync = "Sync status", sheet = "Sheets", toasts = "Toasts"
-    var id: String { rawValue }
+/// A page of the gallery: one of its own (colours, pairs, feel), or a component's, which registers itself
+/// (``GalleryComponentPage``).
+enum GalleryPage: Hashable, Identifiable {
+    case colors, pairs, feel
+    case component(String)
 
-    init?(rawValue: String) {
-        switch rawValue.lowercased() {
+    /// Every page, in the menu's order: the gallery's own, then the components' by title.
+    @MainActor static var all: [GalleryPage] { [.colors, .pairs, .feel] + GalleryComponentPage.all.map { .component($0.page) } }
+
+    var id: String {
+        switch self {
+        case .colors: "colors"
+        case .pairs: "pairs"
+        case .feel: "feel"
+        case .component(let page): page
+        }
+    }
+
+    /// The page `-page <name>` opens, or nil.
+    @MainActor init?(named name: String) {
+        switch name.lowercased() {
         case "colors", "colours": self = .colors
         case "pairs": self = .pairs
         case "feel": self = .feel
-        case "buttons", "button": self = .buttons
-        case "badges", "badge": self = .badges
-        case "cards", "card": self = .cards
-        case "items", "item": self = .items
-        case "avatars", "avatar": self = .avatars
-        case "display", "separator", "separators", "descriptionlist": self = .display
-        case "textfields", "textfield", "text-field": self = .textFields
-        case "choices", "checkbox", "checkboxes", "segmented", "segmentedcontrol": self = .choices
-        case "loading", "skeleton", "spinner", "progress": self = .loading
-        case "pageheaders", "pageheader", "page-header": self = .pageHeaders
-        case "empty", "emptystate": self = .empty
-        case "banners", "banner": self = .banners
-        case "sync", "syncstatus": self = .sync
-        case "sheet", "sheets": self = .sheet
-        case "toasts", "toast": self = .toasts
-        default: return nil
+        default:
+            guard let page = GalleryComponentPage.named(name) else { return nil }
+            self = .component(page.page)
+        }
+    }
+
+    @MainActor var title: String {
+        switch self {
+        case .colors: "Colours"
+        case .pairs: "Pairs"
+        case .feel: "Feel"
+        case .component(let page): GalleryComponentPage.named(page)?.title ?? page
         }
     }
 }
@@ -94,37 +104,23 @@ private struct ThemedPage: View {
                 // picker is a Menu with a 44-point label.
                 Menu {
                     Picker("Page", selection: $page) {
-                        ForEach(GalleryPage.allCases) { Text($0.rawValue).tag($0) }
+                        ForEach(GalleryPage.all) { Text($0.title).tag($0) }
                     }
                 } label: {
-                    Label(page.rawValue, systemImage: "chevron.up.chevron.down")
+                    Label(page.title, systemImage: "chevron.up.chevron.down")
                         .labelStyle(TrailingIconLabel())
                         .font(.body.weight(.semibold))
                         .foregroundStyle(colors.foreground)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Page, \(page.rawValue)")
+                .accessibilityLabel("Page, \(page.title)")
                 .accessibilityIdentifier("gallery.page")
                 switch page {
                 case .colors: ColorGrid()
                 case .pairs: PairList()
                 case .feel: FeelPage()
-                case .buttons: ButtonsPage()
-                case .badges: BadgesPage()
-                case .cards: CardsPage()
-                case .items: ItemsPage()
-                case .avatars: AvatarsPage()
-                case .display: DisplayPage()
-                case .textFields: TextFieldsPage()
-                case .choices: ChoicesPage()
-                case .loading: LoadingPage()
-                case .pageHeaders: PageHeadersPage()
-                case .empty: EmptyStatesPage()
-                case .banners: BannersPage()
-                case .sync: SyncStatusPage()
-                case .sheet: SheetsPage()
-                case .toasts: ToastsPage()
+                case .component(let name): GalleryComponentPage.named(name)?.content
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

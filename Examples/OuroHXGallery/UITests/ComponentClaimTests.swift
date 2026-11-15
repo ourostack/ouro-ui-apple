@@ -7,7 +7,8 @@ import XCTest
 /// it proves; `Tests/OuroHXTests/ClaimCoverageTests.swift` checks every claim has a proof.
 @MainActor
 final class ComponentClaimTests: XCTestCase {
-    static let pages = ["buttons", "badges", "cards", "items", "textfields", "choices", "display", "avatars", "loading", "pageheaders", "empty", "banners", "sync", "sheet", "toasts"]
+    /// Every component page, each registered by its own file under `Pages/` (`GalleryPageClaims`).
+    static var pages: [String] { GalleryPageClaims.all.map { $0.page } }
     static let largest = "UICTContentSizeCategoryAccessibilityXXXL"
 
     override func setUp() { continueAfterFailure = true }
@@ -20,83 +21,29 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
         // Let sheets and toasts finish arriving.
         sleep(2)
-        if page == "toasts", open { waitForToastsToSettle(app) }
+        if open { GalleryPageClaims.named(page)?.settle(app) }
         return app
-    }
-
-    /// The toasts page pushes its toasts at launch. On a loaded runner two seconds have caught the stack still arriving,
-    /// its region 8 points tall, and the audit read that sliver as "Potentially inaccessible text" with no element.
-    /// So the audit waits until the stack's region is at least 44 points tall and has held still for half a second. (The
-    /// region is the element to watch: XCUI doesn't always list the toasts inside it by their own identifier.)
-    private func waitForToastsToSettle(_ app: XCUIApplication, timeout: TimeInterval = 15) {
-        let region = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.regionIdentifier).firstMatch
-        let deadline = Date().addingTimeInterval(timeout)
-        var last: [CGRect] = []
-        while Date() < deadline {
-            let frames = [region.exists ? region.frame : .zero]
-            if frames[0].height >= 44, frames == last { return }
-            last = frames
-            usleep(500_000)
-        }
-        XCTFail("toasts: the stack had not settled after \(Int(timeout)) seconds: \(last)")
     }
 
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,
     /// descriptions, traits, clipped text, Dynamic Type, contrast) on every component page, at the default and the
-    /// largest accessibility text size, in light and dark.
-    ///
-    /// The sheet runs twice. iOS 26 draws a sheet below full height at 96% (see `OuroSheetMetrics.drawnScale`), and the
-    /// audit reads that scaled text as "Text clipped"; `ouroAccessibilityAudit` excuses that inside a scaled
-    /// `.ouroSheet` only, so the same sheet at full height (`-sheetDetent large`, drawn unscaled) is audited for
-    /// clipping too.
+    /// largest accessibility text size, in light and dark. Each page's file under `Pages/` says how its audit runs, what
+    /// it excuses and why, and what it checks after the audit to prove the excuse hides nothing.
     func testEveryComponentPagePassesTheAccessibilityAudit() throws {
-        let runs: [(page: String, extra: [String], known: [String])] =
-            Self.pages.map { ($0, [], []) } + [("sheet", ["-sheetDetent", "large"], [])]
         // `OURO_AUDIT_PAGES=toasts,sheet` (as `TEST_RUNNER_OURO_AUDIT_PAGES` to xcodebuild) audits only those pages.
         let only = ProcessInfo.processInfo.environment["OURO_AUDIT_PAGES"].map { Set($0.split(separator: ",").map(String.init)) }
-        for run in runs where only?.contains(run.page) ?? true {
-            for size in [nil, Self.largest] {
-                for scheme in ["light", "dark"] {
-                    let name = "\(run.page)\(run.extra.isEmpty ? "" : " large") \(size ?? "default") \(scheme)"
-                    let app = launch(run.page, size: size, scheme: scheme, extra: run.extra)
-                    XCTContext.runActivity(named: name) { _ in
-                        let excuse = run.page == "buttons" ? Self.glassMisreadings : run.page == "toasts" ? Self.toastGlassMisreadings(app) : run.page == "textfields" ? Self.singleLineFieldMisreadings(app) : run.page == "avatars" ? Self.avatarInitialsMisreadings : run.page == "choices" ? Self.inactiveMisreadings : run.page == "sheet" ? Self.pageBehindFormSheetMisreadings(app) : nil
-                        do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: excuse) } catch { XCTFail("\(name): \(error)") }
-                    }
-                    if run.page == "buttons" {
-                        // What that excuse could hide: each glass button's words, measured from the screen's own
-                        // pixels, read at 5:1 against the glass under them.
-                        let shot = app.windows.firstMatch.screenshot().image
-                        let glass = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'button.glass.'")).allElementsBoundByIndex
-                        var measured = 0
-                        for button in glass where app.windows.firstMatch.frame.contains(button.frame) {
-                            let ratio = Self.inkContrast(shot, in: button.frame.insetBy(dx: 12, dy: 10))
-                            XCTAssertGreaterThanOrEqual(ratio, 5, "\(name): glass \(button.label) reads at \(ratio):1")
-                            measured += 1
+        for claims in GalleryPageClaims.all where only?.contains(claims.page) ?? true {
+            for variant in claims.auditVariants {
+                for size in [nil, Self.largest] {
+                    for scheme in ["light", "dark"] {
+                        let run = GalleryAuditRun(name: "\(claims.page)\(variant.suffix) \(size ?? "default") \(scheme)", size: size, extra: variant.extra)
+                        let app = launch(claims.page, size: size, scheme: scheme, extra: variant.extra)
+                        XCTContext.runActivity(named: run.name) { _ in
+                            do { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) } catch { XCTFail("\(run.name): \(error)") }
                         }
-                        // The glass row is shown first, so some of it is always on screen to measure.
-                        XCTAssertGreaterThan(measured, 0, "\(name): no glass button on screen to measure")
+                        claims.afterAudit(app, run)
+                        app.terminate()
                     }
-                    if run.page == "toasts", size == nil {
-                        // Expanded, as VoiceOver users always see the stack: every toast's own words are measured.
-                        expandToasts(app)
-                        XCTContext.runActivity(named: "\(name) expanded") { _ in
-                            do { try app.ouroAccessibilityAudit(knownIssues: run.known, excuse: { Self.expandedStackMisreadings($0) || Self.toastGlassMisreadings(app)($0) }) } catch { XCTFail("\(name) expanded: \(error)") }
-                        }
-                        // What those excuses could hide: every toast's buttons are full targets, reachable.
-                        for button in app.buttons.matching(NSPredicate(format: "label IN %@", ["Dismiss", "Undo"])).allElementsBoundByIndex {
-                            XCTAssertTrue(button.isHittable, "\(name) expanded: \(button.label) is not reachable")
-                            XCTAssertGreaterThanOrEqual(min(button.frame.width, button.frame.height), 44, "\(name) expanded: \(button.label) is \(button.frame.size)")
-                        }
-                    }
-                    if run.page == "sheet", run.extra.isEmpty {
-                        // What the excused "Text clipped" could hide: the fitted sheet's last row and its action
-                        // are on screen and reachable.
-                        for control in ["Party food", "Save"] {
-                            XCTAssertTrue(app.buttons[control].firstMatch.isHittable, "\(name): \"\(control)\" is not reachable in the fitted sheet")
-                        }
-                    }
-                    app.terminate()
                 }
             }
         }
@@ -125,140 +72,11 @@ final class ComponentClaimTests: XCTestCase {
 
     /// Claim name.spoken: VoiceOver finds each control by the name it speaks, as a button, and each title as text.
     func testVoiceOverLabels() {
-        var app = launch("buttons")
-        for name in ["Save recipe", "Primary", "Destructive", "Glass pill", "Small", "Unavailable"] {
-            XCTAssertTrue(app.buttons[name].firstMatch.exists, "buttons: no button named \"\(name)\"")
+        for claims in GalleryPageClaims.all {
+            let app = launch(claims.page)
+            claims.voiceOver(app)
+            app.terminate()
         }
-        app.terminate()
-        app = launch("badges")
-        // A badge is words, not a control: VoiceOver reads it with its row, and its icon stays out of the way.
-        for variant in ["solid", "soft", "outline"] {
-            XCTAssertTrue(app.descendants(matching: .any)["badges.\(variant)"].exists, "badges: no \(variant) row")
-        }
-        let row = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Lemon orzo with peas'")).firstMatch
-        XCTAssertTrue(row.exists, "badges: the recipe row is not one element")
-        XCTAssertTrue(row.label.contains("Vegan") && row.label.contains("25 min"), "badges: the row says \"\(row.label)\"")
-        XCTAssertFalse(row.label.contains("leaf"), "badges: the decorative icon is spoken: \"\(row.label)\"")
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == 'Vegan'")).count, 0, "badges: a badge is not a button")
-        app.terminate()
-        app = launch("cards")
-        // A card's title is text VoiceOver reads (a heading; the audit checks traits), and its action is a button.
-        XCTAssertTrue(app.staticTexts["Pantry"].exists, "cards: no title")
-        XCTAssertTrue(app.staticTexts["What you have on hand"].exists, "cards: no description")
-        XCTAssertTrue(app.buttons["Edit"].exists, "cards: the action is not a button")
-        XCTAssertTrue(app.buttons["Start cooking"].exists)
-        app.terminate()
-        app = launch("items")
-        // A pressable row is one button named by its title and description; its actions stay their own buttons, and
-        // its icon tile is not spoken.
-        let soup = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Black bean soup'")).firstMatch
-        XCTAssertTrue(soup.exists, "items: the pressable row is not a button")
-        XCTAssertTrue(soup.label.contains("40 minutes"), "items: the row says \"\(soup.label)\"")
-        XCTAssertTrue(app.buttons["Cook"].exists, "items: the row's action is not its own button")
-        XCTAssertTrue(app.staticTexts["Braised short ribs"].exists || app.descendants(matching: .any)["Braised short ribs, 3 hours, serves six"].exists, "items: no title")
-        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'flame'")).firstMatch.exists, "items: the decorative icon is spoken")
-        app.terminate()
-        app = launch("display")
-        // A pair is heard as one; a pair whose details are a view keeps its parts; a line is silent, its label is not.
-        XCTAssertTrue(app.descendants(matching: .any)["Prep time, 20 minutes"].exists, "display: a pair is not heard as one")
-        XCTAssertTrue(app.staticTexts["Diet"].exists && app.descendants(matching: .any)["Vegan"].exists, "display: a pair with a view lost its parts")
-        XCTAssertTrue(app.staticTexts["or"].exists, "display: a separator's label is not text")
-        app.terminate()
-        app = launch("loading")
-        // A spinner says what it waits for; a bar says what it is and how far along; a skeleton says Loading once.
-        XCTAssertTrue(app.descendants(matching: .any)["Saving the draft"].firstMatch.exists, "loading: the spinner is not named")
-        // XCUI lists the bar and the views inside it under one name; the bar is the one with a value.
-        func bar(_ name: String) -> XCUIElement { app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ AND value != nil", name)).firstMatch }
-        let upload = bar("Uploading photos")
-        XCTAssertTrue(upload.exists, "loading: the bar is not named")
-        XCTAssertEqual(upload.value as? String, "38%", "loading: the bar's value is \(String(describing: upload.value))")
-        XCTAssertEqual(bar("Preparing your cookbook").value as? String, "Loading", "loading: an unknown value is not Loading")
-        XCTAssertGreaterThan(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Loading'")).count, 0, "loading: a skeleton is silent")
-        app.terminate()
-        app = launch("avatars")
-        // An avatar is an image named by its person, then its presence; its initials are drawn, not read; one beside
-        // its name is not read twice; one still loading says so.
-        XCTAssertTrue(app.images["Ana Lind"].exists, "avatars: no image named Ana Lind")
-        XCTAssertTrue(app.images["Ana Lind, busy"].exists, "avatars: the presence is not read after the name")
-        XCTAssertTrue(app.images["Name loading"].exists, "avatars: a loading avatar is silent")
-        // XCUI lists the drawn initials under the avatar even though the avatar ignores its children, so VoiceOver's
-        // reading is proven by the image's name above, not by the initials' absence here.
-        // The sizes row has its own Kenji Sato; the row beside the name is one element, read once.
-        XCTAssertEqual(app.images.matching(NSPredicate(format: "label == 'Kenji Sato'")).count, 1, "avatars: a name beside its avatar is read twice")
-        XCTAssertTrue(app.descendants(matching: .any)["Kenji Sato, 12 recipes"].firstMatch.exists, "avatars: a name beside its avatar is not one element")
-        app.terminate()
-        app = launch("sync")
-        // The line is words a reader can find; Retry is its own button, and pressing it saves.
-        XCTAssertTrue(app.staticTexts["Not saved: the server refused the changes"].exists, "sync: the error is not text")
-        let retry = app.buttons["Retry"]
-        XCTAssertTrue(retry.exists, "sync: no Retry button")
-        retry.tap()
-        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 4), "sync: Retry did not save")
-        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'checkmark'")).firstMatch.exists, "sync: the symbol is spoken")
-        app.terminate()
-        app = launch("pageheaders")
-        // A header's title is a heading; its actions are buttons; its picture is not spoken.
-        let heading = app.staticTexts["Lemon orzo with peas"]
-        XCTAssertTrue(heading.exists, "pageheaders: no title")
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Lemon orzo with peas'")).allElementsBoundByIndex.contains { $0.elementType == .staticText }, "pageheaders: the title is not text")
-        XCTAssertTrue(app.buttons["Cook"].exists && app.buttons["Share"].exists, "pageheaders: an action is not a button")
-        XCTAssertTrue(app.staticTexts["Shopping list"].exists, "pageheaders: no section title")
-        app.terminate()
-        app = launch("textfields")
-        // A field is named by its label, never its placeholder, keeps the label with hideLabel, says it is required,
-        // and reads its error; its buttons are named.
-        XCTAssertTrue(app.textFields["Email, required"].exists, "textfields: no field named \"Email, required\"")
-        XCTAssertTrue(app.secureTextFields["Password"].exists, "textfields: the password is not a secure field named Password")
-        XCTAssertTrue(app.buttons["Show password"].exists, "textfields: no show password button")
-        XCTAssertTrue(app.textFields["Search recipes"].exists, "textfields: a hidden label is not the field's name")
-        XCTAssertTrue(app.buttons["Clear"].exists, "textfields: no clear button while the search has text")
-        let titleField = app.textFields["Recipe title, required"]
-        XCTAssertTrue(titleField.exists, "textfields: no recipe title field")
-        // XCUI's subscript also matches a placeholder, so the name is read from `label`.
-        XCTAssertFalse(app.textFields.matching(NSPredicate(format: "label == %@", "Lemon orzo with peas")).firstMatch.exists, "textfields: a placeholder is a field's name")
-        app.buttons["Show password"].tap()
-        XCTAssertTrue(app.textFields["Password"].waitForExistence(timeout: 2), "textfields: show password does not show it")
-        app.buttons["Clear"].tap()
-        XCTAssertFalse(app.buttons["Clear"].waitForExistence(timeout: 1), "textfields: clear did not empty the search")
-        app.terminate()
-        app = launch("choices")
-        // A segment is a button, the pressed one selected; a checkbox says its name, its state, and changes it.
-        let grid = app.buttons["Grid"]
-        XCTAssertTrue(grid.exists, "choices: no Grid segment")
-        XCTAssertTrue(app.buttons["List"].isSelected, "choices: the pressed segment is not selected")
-        grid.tap()
-        XCTAssertTrue(grid.isSelected, "choices: pressing a segment does not select it")
-        // XCUI lists a checkbox's toggle, its button and its words under one name; VoiceOver hears only the toggle.
-        let terms = app.descendants(matching: .toggle)["I agree to the terms, required"]
-        XCTAssertTrue(terms.exists, "choices: the checkbox is not named with required")
-        XCTAssertEqual(terms.value as? String, "Not checked", "choices: the checkbox's value is \(String(describing: terms.value))")
-        terms.tap()
-        XCTAssertEqual(terms.value as? String, "Checked", "choices: checking does not check")
-        XCTAssertEqual(app.descendants(matching: .toggle)["Whole basket"].value as? String, "Mixed", "choices: a partial select-all is not mixed")
-        app.terminate()
-        app = launch("empty")
-        XCTAssertTrue(app.staticTexts["No recipes yet"].exists)
-        XCTAssertTrue(app.buttons["Create recipe"].exists)
-        // The icon is accessibilityHidden; XCUITest's tree still lists hidden images, so the audit's
-        // sufficientElementDescription run, not an element query, is what checks it stays out of VoiceOver's way.
-        app.terminate()
-        app = launch("banners")
-        XCTAssertTrue(app.buttons["Dismiss"].exists, "the dismissible banner's close button")
-        XCTAssertTrue(app.buttons["Try again"].exists)
-        app.terminate()
-        app = launch("sheet")
-        XCTAssertTrue(app.staticTexts["Save to cookbook"].exists)
-        XCTAssertTrue(app.buttons["Close"].exists)
-        app.terminate()
-        app = launch("toasts")
-        // Stacked, only the newest toast is shown; the older ones tuck behind it, out of VoiceOver's way. With
-        // VoiceOver or Switch Control running the stack opens by itself; here a tap opens it.
-        XCTAssertEqual(shownDismissButtons(app), 1, "only the front toast is shown")
-        expandToasts(app)
-        XCTAssertTrue(app.buttons["Undo"].exists)
-        XCTAssertEqual(shownDismissButtons(app), 3, "every toast has a dismiss button")
-        XCTAssertTrue(app.otherElements["Notifications"].exists || app.descendants(matching: .any)["Notifications"].exists, "the toasts' region is named")
-        app.terminate()
     }
 
     /// How long a close may take to be reported, on the slowest runner: a toast's own time on screen plus margin. A
@@ -278,7 +96,7 @@ final class ComponentClaimTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Pick where this recipe lives."].waitForNonExistence(timeout: Self.closeBudget))
         app.terminate()
         app = launch("toasts")
-        expandToasts(app)
+        ToastsPageClaims.expand(app)
         // Every toast on this page waits to be dismissed, so no timer can meet this wait: only the close can.
         let close = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.first(where: \.isHittable)
         XCTAssertNotNil(close, "a toast's close is reachable")
@@ -286,66 +104,6 @@ final class ComponentClaimTests: XCTestCase {
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count == 2"), object: app.buttons.matching(identifier: "Dismiss"))
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: Self.closeBudget), .completed, "the toast's close dismissed it, and only it")
         app.terminate()
-    }
-
-    /// Toasts' close buttons a finger can reach: the shown toasts' (a tucked one draws no buttons).
-    private func shownDismissButtons(_ app: XCUIApplication) -> Int {
-        app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.filter(\.isHittable).count
-    }
-
-    /// Two readings the audit gets wrong on an expanded stack (W8, 2026-11-04, with diagnostics of each issue's
-    /// element): it fails Undo's contrast even with Undo drawn black on the white surface (21:1), and reads the oldest
-    /// toast's plain words, a static text with no action, as an undersized target, with a second such issue that has
-    /// no element at all. Contrast is proven by the palette tests; the targets by the assertions after the audit.
-    /// The audit misreads words on Liquid Glass: on the gallery's glass row it reported white "Primary" on near-black
-    /// glass (well over 15:1 in `gallery-r10/buttons-dark.png`) as failing contrast, and raising every glass label to
-    /// 6:1 made it report more failures, not fewer (W8 evidence, taste round 5). The same misreading as Undo on the glass
-    /// toast. So contrast on a glass button is measured from the screen's pixels instead (`inkContrast`).
-    /// A single-line field scrolls its text sideways, as every platform's input does, and the audit reads every
-    /// `UITextField` as "Text clipped". It is excused only for a field at least a line of its text tall at the size
-    /// the app runs at, so a field that didn't grow with Dynamic Type still fails.
-    static func singleLineFieldMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
-        { issue in
-            guard issue.auditType == .textClipped, let element = issue.element, element.exists,
-                  [.textField, .secureTextField].contains(element.elementType) else { return false }
-            let size = app.launchArguments.firstIndex(of: "-UIPreferredContentSizeCategoryName")
-                .flatMap { app.launchArguments.indices.contains($0 + 1) ? UIContentSizeCategory(rawValue: app.launchArguments[$0 + 1]) : nil } ?? .large
-            let line = UIFont.preferredFont(forTextStyle: .body, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)).lineHeight
-            return element.frame.height >= line - 1
-        }
-    }
-
-    /// On iPad a sheet is a form sheet in the middle of the screen, and the page behind it stays in sight, dimmed. The
-    /// sheet is modal, so that page is out of the accessibility tree, and the audit reads its words as "Potentially
-    /// inaccessible text" with no element (every sheet run in main's iPad shard 2, 2026-11-14). Excused only with no
-    /// element and only while the sheet is narrower than the window. On an iPhone the sheet spans the screen's width, so
-    /// the same check there still fails any of the sheet's own words that VoiceOver can't reach.
-    static func pageBehindFormSheetMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
-        { issue in
-            guard issue.compactDescription == "Potentially inaccessible text", issue.element == nil else { return false }
-            let sheet = app.descendants(matching: .any).matching(identifier: OuroSheetMetrics.accessibilityIdentifier).firstMatch
-            return sheet.exists && sheet.frame.width < app.windows.firstMatch.frame.width - 1
-        }
-    }
-
-    static let glassMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
-        issue.auditType == .contrast && (issue.element?.identifier.hasPrefix("button.glass.") ?? false)
-    }
-
-    /// An avatar's initials are drawn in its fixed-size tile, as web's are: they grow with Dynamic Type until they fill
-    /// it, then hold (`OuroAvatarMetrics.initialsMinimumScale`), so the audit reads them as "partially unsupported".
-    /// VoiceOver never reads them (the avatar is one image named by its person), and a tile that grew with the text
-    /// would break every row it sits in. Excused for one or two capital letters on the avatars page only.
-    static let avatarInitialsMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
-        issue.auditType == .dynamicType && (issue.element.map { $0.label.range(of: "^[A-Z]{1,2}$", options: .regularExpression) != nil } ?? false)
-    }
-
-    /// The choices page's disabled segment and checkbox, faded as web fades them (`opacity-50`). WCAG 1.4.3 exempts
-    /// text in an inactive control, so contrast is excused for them, by name and only on that page; every enabled
-    /// segment and box on it is still audited.
-    static let inactiveExamples: Set<String> = ["Board", "Archived"]
-    static let inactiveMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
-        issue.auditType == .contrast && (issue.element.map { !$0.isEnabled || ComponentClaimTests.inactiveExamples.contains($0.label) } ?? false)
     }
 
     /// The contrast between the darkest and lightest pixels in `rect` (points): the words and what is under them.
@@ -406,51 +164,6 @@ final class ComponentClaimTests: XCTestCase {
         guard !lum.isEmpty else { return 0 }
         let lo = lum[lum.count * 2 / 100], hi = lum[lum.count * 98 / 100]
         return (hi + 0.05) / (lo + 0.05)
-    }
-
-    /// iOS 27's audit reads a toast's words on glass as failing contrast though the screen shows them above 5:1 (the
-    /// dark error toast's description, 5.65:1 measured from a screenshot; the message, near white, 14.9:1). Excused
-    /// only for words inside a toast, and only when their own pixels, measured from the screen as the audit runs,
-    /// read at 5:1 or more, each line of ink on its own (a message and its description are one element, so measured
-    /// together the message's ink could carry a faint description): the claim itself, held another way.
-    static func toastGlassMisreadings(_ app: XCUIApplication) -> (XCUIAccessibilityAuditIssue) -> Bool {
-        { issue in
-            guard issue.auditType == .contrast, let element = issue.element, element.exists else { return false }
-            let frame = element.frame
-            let toasts = app.descendants(matching: .any).matching(identifier: OuroToastMetrics.toastIdentifier).allElementsBoundByIndex.map(\.frame)
-            guard !frame.isEmpty, toasts.contains(where: { $0.insetBy(dx: -1, dy: -1).contains(frame) }) else { return false }
-            // The toast's message line (`.subheadline`) is its tallest, at the size the app runs at.
-            let size = app.launchArguments.firstIndex(of: "-UIPreferredContentSizeCategoryName")
-                .flatMap { app.launchArguments.indices.contains($0 + 1) ? UIContentSizeCategory(rawValue: app.launchArguments[$0 + 1]) : nil } ?? .large
-            let line = UIFont.preferredFont(forTextStyle: .subheadline, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)).lineHeight
-            let ratio = lineInkContrast(app.windows.firstMatch.screenshot().image, in: frame, lineHeight: line)
-            print("toast words \"\(element.label)\" read at \(ratio):1 on screen")
-            return ratio >= 5
-        }
-    }
-
-    static let expandedStackMisreadings: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
-        switch issue.auditType {
-        case .contrast: issue.element?.label == "Undo"
-        case .hitRegion: issue.element == nil || issue.element?.elementType == .staticText
-        default: false
-        }
-    }
-
-    /// Opens the toast stack by tapping its front toast, the newest, "Couldn’t save".
-    private func expandToasts(_ app: XCUIApplication) {
-        app.staticTexts["Couldn\u{2019}t save"].tap()
-        // Until the stack has fanned out and its words have faded in: an audit mid-way reads fading words and moving
-        // targets (CI failed it after a fixed second).
-        var last: [CGRect] = []
-        for _ in 0..<20 {
-            Thread.sleep(forTimeInterval: 0.25)
-            let frames = app.buttons.matching(identifier: "Dismiss").allElementsBoundByIndex.map(\.frame)
-            if frames.count == 3, frames == last { break }
-            last = frames
-        }
-        Thread.sleep(forTimeInterval: 0.5)
-        XCTAssertEqual(shownDismissButtons(app), 3, "a tap opens the stack")
     }
 
     /// Claim toast.action-stays: a toast with an action is still there after the five seconds a plain one gets. The

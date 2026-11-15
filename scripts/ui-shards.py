@@ -11,8 +11,10 @@
 Suites: `gallery` (Examples/OuroHXGallery) and `feel` (Examples/OuroFeelFixture).
 
 The last shard of each suite is the catch-all: it runs the whole UI test target except the other shards' tests and the
-suite's skipped classes, so a test no shard names still runs there. `check` fails the `paths` job when a test is
-named twice, a named test no longer exists, or an audit page is in no shard or in two. `ran` reads a shard's result
+suite's skipped classes, so a test no shard names still runs there, and it audits every page no other shard names, so a
+new component's page needs no edit here. `check` fails the `paths` job when a test is named twice, a named test no
+longer exists, an audit page is in two shards or none of the pages, or the gallery's pages and the UI tests' page
+claims differ (each component registers both from its own files: `Sources/Pages/` and `UITests/Pages/`). `ran` reads a shard's result
 bundle and fails when the shard ran other tests than its plan or audited other pages, so a shard can never pass by
 running nothing.
 
@@ -32,6 +34,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# A page's claims, or a gallery page, names its page: `override class var page: String { "toasts" }`.
+PAGE = r'override class var page: String \{ "(\w+)" \}'
+# Seconds `plan` counts for an audit page no run has measured: banners', a page of about the same size.
+UNMEASURED_PAGE = 35.0
+
 # Seconds each test (and each audit page, both sheet detents counted under "sheet") took. A catch-all shard's "tests"
 # are the ones it is known to run, for the plan's totals and for `ran`.
 SUITES = {
@@ -39,8 +46,10 @@ SUITES = {
         "tests_dir": "Examples/OuroHXGallery/UITests",
         "target": "OuroHXGalleryUITests",
         "skipped_classes": {"MotionTests"},  # the main-only hitch probe
+        # The audit's pages are its page claims, one file each (`override class var page: String { "toasts" }`), filtered
+        # by OURO_AUDIT_PAGES; the gallery's own pages in `app_dir` must be the same set.
         "audit": {"test": "ComponentClaimTests/testEveryComponentPagePassesTheAccessibilityAudit",
-                  "pages_in": r"static let pages\s*=\s*\[([^\]]*)\]"},  # filtered by OURO_AUDIT_PAGES
+                  "pages_in": PAGE, "app_dir": "Examples/OuroHXGallery/Sources"},
         # Seconds from #61's run 42432765989. The keyboard-sheet test (272 s) is the floor, so shard 1 holds it and
         # little else, and runs no audit pages.
         "shards": {
@@ -59,8 +68,8 @@ SUITES = {
                           "ComponentClaimTests/testATallSheetOpensAtItsTopAtTheLargestSize": 17.5,
                           "ComponentClaimTests/testAToastWithAnActionWaits": 16.6,
                           "FeelTests/testAToastStackArrivesWithoutJumpsGhostsOrALongSettle": 11.0},
-                # badges, items, textfields, pageheaders, sync, loading, choices, display and avatars: not measured yet; banners' time, a page of the same size, until a run measures it.
-                "pages": {"empty": 39.2, "banners": 35.0, "badges": 35.0, "items": 35.0, "textfields": 35.0, "pageheaders": 35.0, "sync": 35.0, "loading": 35.0, "choices": 35.0, "display": 35.0, "avatars": 35.0}},
+                # The catch-all: it also audits every page no other shard names (UNMEASURED_PAGE seconds each in `plan`).
+                "pages": {"empty": 39.2, "banners": 35.0}},
         },
     },
     "feel": {
@@ -95,13 +104,20 @@ SUITES = {
 }
 
 ATTRS = r"(?:@[\w.]+(?:\([^)]*\))?\s+)*"
-CLASS = re.compile(rf"^\s*{ATTRS}(?:(?:final|public|open|internal|private|fileprivate)\s+)*class\s+(\w+)\b")
+# A test class, or an extension of one in another file (a component's own tests beside its page claims).
+CLASS = re.compile(rf"^\s*{ATTRS}(?:(?:final|public|open|internal|private|fileprivate)\s+)*(?:class|extension)\s+(\w+)\b")
 FUNC = re.compile(rf"^\s*{ATTRS}(?:(?:override|public|open|internal|final|nonisolated)\s+)*func\s+(test\w+)\s*\(")
+
+
+def declared_pages(root, pattern):
+    """The pages the Swift files under `root` name with `pattern`, in file order, or None when none does."""
+    found = [page for path in sorted(root.rglob("*.swift")) for page in re.findall(pattern, path.read_text())]
+    return found or None
 
 
 def source_tests(root, skipped, pages_in=None):
     """Every `Class/testName` under `root` (any depth, attributes allowed), and the audit's pages when it has one."""
-    tests, pages = set(), None
+    tests = set()
     for path in sorted(root.rglob("*.swift")):
         text = path.read_text()
         cls = None
@@ -112,10 +128,7 @@ def source_tests(root, skipped, pages_in=None):
             m = FUNC.match(line)
             if m and cls and cls not in skipped:
                 tests.add(f"{cls}/{m.group(1)}")
-        m = re.search(pages_in, text) if pages_in else None
-        if m:
-            pages = re.findall(r'"([^"]+)"', m.group(1))
-    return tests, pages
+    return tests, declared_pages(root, pages_in) if pages_in else None
 
 
 def problems(suite, tests, pages):
@@ -140,12 +153,35 @@ def problems(suite, tests, pages):
     for page in sorted(set(paged)):
         if paged.count(page) > 1:
             out.append(f"audit page {page} is in more than one shard")
-    for page in pages:
-        if page not in paged:
-            out.append(f"audit page {page} is in no shard: add it to the lightest one in scripts/ui-shards.py")
+    for page in sorted(set(pages)):
+        if pages.count(page) > 1:
+            out.append(f"audit page {page} has more than one page claims class")
     for page in sorted(set(paged) - set(pages)):
         out.append(f"audit page {page} is in a shard but not in the audit's pages")
     return out
+
+
+def app_problems(pages, app_pages):
+    """The gallery's pages against the UI tests' page claims: every page has both, once."""
+    out = []
+    pages, app_pages = pages or [], app_pages or []
+    for page in sorted(set(app_pages)):
+        if app_pages.count(page) > 1:
+            out.append(f"gallery page {page} is registered more than once")
+    for page in sorted(set(app_pages) - set(pages)):
+        out.append(f"gallery page {page} has no page claims: add UITests/Pages/<Name>.swift with its VoiceOver checks")
+    for page in sorted(set(pages) - set(app_pages)):
+        out.append(f"page claims for {page} have no gallery page: add Sources/Pages/<Name>.swift")
+    return out
+
+
+def shard_pages(suite, shard, pages):
+    """The audit pages `shard` runs: its own, and for the catch-all also every page no other shard names."""
+    own = list(suite["shards"][shard]["pages"])
+    if shard != max(suite["shards"]) or suite["audit"] is None:
+        return own
+    named = {p for n, s in suite["shards"].items() if n != shard for p in s["pages"]}
+    return own + [p for p in (pages or []) if p not in named and p not in own]
 
 
 def others(suite, shard):
@@ -213,9 +249,10 @@ def tests_in(nodes):
     return out
 
 
-def ran_problems(suite, shard, ran, pages_ran):
+def ran_problems(suite, shard, ran, pages_ran, pages=None):
     spec = suite["shards"][shard]
-    want = set(spec["tests"]) | ({suite["audit"]["test"]} if spec["pages"] else set())
+    audited = shard_pages(suite, shard, pages)
+    want = set(spec["tests"]) | ({suite["audit"]["test"]} if audited else set())
     out = []
     if not ran:
         out.append(f"shard {shard} ran no tests")
@@ -228,8 +265,8 @@ def ran_problems(suite, shard, ran, pages_ran):
             out.append(f"shard {shard} ran skipped tests {skipped}")
     elif set(ran) != want:
         out.append(f"shard {shard} should run {sorted(want)}; it ran {sorted(set(ran))}")
-    if spec["pages"] and (set(pages_ran) != set(spec["pages"]) or len(pages_ran) < 4 * len(spec["pages"])):
-        out.append(f"shard {shard} should audit {sorted(spec['pages'])} at both sizes in light and dark; "
+    if audited and (set(pages_ran) != set(audited) or len(pages_ran) < 4 * len(audited)):
+        out.append(f"shard {shard} should audit {sorted(audited)} at both sizes in light and dark; "
                    f"it audited {sorted(set(pages_ran))} in {len(pages_ran)} runs")
     return out
 
@@ -244,11 +281,12 @@ def xcresult(bundle, *what):
 
 def check_ran(suite, shard, bundle):
     ran = tests_in(xcresult(bundle, "tests").get("testNodes", []))
+    pages = suite_pages(suite)
     pages_ran = []
-    if suite["shards"][shard]["pages"]:
+    if shard_pages(suite, shard, pages):
         acts = xcresult(bundle, "activities", "--test-id", f"{suite['audit']['test']}()")
         pages_ran = pages_in([a.get("title", "") for run in acts.get("testRuns", []) for a in run.get("activities", [])])
-    found = ran_problems(suite, shard, ran, pages_ran)
+    found = ran_problems(suite, shard, ran, pages_ran, pages)
     for line in found:
         print(f"::error title=UI shards::{line}")
     if not found:
@@ -258,13 +296,22 @@ def check_ran(suite, shard, bundle):
 
 def selftest():
     import tempfile
-    audit = {"test": "A/testAudit", "pages_in": r"static let pages\s*=\s*\[([^\]]*)\]"}
+    audit = {"test": "A/testAudit", "pages_in": PAGE}
     tests = {"A/test1", "A/test2", "A/testAudit"}
     good = {"target": "T", "skipped_classes": {"M"}, "audit": audit,
             "shards": {1: {"tests": {"A/test1": 1}, "pages": {"p": 1}}, 2: {"tests": {"A/test2": 1}, "pages": {"q": 1}}}}
     assert problems(good, tests, ["p", "q"]) == [], problems(good, tests, ["p", "q"])
-    found = problems(dict(good, shards={1: {"tests": {"A/test1": 1}, "pages": {"p": 1}}, 2: {"tests": {}, "pages": {}}}), tests, ["p", "q"])
-    assert any("page q is in no shard" in p for p in found), found
+    # A page no shard names is the catch-all's.
+    loose = dict(good, shards={1: {"tests": {"A/test1": 1}, "pages": {"p": 1}}, 2: {"tests": {}, "pages": {}}})
+    assert problems(loose, tests, ["p", "q"]) == [], problems(loose, tests, ["p", "q"])
+    assert shard_pages(loose, 2, ["p", "q"]) == ["q"] and shard_pages(loose, 1, ["p", "q"]) == ["p"]
+    assert ran_problems(loose, 2, ["A/test2", "A/testAudit"], ["q"] * 4, ["p", "q"]) == []
+    assert ran_problems(loose, 2, ["A/test2"], [], ["p", "q"]), "the catch-all must audit the loose page"
+    assert any("more than one page claims" in p for p in problems(good, tests, ["p", "q", "q"]))
+    # The gallery's pages and the page claims are the same set.
+    assert app_problems(["p", "q"], ["q", "p"]) == []
+    assert any("gallery page r has no page claims" in p for p in app_problems(["p"], ["p", "r"]))
+    assert any("page claims for q have no gallery page" in p for p in app_problems(["p", "q"], ["p"]))
     found = problems(dict(good, shards={1: {"tests": {"A/test1": 1, "A/gone": 1}, "pages": {"p": 1, "q": 1}},
                                         2: {"tests": {"A/test1": 1}, "pages": {"p": 1}}}), tests, ["p", "q"])
     assert any("A/test1 is in more than one" in p for p in found) and any("page p is in more than one" in p for p in found)
@@ -298,11 +345,20 @@ def selftest():
         sub.mkdir()
         (sub / "X.swift").write_text('@MainActor\nfinal class X: XCTestCase {\n  @MainActor func testOne() {}\n'
                                      '  override func testTwo() async throws {}\n  func helper() {}\n}\n'
-                                     '@MainActor final class Y: Base {\n  func testThree() {}\n  static let pages = ["a", "b"]\n}\n'
-                                     'final class M: XCTestCase {\n  func testSkipped() {}\n}\n')
+                                     '@MainActor final class Y: Base {\n  func testThree() {}\n}\n'
+                                     'final class M: XCTestCase {\n  func testSkipped() {}\n}\n'
+                                     'extension X {\n  func testFour() {}\n}\n')
+        (sub / "A.swift").write_text('final class APageClaims: GalleryPageClaims {\n    override class var page: String { "a" }\n}\n')
+        (Path(d) / "B.swift").write_text('final class BPageClaims: GalleryPageClaims {\n    override class var page: String { "b" }\n}\n')
         found_tests, found_pages = source_tests(Path(d), {"M"}, audit["pages_in"])
-        assert found_tests == {"X/testOne", "X/testTwo", "Y/testThree"}, found_tests
-        assert found_pages == ["a", "b"], found_pages
+        assert found_tests == {"X/testOne", "X/testTwo", "X/testFour", "Y/testThree"}, found_tests
+        assert sorted(found_pages) == ["a", "b"], found_pages
+
+
+def suite_pages(suite):
+    """The audit's pages, from the page claims in the suite's tests, or None for a suite with no audit."""
+    audit = suite["audit"]
+    return declared_pages(ROOT / suite["tests_dir"], audit["pages_in"]) if audit else None
 
 
 def check_all():
@@ -312,6 +368,8 @@ def check_all():
         audit = suite["audit"]
         tests, pages = source_tests(ROOT / suite["tests_dir"], suite["skipped_classes"], audit and audit["pages_in"])
         found = problems(suite, tests, pages)
+        if audit and audit.get("app_dir"):
+            found += app_problems(pages, declared_pages(ROOT / audit["app_dir"], audit["pages_in"]))
         for line in found:
             print(f"::error title=UI shards ({name})::{line}")
         failed |= bool(found)
@@ -335,7 +393,7 @@ def main(argv):
             print("\n".join(args(suite, shard)))
             return 0
         if cmd == "pages" and shard and len(rest) == 1:
-            print(",".join(suite["shards"][shard]["pages"]))
+            print(",".join(shard_pages(suite, shard, suite_pages(suite))))
             return 0
         if cmd == "env" and len(rest) >= 2 and all("=" in p for p in rest[1:]):
             set_env(suite, rest[0], rest[1:])
@@ -343,8 +401,10 @@ def main(argv):
         if cmd == "ran" and shard and len(rest) == 2:
             return check_ran(suite, shard, rest[1])
         if cmd == "plan" and not rest:
+            pages = suite_pages(suite)
             for n, spec in suite["shards"].items():
-                print(f"shard {n}: {sum(spec['tests'].values()) + sum(spec['pages'].values()):.0f} s")
+                audited = sum(spec["pages"].get(p, UNMEASURED_PAGE) for p in shard_pages(suite, n, pages))
+                print(f"shard {n}: {sum(spec['tests'].values()) + audited:.0f} s")
             return 0
     print(__doc__, file=sys.stderr)
     return 2

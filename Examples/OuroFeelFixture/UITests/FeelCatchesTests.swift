@@ -10,9 +10,11 @@ final class FeelCatchesTests: XCTestCase {
         super.setUp()
         continueAfterFailure = true
         #if os(iOS)
-        // Only when it isn't already: on a freshly booted CI simulator, setting the portrait it was already in timed out
-        // "waiting for confirmation of orientation change" and failed the shard's first test (#188).
-        if XCUIDevice.shared.orientation != .portrait { XCUIDevice.shared.orientation = .portrait }
+        // Only from a pose a test leaves behind: on a freshly booted CI simulator, which reads unknown or face up while
+        // its screen is portrait, setting portrait timed out "waiting for confirmation of orientation change" and failed
+        // the shard's first test (#188).
+        let now = XCUIDevice.shared.orientation
+        if now.isLandscape || now == .portraitUpsideDown { XCUIDevice.shared.orientation = .portrait }
         #endif
     }
 

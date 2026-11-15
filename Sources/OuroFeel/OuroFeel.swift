@@ -651,9 +651,19 @@ public struct FeelPose: Sendable {
     public static let roundTrip = [current]
     #endif
 
+    #if os(iOS)
+    /// Whether a device that reads `current` is already in `orientation`. A freshly booted simulator reads unknown or
+    /// face up while its screen is portrait, and setting portrait there timed out "waiting for confirmation of
+    /// orientation change" and failed the test (#188).
+    static func isIn(_ orientation: UIDeviceOrientation, _ current: UIDeviceOrientation) -> Bool {
+        if current == orientation { return true }
+        return orientation == .portrait && !current.isLandscape && current != .portraitUpsideDown
+    }
+    #endif
+
     func apply(_ feel: OuroFeel) {
         #if os(iOS)
-        guard let orientation, XCUIDevice.shared.orientation != orientation || name.contains("after") else { return }
+        guard let orientation, !Self.isIn(orientation, XCUIDevice.shared.orientation) || name.contains("after") else { return }
         let before = feel.windowFrame
         XCUIDevice.shared.orientation = orientation
         feel.wait(3) { feel.windowFrame != before }

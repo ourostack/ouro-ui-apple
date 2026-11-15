@@ -45,7 +45,8 @@ SUITES = {
     "gallery": {
         "tests_dir": "Examples/OuroHXGallery/UITests",
         "target": "OuroHXGalleryUITests",
-        "skipped_classes": {"MotionTests"},  # the main-only hitch probe
+        # MotionTests: the main-only hitch probe. FoldPostureTests: the iPhone Duo job's, which moves the hinge.
+        "skipped_classes": {"MotionTests", "FoldPostureTests"},
         # The audit's pages are its page claims, one file each (`override class var page: String { "toasts" }`), filtered
         # by OURO_AUDIT_PAGES; the gallery's own pages in `app_dir` must be the same set.
         "audit": {"test": "ComponentClaimTests/testEveryComponentPagePassesTheAccessibilityAudit",

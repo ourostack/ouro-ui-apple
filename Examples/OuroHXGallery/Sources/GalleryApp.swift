@@ -62,7 +62,13 @@ struct GalleryScreen: View {
     @StateObject private var probe = FrameProbe()
 
     var body: some View {
-        ThemedPage(theme: theme, page: $page, pickTheme: { theme = $0 })
+        // As an app would: the fold reader around the pages, so a sheet held as a tabletop rests below the fold
+        // (FoldPostureTests, on an iPhone Duo).
+        OuroFoldReader { posture, _ in
+            ThemedPage(theme: theme, page: $page, pickTheme: { theme = $0 })
+                .modifier(FoldPane(posture: posture))
+                .overlay { if FoldProbe.isOn { GeometryReader { FoldProbe(posture: posture, origin: $0.frame(in: .global).origin) } } }
+        }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if FrameProbe.isOn { FrameProbeControls(probe: probe) }
             }
@@ -343,5 +349,47 @@ private struct ClockCount: View {
     let clock: GalleryClock
     var body: some View {
         if clock.armed { Text(verbatim: String(clock.ticks)).font(.caption2).accessibilityIdentifier("gallery.clock") }
+    }
+}
+
+/// `-foldProbe 1`: the posture the fold reader gives, as an element FoldPostureTests reads: "tabletop, fold 371 to
+/// 419", the fold band in screen points.
+struct FoldProbe: View {
+    static var isOn: Bool { UserDefaults.standard.bool(forKey: "foldProbe") }
+    let posture: OuroFoldPosture
+    /// Where the reader's space starts on screen, so the band is reported in the coordinates XCUITest's frames use.
+    let origin: CGPoint
+
+    var described: String {
+        switch posture {
+        case .single: "single"
+        case .closed: "closed"
+        case .tabletop(let split): "tabletop, fold \(Int(origin.y + split.fold.minY)) to \(Int(origin.y + split.fold.maxY))"
+        case .book(let split): "book, fold \(Int(origin.x + split.fold.minX)) to \(Int(origin.x + split.fold.maxX))"
+        }
+    }
+
+    var body: some View {
+        Text(described).font(.caption2).opacity(0.01)
+            .accessibilityIdentifier("fold.posture")
+    }
+}
+
+/// `-foldPane 1`: the page in one pane, as an app places a component beside the fold: a book's leading page, or a
+/// tabletop's lower half. Other postures keep the whole screen.
+struct FoldPane: ViewModifier {
+    static var isOn: Bool { UserDefaults.standard.bool(forKey: "foldPane") }
+    let posture: OuroFoldPosture
+
+    func body(content: Content) -> some View {
+        if Self.isOn, let pane = posture.book?.first ?? posture.tabletop?.second {
+            content
+                .frame(width: pane.width, height: pane.height)
+                .padding(.leading, pane.minX)
+                .padding(.top, pane.minY)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            content
+        }
     }
 }

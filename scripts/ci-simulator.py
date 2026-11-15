@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI only: an iPhone simulator (an iPad with OURO_SIM_FAMILY=iPad) that boots while the build runs.
+"""CI only: an iPhone simulator (an iPad with OURO_SIM_FAMILY=iPad, an iPhone Duo with Duo) that boots while the build runs.
 
     python3 -I scripts/ci-simulator.py start <name>      # create one, start booting it, write UDID to $GITHUB_ENV
     python3 -I scripts/ci-simulator.py wait <name> [s]   # wait for $UDID to finish booting (default 300 s)
@@ -29,14 +29,17 @@ from pathlib import Path
 DEVICES = ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 16"]
 # The gallery's iPad lane (main and releases): the largest iPad, where a layout that doesn't fill the screen shows.
 IPAD_DEVICES = ["iPad Pro 13-inch (M5)", "iPad Pro 13-inch (M4)", "iPad Air 13-inch (M3)", "iPad Air 13-inch (M2)"]
+# The gallery's fold job (xcode-27 only: the iPhone Duo comes with the iOS 27.1 runtimes).
+DUO_DEVICES = ["iPhone Duo"]
+FAMILIES = {"iPhone": DEVICES, "iPad": IPAD_DEVICES, "Duo": DUO_DEVICES}
 
 
 def devices(family=None):
     """The device types to try, in order, for OURO_SIM_FAMILY (iPhone when unset)."""
     family = family if family is not None else os.environ.get("OURO_SIM_FAMILY", "iPhone")
-    if family not in ("iPhone", "iPad"):
-        raise SystemExit(f"ci-simulator: OURO_SIM_FAMILY={family!r}. Fix: iPhone or iPad.")
-    return IPAD_DEVICES if family == "iPad" else DEVICES
+    if family not in FAMILIES:
+        raise SystemExit(f"ci-simulator: OURO_SIM_FAMILY={family!r}. Fix: iPhone, iPad or Duo.")
+    return FAMILIES[family]
 CREATE_LIMIT = 90
 LIST_LIMIT = 30  # it answers in seconds when CoreSimulator is healthy
 LIST_TRIES = 3
@@ -53,9 +56,12 @@ def version(v):
     return [int(p) for p in v.split(".")]
 
 
-def newest_ios_runtime(runtimes, sdk):
+def newest_ios_runtime(runtimes, sdk, family="iPhone"):
+    """The newest available iOS runtime at or below the SDK; for the Duo, one that lists the iPhone Duo."""
     top = version(sdk)[:2]
     ios = [r for r in runtimes if r.get("platform") == "iOS" and r.get("isAvailable") and version(r["version"])[:2] <= top]
+    if family == "Duo":
+        ios = [r for r in ios if any(d.get("name", "").startswith("iPhone Duo") for d in r.get("supportedDeviceTypes", []))]
     if not ios:
         raise SystemExit(f"ci-simulator: the image has no available iOS runtime at or below the iOS {sdk} SDK")
     return max(ios, key=lambda r: version(r["version"]))["identifier"]
@@ -105,7 +111,7 @@ def list_runtimes(run=simctl, kick=kick_coresimulator, tries=LIST_TRIES):
 def create(name):
     sdk = subprocess.run(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"], capture_output=True, text=True,
                          check=True, timeout=60).stdout.strip()
-    runtime = newest_ios_runtime(list_runtimes(), sdk)
+    runtime = newest_ios_runtime(list_runtimes(), sdk, os.environ.get("OURO_SIM_FAMILY", "iPhone"))
     for device in devices():
         try:
             out = simctl("create", name, device, runtime, timeout=CREATE_LIMIT)
@@ -192,7 +198,7 @@ def selftest():
         {"platform": "iOS", "isAvailable": False, "version": "27.0", "identifier": "iOS-27-0"},
         {"platform": "watchOS", "isAvailable": True, "version": "30.0", "identifier": "watchOS-30"},
     ]
-    assert devices("iPhone") == DEVICES and devices("iPad") == IPAD_DEVICES, "the family picks the device types"
+    assert devices("iPhone") == DEVICES and devices("iPad") == IPAD_DEVICES and devices("Duo") == DUO_DEVICES, "the family picks the device types"
     try:
         devices("ipad")
         raise AssertionError("an unknown family must fail")
@@ -201,6 +207,9 @@ def selftest():
     assert newest_ios_runtime(runtimes, "26.10") == "iOS-26-10", "numeric, available, iOS only"
     assert newest_ios_runtime(runtimes, "26.2") == "iOS-26-2", "never newer than the SDK"
     assert newest_ios_runtime(runtimes, "26.10.1") == "iOS-26-10", "patch versions don't matter"
+    duo = [{"platform": "iOS", "isAvailable": True, "version": "27.1", "identifier": "iOS-27-1", "supportedDeviceTypes": [{"name": "iPhone 17 Pro"}]},
+           {"platform": "iOS", "isAvailable": True, "version": "27.1", "identifier": "iOS-27-1-Duo", "supportedDeviceTypes": [{"name": "iPhone Duo"}]}]
+    assert newest_ios_runtime(duo, "27.1", "Duo") == "iOS-27-1-Duo", "the Duo needs a runtime that lists it"
     try:
         newest_ios_runtime(runtimes[2:], "30.0")
         raise AssertionError("no runtime must fail")

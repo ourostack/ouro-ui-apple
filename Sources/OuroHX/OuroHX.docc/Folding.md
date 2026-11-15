@@ -30,6 +30,11 @@ follow the fold:
   lay out in that pane's width, as they do in any narrow container: rows keep their actions beside the words and
   stack them only at the accessibility sizes, and a card's action moves under its title the same way.
 
+CI checks both on an iPhone Duo simulator whose hinge Device Hub really moves (the gallery's `FoldPostureTests`, in
+the `gallery-duo` job): a sheet asking for full height reaches the top half when open flat and rests below the fold as
+a tabletop, and the items and cards pages, placed in a book's leading page, keep every control left of the fold and
+pass the accessibility audit.
+
 Credit: Spoonjoy's `TabletopLayout`, `FoldBand` and `FoldRegionChoice` (the tabletop split, margins and angle bands)
 and Gatefold's `ReaderLayoutResolver`, `FoldReader` and `HingeObserver` (the book spread, the inactive-region rule and
 the spine shadow).

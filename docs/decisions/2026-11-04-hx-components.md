@@ -479,3 +479,21 @@ Sixth in the 1.0 order: seven hand-drawn section headers and mastheads, all in S
   uses the width; on an iPhone at large sizes the title keeps it (`text.reflows`, `aPageHeaderReflows`).
 - **Colours.** Title and description as web; the eyebrow is the theme's primary, raised to 5:1 (7:1) like the rest
   (`pageHeaderTextReadsInEveryThemeAndMode`).
+
+## The fold postures (2026-11-14)
+
+The 1.0 decision asks that the components which change with the iPhone Duo's fold be covered: sheet, item and card.
+
+- **Sheet.** Held as a tabletop, the top half faces the person and the bottom half lies on the table. A sheet that
+  rose past the fold would bend over the hinge and cover what is above it, so it rests on the lower half: its height
+  is at most that half's, and its content scrolls beyond it (`OuroSheetMetrics.detents(_:fitted:posture:)`,
+  `FoldComponentTests`). Spoonjoy's cook mode keeps its controls below the fold for the same reason. Detents the app
+  asked for give way to that one height while the tabletop lasts. A book, the cover screen and one page keep the
+  sheet's own detents.
+- **Posture in the environment.** `OuroFoldReader` sets `\.ouroFoldPosture` for its content and `.ouroSheet` passes
+  it into the sheet, so a component reads the fold without the app threading it through.
+- **Item and card need no posture of their own.** The fold changes the width they are given, not what they are: an
+  app puts them in one pane of the split, and they lay out in that width as in any narrow container. Teaching them to
+  look for the fold themselves would put layout that belongs to the page into every row.
+- **Not yet:** a Duo simulator run in CI. The rule is pure and unit tested; the real hinge is driven by Spoonjoy's
+  on-demand Duo tour.

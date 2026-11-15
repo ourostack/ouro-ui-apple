@@ -23,7 +23,10 @@ public struct OuroFoldReader<Content: View>: View {
 
     public var body: some View {
         GeometryReader { proxy in
-            content(OuroFoldPosture.resolve(size: proxy.size, hinge: hinge, regions: Self.divisions(in: proxy), rules: rules), hinge)
+            let posture = OuroFoldPosture.resolve(size: proxy.size, hinge: hinge, regions: Self.divisions(in: proxy), rules: rules)
+            content(posture, hinge)
+                // So the kit's components inside follow the posture too (an `.ouroSheet` rests below a tabletop's fold).
+                .environment(\.ouroFoldPosture, posture)
         }
         .ouroHinge($hinge)
     }
@@ -67,6 +70,12 @@ private struct OuroHingeObserver: ViewModifier {
         content
         #endif
     }
+}
+
+extension EnvironmentValues {
+    /// The posture of the nearest ``OuroFoldReader`` around this view; `.single` outside one. Components that change
+    /// with the fold read it: an `.ouroSheet` in a tabletop rests on the lower half, below the fold.
+    @Entry public var ouroFoldPosture: OuroFoldPosture = .single
 }
 
 extension View {

@@ -18,6 +18,18 @@ Lay out around the iPhone Duo's fold: tabletop, book, closed or one page.
 ``OuroFoldReader`` reads the regions and the hinge with iOS 27.1's `reservedRegions(kind:options:)` and `onHingeChange`,
 behind `#available`; on earlier systems it always gives `.single`. ``OuroHinge/bend`` gives a spine shadow's depth.
 
+## The components
+
+``OuroFoldReader`` also puts the posture in the environment (`\.ouroFoldPosture`), so the kit's components inside it
+follow the fold:
+
+- **Sheet.** Held as a tabletop, an `.ouroSheet` rests on the lower half, the part flat on the table: never taller
+  than that half, so it doesn't cross the fold and what is above stays in view; its content scrolls when there is
+  more (``OuroSheetMetrics/detents(_:fitted:posture:)``). In a book, closed or on one page it keeps its own detents.
+- **Item and card** have no posture of their own. Place them in a pane (`split.first` or `split.second`) and they
+  lay out in that pane's width, as they do in any narrow container: rows keep their actions beside the words and
+  stack them only at the accessibility sizes, and a card's action moves under its title the same way.
+
 Credit: Spoonjoy's `TabletopLayout`, `FoldBand` and `FoldRegionChoice` (the tabletop split, margins and angle bands)
 and Gatefold's `ReaderLayoutResolver`, `FoldReader` and `HingeObserver` (the book spread, the inactive-region rule and
 the spine shadow).

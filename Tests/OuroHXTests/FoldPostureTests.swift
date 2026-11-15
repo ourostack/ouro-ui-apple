@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 import OuroHX
 import Testing
 
@@ -81,5 +82,32 @@ private let wide = CGSize(width: 800, height: 600)
         #expect(OuroHinge.partiallyOpen(angleDegrees: 180).bend == 0)
         #expect(OuroHinge.partiallyOpen(angleDegrees: 135).bend == 0.5)
         #expect(OuroHinge.partiallyOpen(angleDegrees: 60).bend == 1)
+    }
+}
+
+/// The components that change with the fold. A sheet held as a tabletop rests on the lower half, below the fold.
+@Suite struct FoldComponentTests {
+    private let tabletop = OuroFoldPosture.resolve(size: tall, hinge: .partiallyOpen(angleDegrees: 90), regions: [])
+
+    @Test func aFittedSheetInATabletopIsNoTallerThanTheLowerHalf() throws {
+        let lower = try #require(tabletop.tabletop).second.height
+        #expect(OuroSheetMetrics.detents(nil, fitted: 600, posture: tabletop) == [.height(lower)])
+        // A short sheet keeps its own height: it already fits below the fold.
+        #expect(OuroSheetMetrics.detents(nil, fitted: 200, posture: tabletop) == [.height(200)])
+    }
+
+    @Test func aSheetWithDetentsInATabletopRestsOnTheLowerHalf() throws {
+        let lower = try #require(tabletop.tabletop).second.height
+        #expect(OuroSheetMetrics.detents([.medium, .large], fitted: 300, posture: tabletop) == [.height(lower)])
+        #expect(!OuroSheetMetrics.showsGrabber(detents: OuroSheetMetrics.detents([.medium, .large], fitted: 300, posture: tabletop)))
+    }
+
+    @Test func everyOtherPostureKeepsTheSheetsOwnDetents() {
+        let book = OuroFoldPosture.resolve(size: wide, hinge: .fullyOpen, regions: [.init(frame: CGRect(x: 399, y: 0, width: 2, height: 600), isActive: false)])
+        #expect(book.book != nil)
+        for posture in [OuroFoldPosture.single, .closed, book] {
+            #expect(OuroSheetMetrics.detents(nil, fitted: 600, posture: posture) == [.height(600)])
+            #expect(OuroSheetMetrics.detents([.medium, .large], fitted: 600, posture: posture) == [.medium, .large])
+        }
     }
 }

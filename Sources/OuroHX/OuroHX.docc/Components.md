@@ -1,6 +1,6 @@
 # Components
 
-Button, Badge, Card, Item, Separator, DescriptionList, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, Card, Item, Separator, DescriptionList, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -49,6 +49,9 @@ struct SettingsScreen: View {
 | `Item`, `ItemGroup` | ``OuroItem``, ``OuroItemGroup`` | A row: a title, a description, leading media (an icon tile or a picture at `sm`, `md` or `lg`) and trailing actions. A row with `onPress` is one button, at least 44 points tall, and its actions stay their own. At the accessibility sizes the actions go under the words and a picture above them. A group names its rows with a label (a heading) and divides them (`divided`), frames them (`outline`) or neither (`plain`). |
 | `Separator` | ``OuroSeparator`` | A line between groups: horizontal or vertical, a word in its middle (`label: "or"`), an accent `tone`. Silent to VoiceOver; a label is read as text. |
 | `DescriptionList` | ``OuroDescriptionList`` | Pairs of a term and its details. Stacked below 448 points of its own width (`stackBelow: .md` is 512) and at the accessibility sizes; side by side above, terms in a `min(40%, 224)` column. Each pair is heard as one. |
+| `Skeleton` | ``OuroSkeleton`` | The outline of what is loading, in its place: `rect`, `text` (lines, the last shorter), `circle`, `row` (an ``OuroItem``'s height) or `card`. Holds still for a second, then breathes; still under Reduce Motion. VoiceOver hears one "Loading". |
+| `Spinner` | ``OuroSpinner`` | The system's activity indicator at web's sizes (16, 20, 32 points), named by what it waits for. |
+| `Progress` | ``OuroProgress`` | How far along some work is: a label, a value from `min` to `max` (`nil` while unknown, which slides, or pulses under Reduce Motion), `showValue`, a tone. VoiceOver hears the label and the percentage. |
 | `PageHeader` | ``OuroPageHeader`` | The top of a page or a section: its title (a heading, level 1 or 2), an `eyebrow` above it, a `description` under it, more under that (badges, a byline), the page's actions beside it where they fit and under it where they don't, a picture above, and an optional `divider`. `md` or `lg`. |
 | `Empty` | ``OuroEmptyState`` | What a list or page shows when it has nothing in it. |
 | `Alert` | ``OuroBanner`` | An inline message in the page. On Apple an "alert" is SwiftUI's modal `.alert`, so it is a banner here. |
@@ -169,6 +172,7 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
   accessibility sizes) and Gatefold's `EmptyShelf` (centred, one action).
 - ``OuroBadge``: web's `Badge`, and the chips Spoonjoy (`CookTimerChip`, `RecipeStepDurationCue`) and Gatefold (`FontChip`, `AccountBadge`) draw by hand. `OuroA2UI`'s catalog `Badge` draws with it.
 - ``OuroCard``: web's `Card`, and the surfaces Spoonjoy (`KitchenTablePage`, `CookingNowPlate`, `ImportStatusPanel`), Gatefold (`HighlightCard`) and Ouro MD (`GlassSurface`) draw by hand. `OuroA2UI`'s catalog `Card` draws with it.
+- ``OuroSkeleton``, ``OuroSpinner`` and ``OuroProgress``: web's `Skeleton`, `Spinner` and `Progress`, and the loading states and bars Spoonjoy (`KitchenTableLoadingStateView`, `ArrivingFromLoading`, `CookingNowProgressRule`, `JourneyStillProgressViewStyle`), Gatefold (`OpeningPlaceholder`) and Ouro MD (`UpdateProgressView`) draw by hand.
 - ``OuroPageHeader``: web's `PageHeader`, and the headers Spoonjoy draws by hand (`KitchenMasthead`, `KitchenSectionHeader`, `KitchenTableHeader`, `KitchenEyebrowTracking` and three more).
 - ``OuroItem``: web's `Item`, and the rows Spoonjoy (`RecipeIndexRow`, `ShoppingReceiptRow`, `SettingsRowLabel` and nine more) and Gatefold (`SettingRow`, `PressedRow`, `StillRow` and two more) draw by hand.
 - ``OuroSeparator`` and ``OuroDescriptionList``: web's `Separator` and `DescriptionList`, Spoonjoy's `RecipeIndexRowSeparator` and `NotificationDiagnosticsDisclosure`, and the private views `OuroA2UI` drew A2UI's `Separator` and `DescriptionList` with; it draws them with these now.
@@ -225,6 +229,16 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroDescriptionListBreakpoint``
 - ``OuroDescriptionListPalette``
 - ``OuroDisplayMetrics``
+
+### Loading
+
+- ``OuroSkeleton``
+- ``OuroSkeletonShape``
+- ``OuroSpinner``
+- ``OuroSpinnerSize``
+- ``OuroProgress``
+- ``OuroLoadingPalette``
+- ``OuroLoadingMetrics``
 
 ### Sync status
 

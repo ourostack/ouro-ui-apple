@@ -245,7 +245,12 @@ struct NavPage: View {
                 }
                 .pickerStyle(.segmented)
                 // The whole row opens the menu, as a person expects (otherwise only the label text does).
+                // A section header and a plain Text row first, as Gatefold's Account menu has: neither is a pick, so the
+                // walk must pass over them to Newest (#68).
                 Menu {
+                    Section("Signed in as ada@example.com") {
+                        Text("Store: Corner Market")
+                    }
                     Button("Newest") { order = "Newest" }
                     Button("Oldest") { order = "Oldest" }
                 } label: {

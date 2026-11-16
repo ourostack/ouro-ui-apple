@@ -684,8 +684,10 @@ jobs:
   xray:
     name: X-ray the fixture app (${{ matrix.name }})
     # The behaviour stage needs an Xcode whose AppIntentsTesting matches the OS it runs on: Xcode 27.2's needs a 27.2
-    # OS, and this image has macOS 27.0.1 with iOS 27.0 and 27.1 simulators. So each lane pins an older Xcode to a
-    # matching OS. See docs/decisions/2026-11-03-ax-xray.md.
+    # OS. The iOS lanes pin an Xcode to a simulator runtime this image has (27.0 and 27.1). The macOS lane runs on the
+    # host itself, and the xcode-27 pool hands out both macOS 27.0.1 and 27.2 machines, so it picks the Xcode that
+    # matches the host it got: its pinned 27.1 on a 27.0 or 27.1 host, the host's own version otherwise (#217). See
+    # docs/decisions/2026-11-03-ax-xray.md.
     needs: paths
     if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main') || needs.paths.outputs.xray == 'true'
     runs-on: xcode-27
@@ -696,21 +698,30 @@ jobs:
         include:
           - { name: "iOS 27.1 simulator, Xcode 27.1", xcode: "27.1", platform: ios, runtime: "27.1", device: "iPhone Duo", destination: "generic/platform=iOS Simulator", expect: full }
           - { name: "iOS 27.0 simulator, Xcode 27.0", xcode: "27.0", platform: ios, runtime: "27.0", device: "iPhone 17 Pro", destination: "generic/platform=iOS Simulator", expect: full }
-          - { name: "macOS 27.0.1, Xcode 27.1", xcode: "27.1", platform: macos, runtime: "", device: "", destination: "platform=macOS", expect: signed }
+          - { name: "macOS, Xcode to match the host", xcode: "27.1", platform: macos, runtime: "", device: "", destination: "platform=macOS", expect: signed }
           # macOS: AppIntentsTesting refuses a probe that is not signed by the app's team (AppIntentsServicesSecurityErrorDomain
           # 800). With the Apple Development certificate (APPLE_DEVELOPMENT_CERTIFICATE_*), the app and the probe are signed
           # by one team and the probe must reach the app ("signed"). Without it (a fork's pull request has no secrets), this
           # lane proves the refusal is reported as a skip with the fix, not as the app failing ("refused").
     steps:
       - uses: actions/checkout@v4
-      - name: Use Xcode ${{ matrix.xcode }} for this job only
+      - name: Use Xcode ${{ matrix.xcode }}, or the macOS host's own version, for this job only
         run: |
           set -eu
+          want='${{ matrix.xcode }}'
+          if [ '${{ matrix.platform }}' = macos ]; then
+            # The probe runs on this host, so its AppIntentsTesting must match the host's macOS (#217).
+            host="$(sw_vers -productVersion | cut -d. -f1,2)"
+            case "$host" in 27.0|27.1) ;; *) want="$host" ;; esac
+            echo "macOS $(sw_vers -productVersion) ($(sw_vers -buildVersion)); the probe needs Xcode $want"
+          fi
           for app in /Applications/Xcode_*.app; do
             v="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
-            if [ "$v" = "${{ matrix.xcode }}" ] || [ "$v" = "${{ matrix.xcode }}.0" ]; then echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"; echo "Using $app ($v)"; exit 0; fi
+            if [ "$v" = "$want" ] || [ "$v" = "$want.0" ]; then echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"; echo "Using $app ($v)"; exit 0; fi
           done
-          ls -d /Applications/Xcode_*.app; exit 1
+          ls -d /Applications/Xcode_*.app
+          echo "::error::No Xcode $want on this runner. The X-ray probe needs the Xcode that matches the OS it runs on; another one builds a probe that can't load (#217)."
+          exit 1
       - name: Tools
         run: |
           xcodebuild -version

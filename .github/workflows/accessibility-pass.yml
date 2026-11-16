@@ -1,0 +1,220 @@
+name: Accessibility pass
+# Dispatched by hand, never on a push or a pull request: a deeper accessibility check than CI's, for a polish pass.
+#   - iOS: Xcode's accessibility audit on every gallery page (ComponentClaimTests'
+#     testEveryComponentPagePassesTheAccessibilityAudit), with the simulator's own text size set by `simctl ui` to each of
+#     AX1 to AX5, with and without Increase Contrast, in light and dark. CI audits the default and the largest size only.
+#   - macOS: VoiceOver reads every page of the gallery's macOS build (scripts/voiceover-pass/walk.mjs, Guidepup) and the
+#     job summary lists what a VoiceOver user would trip on. Guidepup's setup rewrites VoiceOver's and TCC's settings, so
+#     it runs only on a throwaway GitHub-hosted runner, the same macos-15 image as ourostack/ouro-ui's screen-reader lane.
+# macOS runners are scarce: the audit matrix runs two at a time.
+on:
+  workflow_dispatch:
+    inputs:
+      sizes:
+        description: "Text sizes to audit on iOS, comma-separated, from AX1 to AX5; empty skips iOS"
+        default: "AX1,AX2,AX3,AX4,AX5"
+      contrast:
+        description: "Contrast settings to audit on iOS"
+        type: choice
+        default: both
+        options: [both, standard, increased]
+      voiceover:
+        description: "Run the macOS VoiceOver walk"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: accessibility-pass-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  SIZES: ${{ inputs.sizes }}
+  CONTRAST: ${{ inputs.contrast }}
+jobs:
+  plan:
+    name: The audits this run asks for
+    # On ubuntu, so a matrix entry nobody asked for never takes a macOS runner, and a mistyped size fails here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      ios: ${{ steps.plan.outputs.ios }}
+    steps:
+      - id: plan
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, sys
+          sizes = [s.strip().upper() for s in os.environ["SIZES"].split(",") if s.strip()]
+          bad = [s for s in sizes if s not in {"AX1", "AX2", "AX3", "AX4", "AX5"}]
+          if bad:
+              print(f"::error::Not a text size from AX1 to AX5: {', '.join(bad)}", file=sys.stderr)
+              sys.exit(1)
+          contrasts = ["standard", "increased"] if os.environ["CONTRAST"] == "both" else [os.environ["CONTRAST"]]
+          pairs = [{"size": s, "contrast": c} for s in dict.fromkeys(sizes) for c in contrasts]
+          print("matrix=" + json.dumps(pairs))
+          print("ios=" + ("true" if pairs else "false"))
+          PY
+
+  ios-build:
+    name: Gallery build for the audit (macos-26)
+    needs: plan
+    if: needs.plan.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the gallery and its UI tests
+        run: |
+          set -o pipefail
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          (cd Examples/OuroHXGallery && xcodegen generate)
+          xcodebuild build-for-testing -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery \
+            -destination 'generic/platform=iOS Simulator' ARCHS="$(uname -m)" \
+            -derivedDataPath .build/gallery CODE_SIGNING_ALLOWED=NO 2>&1 | tail -40
+          tar -cf .build/gallery-products.tar -C .build/gallery/Build Products
+      - uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-pass-gallery
+          path: .build/gallery-products.tar
+          retention-days: 2
+          compression-level: 1
+          if-no-files-found: error
+
+  ios-audit:
+    name: Audit at ${{ matrix.size }}, ${{ matrix.contrast }} contrast (macos-26)
+    needs: [plan, ios-build]
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: A simulator, booting while the build downloads
+        run: python3 -I scripts/ci-simulator.py start ouro-hx-a11y
+      - uses: actions/download-artifact@v4
+        with:
+          name: accessibility-pass-gallery
+          path: .build
+      - name: Unpack the build, auditing at the simulator's own text size
+        run: |
+          set -eu
+          mkdir -p .build/gallery/Build
+          tar -xf .build/gallery-products.tar -C .build/gallery/Build
+          set -- .build/gallery/Build/Products/*.xctestrun
+          test -f "$1"
+          echo "XCTESTRUN=$PWD/$1" >> "$GITHUB_ENV"
+          python3 -I scripts/ui-shards.py gallery env "$1" "OURO_AUDIT_SIZES=system"
+      - name: The simulator finished booting
+        timeout-minutes: 16
+        run: python3 -I scripts/ci-simulator.py wait ouro-hx-a11y 240
+      - name: Text size ${{ matrix.size }} and ${{ matrix.contrast }} contrast, through simctl ui
+        env:
+          SIZE: ${{ matrix.size }}
+          WHICH: ${{ matrix.contrast }}
+        run: |
+          set -eu
+          case "$SIZE" in
+            AX1) category=accessibility-medium ;;
+            AX2) category=accessibility-large ;;
+            AX3) category=accessibility-extra-large ;;
+            AX4) category=accessibility-extra-extra-large ;;
+            AX5) category=accessibility-extra-extra-extra-large ;;
+          esac
+          xcrun simctl ui "$UDID" content_size "$category"
+          if [ "$WHICH" = increased ]; then xcrun simctl ui "$UDID" increase_contrast enabled; else xcrun simctl ui "$UDID" increase_contrast disabled; fi
+          echo "Text size: $(xcrun simctl ui "$UDID" content_size); Increase Contrast: $(xcrun simctl ui "$UDID" increase_contrast)"
+      - name: The audit on every page
+        env:
+          SIZE: ${{ matrix.size }}
+          WHICH: ${{ matrix.contrast }}
+        run: |
+          set -u
+          xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
+            -only-testing:OuroHXGalleryUITests/ComponentClaimTests/testEveryComponentPagePassesTheAccessibilityAudit \
+            -resultBundlePath ".build/audit-$SIZE-$WHICH.xcresult" 2>&1 | tee .build/audit.log | grep -E "error:|Test Case|\*\* TEST" | tail -200
+          status=${PIPESTATUS[0]}
+          {
+            echo "## iOS audit at $SIZE, $WHICH contrast"
+            echo
+            if grep -q "error:" .build/audit.log; then
+              echo '```'
+              grep "error:" .build/audit.log | sed 's/^.*error: //' | sort -u | head -150
+              echo '```'
+            else
+              echo "No findings."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Keep the result bundle
+        if: always()
+        run: test -d ".build/audit-${{ matrix.size }}-${{ matrix.contrast }}.xcresult" && tar -czf .build/audit.tgz -C .build "audit-${{ matrix.size }}-${{ matrix.contrast }}.xcresult" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-pass-audit-${{ matrix.size }}-${{ matrix.contrast }}
+          path: .build/audit.tgz
+          retention-days: 7
+          if-no-files-found: ignore
+
+  mac-build:
+    name: Gallery for macOS (macos-26)
+    if: inputs.voiceover
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the macOS gallery
+        run: |
+          set -o pipefail
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          (cd Examples/OuroHXGallery && xcodegen generate)
+          xcodebuild build -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGalleryMac \
+            -destination 'platform=macOS' -derivedDataPath .build/mac CODE_SIGN_IDENTITY=- 2>&1 | tail -60
+          app="$(find .build/mac/Build/Products -maxdepth 2 -name '*.app' | head -1)"
+          test -d "$app"
+          tar -czf .build/gallery-mac.tgz -C "$(dirname "$app")" "$(basename "$app")"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-pass-gallery-mac
+          path: .build/gallery-mac.tgz
+          retention-days: 2
+          if-no-files-found: error
+
+  mac-voiceover:
+    name: VoiceOver on macOS (macos-15)
+    needs: mac-build
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: accessibility-pass-gallery-mac
+          path: .build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Guidepup, and VoiceOver set up for it
+        working-directory: scripts/voiceover-pass
+        run: |
+          npm ci
+          npx --no-install guidepup setup --ci
+          npx --no-install guidepup install
+      - name: VoiceOver reads every page
+        run: |
+          set -eu
+          tar -xzf .build/gallery-mac.tgz -C .build
+          app="$(find .build -maxdepth 1 -name '*.app' | head -1)"
+          pages="$(grep -ho 'class var page: String { "[a-z-]*" }' Examples/OuroHXGallery/Sources/Pages/*.swift | sed 's/.*"\(.*\)".*/\1/' | sort -u | paste -sd, -)"
+          echo "Pages: $pages"
+          node scripts/voiceover-pass/walk.mjs "$PWD/$app" "$pages" .build/voiceover-pass.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-pass-voiceover
+          path: .build/voiceover-pass.json
+          retention-days: 7
+          if-no-files-found: ignore

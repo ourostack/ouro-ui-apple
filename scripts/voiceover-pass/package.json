@@ -1,0 +1,10 @@
+{
+  "name": "ouro-hx-voiceover-pass",
+  "private": true,
+  "type": "module",
+  "description": "The accessibility pass's VoiceOver walk of the macOS gallery (.github/workflows/accessibility-pass.yml).",
+  "dependencies": {
+    "@guidepup/guidepup": "0.35.0",
+    "@guidepup/setup": "0.29.2"
+  }
+}

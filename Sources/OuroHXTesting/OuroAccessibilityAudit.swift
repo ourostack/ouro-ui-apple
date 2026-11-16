@@ -48,13 +48,13 @@ extension XCUIApplication {
         // In a first pass, an issue `OuroAuditExcuse.rereads` names is held, not failed; the pass then runs once more,
         // and fails on it only if it comes back.
         var firstPass = true, held = 0
-        // Whether a system banner was over the screen when this pass's issues came back: read once, at the first issue.
-        var bannerAtIssues: Bool?
+        // Whether a system banner was over the screen when this pass's issues came back, read once at the first issue; and
+        // whether a pass may still be held for one (once per audit, so a banner that keeps coming back fails as it reads).
+        var bannerAtIssues: Bool?, bannerHoldLeft = true
         let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
-            if firstPass, bannerAtIssues == nil { bannerAtIssues = OuroSystemBanner.isShowing() }
-            if firstPass, bannerAtIssues == true {
-                held += 1
-                print("audit issue held for a second pass: \(issue.compactDescription), with a system banner over the screen")
+            if bannerHoldLeft, bannerAtIssues == nil { bannerAtIssues = OuroSystemBanner.isShowing() }
+            if bannerHoldLeft, bannerAtIssues == true {
+                print("audit issue held for a pass of its own: \(issue.compactDescription), with a system banner over the screen")
                 return true
             }
             if firstPass, OuroAuditExcuse.rereads(issue.compactDescription, element: issue.element?.frame) {
@@ -98,9 +98,18 @@ extension XCUIApplication {
             }
         }
         func audit(_ types: XCUIAccessibilityAuditType) throws {
+            bannerHoldLeft = true
             firstPass = true
             held = 0
             try pass(types)
+            if bannerAtIssues == true {
+                // A pass a banner covered read nothing of the app's own: it runs again from the start, as a first pass.
+                print("audit: a system banner covered the pass; running it again from the start")
+                bannerHoldLeft = false
+                held = 0
+                try pass(types)
+            }
+            bannerHoldLeft = false
             guard held > 0 else { return }
             print("audit: \(held) issue(s) held; running the pass once more")
             firstPass = false

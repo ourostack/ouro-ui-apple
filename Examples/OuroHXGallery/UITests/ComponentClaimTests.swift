@@ -98,6 +98,7 @@ final class ComponentClaimTests: XCTestCase {
 
     /// One audit of the page `app` shows, once no system banner covers it, under the page's own excuses.
     static func audit(_ app: XCUIApplication, _ claims: GalleryPageClaims.Type, named name: String) {
+        waitOutSystemBanners()
         auditing(name) { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) }
     }
 

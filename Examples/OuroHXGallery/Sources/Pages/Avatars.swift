@@ -24,7 +24,7 @@ struct AvatarsPage: View {
             .accessibilityIdentifier("avatars.sizes")
             OuroBadgeFlow(spacing: 12) {
                 ForEach(OuroAvatarPresence.allCases, id: \.self) { presence in
-                    OuroAvatar(name: "Ana Lind", size: .lg, presence: presence, presenceLabel: presence.rawValue)
+                    OuroAvatar(name: "Ana Lind", size: .lg, presence: presence, presenceLabel: presence.label)
                 }
             }
             .accessibilityElement(children: .contain)

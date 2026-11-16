@@ -9,7 +9,9 @@ final class AvatarsPageClaims: GalleryPageClaims {
         // An avatar is an image named by its person, then its presence; its initials are drawn, not read; one beside
         // its name is not read twice; one still loading says so.
         XCTAssertTrue(app.images["Ana Lind"].exists, "avatars: no image named Ana Lind")
-        XCTAssertTrue(app.images["Ana Lind, busy"].exists, "avatars: the presence is not read after the name")
+        XCTAssertTrue(app.images["Ana Lind, Busy"].exists, "avatars: the presence is not read after the name")
+        // Each presence reads as words, never as code.
+        XCTAssertTrue(app.images["Ana Lind, Do not disturb"].exists, "avatars: do not disturb is not read as words")
         XCTAssertTrue(app.images["Name loading"].exists, "avatars: a loading avatar is silent")
         // XCUI lists the drawn initials under the avatar even though the avatar ignores its children, so VoiceOver's
         // reading is proven by the image's name above, not by the initials' absence here.

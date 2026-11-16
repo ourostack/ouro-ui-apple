@@ -141,7 +141,7 @@ import Testing
                 }
                 HStack(spacing: 10) {
                     ForEach(OuroAvatarPresence.allCases, id: \.self) { presence in
-                        OuroAvatar(name: "Ana Lind", size: .lg, presence: presence, presenceLabel: presence.rawValue)
+                        OuroAvatar(name: "Ana Lind", size: .lg, presence: presence, presenceLabel: presence.label)
                     }
                 }
                 HStack(spacing: 12) {

@@ -279,15 +279,17 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: "", presenceLabel: "Busy", loadingLabel: "Name loading") == "Busy")
     }
 
-    /// A presence with no words is shown but never spoken: the avatar says so, with the fix in web's words, and each
-    /// presence's English name reads as a person says it, never as code ("doNotDisturb").
-    @Test func anAvatarWithAPresenceButNoWordsSaysHowToFixIt() {
+    /// A presence with no words of the app's own is read by its English name, as a person says it, never as code
+    /// ("doNotDisturb"), and the avatar says how to give it words, as web's development message does.
+    @Test func anAvatarWithAPresenceButNoWordsReadsItsEnglishNameAndSaysHowToFixIt() {
         #expect(OuroAvatarMetrics.missingPresenceLabel(presence: .doNotDisturb, presenceLabel: nil)
-            == "OuroAvatar shows the doNotDisturb presence, but VoiceOver hears none: presenceLabel is missing. Fix: OuroAvatar(name: …, presence: .doNotDisturb, presenceLabel: \"Do not disturb\").")
+            == "OuroAvatar shows the doNotDisturb presence with no presenceLabel, so VoiceOver reads it only in English. Fix: OuroAvatar(name: …, presence: .doNotDisturb, presenceLabel: \"Do not disturb\").")
         #expect(OuroAvatarMetrics.missingPresenceLabel(presence: .busy, presenceLabel: "") != nil)
         #expect(OuroAvatarMetrics.missingPresenceLabel(presence: .busy, presenceLabel: "In a meeting") == nil)
         #expect(OuroAvatarMetrics.missingPresenceLabel(presence: nil, presenceLabel: nil) == nil)
         #expect(OuroAvatarPresence.allCases.map(\.label) == ["Available", "Busy", "Away", "Do not disturb", "Offline", "Out of office"])
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: .doNotDisturb, presenceLabel: nil, loadingLabel: "Name loading") == "Ana Lind, Do not disturb")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: .busy, presenceLabel: "In a meeting", loadingLabel: "Name loading") == "Ana Lind, In a meeting")
     }
 }
 

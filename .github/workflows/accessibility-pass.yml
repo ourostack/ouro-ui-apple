@@ -31,9 +31,34 @@ env:
   SIZES: ${{ inputs.sizes }}
   CONTRAST: ${{ inputs.contrast }}
 jobs:
+  plan:
+    name: The audits this run asks for
+    # On ubuntu, so a matrix entry nobody asked for never takes a macOS runner, and a mistyped size fails here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      ios: ${{ steps.plan.outputs.ios }}
+    steps:
+      - id: plan
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, sys
+          sizes = [s.strip().upper() for s in os.environ["SIZES"].split(",") if s.strip()]
+          bad = [s for s in sizes if s not in {"AX1", "AX2", "AX3", "AX4", "AX5"}]
+          if bad:
+              print(f"::error::Not a text size from AX1 to AX5: {', '.join(bad)}", file=sys.stderr)
+              sys.exit(1)
+          contrasts = ["standard", "increased"] if os.environ["CONTRAST"] == "both" else [os.environ["CONTRAST"]]
+          pairs = [{"size": s, "contrast": c} for s in dict.fromkeys(sizes) for c in contrasts]
+          print("matrix=" + json.dumps(pairs))
+          print("ios=" + ("true" if pairs else "false"))
+          PY
+
   ios-build:
     name: Gallery build for the audit (macos-26)
-    if: inputs.sizes != ''
+    needs: plan
+    if: needs.plan.outputs.ios == 'true'
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -57,37 +82,23 @@ jobs:
 
   ios-audit:
     name: Audit at ${{ matrix.size }}, ${{ matrix.contrast }} contrast (macos-26)
-    needs: ios-build
+    needs: [plan, ios-build]
     runs-on: macos-26
     timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        size: [AX1, AX2, AX3, AX4, AX5]
-        contrast: [standard, increased]
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
-      - name: Wanted in this run
-        id: wanted
-        env:
-          SIZE: ${{ matrix.size }}
-          WHICH: ${{ matrix.contrast }}
-        run: |
-          case ",$SIZES," in *",$SIZE,"*) size=1 ;; *) size=0 ;; esac
-          if [ "$CONTRAST" = both ] || [ "$CONTRAST" = "$WHICH" ]; then contrast=1; else contrast=0; fi
-          if [ "$size$contrast" = 11 ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
-        if: steps.wanted.outputs.run == 'true'
       - name: A simulator, booting while the build downloads
-        if: steps.wanted.outputs.run == 'true'
         run: python3 -I scripts/ci-simulator.py start ouro-hx-a11y
       - uses: actions/download-artifact@v4
-        if: steps.wanted.outputs.run == 'true'
         with:
           name: accessibility-pass-gallery
           path: .build
       - name: Unpack the build, auditing at the simulator's own text size
-        if: steps.wanted.outputs.run == 'true'
         run: |
           set -eu
           mkdir -p .build/gallery/Build
@@ -97,11 +108,9 @@ jobs:
           echo "XCTESTRUN=$PWD/$1" >> "$GITHUB_ENV"
           python3 -I scripts/ui-shards.py gallery env "$1" "OURO_AUDIT_SIZES=system"
       - name: The simulator finished booting
-        if: steps.wanted.outputs.run == 'true'
         timeout-minutes: 16
         run: python3 -I scripts/ci-simulator.py wait ouro-hx-a11y 240
       - name: Text size ${{ matrix.size }} and ${{ matrix.contrast }} contrast, through simctl ui
-        if: steps.wanted.outputs.run == 'true'
         env:
           SIZE: ${{ matrix.size }}
           WHICH: ${{ matrix.contrast }}
@@ -118,7 +127,6 @@ jobs:
           if [ "$WHICH" = increased ]; then xcrun simctl ui "$UDID" increase_contrast enabled; else xcrun simctl ui "$UDID" increase_contrast disabled; fi
           echo "Text size: $(xcrun simctl ui "$UDID" content_size); Increase Contrast: $(xcrun simctl ui "$UDID" increase_contrast)"
       - name: The audit on every page
-        if: steps.wanted.outputs.run == 'true'
         env:
           SIZE: ${{ matrix.size }}
           WHICH: ${{ matrix.contrast }}
@@ -141,10 +149,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
       - name: Keep the result bundle
-        if: always() && steps.wanted.outputs.run == 'true'
+        if: always()
         run: test -d ".build/audit-${{ matrix.size }}-${{ matrix.contrast }}.xcresult" && tar -czf .build/audit.tgz -C .build "audit-${{ matrix.size }}-${{ matrix.contrast }}.xcresult" || true
       - uses: actions/upload-artifact@v4
-        if: always() && steps.wanted.outputs.run == 'true'
+        if: always()
         with:
           name: accessibility-pass-audit-${{ matrix.size }}-${{ matrix.contrast }}
           path: .build/audit.tgz

@@ -273,10 +273,23 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
     /// Core claim `name.spoken`: the name, or `alt`, then the presence's words; a loading avatar says so.
     @Test func anAvatarIsNamedByItsPerson() {
-        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Ana Lind")
-        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presenceLabel: "Busy", loadingLabel: "Name loading") == "Ana Lind, Busy")
-        #expect(OuroAvatarMetrics.spokenName(name: nil, alt: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Name loading")
-        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: "", presenceLabel: "Busy", loadingLabel: "Name loading") == "Busy")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Ana Lind")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: nil, presenceLabel: "Busy", loadingLabel: "Name loading") == "Ana Lind, Busy")
+        #expect(OuroAvatarMetrics.spokenName(name: nil, alt: nil, presence: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Name loading")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: "", presence: nil, presenceLabel: "Busy", loadingLabel: "Name loading") == "Busy")
+    }
+
+    /// A presence with no words of the app's own is read by its English name, as a person says it, never as code
+    /// ("doNotDisturb"), and the avatar says how to give it words, as web's development message does.
+    @Test func anAvatarWithAPresenceButNoWordsReadsItsEnglishNameAndSaysHowToFixIt() {
+        #expect(OuroAvatarMetrics.missingPresenceLabel(presence: .doNotDisturb, presenceLabel: nil)
+            == "OuroAvatar shows the doNotDisturb presence with no presenceLabel, so VoiceOver reads it only in English. Fix: OuroAvatar(name: …, presence: .doNotDisturb, presenceLabel: \"Do not disturb\").")
+        #expect(OuroAvatarMetrics.missingPresenceLabel(presence: .busy, presenceLabel: "") != nil)
+        #expect(OuroAvatarMetrics.missingPresenceLabel(presence: .busy, presenceLabel: "In a meeting") == nil)
+        #expect(OuroAvatarMetrics.missingPresenceLabel(presence: nil, presenceLabel: nil) == nil)
+        #expect(OuroAvatarPresence.allCases.map(\.label) == ["Available", "Busy", "Away", "Do not disturb", "Offline", "Out of office"])
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: .doNotDisturb, presenceLabel: nil, loadingLabel: "Name loading") == "Ana Lind, Do not disturb")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: .busy, presenceLabel: "In a meeting", loadingLabel: "Name loading") == "Ana Lind, In a meeting")
     }
 }
 

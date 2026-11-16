@@ -1,3 +1,4 @@
+import os
 public import SwiftUI
 
 /// An avatar's size, as on web: 24, 32, 40, 48, 64, 72 and 112 points. Web's `2xl` and `3xl` are `xxl` and `xxxl`.
@@ -23,6 +24,19 @@ public enum OuroAvatarPresence: String, CaseIterable, Sendable {
         case .away: .warning
         case .offline: .secondary
         case .outOfOffice: .primary
+        }
+    }
+
+    /// Its name in English, as web's development message spells it ("Do not disturb"). Pass words of your own, in the
+    /// reader's language, as `presenceLabel`.
+    public var label: String {
+        switch self {
+        case .available: "Available"
+        case .busy: "Busy"
+        case .away: "Away"
+        case .doNotDisturb: "Do not disturb"
+        case .offline: "Offline"
+        case .outOfOffice: "Out of office"
         }
     }
 
@@ -161,11 +175,28 @@ public enum OuroAvatarMetrics {
         return Int((UInt64(hash) * 8) >> 32)
     }
 
-    /// What VoiceOver says: the name (or `alt`), then the presence's words, as web's "Ana Lind, Busy".
-    public static func spokenName(name: String?, alt: String?, presenceLabel: String?, loadingLabel: String) -> String {
+    /// The fault an avatar logs for a `presence` with no `presenceLabel`, which VoiceOver then reads only in English,
+    /// with the fix, as web's development message says it; nil when there is nothing to say.
+    public static func missingPresenceLabel(presence: OuroAvatarPresence?, presenceLabel: String?) -> String? {
+        guard let presence, (presenceLabel ?? "").isEmpty else { return nil }
+        return "OuroAvatar shows the \(presence.rawValue) presence with no presenceLabel, so VoiceOver reads it only in English. "
+            + "Fix: OuroAvatar(name: …, presence: .\(presence.rawValue), presenceLabel: \"\(presence.label)\")."
+    }
+
+    /// What VoiceOver says: the name (or `alt`), then the presence's words, as web's "Ana Lind, Busy". A presence with
+    /// no `presenceLabel` is read by its English name, as web reads it, rather than not at all.
+    public static func spokenName(
+        name: String?, alt: String?, presence: OuroAvatarPresence?, presenceLabel: String?, loadingLabel: String
+    ) -> String {
         let who = alt ?? name ?? loadingLabel
-        guard let presenceLabel, !presenceLabel.isEmpty else { return who }
-        return who.isEmpty ? presenceLabel : "\(who), \(presenceLabel)"
+        guard let words = (presenceLabel ?? "").isEmpty ? presence?.label : presenceLabel else { return who }
+        return who.isEmpty ? words : "\(who), \(words)"
+    }
+
+    /// What VoiceOver says, without the presence, so a presence with no `presenceLabel` goes unread.
+    @available(*, deprecated, message: "Pass the presence too: spokenName(name:alt:presence:presenceLabel:loadingLabel:)")
+    public static func spokenName(name: String?, alt: String?, presenceLabel: String?, loadingLabel: String) -> String {
+        spokenName(name: name, alt: alt, presence: nil, presenceLabel: presenceLabel, loadingLabel: loadingLabel)
     }
 }
 
@@ -177,8 +208,9 @@ public enum OuroAvatarMetrics {
 /// OuroAvatar(name: "Spoonjoy", systemImage: "fork.knife", shape: .square, color: .brand)
 /// ```
 ///
-/// VoiceOver reads it as an image named by `name` (or `alt`), then the presence's words. Pass `alt: ""` when the
-/// name is written beside it, so it isn't read twice. A `nil` name shimmers in the avatar's shape while it loads.
+/// VoiceOver reads it as an image named by `name` (or `alt`), then the presence's words. Pass `presenceLabel`, in the
+/// reader's language, with every `presence`: without it VoiceOver reads the presence's English name, and the avatar
+/// logs a fault with the fix. Pass `alt: ""` when the name is written beside it, so it isn't read twice. A `nil` name shimmers in the avatar's shape while it loads.
 public struct OuroAvatar: View {
     let name: String?
     let url: URL?
@@ -247,9 +279,14 @@ public struct OuroAvatar: View {
         }
         .frame(width: side, height: side)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(OuroAvatarMetrics.spokenName(name: name, alt: alt, presenceLabel: presenceLabel, loadingLabel: loadingLabel)))
+        .accessibilityLabel(Text(OuroAvatarMetrics.spokenName(name: name, alt: alt, presence: presence, presenceLabel: presenceLabel, loadingLabel: loadingLabel)))
         .accessibilityAddTraits(.isImage)
         .accessibilityHidden(alt == "" && presence == nil)
+        .onAppear {
+            if let fault = OuroAvatarMetrics.missingPresenceLabel(presence: presence, presenceLabel: presenceLabel) {
+                Logger(subsystem: "bot.ouro.hx", category: "OuroAvatar").fault("\(fault, privacy: .public)")
+            }
+        }
     }
 
     @ViewBuilder private func face(_ palette: OuroAvatarPalette) -> some View {

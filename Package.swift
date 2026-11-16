@@ -89,7 +89,7 @@ let package = Package(
         .target(name: "OuroReins", dependencies: ["OuroAX"], swiftSettings: strict),
         // A tiny app core driven through Reins: what `ls` and `do` look like, and CI's command-line check.
         .executableTarget(name: "ouro-reins-sample", dependencies: ["OuroReins"], swiftSettings: strict),
-        .testTarget(name: "OuroReinsTests", dependencies: ["OuroReins"], swiftSettings: strict),
+        .testTarget(name: "OuroReinsTests", dependencies: ["OuroReins"], resources: [.copy("Conformance")], swiftSettings: strict),
 
         // Ouro HX's A2UI catalog in SwiftUI, ported from core's ouro-a2ui.mts and proved against core's conformance
         // cases (vendored in Tests/OuroA2UITests/Conformance, pinned in core-provenance.json).

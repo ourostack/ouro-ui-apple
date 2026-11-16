@@ -1,11 +1,11 @@
 name: Rerun a run a broken runner stopped
 
-# When a CI run's first attempt failed only because a runner's simulator service was broken (#74: no app code ran),
+# When a CI or accessibility pass run's first attempt failed only because a runner's simulator service was broken (#74: no app code ran),
 # rerun its failed jobs once on fresh runners, rather than waiting for a person. Any other failure is left as it is.
 # It reads job annotations and logs and calls the rerun API only; it checks out nothing from the run it reruns.
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, Accessibility pass]
     types: [completed]
 
 permissions:

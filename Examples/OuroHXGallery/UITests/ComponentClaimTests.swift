@@ -72,6 +72,32 @@ final class ComponentClaimTests: XCTestCase {
         }
     }
 
+    /// A system notification's banner, as SpringBoard shows it over the app, by any name SpringBoard has given it.
+    static var systemBanner: XCUIElement {
+        XCUIApplication(bundleIdentifier: "com.apple.springboard").descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", ["NotificationShortLookView", "NotificationCell", "BannerContentView"]))
+            .firstMatch
+    }
+
+    /// A system banner over the page never reaches the audit (`ouroAccessibilityAudit` waits it out): the gallery sends a
+    /// notification of its own when asked (`-banner 1`), shown as a banner over the dark avatars page, where a
+    /// simulator's own banner covered the title in an accessibility pass run, and the page's audit still passes. The
+    /// gallery sends it only once the test has answered the notification prompt, so a simulator that answered it in an
+    /// earlier run (an infrastructure retry reboots, and keeps the answer) shows the banner at the same point.
+    func testTheAuditWaitsOutASystemBanner() throws {
+        let app = launch("avatars", scheme: "dark", extra: ["-banner", "1"])
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 5) {
+            allow.tap()
+            XCTAssertTrue(allow.waitForNonExistence(timeout: 5), "The notification prompt stayed after Allow")
+        }
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName("bot.ouro.hx.gallery.banner" as CFString), nil, nil, true)
+        XCTAssertTrue(Self.systemBanner.waitForExistence(timeout: 15), "The gallery's banner never showed: \(springboard.debugDescription)")
+        let claims = try XCTUnwrap(GalleryPageClaims.named("avatars"))
+        Self.auditing("avatars dark, under a banner") { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) }
+    }
+
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,
     /// descriptions, traits, clipped text, Dynamic Type, contrast) on every component page, at the default and the
     /// largest accessibility text size, in light and dark. Each page's file under `Pages/` says how its audit runs, what

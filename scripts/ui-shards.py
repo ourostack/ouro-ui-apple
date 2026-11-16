@@ -68,7 +68,9 @@ SUITES = {
                           "ComponentClaimTests/testAToastShowsAboveASheet": 20.3,
                           "ComponentClaimTests/testATallSheetOpensAtItsTopAtTheLargestSize": 17.5,
                           "ComponentClaimTests/testAToastWithAnActionWaits": 16.6,
-                          "FeelTests/testAToastStackArrivesWithoutJumpsGhostsOrALongSettle": 11.0},
+                          "FeelTests/testAToastStackArrivesWithoutJumpsGhostsOrALongSettle": 11.0,
+                          # Not measured yet: a launch, the notification prompt, a banner's few seconds and one audit.
+                          "ComponentClaimTests/testTheAuditWaitsOutASystemBanner": 30.0},
                 # The catch-all: it also audits every page no other shard names (UNMEASURED_PAGE seconds each in `plan`).
                 "pages": {"empty": 39.2, "banners": 35.0}},
         },

@@ -15,6 +15,11 @@ extension XCUIApplication {
     /// "Potentially inaccessible text" that names no element doesn't fail the first pass: the pass runs once more, and
     /// fails if it comes back (see ``OuroAuditExcuse/rereads(_:element:)``).
     ///
+    /// On iOS, a system notification's banner over the screen is not the app's: each pass waits for one to leave first,
+    /// swiping up one that stays, and a pass whose issues come back while a banner is showing runs once more after it
+    /// leaves, failing only on what comes back. A banner that arrives and leaves while the audit runs, between its
+    /// reads, is not seen.
+    ///
     /// `excuse` excuses single issues the audit is known to misread, by element; say why in the test and prove what it
     /// hides another way.
     @MainActor
@@ -43,7 +48,15 @@ extension XCUIApplication {
         // In a first pass, an issue `OuroAuditExcuse.rereads` names is held, not failed; the pass then runs once more,
         // and fails on it only if it comes back.
         var firstPass = true, held = 0
+        // Whether a system banner was over the screen when this pass's issues came back, read once at the first issue; and
+        // whether a pass may still be held for one (once per audit, so a banner that keeps coming back fails as it reads).
+        var bannerAtIssues: Bool?, bannerHoldLeft = true
         let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+            if bannerHoldLeft, bannerAtIssues == nil { bannerAtIssues = OuroSystemBanner.isShowing() }
+            if bannerHoldLeft, bannerAtIssues == true {
+                print("audit issue held for a pass of its own: \(issue.compactDescription), with a system banner over the screen")
+                return true
+            }
             if firstPass, OuroAuditExcuse.rereads(issue.compactDescription, element: issue.element?.frame) {
                 held += 1
                 print("audit issue held for a second pass: \(issue.compactDescription) with no element")
@@ -75,6 +88,8 @@ extension XCUIApplication {
             return excused
         }
         func pass(_ types: XCUIAccessibilityAuditType) throws {
+            OuroSystemBanner.waitOut()
+            bannerAtIssues = nil
             do {
                 try performAccessibilityAudit(for: types, handler)
             } catch let error as NSError where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == Self.auditTimedOut {
@@ -83,9 +98,18 @@ extension XCUIApplication {
             }
         }
         func audit(_ types: XCUIAccessibilityAuditType) throws {
+            bannerHoldLeft = true
             firstPass = true
             held = 0
             try pass(types)
+            if bannerAtIssues == true {
+                // A pass a banner covered read nothing of the app's own: it runs again from the start, as a first pass.
+                print("audit: a system banner covered the pass; running it again from the start")
+                bannerHoldLeft = false
+                held = 0
+                try pass(types)
+            }
+            bannerHoldLeft = false
             guard held > 0 else { return }
             print("audit: \(held) issue(s) held; running the pass once more")
             firstPass = false
@@ -108,6 +132,55 @@ extension XCUIApplication {
 
     /// How many times the audit tries to snapshot the app before it gives up.
     static let snapshotTries = 3
+}
+
+/// A system notification's banner, which SpringBoard shows over whatever app is in front. In an accessibility pass run
+/// (the largest text size with Increase Contrast), a fresh simulator's own notification covered a page's title while the
+/// audit read it, which failed contrast, and the next page, audited as the banner left, failed Dynamic Type on every
+/// word. SpringBoard is read from a snapshot, which throws, rather than a query, which on a loaded runner can record a
+/// failure nothing can catch; a snapshot that fails reads as no banner.
+@MainActor
+enum OuroSystemBanner {
+    /// What SpringBoard has called a banner across iOS releases.
+    static let identifiers: Set<String> = ["NotificationShortLookView", "NotificationCell", "BannerContentView"]
+
+    /// Where a banner is on the screen now, or nil.
+    static func frame() -> CGRect? {
+        #if os(iOS)
+        guard let root = try? XCUIApplication(bundleIdentifier: "com.apple.springboard").snapshot() else { return nil }
+        func find(_ e: any XCUIElementSnapshot) -> CGRect? {
+            if identifiers.contains(e.identifier) { return e.frame }
+            for child in e.children { if let found = find(child) { return found } }
+            return nil
+        }
+        return find(root)
+        #else
+        return nil
+        #endif
+    }
+
+    static func isShowing() -> Bool { frame() != nil }
+
+    /// Waits for a banner to leave, swiping up one still there after two seconds, for at most `timeout` seconds.
+    static func waitOut(timeout: TimeInterval = 15) {
+        #if os(iOS)
+        let deadline = Date().addingTimeInterval(timeout)
+        var since: Date?
+        while let banner = frame(), Date() < deadline {
+            let first = since ?? Date()
+            since = first
+            if Date().timeIntervalSince(first) >= 2 {
+                let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+                let origin = springboard.coordinate(withNormalizedOffset: .zero)
+                origin.withOffset(CGVector(dx: banner.midX, dy: banner.midY))
+                    .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: banner.midX, dy: max(0, banner.minY - 200))))
+                since = nil
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        if let banner = frame() { print("audit: a system banner stayed over the screen at \(banner) for \(Int(timeout)) s") }
+        #endif
+    }
 }
 
 /// Where the sheets, the toasts and the window are in one snapshot of the app, for the audit's excuses.

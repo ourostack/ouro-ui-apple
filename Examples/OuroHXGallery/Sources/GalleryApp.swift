@@ -2,9 +2,11 @@
 import SwiftUI
 
 /// Launch arguments pick what to show, so screenshots and UI tests need no taps: `-theme abyss -page pairs`,
-/// `-page sheet -open 1` (opens the sheet, or sends the sample toasts), `-scheme dark`.
+/// `-page sheet -open 1` (opens the sheet, or sends the sample toasts), `-scheme dark`, `-banner 1` (``GalleryBanner``).
 @main
 struct GalleryApp: App {
+    init() { GalleryBanner.start() }
+
     var body: some Scene {
         WindowGroup {
             GalleryScreen(

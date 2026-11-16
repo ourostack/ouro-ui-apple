@@ -186,11 +186,17 @@ public enum OuroAvatarMetrics {
     /// What VoiceOver says: the name (or `alt`), then the presence's words, as web's "Ana Lind, Busy". A presence with
     /// no `presenceLabel` is read by its English name, as web reads it, rather than not at all.
     public static func spokenName(
-        name: String?, alt: String?, presence: OuroAvatarPresence? = nil, presenceLabel: String?, loadingLabel: String
+        name: String?, alt: String?, presence: OuroAvatarPresence?, presenceLabel: String?, loadingLabel: String
     ) -> String {
         let who = alt ?? name ?? loadingLabel
         guard let words = (presenceLabel ?? "").isEmpty ? presence?.label : presenceLabel else { return who }
         return who.isEmpty ? words : "\(who), \(words)"
+    }
+
+    /// What VoiceOver says, without the presence, so a presence with no `presenceLabel` goes unread.
+    @available(*, deprecated, message: "Pass the presence too: spokenName(name:alt:presence:presenceLabel:loadingLabel:)")
+    public static func spokenName(name: String?, alt: String?, presenceLabel: String?, loadingLabel: String) -> String {
+        spokenName(name: name, alt: alt, presence: nil, presenceLabel: presenceLabel, loadingLabel: loadingLabel)
     }
 }
 

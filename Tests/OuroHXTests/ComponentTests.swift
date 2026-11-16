@@ -273,10 +273,10 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
 
     /// Core claim `name.spoken`: the name, or `alt`, then the presence's words; a loading avatar says so.
     @Test func anAvatarIsNamedByItsPerson() {
-        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Ana Lind")
-        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presenceLabel: "Busy", loadingLabel: "Name loading") == "Ana Lind, Busy")
-        #expect(OuroAvatarMetrics.spokenName(name: nil, alt: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Name loading")
-        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: "", presenceLabel: "Busy", loadingLabel: "Name loading") == "Busy")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Ana Lind")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: nil, presence: nil, presenceLabel: "Busy", loadingLabel: "Name loading") == "Ana Lind, Busy")
+        #expect(OuroAvatarMetrics.spokenName(name: nil, alt: nil, presence: nil, presenceLabel: nil, loadingLabel: "Name loading") == "Name loading")
+        #expect(OuroAvatarMetrics.spokenName(name: "Ana Lind", alt: "", presence: nil, presenceLabel: "Busy", loadingLabel: "Name loading") == "Busy")
     }
 
     /// A presence with no words of the app's own is read by its English name, as a person says it, never as code

@@ -79,12 +79,16 @@ final class ComponentClaimTests: XCTestCase {
     func testEveryComponentPagePassesTheAccessibilityAudit() throws {
         // `OURO_AUDIT_PAGES=toasts,sheet` (as `TEST_RUNNER_OURO_AUDIT_PAGES` to xcodebuild) audits only those pages.
         let only = ProcessInfo.processInfo.environment["OURO_AUDIT_PAGES"].map { Set($0.split(separator: ",").map(String.init)) }
+        // `OURO_AUDIT_SIZES=system` audits at the simulator's own text size only, set with `simctl ui` (the accessibility
+        // pass, .github/workflows/accessibility-pass.yml, sets each size from AX1 to AX5, with and without Increase
+        // Contrast). Its runs are named "system", so a check meant for the default size alone skips them.
+        let system = ProcessInfo.processInfo.environment["OURO_AUDIT_SIZES"] == "system"
         for claims in GalleryPageClaims.all where only?.contains(claims.page) ?? true {
             for variant in claims.auditVariants {
-                for size in [nil, Self.largest] {
+                for size in system ? ["system"] : [nil, Self.largest] {
                     for scheme in ["light", "dark"] {
                         let run = GalleryAuditRun(name: "\(claims.page)\(variant.suffix) \(size ?? "default") \(scheme)", size: size, extra: variant.extra)
-                        let app = launch(claims.page, size: size, scheme: scheme, extra: variant.extra)
+                        let app = launch(claims.page, size: system ? nil : size, scheme: scheme, extra: variant.extra)
                         XCTContext.runActivity(named: run.name) { _ in
                             Self.auditing(run.name) { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) }
                         }

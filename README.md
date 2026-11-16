@@ -204,6 +204,13 @@ xcodebuild test -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme 
   -destination 'id=<that UDID>' -derivedDataPath .build/gallery
 ```
 
+A deeper pass runs by hand, not on pushes: `gh workflow run accessibility-pass.yml` (`.github/workflows/accessibility-pass.yml`).
+It runs the same audit with the simulator's own text size set by `simctl ui` to each size from AX1 to AX5, with and
+without Increase Contrast, two runners at a time. It also has VoiceOver read every page of the gallery's macOS build (the
+`OuroHXGalleryMac` scheme) through Guidepup on a throwaway `macos-15` runner, and lists what a VoiceOver user would
+trip on in the job summary (`scripts/voiceover-pass/walk.mjs`). Its inputs narrow the sizes and contrast, or turn the
+VoiceOver walk off.
+
 Component snapshot references live in `Tests/OuroHXTests/__Snapshots__/macOS-<major>`, one folder per host macOS
 major. Record locally with `OURO_SNAPSHOT_RECORD=1 swift test --filter ComponentSnapshotTests`; for CI's macOS 26,
 take the `snapshots-actual-macos-26` artifact of a failed run.

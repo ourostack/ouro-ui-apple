@@ -25,6 +25,25 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
+  # The same gallery on macOS, for the accessibility pass's VoiceOver walk (.github/workflows/accessibility-pass.yml).
+  OuroHXGalleryMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources: [Sources, Shared]
+    dependencies:
+      - package: OuroUIApple
+        product: OuroHX
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.ouro.hx.gallery.mac
+        PRODUCT_NAME: HX Gallery
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: HX Gallery
+        SWIFT_VERSION: "6.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_IDENTITY: "-"
   # The components' claims, proven against the running gallery: performAccessibilityAudit on every component page
   # at the default and the largest text size, in light and dark; 44-point targets; VoiceOver labels; close controls.
   OuroHXGalleryUITests:
@@ -46,6 +65,10 @@ targets:
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: OuroHXGallery
 schemes:
+  OuroHXGalleryMac:
+    build:
+      targets:
+        OuroHXGalleryMac: all
   OuroHXGallery:
     build:
       targets:

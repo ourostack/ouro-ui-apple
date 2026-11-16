@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI only: rerun a CI run's failed jobs once when every failure was a runner whose simulator service was broken (#74).
+"""CI only: rerun a CI or accessibility pass run's failed jobs once when every failure was a runner whose simulator service was broken (#74).
 
     python3 -I scripts/ci-rerun-broken-runner.py <run id>     # GH_TOKEN and GH_REPO set; called by rerun-broken-runner.yml
     python3 -I scripts/ci-rerun-broken-runner.py --selftest

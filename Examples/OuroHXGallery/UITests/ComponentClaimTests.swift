@@ -72,6 +72,48 @@ final class ComponentClaimTests: XCTestCase {
         }
     }
 
+    /// A system notification's banner, as SpringBoard shows it over the app. SpringBoard has named it differently
+    /// across iOS releases, so any of the names it has used counts.
+    static var systemBanner: XCUIElement {
+        XCUIApplication(bundleIdentifier: "com.apple.springboard").descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", ["NotificationShortLookView", "NotificationCell", "BannerContentView"]))
+            .firstMatch
+    }
+
+    /// A system notification can slide its banner over the page while the audit reads it: in the accessibility pass
+    /// (run 43885835602, the largest text size with Increase Contrast), a fresh simulator's own notification covered the
+    /// avatars page's title and page picker, which failed contrast, and the next page, audited as the banner left,
+    /// failed Dynamic Type on every word. So the audit waits for a banner to leave, and swipes one that stays for two
+    /// seconds up and away. A banner still there after `timeout` fails the page, naming what SpringBoard showed.
+    static func waitOutSystemBanners(timeout: TimeInterval = 15) {
+        let banner = systemBanner
+        let deadline = Date().addingTimeInterval(timeout)
+        while banner.exists, Date() < deadline {
+            if !banner.waitForNonExistence(timeout: 2), banner.exists { banner.swipeUp() }
+        }
+        if banner.exists {
+            XCTFail("A system banner stayed over the page for \(Int(timeout)) s: \(XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription)")
+        }
+    }
+
+    /// One audit of the page `app` shows, once no system banner covers it, under the page's own excuses.
+    static func audit(_ app: XCUIApplication, _ claims: GalleryPageClaims.Type, named name: String) {
+        auditing(name) { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) }
+    }
+
+    /// A system banner over the page never reaches the audit: the gallery sends a notification of its own
+    /// (`-banner 1`), shown as a banner over the dark avatars page, where it covered the title in run 43885835602,
+    /// and the page's audit still passes.
+    func testTheAuditWaitsOutASystemBanner() throws {
+        let app = launch("avatars", scheme: "dark", extra: ["-banner", "1"])
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 10) { allow.tap() }
+        XCTAssertTrue(Self.systemBanner.waitForExistence(timeout: 15), "The gallery's banner never showed: \(springboard.debugDescription)")
+        let claims = try XCTUnwrap(GalleryPageClaims.named("avatars"))
+        Self.audit(app, claims, named: "avatars dark, under a banner")
+    }
+
     /// Claims target.touch, name.spoken, text.reflows and contrast.text: Xcode's accessibility audit (hit regions,
     /// descriptions, traits, clipped text, Dynamic Type, contrast) on every component page, at the default and the
     /// largest accessibility text size, in light and dark. Each page's file under `Pages/` says how its audit runs, what
@@ -89,9 +131,7 @@ final class ComponentClaimTests: XCTestCase {
                     for scheme in ["light", "dark"] {
                         let run = GalleryAuditRun(name: "\(claims.page)\(variant.suffix) \(size ?? "default") \(scheme)", size: size, extra: variant.extra)
                         let app = launch(claims.page, size: system ? nil : size, scheme: scheme, extra: variant.extra)
-                        XCTContext.runActivity(named: run.name) { _ in
-                            Self.auditing(run.name) { try app.ouroAccessibilityAudit(excuse: claims.excuse(app)) }
-                        }
+                        XCTContext.runActivity(named: run.name) { _ in Self.audit(app, claims, named: run.name) }
                         claims.afterAudit(app, run)
                         app.terminate()
                     }

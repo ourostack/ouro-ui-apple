@@ -7,7 +7,7 @@ Test helpers for apps that use Ouro HX: snapshots, accessibility audits and the 
 - ``OuroSnapshot`` renders a view in light, dark and increased contrast and compares it with a recorded PNG. Set
   `OURO_SNAPSHOT_RECORD=1` to record. It does not need XCTest.
 - `XCUIApplication.ouroAccessibilityAudit(for:knownIssues:)` runs Xcode's accessibility audit and fails on every issue
-  you have not named.
+  you have not named. On iOS it waits for a system notification's banner to leave before it reads the screen.
 - ``OuroHXClaims`` is ouro-ui-core's HX component claim set (`components.claims.json`, vendored by hash): what every
   component promises, and how each platform proves it.
 - ``OuroDuoHinge`` folds and opens the iPhone Duo simulator from a UI test. A Mac job runs

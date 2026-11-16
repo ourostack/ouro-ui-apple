@@ -209,7 +209,7 @@ It runs the same audit with the simulator's own text size set by `simctl ui` to 
 without Increase Contrast, two runners at a time. It also has VoiceOver read every page of the gallery's macOS build (the
 `OuroHXGalleryMac` scheme) through Guidepup on a throwaway `macos-15` runner, and lists what a VoiceOver user would
 trip on in the job summary (`scripts/voiceover-pass/walk.mjs`). Its inputs narrow the sizes and contrast, or turn the
-VoiceOver walk off.
+VoiceOver walk off. A run that only a broken simulator service stopped (#74) is rerun on fresh runners, as CI is.
 
 Component snapshot references live in `Tests/OuroHXTests/__Snapshots__/macOS-<major>`, one folder per host macOS
 major. Record locally with `OURO_SNAPSHOT_RECORD=1 swift test --filter ComponentSnapshotTests`; for CI's macOS 26,

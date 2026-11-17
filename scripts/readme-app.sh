@@ -1,13 +1,15 @@
 #!/bin/bash
 # The README as a newcomer meets it: a new app made from its Install lines and its "A first screen" code, depending on
-# this checkout where the README names the release, built for the Mac and the iOS Simulator. Prints how long each step
+# this checkout where the README names the release (its platforms line and its product line as written), built for the Mac and the iOS Simulator. Prints how long each step
 # took. Needs Xcode (the README says why). Usage: scripts/readme-app.sh [work dir]
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-work=${1:-$(mktemp -d)}
+# Always a fresh folder of its own, inside the one given, so nothing already there is touched.
+parent=${1:-${TMPDIR:-/tmp}}
+mkdir -p "$parent"
+work=$(mktemp -d "$parent/readme-app.XXXXXX")
 app="$work/SettingsApp"
-rm -rf "$app" "$work/ouro-ui-apple"
 mkdir -p "$app/Sources/SettingsApp"
 # The package's identity is its folder's name, which the README's .product line names.
 ln -s "$root" "$work/ouro-ui-apple"
@@ -26,10 +28,11 @@ def swift_blocks(body):
     return re.findall(r"```swift\n(.*?)```", body, re.S)
 
 install = section("## Install")
+platforms_line = re.search(r'^\s*(platforms: \[[^\]]+\],)', install, re.M)
 package_line = re.search(r'^\s*(\.package\(url: "https://github\.com/ourostack/ouro-ui-apple\.git", from: "[^"]+"\),)', install, re.M)
 product_line = re.search(r'^\s*(\.product\(name: "OuroHX", package: "ouro-ui-apple"\),)', install, re.M)
-if not package_line or not product_line:
-    sys.exit("README.md's Install has no .package(url:…ouro-ui-apple.git…) line or no .product(name: \"OuroHX\"…) line")
+if not platforms_line or not package_line or not product_line:
+    sys.exit("README.md's Install needs its platforms: line, its .package(url:…ouro-ui-apple.git…) line and its .product(name: \"OuroHX\"…) line")
 screens = swift_blocks(section("### A first screen"))
 if len(screens) != 1 or "@main" not in screens[0]:
     sys.exit('README.md\'s "### A first screen" needs exactly one swift block, a whole app with @main')
@@ -40,7 +43,7 @@ import PackageDescription
 
 let package = Package(
     name: "SettingsApp",
-    platforms: [.macOS(.v15), .iOS(.v18)],
+    {platforms_line.group(1)}
     dependencies: [
         // The README's line, pointed at this checkout: {package_line.group(1)}
         .package(path: "{checkout}"),

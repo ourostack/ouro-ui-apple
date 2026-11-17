@@ -25,6 +25,70 @@ every other agent that comes knocking.
 iOS 18 and macOS 15 or later, Swift 6.1 (Xcode 16.3 or later). Newer things (the iPhone Duo's hinge, Siri AI) switch on by themselves where the
 OS has them.
 
+Build it with Xcode. The Command Line Tools alone can't: `swift build` stops at SwiftUI's own macros (`@Entry`, `@State`), whose
+plugin only Xcode has.
+
+### A first screen
+
+A settings screen with a validated field, a checkbox, a segmented control and a confirmation sheet. It is a whole app: put it in
+your app target, or in `Sources/<YourApp>/App.swift` of a package with the lines above. CI builds it from this README as a new
+app, for the Mac and the iOS Simulator (`scripts/readme-app.sh`).
+
+```swift
+import OuroHX
+import SwiftUI
+
+enum Appearance: Hashable { case system, light, dark }
+
+struct SettingsScreen: View {
+    @Environment(\.ouroToast) private var toast
+    @State private var name = ""
+    @State private var email = ""
+    @State private var news = true
+    @State private var appearance: Appearance = .system
+    @State private var nameError: String?
+    @State private var emailError: String?
+    @State private var confirmDelete = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            OuroTextField("Display name", text: $name, error: nameError, required: true)
+            OuroTextField("Email", text: $email, error: emailError, type: .email, required: true)
+            OuroCheckbox("Email me about new features", isOn: $news)
+            OuroSegmentedControl("Appearance", selection: $appearance, items: [
+                OuroSegment("System", value: .system),
+                OuroSegment("Light", value: .light),
+                OuroSegment("Dark", value: .dark),
+            ])
+            OuroButton("Save", systemImage: "checkmark", fullWidth: true) { save() }
+            OuroButton("Delete account", systemImage: "trash", tone: .destructive, variant: .outline, fullWidth: true) {
+                confirmDelete = true
+            }
+        }
+        .padding()
+        .preferredColorScheme(appearance == .system ? nil : appearance == .dark ? .dark : .light)
+        .ouroSheet(isPresented: $confirmDelete, title: "Delete your account?", description: "This removes your settings for good.") {
+            EmptyView()
+        } footer: {
+            OuroButton("Delete", systemImage: "trash", tone: .destructive) { confirmDelete = false }
+        }
+    }
+
+    private func save() {
+        nameError = name.trimmingCharacters(in: .whitespaces).isEmpty ? "Enter a display name." : nil
+        emailError = email.contains("@") ? nil : "Enter an email address, such as jo@example.com."
+        if nameError == nil, emailError == nil { toast("Settings saved", tone: .success) }
+    }
+}
+
+@main
+struct SettingsApp: App {
+    var body: some Scene {
+        WindowGroup { SettingsScreen().ouroToaster().ouroTheme(.pearl) }
+    }
+}
+```
+
 **Status:** 1.0. The public API is source-stable: a source break waits for 2.0 (see [Source stability](#source-stability)). The newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). What 1.0 required (eighteen components, claims, platforms, API stability and adoption) is in [docs/decisions/2026-11-14-apple-1-0.md](docs/decisions/2026-11-14-apple-1-0.md). Meets core [v0.14.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.14.0): the tokens and the claim sets (AX's
 `apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
 
@@ -264,7 +328,7 @@ run's summary.
 
 ## CI
 
-- **Free GitHub-hosted runners** (`ubuntu-latest`, `macos-26`) run on every pull request and push: core provenance, `swift build` and `swift test`, the skills linter, the iOS Simulator build, DocC and the gallery. The gallery's UI tests run on an iPhone on pull requests, and on an iPhone and a 13-inch iPad on `main` and releases. When a change touches Ouro Feel or its fixture, the fixture's tests run in three shards on an iPhone, and its clock-blanking tests run on an iPad, where the iPhone fixture runs in compatibility mode. A shard whose runner has a broken simulator service stops within about a minute and runs again on a fresh runner. Their Xcode 26 has no iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the Siri AI parts compile out behind SDK checks (`#if canImport(SwiftUICore, _version: 8.0.85)` and `canImport`), never compiler checks: Xcode 27.0 and 27.1 have Swift 6.4 but older SDKs.
+- **Free GitHub-hosted runners** (`ubuntu-latest`, `macos-26`) run on every pull request and push: core provenance, `swift build` and `swift test`, the skills linter, the iOS Simulator build, DocC and the gallery. The README's first screen is built as a new app from this README, for the Mac and the iOS Simulator, when the README, `OuroHX` or the workflow changes and on every push (`scripts/readme-app.sh`). The gallery's UI tests run on an iPhone on pull requests, and on an iPhone and a 13-inch iPad on `main` and releases. When a change touches Ouro Feel or its fixture, the fixture's tests run in three shards on an iPhone, and its clock-blanking tests run on an iPad, where the iPhone fixture runs in compatibility mode. A shard whose runner has a broken simulator service stops within about a minute and runs again on a fresh runner. Their Xcode 26 has no iOS 27 SDK, so the hinge APIs, AppIntentsTesting and the Siri AI parts compile out behind SDK checks (`#if canImport(SwiftUICore, _version: 8.0.85)` and `canImport`), never compiler checks: Xcode 27.0 and 27.1 have Swift 6.4 but older SDKs.
 - **The billed `xcode-27` runner** runs only what needs Xcode 27 or an iOS 27 OS: the Xcode 27 build and test, builds with Xcode 27.0's and 27.1's older SDKs (which also print each SDK's SwiftUICore version), the fixture X-ray lanes, the Siri AI compile lane, and the gallery's fold tests on a folded iPhone Duo simulator (`gallery-duo`). These run on pushes to `main` and on published releases. The one exception is the X-ray lanes, which also run on a pull request that changes the X-ray, Ouro Feel, their fixtures or the workflow, so a break is caught before merge. `xray-apps.yml` runs on releases only. `ios27-claims.yml` runs the component claims on iOS 27 when dispatched for a release candidate (RELEASING.md). Its spending is capped by a $15-a-month Actions budget on this repository, and usage stops at the cap.
 - **When the free image ships Xcode 27,** drop the lane: point those jobs at `macos-26` (or `macos-latest`), delete their `if:` gates, and remove this paragraph.
 - No self-hosted runners.

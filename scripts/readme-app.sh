@@ -8,7 +8,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 # Always a fresh folder of its own, inside the one given, so nothing already there is touched.
 parent=${1:-${TMPDIR:-/tmp}}
 mkdir -p "$parent"
-work=$(mktemp -d "$parent/readme-app.XXXXXX")
+work=$(cd "$(mktemp -d "$parent/readme-app.XXXXXX")" && pwd)
 app="$work/SettingsApp"
 mkdir -p "$app/Sources/SettingsApp"
 # The package's identity is its folder's name, which the README's .product line names.

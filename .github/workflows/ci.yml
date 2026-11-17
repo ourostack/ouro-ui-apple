@@ -45,6 +45,7 @@ jobs:
       xray: ${{ steps.diff.outputs.xray }}
       gallery: ${{ steps.diff.outputs.gallery }}
       feel: ${{ steps.diff.outputs.feel }}
+      readme: ${{ steps.diff.outputs.readme }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +59,7 @@ jobs:
         run: |
           set -eu
           # Pushes and releases run every simulator job; these outputs only narrow pull requests.
-          if [ "$EVENT" != pull_request ]; then printf 'xray=false\ngallery=true\nfeel=true\n' >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" != pull_request ]; then printf 'xray=false\ngallery=true\nfeel=true\nreadme=true\n' >> "$GITHUB_OUTPUT"; exit 0; fi
           git diff --name-only "$BASE...$HEAD" > changed.txt
           shared='|\.github/workflows/|scripts/(ci-simulator\.py|ui-shards\.py|ci-wait-for-build\.sh|ci-ui-infra\.sh)$|Package\.(swift|resolved)$'
           # The gallery links OuroHX, OuroHXTesting (with OuroDeviceHub) and OuroFeel (Examples/OuroHXGallery/project.yml).
@@ -72,6 +73,12 @@ jobs:
             echo "feel=true" >> "$GITHUB_OUTPUT"
           else
             echo "feel=false" >> "$GITHUB_OUTPUT"
+          fi
+          # The README's first screen is built as a new app from the README (scripts/readme-app.sh).
+          if grep -E "^(README\.md\$|Sources/OuroHX/|scripts/readme-app\.sh\$$shared)" changed.txt; then
+            echo "readme=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "readme=false" >> "$GITHUB_OUTPUT"
           fi
           if grep -E '^(Sources/(OuroAX|OuroAXTesting|OuroAXTestingProbe|OuroAXSkillsLint|ouro-ax-xray|OuroFeel|OuroFeelCore|OuroFeelRecorder)/|Templates/XrayProbe/|Examples/(OuroAXXrayFixture|OuroFeelFixture)/|scripts/(xray-probe|ouro-feel-cold|select-xcode)\.sh$|\.github/workflows/|Package\.(swift|resolved)$)' changed.txt; then
             echo "xray=true" >> "$GITHUB_OUTPUT"
@@ -184,6 +191,21 @@ jobs:
           [ '${{ matrix.xcode }}' = '27.1' ] && require='-DOURO_REQUIRE_HINGE'
           xcodebuild build -scheme OuroUIApple-Package -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath .build/xcode CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS="\$(inherited) $require" 2>&1 | tail -40
+
+  readme-app:
+    name: The README's first screen, as a new app (free macos-26)
+    # A newcomer's path: a new app from the README's Install lines and its "A first screen", built for the Mac and the
+    # iOS Simulator against this checkout. Runs when the README, OuroHX or the workflow changes, and on every push.
+    needs: paths
+    if: needs.paths.outputs.readme == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: xcodebuild -version && swift --version
+      - name: Build the README's first screen as a new app
+        run: scripts/readme-app.sh "$RUNNER_TEMP/readme-app"
 
   api-break:
     name: Public API against the last release (free macos-26)

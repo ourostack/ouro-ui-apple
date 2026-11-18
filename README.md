@@ -269,7 +269,7 @@ the list item it is in.
 pinned in `core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
 web's `a2ui-surface` passes. The decisions are core's
 [2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md),
-[2026-11-14-composed-ui-own-tree.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-14-composed-ui-own-tree.md)
+[2026-11-14-composed-ui-own-tree.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-14-composed-ui-own-tree.md),
 [2026-11-17-composed-fields.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-17-composed-fields.md)
 and [2026-11-18-composed-tree-updates.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-18-composed-tree-updates.md).
 

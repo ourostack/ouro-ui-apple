@@ -168,7 +168,7 @@ extension ComposedTree {
                                     let names = a.input.map(\.name).joined(separator: ", ")
                                     fail("\(at)/props/input/\(k)", "\(id) has no input \(k); its fields are \(names.isEmpty ? "none" : names).")
                                 }
-                                if let b = v.object, b["@path"] != nil, !(isBinding(v) && (b["@path"]?.string?.hasPrefix("/") ?? false)) {
+                                if let b = v.object, b["@path"] != nil, !(isBinding(v) && (b["@path"]?.string.map(A2UI.isDataPointer) ?? false)) {
                                     fail("\(at)/props/input/\(k)", "\(k) is a value, or {\"@path\": \"/...\"} bound to the data model.")
                                 }
                             }
@@ -204,7 +204,7 @@ extension ComposedTree {
     private static func checkProp(_ p: A2UIProp, _ v: A2UIJSON, _ at: String, _ fail: (String, String, A2UIJSON?) -> Void) {
         func bad(_ expected: String) { fail(at, "\(p.name) is \(expected), got \(v.serialized).", nil) }
         if p.isPath {
-            if !(v.string?.hasPrefix("/") ?? false) { bad("a JSON pointer into the data model, such as /servings") }
+            if !(v.string.map(A2UI.isDataPointer) ?? false) { bad("a JSON pointer into the data model, such as /servings") }
             return
         }
         switch p.kind {

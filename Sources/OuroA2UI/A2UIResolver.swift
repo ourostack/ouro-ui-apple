@@ -72,14 +72,34 @@ extension A2UI {
     /// Writes a JSON pointer, creating objects on the way; null deletes.
     public static func set(_ data: A2UIJSON, _ pointer: String, _ value: A2UIJSON) -> A2UIJSON {
         if pointer.isEmpty || pointer == "/" { return value == .null ? .object(A2UIObject()) : value }
+        // A pointer that names an object's prototype writes nothing, as core's setPointer (ouro-ui-core#91).
+        if !isSafePointer(pointer) { return data }
         let root: A2UIJSON = (data.isObject || data.array != nil) ? data : .object(A2UIObject())
         return write(root, tokens(pointer)[...], value)
     }
 
+    /// Whether no segment of a pointer, absolute or relative, is `__proto__`, `constructor` or `prototype`, which in
+    /// JavaScript would reach an object's prototype instead of the data. Every kit refuses them, so every kit refuses the
+    /// same trees and streams (ouro-ui-core#91). Core's `isSafePointer`.
+    public static func isSafePointer(_ pointer: String) -> Bool {
+        !tokens(pointer).contains { $0 == "__proto__" || $0 == "constructor" || $0 == "prototype" }
+    }
+
+    /// Whether a pointer stays in the data: absolute, and safe. Core's `isDataPointer`.
+    public static func isDataPointer(_ pointer: String) -> Bool { startsAtRoot(pointer) && isSafePointer(pointer) }
+
+    /// JavaScript's `startsWith("/")`: the first scalar is "/", whatever combining mark follows it.
+    static func startsAtRoot(_ pointer: String) -> Bool { pointer.unicodeScalars.first == "/" }
+
     private static func tokens(_ pointer: String) -> [String] {
-        let body = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
+        // By Unicode scalar, as JavaScript splits by code unit: a String splits by Character, and a combining mark
+        // after "/" would join it and hide the segment boundary.
+        var body = pointer.unicodeScalars[...]
+        if body.first == "/" { body = body.dropFirst() }
         return body.split(separator: "/", omittingEmptySubsequences: false).map {
-            $0.replacingOccurrences(of: "~1", with: "/").replacingOccurrences(of: "~0", with: "~")
+            String(String.UnicodeScalarView($0))
+                .replacingOccurrences(of: "~1", with: "/", options: .literal)
+                .replacingOccurrences(of: "~0", with: "~", options: .literal)
         }
     }
 
@@ -141,7 +161,7 @@ extension A2UI {
     }
 
     private static func scoped(_ scope: String, _ p: String) -> String {
-        p.hasPrefix("/") ? p : p.isEmpty ? scope : "\(scope)/\(p)"
+        startsAtRoot(p) ? p : p.isEmpty ? scope : "\(scope)/\(p)"
     }
 
     private static func value(_ data: A2UIJSON, _ scope: String, _ v: A2UIJSON?) -> A2UIJSON? {
@@ -219,7 +239,7 @@ extension A2UI {
     }
 
     /// A pointer that starts at the data model's root.
-    private static func absolute(_ p: String) -> String { p.hasPrefix("/") ? p : "/\(p)" }
+    private static func absolute(_ p: String) -> String { startsAtRoot(p) ? p : "/\(p)" }
 
     /// The tree with each button input bound to a path no field writes read from the data now, as before fields
     /// existed; one bound to a field the person fills in stays bound, so a press sends their answer

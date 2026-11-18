@@ -115,7 +115,7 @@ extension A2UI {
                 continue
             }
             if key == "updateDataModel" {
-                if let path = body["path"], !(path.string.map { $0.isEmpty || $0.hasPrefix("/") } ?? false) {
+                if let path = body["path"], !(path.string.map { $0.isEmpty || A2UI.isDataPointer($0) } ?? false) {
                     problems.append(A2UIProblem(surfaceId: surfaceId, path: "\(at)/updateDataModel/path", message: "path is a JSON pointer starting with /."))
                 }
                 if body["value"] == nil { problems.append(A2UIProblem(surfaceId: surfaceId, path: "\(at)/updateDataModel/value", message: "updateDataModel needs value (null deletes).")) }
@@ -261,7 +261,23 @@ private struct Walk {
         }
     }
 
+    /// Every pointer a component names (a binding or a template's path) that would reach an object's prototype in
+    /// JavaScript. Core's `unsafePointers`.
+    mutating func unsafePointers(_ v: A2UIJSON, _ path: String) {
+        if let a = v.array {
+            for (i, x) in a.enumerated() { unsafePointers(x, "\(path)/\(i)") }
+            return
+        }
+        guard let o = v.object else { return }
+        let pointer = isBinding(v) ? o["@path"]?.string : o["componentId"]?.string != nil ? o["path"]?.string : nil
+        if let pointer, !A2UI.isSafePointer(pointer) {
+            fail(path, "\(stringify(.string(pointer))) points into the data model, never through __proto__, constructor or prototype.")
+        }
+        for (k, x) in o.pairs { unsafePointers(x, "\(path)/\(k)") }
+    }
+
     mutating func checkComponent(_ c: A2UIJSON, path: String) {
+        unsafePointers(c, path)
         guard let comp = c.object else {
             fail(path, "A component is an object with id and component.")
             return

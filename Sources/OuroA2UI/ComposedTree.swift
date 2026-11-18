@@ -114,6 +114,16 @@ public struct ComposedTree: Sendable, Equatable {
 
 // MARK: The validator
 
+/// JavaScript's `===` on JSON values, as core compares them: two strings are the same only when their UTF-16 code units
+/// are, where Swift's `==` also takes "é" and "e\u{301}" as one. Missing is the same only as missing.
+func same(_ a: A2UIJSON?, _ b: A2UIJSON?) -> Bool {
+    switch (a, b) {
+    case (nil, nil): true
+    case let (a?, b?): a.serialized.utf16.elementsEqual(b.serialized.utf16)
+    default: false
+    }
+}
+
 private let buttonProps = ["action", "label", "consent", "press", "input", "confirm", "handoff", "emphasis", "@label"]
 
 extension ComposedTree {
@@ -163,12 +173,12 @@ extension ComposedTree {
                                 }
                             }
                             let expected = actionButtonProps(cat, action: id, prepared: given, label: nil)
-                            for key in ["label", "consent", "press", "handoff"] where props[key]?.serialized != expected[key]?.serialized {
+                            for key in ["label", "consent", "press", "handoff"] where !same(props[key], expected[key]) {
                                 fail("\(at)/props/\(key)", "\(id)'s \(key) is the catalog's \((expected[key] ?? .null).serialized), never the sender's.")
                             }
                             if a.press == .confirm {
                                 let c = props["confirm"]?.object
-                                if c == nil || c?["title"] != .string(a.label) || c?["description"] != .string(a.description) || c?["fields"]?.array == nil {
+                                if c == nil || !same(c?["title"], .string(a.label)) || !same(c?["description"], .string(a.description)) || c?["fields"]?.array == nil {
                                     fail("\(at)/props/confirm", "\(id) confirms, with the catalog's title and description and a row per prepared input.")
                                 } else if let rows = c?["fields"]?.array {
                                     confirmRowProblems(id, a, input: given, rows: rows, at: "\(at)/props/confirm/fields", fail)
@@ -263,7 +273,7 @@ extension ComposedTree {
             let named = f.shownAs == nil ? nil : label?(A2UILabelContext(action: action, field: f.name, value: raw, input: input)) ?? prepared
             let value = named ?? raw
             var row: A2UIObject = ["label": .string(f.label), "value": .string(value)]
-            if value != raw { row["raw"] = .string(raw) }
+            if !value.utf16.elementsEqual(raw.utf16) { row["raw"] = .string(raw) }
             return .object(row)
         }
     }
@@ -290,19 +300,19 @@ extension ComposedTree {
         guard rows.count == expected.count else { return bad() }
         for (i, row) in rows.enumerated() {
             let want = expected[i]
-            guard let o = row.object, o["label"] == want["label"] else {
+            guard let o = row.object, same(o["label"], want["label"]) else {
                 bad()
                 continue
             }
             if let bind = want["bind"] {
-                if o["bind"] != bind || o["raw"] != nil { bad() }
+                if !same(o["bind"], bind) || o["raw"] != nil { bad() }
             } else if o["bind"] != nil || o["value"]?.string == nil {
                 bad()
             } else if a.field(keys[i])?.shownAs != nil {
                 // An id field may show a name, with the id beside it.
                 let shown = (o["raw"] == nil || o["raw"] == .null) ? o["value"] : o["raw"]
-                if shown != (want["raw"] ?? want["value"]) { bad() }
-            } else if o["value"] != want["value"] || o["raw"] != nil {
+                if !same(shown, want["raw"] ?? want["value"]) { bad() }
+            } else if !same(o["value"], want["value"]) || o["raw"] != nil {
                 bad()
             }
         }

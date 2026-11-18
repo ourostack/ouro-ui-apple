@@ -323,6 +323,18 @@ import Testing
                 "a field that is no id can't show other words with the real value small beside them")
     }
 
+    /// Rows compare as JavaScript compares them: "é" written as one character isn't "e" and a combining accent.
+    @Test func aRowMatchesTheSentValueCharacterForCharacter() throws {
+        let tree = try Self.forged(2) { props in
+            props["input"] = .object(["recipe": .string("rcp_123"), "with": .string("cafe\u{301}@example.com")])
+            props["confirm"] = .object(["title": .string("Share recipe"), "description": .string("Send this recipe to someone."), "fields": .array([
+                .object(["label": .string("Recipe"), "value": .string("rcp_123")]),
+                .object(["label": .string("Send to"), "value": .string("caf\u{E9}@example.com")]),
+            ])])
+        }
+        #expect(ComposedTree.validate(tree, catalog: try Self.app).map(\.path) == ["/children/0/props/confirm/fields"])
+    }
+
     @Test func anInputTheCatalogDoesntCarryIsRefused() throws {
         let extra = try Self.forged(2) { props in
             var input = props["input"]?.object ?? A2UIObject()

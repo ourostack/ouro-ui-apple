@@ -12,15 +12,24 @@ public import SwiftUI
 /// A field the person fills in (`TextField`, `Checkbox`, `Select`) starts with what the data model holds at its
 /// `value` and writes their answer there. The surface keeps the person's answers over the `data` you pass, and a button
 /// bound to a field sends what the person entered, in the confirm sheet and in the press
-/// (``ComposedTree/resolveButton(_:data:)``). When the `data` you pass changes at a field's pointer, as an agent's
-/// `updateDataModel` does, that field shows the new value; the person's other answers stay.
+/// (``ComposedTree/resolveButton(_:data:)``). When the data changes, as an agent's update changes it, what the person
+/// entered stays, except where the new data changed that value or the list item it is in: there the agent's value wins.
 ///
 /// ```swift
 /// ComposedSurface(tree) { press in callTool(press.action, press.input) } onHandoff: { action, how in open(action) }
 /// ```
+///
+/// For an MCP tool's results, pass each `structuredContent.ouro` in order with
+/// ``init(results:catalog:onProblems:onPress:onHandoff:)``: a tree replaces what the surface shows, and an update
+/// changes it (``ComposedTree/applying(ouro:catalog:)``).
 public struct ComposedSurface: View {
-    let node: ComposedNode
-    let data: A2UIJSON
+    /// What the surface draws: a tree you hold, or what a list of MCP results leaves.
+    enum Source {
+        case tree(ComposedNode, data: A2UIJSON)
+        case results([A2UIJSON], catalog: A2UICatalog, onProblems: (@MainActor (ComposedTreeProblems) -> Void)?)
+    }
+
+    let source: Source
     let onPress: @MainActor (PersonPress) -> Void
     let onHandoff: @MainActor (_ action: String, _ how: String) -> Void
     /// The person's answers, by pointer, in the order they gave them; drawn over `data`.
@@ -35,8 +44,7 @@ public struct ComposedSurface: View {
     ///   - onHandoff: a person-only button: take the person to the action's own screen; `how` is the declaration's.
     public init(_ node: ComposedNode, data: A2UIJSON, onPress: @escaping @MainActor (PersonPress) -> Void,
                 onHandoff: @escaping @MainActor (_ action: String, _ how: String) -> Void) {
-        self.node = node
-        self.data = data
+        self.source = .tree(node, data: data)
         self.onPress = onPress
         self.onHandoff = onHandoff
     }
@@ -53,16 +61,109 @@ public struct ComposedSurface: View {
         self.init(tree.root, data: tree.data, onPress: onPress, onHandoff: onHandoff)
     }
 
-    public var body: some View {
-        A2UINodeView(node: node, context: A2UIPressContext(data: data, answers: $answers, onPress: onPress, onHandoff: onHandoff))
-            .onChange(of: data) { old, new in answers = Self.kept(answers, from: old, to: new) }
+    /// The tree an MCP tool's results leave, each a `structuredContent.ouro` in the order they came: a tree
+    /// (`{ version, catalogId, tree, data }`) replaces what the surface shows, and an update (`{ version, catalogId,
+    /// update }`) changes it. When the newest result has problems (a tree that fails the checks, or an update that
+    /// doesn't apply), the surface shows a short alert in their place and `onProblems` gets them, for the agent to
+    /// correct; the next update applies to the last tree that passed, and what the person entered there stays.
+    ///
+    /// ```swift
+    /// ComposedSurface(results: results.map { $0["structuredContent"]?["ouro"] ?? .null }, catalog: catalog) { press in
+    ///     callTool(press.action, press.input)
+    /// } onHandoff: { action, _ in open(action) }
+    /// ```
+    public init(results: [A2UIJSON], catalog: A2UICatalog, onProblems: (@MainActor (ComposedTreeProblems) -> Void)? = nil,
+                onPress: @escaping @MainActor (PersonPress) -> Void,
+                onHandoff: @escaping @MainActor (_ action: String, _ how: String) -> Void) {
+        self.source = .results(results, catalog: catalog, onProblems: onProblems)
+        self.onPress = onPress
+        self.onHandoff = onHandoff
     }
 
-    /// The person's answers that still stand when the data changes from `old` to `new`: every answer but those at a
-    /// pointer whose value the change touched, where the new data wins.
-    static func kept(_ answers: A2UIObject, from old: A2UIJSON, to new: A2UIJSON) -> A2UIObject {
+    /// What the surface shows: the last tree that passed and its data, and the newest result's problems, if it has any.
+    var shown: (tree: ComposedTree?, problems: ComposedTreeProblems?) {
+        switch source {
+        case .tree(let node, let data): return (ComposedTree(root: node, data: data), nil)
+        case .results(let results, let catalog, _): return Self.shown(results, catalog: catalog)
+        }
+    }
+
+    /// What a list of `structuredContent.ouro` results leaves: the last tree that passed, with every update after it
+    /// that applied, and the newest result's problems.
+    nonisolated static func shown(_ results: [A2UIJSON], catalog: A2UICatalog) -> (tree: ComposedTree?, problems: ComposedTreeProblems?) {
+        var good: ComposedTree?
+        var problems: ComposedTreeProblems?
+        for result in results {
+            do throws(ComposedTreeProblems) {
+                if result["update"] != nil, result["tree"] == nil {
+                    guard let tree = good else {
+                        throw ComposedTreeProblems(problems: [ComposedTreeProblem(path: "/update", message: "An update changes a tree the view shows, and this view shows none yet; send the tree first.")])
+                    }
+                    good = try tree.applying(ouro: result, catalog: catalog)
+                } else {
+                    good = try ComposedTree(ouro: result, catalog: catalog)
+                }
+                problems = nil
+            } catch {
+                problems = error
+            }
+        }
+        return (good, problems)
+    }
+
+    public var body: some View {
+        let shown = shown
+        let data = shown.tree?.data ?? .object(A2UIObject())
+        Group {
+            if shown.problems != nil {
+                A2UIInvalidCard()
+            } else if let tree = shown.tree {
+                A2UINodeView(node: tree.root, context: A2UIPressContext(data: data, answers: $answers, onPress: onPress, onHandoff: onHandoff))
+            }
+        }
+        .onChange(of: data) { old, new in answers = Self.kept(answers, from: old, to: new) }
+        .onAppear { report(shown.problems) }
+        // Each new result reports its own problems, even when they read as the last one's did.
+        .onChange(of: results) { report(shown.problems) }
+    }
+
+    /// The MCP results the surface was given; none for a tree you hold.
+    private var results: [A2UIJSON] {
+        if case .results(let results, _, _) = source { return results }
+        return []
+    }
+
+    private func report(_ problems: ComposedTreeProblems?) {
+        if let problems, case .results(_, _, let onProblems?) = source { onProblems(problems) }
+    }
+
+    /// The person's answers that still stand when the data changes from `old` to `new`: every answer but those whose
+    /// value, or a list item on the way to it, the change touched, where the new data wins. Web's `carry`
+    /// (ourostack/ouro-ui#2115).
+    nonisolated static func kept(_ answers: A2UIObject, from old: A2UIJSON, to new: A2UIJSON) -> A2UIObject {
         var kept = A2UIObject()
-        for (pointer, value) in answers.pairs where A2UI.get(old, pointer) == A2UI.get(new, pointer) { kept[pointer] = value }
+        for (pointer, value) in answers.pairs where anchors(old, pointer).allSatisfy({ same(A2UI.get(old, $0), A2UI.get(new, $0)) }) {
+            kept[pointer] = value
+        }
         return kept
+    }
+
+    /// The pointers an answer at `pointer` depends on: the pointer itself and each list item on the way to it, since a
+    /// list that loses an item moves the next one into its place. Web's `anchors`.
+    nonisolated static func anchors(_ data: A2UIJSON, _ pointer: String) -> [String] {
+        let keys = pointer.unicodeScalars.split(separator: "/", omittingEmptySubsequences: false).dropFirst().map { String(String.UnicodeScalarView($0)) }
+        let prefixes = keys.indices.map { "/" + keys[...$0].joined(separator: "/") }
+        // The data model is an object, so the first key is never a list item.
+        return prefixes.indices.filter { $0 == prefixes.count - 1 || ($0 > 0 && A2UI.get(data, prefixes[$0 - 1])?.array != nil) }.map { prefixes[$0] }
+    }
+}
+
+/// What the surface shows in place of a tree that fails the checks or an update that doesn't apply: web's short alert.
+struct A2UIInvalidCard: View {
+    static let title = "This card can't be shown"
+    static let description = "It didn't pass the checks for composed UI."
+
+    var body: some View {
+        OuroBanner(Self.title, description: Self.description, tone: .destructive)
     }
 }

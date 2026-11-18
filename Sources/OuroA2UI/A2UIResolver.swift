@@ -91,6 +91,9 @@ extension A2UI {
     /// JavaScript's `startsWith("/")`: the first scalar is "/", whatever combining mark follows it.
     static func startsAtRoot(_ pointer: String) -> Bool { pointer.unicodeScalars.first == "/" }
 
+    /// A pointer's segments, unescaped. Core's `segments`.
+    static func segments(_ pointer: String) -> [String] { tokens(pointer) }
+
     private static func tokens(_ pointer: String) -> [String] {
         // By Unicode scalar, as JavaScript splits by code unit: a String splits by Character, and a combining mark
         // after "/" would join it and hide the segment boundary.

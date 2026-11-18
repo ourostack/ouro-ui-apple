@@ -1,6 +1,6 @@
 import Foundation
 
-/// Ouro HX as an A2UI v1.0 catalog, ported from core's `src/a2ui.mts` and `src/composed.mts` (ouro-ui-core v0.18.2).
+/// Ouro HX as an A2UI v1.0 catalog, ported from core's `src/a2ui.mts` and `src/composed.mts` (ouro-ui-core v0.19.0).
 /// Core's conformance cases, vendored in `Tests/OuroA2UITests/Conformance`, prove this port gives the same trees and the
 /// same problems.
 public enum A2UI {

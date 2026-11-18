@@ -1,0 +1,124 @@
+{
+  "description": "An id a template's instances share names more than one node, so it is refused: replace the node that holds them.",
+  "catalog": "catalog.json",
+  "tree": {
+    "id": "root",
+    "component": "Stack",
+    "props": {
+      "direction": "vertical",
+      "gap": "large"
+    },
+    "children": [
+      {
+        "id": "day",
+        "component": "Card",
+        "props": {},
+        "children": [
+          {
+            "id": "day_name",
+            "component": "Heading",
+            "props": {
+              "text": "Monday",
+              "level": 2
+            },
+            "children": []
+          },
+          {
+            "id": "meals",
+            "component": "List",
+            "props": {
+              "items": [
+                "Oats",
+                "Lentil soup"
+              ],
+              "ordered": true
+            },
+            "children": []
+          },
+          {
+            "id": "facts",
+            "component": "DescriptionList",
+            "props": {
+              "items": [
+                {
+                  "term": "Cook",
+                  "detail": "Sam"
+                },
+                {
+                  "term": "Week",
+                  "detail": "Week 46"
+                }
+              ]
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": "day",
+        "component": "Card",
+        "props": {},
+        "children": [
+          {
+            "id": "day_name",
+            "component": "Heading",
+            "props": {
+              "text": "Tuesday",
+              "level": 2
+            },
+            "children": []
+          },
+          {
+            "id": "meals",
+            "component": "List",
+            "props": {
+              "items": [
+                "Toast"
+              ],
+              "ordered": true
+            },
+            "children": []
+          },
+          {
+            "id": "facts",
+            "component": "DescriptionList",
+            "props": {
+              "items": [
+                {
+                  "term": "Cook",
+                  "detail": "Ana"
+                },
+                {
+                  "term": "Week",
+                  "detail": "Week 46"
+                }
+              ]
+            },
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "update": {
+    "nodes": [
+      {
+        "id": "day_name",
+        "component": "Heading",
+        "props": {
+          "text": "Wednesday",
+          "level": 2
+        },
+        "children": []
+      }
+    ]
+  },
+  "expect": {
+    "problems": [
+      {
+        "path": "/nodes/0/id",
+        "message": "\"day_name\" names 2 nodes, a template's instances; replace the node that holds them, by its own id."
+      }
+    ]
+  }
+}

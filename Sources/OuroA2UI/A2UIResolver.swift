@@ -86,12 +86,20 @@ extension A2UI {
     }
 
     /// Whether a pointer stays in the data: absolute, and safe. Core's `isDataPointer`.
-    public static func isDataPointer(_ pointer: String) -> Bool { pointer.hasPrefix("/") && isSafePointer(pointer) }
+    public static func isDataPointer(_ pointer: String) -> Bool { startsAtRoot(pointer) && isSafePointer(pointer) }
+
+    /// JavaScript's `startsWith("/")`: the first scalar is "/", whatever combining mark follows it.
+    static func startsAtRoot(_ pointer: String) -> Bool { pointer.unicodeScalars.first == "/" }
 
     private static func tokens(_ pointer: String) -> [String] {
-        let body = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
+        // By Unicode scalar, as JavaScript splits by code unit: a String splits by Character, and a combining mark
+        // after "/" would join it and hide the segment boundary.
+        var body = pointer.unicodeScalars[...]
+        if body.first == "/" { body = body.dropFirst() }
         return body.split(separator: "/", omittingEmptySubsequences: false).map {
-            $0.replacingOccurrences(of: "~1", with: "/").replacingOccurrences(of: "~0", with: "~")
+            String(String.UnicodeScalarView($0))
+                .replacingOccurrences(of: "~1", with: "/", options: .literal)
+                .replacingOccurrences(of: "~0", with: "~", options: .literal)
         }
     }
 
@@ -153,7 +161,7 @@ extension A2UI {
     }
 
     private static func scoped(_ scope: String, _ p: String) -> String {
-        p.hasPrefix("/") ? p : p.isEmpty ? scope : "\(scope)/\(p)"
+        startsAtRoot(p) ? p : p.isEmpty ? scope : "\(scope)/\(p)"
     }
 
     private static func value(_ data: A2UIJSON, _ scope: String, _ v: A2UIJSON?) -> A2UIJSON? {
@@ -231,7 +239,7 @@ extension A2UI {
     }
 
     /// A pointer that starts at the data model's root.
-    private static func absolute(_ p: String) -> String { p.hasPrefix("/") ? p : "/\(p)" }
+    private static func absolute(_ p: String) -> String { startsAtRoot(p) ? p : "/\(p)" }
 
     /// The tree with each button input bound to a path no field writes read from the data now, as before fields
     /// existed; one bound to a field the person fills in stays bound, so a press sends their answer

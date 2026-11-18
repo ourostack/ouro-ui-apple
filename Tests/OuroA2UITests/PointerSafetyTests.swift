@@ -64,6 +64,14 @@ import Testing
         #expect(A2UI.isDataPointer("/servings") && A2UI.isSafePointer("items/0") && !A2UI.isSafePointer("items/__proto__"))
     }
 
+    /// Segments split by scalar, as core's split by code unit: a combining mark after "/" doesn't hide a segment.
+    @Test func aCombiningMarkDoesntHideAPrototypeSegment() {
+        #expect(!A2UI.isSafePointer("/__proto__/\u{301}x"))
+        #expect(!A2UI.isDataPointer("/constructor/\u{301}"))
+        #expect(A2UI.isDataPointer("/\u{301}x"), "it starts at the root, as JavaScript's startsWith(\"/\") reads it")
+        #expect(A2UI.set(.object([:]), "/__proto__/\u{301}x", .string("y")) == .object([:]))
+    }
+
     @Test func updateDataModelCantWriteThroughAPrototype() throws {
         var stream = try Self.create(#"[{"id":"root","component":"Text","text":"hi"}]"#).array!
         stream.append(try A2UIJSON.parse(#"{"version":"1.0","updateDataModel":{"surfaceId":"s","path":"/__proto__/polluted","value":"yes"}}"#))

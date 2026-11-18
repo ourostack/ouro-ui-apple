@@ -114,6 +114,16 @@ public struct ComposedTree: Sendable, Equatable {
 
 // MARK: The validator
 
+/// JavaScript's `===` on JSON values, as core compares them: two strings are the same only when their UTF-16 code units
+/// are, where Swift's `==` also takes "é" and "e\u{301}" as one. Missing is the same only as missing.
+func same(_ a: A2UIJSON?, _ b: A2UIJSON?) -> Bool {
+    switch (a, b) {
+    case (nil, nil): true
+    case let (a?, b?): a.serialized.utf16.elementsEqual(b.serialized.utf16)
+    default: false
+    }
+}
+
 private let buttonProps = ["action", "label", "consent", "press", "input", "confirm", "handoff", "emphasis", "@label"]
 
 extension ComposedTree {
@@ -153,18 +163,25 @@ extension ComposedTree {
                             fail("\(at)/props/input", a.refusal?["summary"]?.string ?? "", refusal: a.refusal)
                         } else {
                             for (k, v) in given.pairs {
+                                // A field the catalog doesn't carry would be sent without a row on the confirm sheet.
+                                if a.field(k) == nil {
+                                    let names = a.input.map(\.name).joined(separator: ", ")
+                                    fail("\(at)/props/input/\(k)", "\(id) has no input \(k); its fields are \(names.isEmpty ? "none" : names).")
+                                }
                                 if let b = v.object, b["@path"] != nil, !(isBinding(v) && (b["@path"]?.string?.hasPrefix("/") ?? false)) {
                                     fail("\(at)/props/input/\(k)", "\(k) is a value, or {\"@path\": \"/...\"} bound to the data model.")
                                 }
                             }
                             let expected = actionButtonProps(cat, action: id, prepared: given, label: nil)
-                            for key in ["label", "consent", "press", "handoff"] where props[key]?.serialized != expected[key]?.serialized {
+                            for key in ["label", "consent", "press", "handoff"] where !same(props[key], expected[key]) {
                                 fail("\(at)/props/\(key)", "\(id)'s \(key) is the catalog's \((expected[key] ?? .null).serialized), never the sender's.")
                             }
                             if a.press == .confirm {
                                 let c = props["confirm"]?.object
-                                if c == nil || c?["title"] != .string(a.label) || c?["description"] != .string(a.description) || c?["fields"]?.array == nil {
+                                if c == nil || !same(c?["title"], .string(a.label)) || !same(c?["description"], .string(a.description)) || c?["fields"]?.array == nil {
                                     fail("\(at)/props/confirm", "\(id) confirms, with the catalog's title and description and a row per prepared input.")
+                                } else if let rows = c?["fields"]?.array {
+                                    confirmRowProblems(id, a, input: given, rows: rows, at: "\(at)/props/confirm/fields", fail)
                                 }
                             } else if props["confirm"] != nil {
                                 fail("\(at)/props/confirm", "\(id) doesn't confirm; only a consequential action does.")
@@ -245,22 +262,59 @@ extension ComposedTree {
     /// is a row with an empty value and `bind`, its path, which ``resolveButton(_:data:)`` fills when they press. Core's
     /// `confirmFields`.
     static func confirmFields(action: String, _ a: A2UICatalogAction, input: A2UIObject, label: A2UILabelResolver?) -> [A2UIJSON] {
-        let names = Set(a.input.compactMap { f -> String? in
-            guard input[f.name] != nil, let n = f.shownAs, a.field(n) != nil else { return nil }
-            return n
-        })
-        return a.input.filter { input[$0.name] != nil && !names.contains($0.name) }.map { f in
+        confirmKeys(a, input: input).compactMap(a.field).map { f in
             if isBinding(input[f.name]), let bind = input[f.name]?["@path"]?.string {
                 return .object(["label": .string(f.label), "value": .string(""), "bind": .string(bind)])
             }
             let raw = A2UI.text(input[f.name])
             let sibling = f.shownAs.flatMap { input[$0]?.string }?.trimmingCharacters(in: .whitespacesAndNewlines)
             let prepared = (sibling?.isEmpty ?? true) ? nil : sibling
-            let given = label?(A2UILabelContext(action: action, field: f.name, value: raw, input: input))
-            let value = given ?? prepared ?? raw
+            // Only an id field (one with shownAs) shows a name; every other row shows exactly what will be sent.
+            let named = f.shownAs == nil ? nil : label?(A2UILabelContext(action: action, field: f.name, value: raw, input: input)) ?? prepared
+            let value = named ?? raw
             var row: A2UIObject = ["label": .string(f.label), "value": .string(value)]
-            if value != raw { row["raw"] = .string(raw) }
+            if !value.utf16.elementsEqual(raw.utf16) { row["raw"] = .string(raw) }
             return .object(row)
+        }
+    }
+
+    /// The input fields a confirm sheet has a row for, in the catalog's order: each prepared one, less a name that
+    /// stands in for an id. Core's `confirmKeys`.
+    static func confirmKeys(_ a: A2UICatalogAction, input: A2UIObject) -> [String] {
+        let names = Set(a.input.compactMap { f -> String? in
+            guard input[f.name] != nil, let n = f.shownAs, a.field(n) != nil else { return nil }
+            return n
+        })
+        return a.input.map(\.name).filter { input[$0] != nil && !names.contains($0) }
+    }
+
+    /// A confirm sheet's rows against the rows the catalog gives for the prepared input: the same fields, in order,
+    /// with the catalog's labels, and each row showing what will be sent (its `raw`, or its `value` when it has none)
+    /// or, for a bound input, the same binding. Only the words shown for an id may differ, since the app's own resolver
+    /// names it. Core's `confirmRowProblems`.
+    static func confirmRowProblems(_ id: String, _ a: A2UICatalogAction, input: A2UIObject, rows: [A2UIJSON], at: String,
+                                   _ fail: (String, String, A2UIJSON?) -> Void) {
+        let expected = confirmFields(action: id, a, input: input, label: nil)
+        let keys = confirmKeys(a, input: input)
+        func bad() { fail(at, "\(id)'s confirm sheet shows a row for each prepared input, with its label and the value that will be sent; the catalog's rows are \(A2UIJSON.array(expected).serialized).", nil) }
+        guard rows.count == expected.count else { return bad() }
+        for (i, row) in rows.enumerated() {
+            let want = expected[i]
+            guard let o = row.object, same(o["label"], want["label"]) else {
+                bad()
+                continue
+            }
+            if let bind = want["bind"] {
+                if !same(o["bind"], bind) || o["raw"] != nil { bad() }
+            } else if o["bind"] != nil || o["value"]?.string == nil {
+                bad()
+            } else if a.field(keys[i])?.shownAs != nil {
+                // An id field may show a name, with the id beside it.
+                let shown = (o["raw"] == nil || o["raw"] == .null) ? o["value"] : o["raw"]
+                if !same(shown, want["raw"] ?? want["value"]) { bad() }
+            } else if !same(o["value"], want["value"]) || o["raw"] != nil {
+                bad()
+            }
         }
     }
 

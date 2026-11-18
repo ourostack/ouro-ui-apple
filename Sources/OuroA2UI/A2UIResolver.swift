@@ -14,8 +14,9 @@ public struct A2UILabelContext: Sendable {
 }
 
 /// The app's own word for an id, from its own data, such as a recipe's title for `rcp_lemon_orzo`; nil leaves the field
-/// to the agent's `shownAs` name, then to the id itself. Asked for each field a confirm sheet shows, and it wins over
-/// what the agent prepared, since the agent's text is the one thing the person can't check.
+/// to the agent's `shownAs` name, then to the id itself. Asked for each id field a confirm sheet shows (one whose
+/// catalog input has `shownAs`), and it wins over what the agent prepared, since the agent's text is the one thing the
+/// person can't check. Every other row shows exactly what will be sent.
 public typealias A2UILabelResolver = @Sendable (A2UILabelContext) -> String?
 
 /// A resolved node: the component, its props with every binding resolved and defaults filled, and its children. Its

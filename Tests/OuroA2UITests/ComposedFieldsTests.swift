@@ -81,14 +81,19 @@ import Testing
 
     // MARK: The surface keeps the data model and presses with it
 
-    /// The data model a surface keeps, outside SwiftUI, and the context its fields and buttons share.
+    /// The data model a surface keeps, outside SwiftUI: what it was given and the person's answers over it, and the
+    /// context its fields and buttons share.
     final class Model: @unchecked Sendable {
-        var data: A2UIJSON
+        let given: A2UIJSON
+        var answers = A2UIObject()
         var presses: [PersonPress] = []
-        init(_ data: A2UIJSON) { self.data = data }
+        init(_ data: A2UIJSON) { given = data }
+
+        var data: A2UIJSON { A2UIPressContext.answered(given, answers) }
 
         @MainActor var context: A2UIPressContext {
-            A2UIPressContext(data: Binding(get: { self.data }, set: { self.data = $0 }), onPress: { self.presses.append($0) }, onHandoff: { _, _ in })
+            A2UIPressContext(data: given, answers: Binding(get: { self.answers }, set: { self.answers = $0 }),
+                             onPress: { self.presses.append($0) }, onHandoff: { _, _ in })
         }
     }
 
@@ -99,10 +104,10 @@ import Testing
         model.context.send(shop, confirmed: false)
         #expect(model.presses.last?.input["servings"] == .number(4), "the press sends what the data held")
         // What the TextField writes as the person types 6, as A2UITextField does.
-        model.context.value(at: "/servings").wrappedValue = A2UIFields.answer("6", number: true)
+        model.context.value(at: "/servings").wrappedValue = A2UIFields.answer("6", number: true, decimalSeparator: ".")
         model.context.send(shop, confirmed: false)
         #expect(model.presses.last?.input == ["recipe": .string("rcp_lemon_orzo"), "servings": .number(6)])
-        model.context.value(at: "/servings").wrappedValue = A2UIFields.answer("", number: true)
+        model.context.value(at: "/servings").wrappedValue = A2UIFields.answer("", number: true, decimalSeparator: ".")
         model.context.send(shop, confirmed: false)
         #expect(model.presses.last?.input["servings"] == .null, "an emptied number field sends null")
         #expect(A2UI.get(model.data, "/servings") == nil)
@@ -122,6 +127,23 @@ import Testing
         #expect(model.presses.last?.confirmed == true)
     }
 
+    @Test func aTextFieldShowsTheDataAndWritesWhatIsTyped() throws {
+        let model = Model(try Self.plan().data)
+        let typed = Box<String?>(nil)
+        let typedBinding = Binding(get: { typed.value }, set: { typed.value = $0 })
+        let servings = A2UITextField.text(model.context.value(at: "/servings"), typed: typedBinding, number: true)
+        #expect(servings.wrappedValue == "4", "a number field shows the number the data holds")
+        servings.wrappedValue = "6"
+        #expect(A2UI.get(model.data, "/servings") == .number(6), "and writes a number")
+        servings.wrappedValue = ""
+        #expect(A2UI.get(model.data, "/servings") == nil, "an emptied number field leaves the data without one")
+        #expect(servings.wrappedValue == "", "and still shows what the person typed")
+        let with = A2UITextField.text(model.context.value(at: "/share/with"), typed: Binding(get: { nil }, set: { _ in }), number: false)
+        #expect(with.wrappedValue == "")
+        with.wrappedValue = "sam@example.com"
+        #expect(A2UI.get(model.data, "/share/with") == .string("sam@example.com"))
+    }
+
     @Test func checkboxAndSelectWriteABooleanAndTheOptionsText() throws {
         let model = Model(try Self.plan().data)
         let tick = A2UIFields.bool(model.context.value(at: "/vegetarian"))
@@ -133,13 +155,33 @@ import Testing
         #expect(A2UI.get(model.data, "/oven") == .string("Grill"))
     }
 
-    @Test(arguments: [("6", A2UIJSON.number(6)), (" 2.5 ", .number(2.5)), ("2,5", .number(2.5)), ("-1", .number(-1)), ("", .null), ("six", .null), ("0x10", .null), ("inf", .null)])
+    @Test(arguments: [("6", A2UIJSON.number(6)), (" 2.5 ", .number(2.5)), ("-1", .number(-1)), ("1e3", .number(1000)), ("", .null), ("six", .null),
+                      ("0x10", .null), ("inf", .null), ("1,000", .null), ("2,5", .null)])
     func aNumberFieldWritesANumberOrNull(typed: String, written: A2UIJSON) {
-        #expect(A2UIFields.answer(typed, number: true) == written)
+        #expect(A2UIFields.answer(typed, number: true, decimalSeparator: ".") == written)
+    }
+
+    /// Where the locale's decimal mark is a comma, "2,5" is two and a half; a comma never groups thousands.
+    @Test func aCommaIsADecimalMarkOnlyWhereTheLocaleSaysSo() {
+        #expect(A2UIFields.answer("2,5", number: true, decimalSeparator: ",") == .number(2.5))
+        #expect(A2UIFields.answer("1.000,5", number: true, decimalSeparator: ",") == .null)
+        #expect(A2UIFields.answer("1,000", number: true, decimalSeparator: ".") == .null, "never read as 1")
+    }
+
+    /// An agent's update to one pointer shows in that field, and the person's other answers stay.
+    @Test func anUpdateToTheDataKeepsThePersonsOtherAnswers() throws {
+        let start = try Self.plan().data
+        let answers: A2UIObject = ["/servings": .number(6), "/share/with": .string("sam@example.com")]
+        let updated = A2UI.set(A2UI.set(start, "/servings", .number(8)), "/recipe/title", .string("Lemony orzo"))
+        let kept = ComposedSurface.kept(answers, from: start, to: updated)
+        #expect(kept == ["/share/with": .string("sam@example.com")])
+        #expect(A2UIPressContext.answered(updated, kept)["servings"] == .number(8))
+        #expect(ComposedSurface.kept(answers, from: start, to: start) == answers, "data that didn't change keeps every answer")
     }
 
     @Test func aTextFieldWritesTheTextAsTyped() {
         #expect(A2UIFields.answer(" 6 ", number: false) == .string(" 6 "))
+        #expect(A2UIFields.answer("1,000", number: false) == .string("1,000"))
         #expect(A2UIFields.answer("", number: false) == .string(""))
     }
 
@@ -259,6 +301,12 @@ import Testing
         #expect(try first(#"{"id":"root","component":"Card","props":{},"children":[{"id":"a","component":"ActionButton","props":{},"children":[]}]}"#)?.contains("not in this catalog") == true,
                 "HX's own catalog has no actions, so no button")
     }
+}
+
+/// A value a test's binding reads and writes.
+final class Box<Value>: @unchecked Sendable {
+    var value: Value
+    init(_ value: Value) { self.value = value }
 }
 
 extension A2UINode {

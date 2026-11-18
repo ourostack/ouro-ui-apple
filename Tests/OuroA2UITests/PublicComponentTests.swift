@@ -121,13 +121,13 @@ import Testing
         #expect(try surface(node) == image(expected))
     }
 
-    /// A field shows what the data holds at its `value`: the same field with other data draws differently.
+    /// `ImageRenderer` draws a text field's frame, label and hint but not its text, so the text the field shows is
+    /// checked through its binding (`ComposedFieldsTests.aTextFieldShowsTheDataAndWritesWhatIsTyped`).
     @Test func textField() throws {
         let node = Self.node("TextField", ["label": .string("Servings"), "value": .string("/servings"), "hint": .string("How many people you're cooking for."),
                                            "type": .string("number"), "multiline": .bool(false)])
         let drawn = try surface(node, data: Self.answers)
         #expect(drawn == (try image(OuroTextField("Servings", text: .constant("4"), description: "How many people you're cooking for."))))
-        #expect(drawn != (try surface(node, data: .object(["servings": .number(6)]))))
     }
 
     @Test func checkbox() throws {

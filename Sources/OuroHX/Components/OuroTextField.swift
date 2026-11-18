@@ -137,7 +137,7 @@ public struct OuroTextField: View {
     /// Grows over several lines, for a longer answer. Only an agent-composed `TextField` with `multiline` sets it, so
     /// it isn't public: web draws that with its `TextArea`, which Ouro HX for Apple doesn't have yet.
     var multiline = false
-    /// Offers the number keyboard, for an agent-composed `TextField` whose `type` is `number`.
+    /// Offers the keyboard with numbers and a minus sign, for an agent-composed `TextField` whose `type` is `number`.
     var number = false
     @State private var revealed = false
     @FocusState private var focused: Bool
@@ -287,7 +287,7 @@ public struct OuroTextField: View {
 }
 
 extension OuroTextField {
-    /// The field an agent-composed `TextField` draws: several lines when `multiline`, the number keyboard when
+    /// The field an agent-composed `TextField` draws: several lines when `multiline`, the keyboard with numbers when
     /// `number`. For OuroA2UI's surface only.
     package func composedInput(multiline: Bool, number: Bool) -> OuroTextField {
         var field = self
@@ -303,7 +303,7 @@ private extension View {
         let literal = OuroTextFieldMetrics.isLiteral(type)
         #if os(iOS) || os(visionOS)
         self
-            .keyboardType(number ? .decimalPad : OuroTextFieldMetrics.keyboard(type))
+            .keyboardType(number ? .numbersAndPunctuation : OuroTextFieldMetrics.keyboard(type))
             .textContentType(OuroTextFieldMetrics.contentType(type).map(\.uiKit))
             .textInputAutocapitalization(literal ? .never : nil)
             .autocorrectionDisabled(literal)

@@ -85,19 +85,35 @@ public struct A2UISurface: View {
 
 /// How a drawn button reaches the app, a press or a handoff, and the data model the fields write. Knows no format.
 struct A2UIPressContext {
-    let data: Binding<A2UIJSON>
+    /// The data model the surface was given.
+    let data: A2UIJSON
+    /// The person's answers, by pointer, in the order they gave them.
+    let answers: Binding<A2UIObject>
     let onPress: @MainActor (PersonPress) -> Void
     let onHandoff: @MainActor (String, String) -> Void
 
-    /// A press, with the person's answers read from the data model.
-    @MainActor func send(_ button: A2UINode, confirmed: Bool) {
-        if let press = PersonPress.of(button, confirmed: confirmed, data: data.wrappedValue) { onPress(press) }
+    /// The data model as the person's answers leave it.
+    var current: A2UIJSON { Self.answered(data, answers.wrappedValue) }
+
+    static func answered(_ data: A2UIJSON, _ answers: A2UIObject) -> A2UIJSON {
+        answers.pairs.reduce(data) { A2UI.set($0, $1.0, $1.1) }
     }
 
-    /// What the data model holds at a field's pointer; setting nil (or null) deletes it.
+    /// A press, with the person's answers read from the data model.
+    @MainActor func send(_ button: A2UINode, confirmed: Bool) {
+        if let press = PersonPress.of(button, confirmed: confirmed, data: current) { onPress(press) }
+    }
+
+    /// What the data model holds at a field's pointer; setting it records the person's answer there, and setting nil
+    /// (or null) leaves the data model without one.
     func value(at pointer: String) -> Binding<A2UIJSON?> {
-        let data = data
-        return Binding(get: { A2UI.get(data.wrappedValue, pointer) }, set: { data.wrappedValue = A2UI.set(data.wrappedValue, pointer, $0 ?? .null) })
+        let (data, answers) = (data, answers)
+        return Binding(get: { A2UI.get(Self.answered(data, answers.wrappedValue), pointer) }, set: { value in
+            var given = answers.wrappedValue
+            given[pointer] = nil
+            given[pointer] = value ?? .null
+            answers.wrappedValue = given
+        })
     }
 }
 
@@ -285,7 +301,7 @@ struct A2UIActionButton: View {
         .accessibilityHint(press == .handoff ? node.text("handoff") : "")
         .ouroSheet(isPresented: $confirming, title: node.props["confirm"]?["title"]?.string ?? node.text("label"),
                    description: node.props["confirm"]?["description"]?.string) {
-            A2UIConfirmFields(fields: Self.confirmRows(node, data: context.data.wrappedValue))
+            A2UIConfirmFields(fields: Self.confirmRows(node, data: context.current))
         } footer: {
             OuroButton(node.text("label"), fullWidth: true) {
                 confirming = false
@@ -308,12 +324,14 @@ enum A2UIFields {
     }
 
     /// What a field writes for what the person typed: the text itself, or for a number field the number, and null
-    /// (which leaves the data model without it) when the field is empty or isn't a number.
-    static func answer(_ typed: String, number: Bool) -> A2UIJSON {
+    /// (which leaves the data model without it) when the field is empty or isn't a number. A number's decimal mark is a
+    /// point, or the locale's comma; a comma that groups thousands ("1,000") isn't a number, so it is never read as 1.
+    static func answer(_ typed: String, number: Bool, decimalSeparator: String? = Locale.current.decimalSeparator) -> A2UIJSON {
         guard number else { return .string(typed) }
-        let t = typed.trimmingCharacters(in: .whitespaces)
-        guard !t.isEmpty, t.unicodeScalars.allSatisfy({ "0123456789.,-+eE".unicodeScalars.contains($0) }),
-              let n = Double(t) ?? Double(t.replacingOccurrences(of: ",", with: ".")), n.isFinite else { return .null }
+        var t = typed.trimmingCharacters(in: .whitespaces)
+        if decimalSeparator == ",", !t.contains("."), t.filter({ $0 == "," }).count == 1 { t = t.replacingOccurrences(of: ",", with: ".") }
+        guard !t.isEmpty, t.unicodeScalars.allSatisfy({ "0123456789.-+eE".unicodeScalars.contains($0) }),
+              let n = Double(t), n.isFinite else { return .null }
         return .number(n)
     }
 }
@@ -326,15 +344,18 @@ struct A2UITextField: View {
     /// What the person typed, kept while it says the same as the data: a number field's "4." or "" shows as typed.
     @State private var typed: String?
 
-    var body: some View {
-        let number = node.text("type") == "number"
-        let typed = $typed
-        let value = value
-        let text = Binding<String>(get: { typed.wrappedValue ?? A2UI.text(value.wrappedValue) }, set: { t in
+    /// The text the field shows and edits: what the person typed, else what the data holds; typing writes the answer.
+    static func text(_ value: Binding<A2UIJSON?>, typed: Binding<String?>, number: Bool) -> Binding<String> {
+        Binding(get: { typed.wrappedValue ?? A2UI.text(value.wrappedValue) }, set: { t in
             typed.wrappedValue = t
             value.wrappedValue = A2UIFields.answer(t, number: number)
         })
-        OuroTextField(node.text("label"), text: text, description: A2UIFields.hint(node))
+    }
+
+    var body: some View {
+        let number = node.text("type") == "number"
+        let typed = $typed
+        OuroTextField(node.text("label"), text: Self.text(value, typed: typed, number: number), description: A2UIFields.hint(node))
             .composedInput(multiline: node.props["multiline"] == .bool(true), number: number)
             .onChange(of: value.wrappedValue) { _, stored in
                 if let t = typed.wrappedValue, A2UIFields.answer(t, number: number) != (stored ?? .null) { typed.wrappedValue = nil }

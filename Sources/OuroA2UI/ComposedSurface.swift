@@ -10,9 +10,10 @@ public import SwiftUI
 /// only when the person confirms, and person-only hands the person to the app's own screen and never presses.
 ///
 /// A field the person fills in (`TextField`, `Checkbox`, `Select`) starts with what the data model holds at its
-/// `value` and writes their answer there. The surface keeps the data model, and a button bound to a field sends what
-/// the person entered, in the confirm sheet and in the press (``ComposedTree/resolveButton(_:data:)``). When the
-/// `data` you pass changes, the surface starts again from it.
+/// `value` and writes their answer there. The surface keeps the person's answers over the `data` you pass, and a button
+/// bound to a field sends what the person entered, in the confirm sheet and in the press
+/// (``ComposedTree/resolveButton(_:data:)``). When the `data` you pass changes at a field's pointer, as an agent's
+/// `updateDataModel` does, that field shows the new value; the person's other answers stay.
 ///
 /// ```swift
 /// ComposedSurface(tree) { press in callTool(press.action, press.input) } onHandoff: { action, how in open(action) }
@@ -22,8 +23,8 @@ public struct ComposedSurface: View {
     let data: A2UIJSON
     let onPress: @MainActor (PersonPress) -> Void
     let onHandoff: @MainActor (_ action: String, _ how: String) -> Void
-    /// The data model as the person's answers leave it.
-    @State private var answers: A2UIJSON
+    /// The person's answers, by pointer, in the order they gave them; drawn over `data`.
+    @State private var answers = A2UIObject()
 
     /// - Parameters:
     ///   - node: the tree's root, from a format's resolver (``A2UI/resolveSurfaces(_:catalog:label:)`` for A2UI) or
@@ -36,7 +37,6 @@ public struct ComposedSurface: View {
                 onHandoff: @escaping @MainActor (_ action: String, _ how: String) -> Void) {
         self.node = node
         self.data = data
-        self._answers = State(initialValue: data)
         self.onPress = onPress
         self.onHandoff = onHandoff
     }
@@ -54,7 +54,15 @@ public struct ComposedSurface: View {
     }
 
     public var body: some View {
-        A2UINodeView(node: node, context: A2UIPressContext(data: $answers, onPress: onPress, onHandoff: onHandoff))
-            .onChange(of: data) { answers = data }
+        A2UINodeView(node: node, context: A2UIPressContext(data: data, answers: $answers, onPress: onPress, onHandoff: onHandoff))
+            .onChange(of: data) { old, new in answers = Self.kept(answers, from: old, to: new) }
+    }
+
+    /// The person's answers that still stand when the data changes from `old` to `new`: every answer but those at a
+    /// pointer whose value the change touched, where the new data wins.
+    static func kept(_ answers: A2UIObject, from old: A2UIJSON, to new: A2UIJSON) -> A2UIObject {
+        var kept = A2UIObject()
+        for (pointer, value) in answers.pairs where A2UI.get(old, pointer) == A2UI.get(new, pointer) { kept[pointer] = value }
+        return kept
     }
 }

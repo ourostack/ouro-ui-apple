@@ -258,12 +258,20 @@ let tree = try ComposedTree(ouro: result["structuredContent"]?["ouro"] ?? .null,
 ComposedSurface(tree) { press in callTool(press.action, press.input) } onHandoff: { action, _ in router.open(action) }
 ```
 
-`Tests/OuroA2UITests` runs core's 13 conformance cases (vendored from ouro-ui-core v0.18.2 and pinned in
-`core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
+To change a card it already showed, an agent sends only what changed: an MCP result's `structuredContent.ouro.update`,
+`{ nodes?, data? }`. Each node replaces the tree's one node with its id, and each `{ path, value }` sets the data model at
+a JSON pointer, `null` deleting it. `ComposedTree.applying(_:catalog:)` applies it all or nothing (core's
+`applyTreeUpdate`). `ComposedSurface(results:catalog:)` takes each result's `structuredContent.ouro` in order and shows a
+short alert when the newest doesn't apply. What the person entered stays, except where the update changed that value or
+the list item it is in.
+
+`Tests/OuroA2UITests` runs core's 13 conformance cases and 5 tree update cases (vendored from ouro-ui-core v0.19.0 and
+pinned in `core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
 web's `a2ui-surface` passes. The decisions are core's
 [2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md),
 [2026-11-14-composed-ui-own-tree.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-14-composed-ui-own-tree.md)
-and [2026-11-17-composed-fields.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-17-composed-fields.md).
+[2026-11-17-composed-fields.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-17-composed-fields.md)
+and [2026-11-18-composed-tree-updates.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-18-composed-tree-updates.md).
 
 ## The gallery
 

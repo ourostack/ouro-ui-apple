@@ -91,8 +91,7 @@ public struct ComposedTree: Sendable, Equatable {
         guard let o = ouro.object else {
             throw ComposedTreeProblems(problems: [ComposedTreeProblem(path: "", message: "structuredContent.ouro is { version, catalogId, tree, data }.")])
         }
-        if o["version"] != .string(Self.version) { problems.append(ComposedTreeProblem(path: "/version", message: "version is \"\(Self.version)\", got \(stringify(o["version"])).")) }
-        if o["catalogId"] != .string(catalog.catalogID) { problems.append(ComposedTreeProblem(path: "/catalogId", message: "catalogId is \(catalog.catalogID), got \(stringify(o["catalogId"])).")) }
+        problems += Self.envelopeProblems(o, catalog: catalog)
         let tree = o["tree"] ?? .null
         problems += Self.validate(tree, catalog: catalog, path: "/tree")
         let data = o["data"] ?? .object(A2UIObject())
@@ -373,5 +372,169 @@ public struct PersonPress: Sendable, Equatable {
         if press == A2UIPress.confirm.rawValue, !confirmed { return nil }
         return PersonPress(action: button.text("action"), input: button.props["input"]?.object ?? A2UIObject(), consent: button.text("consent"),
                            label: button.text("label"), sourceComponentId: button.id, confirmed: press == A2UIPress.confirm.rawValue)
+    }
+}
+
+// MARK: Updating a tree a renderer already draws
+
+extension ComposedTree {
+    /// Every problem in an update that needs no tree: its shape, each node against the catalog (``validate(_:catalog:path:)``,
+    /// at `/nodes/<i>`) and each data path, which is absolute and never names an object's prototype
+    /// (``A2UI/isDataPointer(_:)``). An update is `{ nodes?, data? }`: each node replaces the tree's one node with its id,
+    /// and each `{ path, value }` sets the data model at a JSON pointer, null deleting it. Core's `treeUpdateProblems`.
+    public static func treeUpdateProblems(_ update: A2UIJSON, catalog cat: A2UICatalog) -> [ComposedTreeProblem] {
+        let shape = "An update is { nodes?, data? }: nodes replace the tree's nodes by id, and data sets values by JSON pointer."
+        guard let o = update.object else { return [ComposedTreeProblem(path: "", message: shape)] }
+        if let at = nonJSON(update, "") {
+            return [ComposedTreeProblem(path: at, message: "An update is JSON: text, finite numbers, true, false, null, lists and objects.")]
+        }
+        var problems: [ComposedTreeProblem] = []
+        for key in o.keys where key != "nodes" && key != "data" {
+            problems.append(ComposedTreeProblem(path: "/\(key)", message: "An update has no \(key). \(shape)"))
+        }
+        if let nodes = o["nodes"] {
+            if let list = nodes.array {
+                for (i, n) in list.enumerated() { problems += validate(n, catalog: cat, path: "/nodes/\(i)") }
+            } else {
+                problems.append(ComposedTreeProblem(path: "/nodes", message: "nodes is a list of nodes, each replacing the tree's node with its id."))
+            }
+        }
+        if let data = o["data"] {
+            if let list = data.array {
+                for (i, d) in list.enumerated() {
+                    if let e = d.object, e["value"] != nil, !e.keys.contains(where: { $0 != "path" && $0 != "value" }) {
+                        if !(e["path"]?.string.map(A2UI.isDataPointer) ?? false) {
+                            problems.append(ComposedTreeProblem(path: "/data/\(i)/path", message: "path is a JSON pointer into the data model, such as /servings, and never names __proto__, constructor or prototype."))
+                        }
+                    } else {
+                        problems.append(ComposedTreeProblem(path: "/data/\(i)", message: "A data entry is { path, value }: value is JSON, and null deletes."))
+                    }
+                }
+            } else {
+                problems.append(ComposedTreeProblem(path: "/data", message: "data is a list of { path, value }, each setting the data model at a JSON pointer."))
+            }
+        }
+        return problems
+    }
+
+    /// Where a value first stops being JSON: a number that isn't finite, which JavaScript would write as null.
+    private static func nonJSON(_ v: A2UIJSON, _ at: String) -> String? {
+        switch v {
+        case .number(let n): return n.isFinite ? nil : at
+        case .array(let a):
+            for (i, x) in a.enumerated() { if let found = nonJSON(x, "\(at)/\(i)") { return found } }
+        case .object(let o):
+            for (k, x) in o.pairs {
+                let key = k.replacingOccurrences(of: "~", with: "~0", options: .literal).replacingOccurrences(of: "/", with: "~1", options: .literal)
+                if let found = nonJSON(x, "\(at)/\(key)") { return found }
+            }
+        default: break
+        }
+        return nil
+    }
+
+    /// Why setting `pointer` in `data` would not give JSON: a list is written only at an index from 0 to its length.
+    private static func listIndexProblem(_ data: A2UIJSON, _ pointer: String) -> String? {
+        var cur: A2UIJSON? = data
+        for k in A2UI.segments(pointer) {
+            if let list = cur?.array {
+                guard isIndex(k), let i = Int(k), i <= list.count else {
+                    return "\(pointer) names \(A2UIJSON.string(k).serialized) in a list of \(list.count); in a list, a segment is an index from 0 to \(list.count)."
+                }
+                cur = i < list.count ? list[i] : nil
+            } else if let o = cur?.object {
+                cur = o[k]
+            } else {
+                return nil
+            }
+        }
+        return nil
+    }
+
+    private static func count(_ id: String, in n: ComposedNode) -> Int {
+        (n.id == id ? 1 : 0) + n.children.reduce(0) { $0 + count(id, in: $1) }
+    }
+
+    private static func replacing(_ n: ComposedNode, with by: ComposedNode) -> ComposedNode {
+        n.id == by.id ? by : ComposedNode(id: n.id, component: n.component, props: n.props, children: n.children.map { replacing($0, with: by) })
+    }
+
+    /// A tree and its data model after an update, or every problem and no change: never a tree partly updated. Core's
+    /// `applyTreeUpdate`, with `data` nil where core's is undefined.
+    static func applyTreeUpdate(_ update: A2UIJSON, to tree: ComposedNode, data: A2UIJSON?, catalog cat: A2UICatalog)
+        -> Result<(tree: ComposedNode, data: A2UIJSON?), ComposedTreeProblems> {
+        let shape = treeUpdateProblems(update, catalog: cat)
+        if !shape.isEmpty { return .failure(ComposedTreeProblems(problems: shape)) }
+        let given = validate(tree.json, catalog: cat)
+        if !given.isEmpty { return .failure(ComposedTreeProblems(problems: given)) }
+        var problems: [ComposedTreeProblem] = []
+        var next = tree
+        for (i, json) in (update["nodes"]?.array ?? []).enumerated() {
+            guard let n = try? ComposedNode(json: json) else { continue }
+            let found = count(n.id, in: next)
+            if found == 0 {
+                problems.append(ComposedTreeProblem(path: "/nodes/\(i)/id", message: "\(A2UIJSON.string(n.id).serialized) is not in the tree; replace a node it has, or the node that should hold this one."))
+            } else if found > 1 {
+                problems.append(ComposedTreeProblem(path: "/nodes/\(i)/id", message: "\(A2UIJSON.string(n.id).serialized) names \(found) nodes, a template's instances; replace the node that holds them, by its own id."))
+            } else {
+                next = replacing(next, with: n)
+            }
+        }
+        var model = data
+        for (i, d) in (update["data"]?.array ?? []).enumerated() {
+            let base = model ?? .object(A2UIObject())
+            let path = d["path"]?.string ?? ""
+            if let index = listIndexProblem(base, path) {
+                problems.append(ComposedTreeProblem(path: "/data/\(i)/path", message: index))
+                continue
+            }
+            let written = A2UI.set(base, path, d["value"] ?? .null)
+            guard written.isObject else {
+                problems.append(ComposedTreeProblem(path: "/data/\(i)/value", message: "The data model is an object; set / only to an object."))
+                continue
+            }
+            model = written
+        }
+        if !problems.isEmpty { return .failure(ComposedTreeProblems(problems: problems)) }
+        let invalid = validate(next.json, catalog: cat)
+        return invalid.isEmpty ? .success((next, model)) : .failure(ComposedTreeProblems(problems: invalid))
+    }
+
+    /// This tree and its data model after an agent's update, `{ nodes?, data? }`: each node replaces the tree's one node
+    /// with its id, children and all, and each `{ path, value }` sets the data model at a JSON pointer, null deleting it,
+    /// as A2UI's `updateComponents` and `updateDataModel` do. Throws every problem and changes nothing when an id names no
+    /// node or several (a template's instances), a path is unsafe, a list index is out of range, or the tree it would give
+    /// fails ``validate(_:catalog:path:)``, so an update can't relabel a button any more than a whole tree can. Core's
+    /// `applyTreeUpdate` (ouro-ui-core docs/decisions/2026-11-18-composed-tree-updates.md).
+    public func applying(_ update: A2UIJSON, catalog: A2UICatalog) throws(ComposedTreeProblems) -> ComposedTree {
+        switch Self.applyTreeUpdate(update, to: root, data: data, catalog: catalog) {
+        case .success(let next): return ComposedTree(root: next.tree, data: next.data ?? .object(A2UIObject()))
+        case .failure(let problems): throw problems
+        }
+    }
+
+    /// This tree after the update an MCP tool result carries in `structuredContent.ouro` (core's
+    /// `mcpAppTreeUpdateResult`): `{ version, catalogId, update }`. Throws ``ComposedTreeProblems`` when the version or
+    /// the catalog isn't this one or the update doesn't apply; each problem's path points into `ouro`.
+    public func applying(ouro: A2UIJSON, catalog: A2UICatalog) throws(ComposedTreeProblems) -> ComposedTree {
+        guard let o = ouro.object else {
+            throw ComposedTreeProblems(problems: [ComposedTreeProblem(path: "", message: "structuredContent.ouro is { version, catalogId, update }.")])
+        }
+        var problems = Self.envelopeProblems(o, catalog: catalog)
+        guard problems.isEmpty else { throw ComposedTreeProblems(problems: problems) }
+        switch Self.applyTreeUpdate(o["update"] ?? .null, to: root, data: data, catalog: catalog) {
+        case .success(let next): return ComposedTree(root: next.tree, data: next.data ?? .object(A2UIObject()))
+        case .failure(let failed):
+            problems = failed.problems.map { ComposedTreeProblem(path: "/update\($0.path)", message: $0.message, refusal: $0.refusal) }
+            throw ComposedTreeProblems(problems: problems)
+        }
+    }
+
+    /// The problems with `structuredContent.ouro`'s version and catalog.
+    static func envelopeProblems(_ o: A2UIObject, catalog: A2UICatalog) -> [ComposedTreeProblem] {
+        var problems: [ComposedTreeProblem] = []
+        if o["version"] != .string(version) { problems.append(ComposedTreeProblem(path: "/version", message: "version is \"\(version)\", got \(stringify(o["version"])).")) }
+        if o["catalogId"] != .string(catalog.catalogID) { problems.append(ComposedTreeProblem(path: "/catalogId", message: "catalogId is \(catalog.catalogID), got \(stringify(o["catalogId"])).")) }
+        return problems
     }
 }

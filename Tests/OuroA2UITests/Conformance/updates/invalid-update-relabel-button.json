@@ -1,0 +1,172 @@
+{
+  "description": "An update can relabel a button no more than a whole tree can: its label is the catalog's.",
+  "catalog": "recipe.catalog.json",
+  "tree": {
+    "id": "root",
+    "component": "Card",
+    "props": {},
+    "children": [
+      {
+        "id": "title",
+        "component": "Heading",
+        "props": {
+          "text": "Lemon orzo",
+          "level": 1
+        },
+        "children": []
+      },
+      {
+        "id": "servings",
+        "component": "TextField",
+        "props": {
+          "label": "Servings",
+          "value": "/servings",
+          "hint": "How many people you're cooking for.",
+          "type": "number",
+          "multiline": false
+        },
+        "children": []
+      },
+      {
+        "id": "vegetarian",
+        "component": "Checkbox",
+        "props": {
+          "label": "Make it vegetarian",
+          "value": "/vegetarian"
+        },
+        "children": []
+      },
+      {
+        "id": "oven",
+        "component": "Select",
+        "props": {
+          "label": "Oven",
+          "value": "/oven",
+          "options": [
+            "Fan",
+            "Conventional",
+            "Grill"
+          ]
+        },
+        "children": []
+      },
+      {
+        "id": "share_with",
+        "component": "TextField",
+        "props": {
+          "label": "Send to",
+          "value": "/share/with",
+          "hint": "An email address.",
+          "type": "text",
+          "multiline": false
+        },
+        "children": []
+      },
+      {
+        "id": "actions",
+        "component": "Stack",
+        "props": {
+          "direction": "horizontal",
+          "gap": "medium"
+        },
+        "children": [
+          {
+            "id": "shop",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "primary",
+              "action": "add_recipe_to_shopping_list",
+              "label": "Add ingredients to list",
+              "consent": "write",
+              "press": "run",
+              "input": {
+                "recipe": "rcp_lemon_orzo",
+                "servings": {
+                  "@path": "/servings"
+                }
+              }
+            },
+            "children": []
+          },
+          {
+            "id": "share",
+            "component": "ActionButton",
+            "props": {
+              "emphasis": "secondary",
+              "action": "share_recipe",
+              "label": "Share recipe",
+              "consent": "consequential",
+              "press": "confirm",
+              "input": {
+                "recipe": "rcp_lemon_orzo",
+                "recipeTitle": "Lemon orzo",
+                "with": {
+                  "@path": "/share/with"
+                }
+              },
+              "confirm": {
+                "title": "Share recipe",
+                "description": "Send this recipe to someone.",
+                "fields": [
+                  {
+                    "label": "Recipe",
+                    "value": "Lemon orzo",
+                    "raw": "rcp_lemon_orzo"
+                  },
+                  {
+                    "label": "Send to",
+                    "value": "",
+                    "bind": "/share/with"
+                  }
+                ]
+              }
+            },
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "data": {
+    "recipe": {
+      "id": "rcp_lemon_orzo",
+      "title": "Lemon orzo"
+    },
+    "servings": 4,
+    "share": {
+      "with": ""
+    },
+    "vegetarian": true,
+    "oven": "Fan"
+  },
+  "update": {
+    "nodes": [
+      {
+        "id": "shop",
+        "component": "ActionButton",
+        "props": {
+          "emphasis": "primary",
+          "action": "add_recipe_to_shopping_list",
+          "label": "Buy now",
+          "consent": "write",
+          "press": "run",
+          "input": {
+            "recipe": "rcp_lemon_orzo",
+            "servings": {
+              "@path": "/servings"
+            }
+          }
+        },
+        "children": []
+      }
+    ]
+  },
+  "expect": {
+    "problems": [
+      {
+        "path": "/nodes/0/props/label",
+        "message": "add_recipe_to_shopping_list's label is the catalog's \"Add ingredients to list\", never the sender's."
+      }
+    ]
+  }
+}

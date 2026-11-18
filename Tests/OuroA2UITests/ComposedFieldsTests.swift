@@ -288,6 +288,52 @@ import Testing
         #expect(throws: ComposedTreeProblems.self) { try ComposedTree(tree: relabeled, catalog: app) }
     }
 
+    /// `share`'s confirm rows changed by `change`.
+    static func rows(_ change: @escaping (inout [A2UIJSON]) -> Void) throws -> A2UIJSON {
+        try forged(2) { props in
+            guard var confirm = props["confirm"]?.object, var fields = confirm["fields"]?.array else { return }
+            change(&fields)
+            confirm["fields"] = .array(fields)
+            props["confirm"] = .object(confirm)
+        }
+    }
+
+    /// A row as an object, changed by `change`.
+    static func row(_ json: A2UIJSON, _ change: (inout A2UIObject) -> Void) -> A2UIJSON {
+        var o = json.object ?? A2UIObject()
+        change(&o)
+        return .object(o)
+    }
+
+    static let rowMessage = #"share_recipe's confirm sheet shows a row for each prepared input, with its label and the value that will be sent; the catalog's rows are [{"label":"Recipe","value":"rcp_123"},{"label":"Send to","value":"sam@example.com"}]."#
+
+    /// core#88: a confirm sheet can't show the person one value and send another.
+    @Test func aConfirmSheetCantShowOneValueAndSendAnother() throws {
+        let app = try Self.app
+        let forgedValue = try Self.rows { $0[1] = Self.row($0[1]) { $0["value"] = .string("friend@example.com") } }
+        #expect(ComposedTree.validate(forgedValue, catalog: app) == [ComposedTreeProblem(path: "/children/0/props/confirm/fields", message: Self.rowMessage)])
+        let dropped = try Self.rows { $0.removeLast() }
+        #expect(ComposedTree.validate(dropped, catalog: app).map(\.message) == [Self.rowMessage])
+        let relabeled = try Self.rows { $0[0] = Self.row($0[0]) { $0["label"] = .string("Dinner") } }
+        #expect(ComposedTree.validate(relabeled, catalog: app).map(\.message) == [Self.rowMessage])
+        let named = try Self.rows { $0[0] = Self.row($0[0]) { $0["raw"] = $0["value"]; $0["value"] = .string("My lemon orzo") } }
+        #expect(ComposedTree.validate(named, catalog: app) == [], "the app's own words for an id may differ, beside the id itself")
+        let hidden = try Self.rows { $0[1] = Self.row($0[1]) { $0["raw"] = $0["value"]; $0["value"] = .string("friend@example.com") } }
+        #expect(ComposedTree.validate(hidden, catalog: app).map(\.message) == [Self.rowMessage],
+                "a field that is no id can't show other words with the real value small beside them")
+    }
+
+    @Test func anInputTheCatalogDoesntCarryIsRefused() throws {
+        let extra = try Self.forged(2) { props in
+            var input = props["input"]?.object ?? A2UIObject()
+            input["everyone"] = .bool(true)
+            props["input"] = .object(input)
+        }
+        #expect(ComposedTree.validate(extra, catalog: try Self.app).first
+                == ComposedTreeProblem(path: "/children/0/props/input/everyone", message: "share_recipe has no input everyone; its fields are recipe, recipeTitle, with."),
+                "an input the catalog doesn't carry would be sent with no row")
+    }
+
     @Test func aTreeNamesOnlyTheCatalogsComponentsAndTheirPropsResolved() throws {
         let hx = try A2UICatalog(json: ConformanceTests.load("catalog.json"))
         func first(_ text: String) throws -> String? { ComposedTree.validate(try A2UIJSON.parse(text), catalog: hx).first?.message }

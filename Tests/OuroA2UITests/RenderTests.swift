@@ -140,6 +140,12 @@ extension RenderTests {
         #expect(first["raw"]?.string == "rcp_lemon_orzo")
     }
 
+    /// The app's resolver names ids only: a row that is no id shows exactly what will be sent, whatever it answers.
+    @Test func theAppsResolverIsAskedOnlyForIdFields() throws {
+        let fields = try #require(Self.namedShare(label: { _ in "Mine" }).props["confirm"]?["fields"]?.array)
+        #expect(fields.map(\.serialized) == [#"{"label":"Recipe","value":"Mine","raw":"rcp_lemon_orzo"}"#, #"{"label":"Send to","value":"sam@example.com"}"#])
+    }
+
     /// A catalog `Badge` is Ouro HX's ``OuroBadge``, solid in its tone, so an agent's badge and an app's are one
     /// component, and its words are raised to read on the fill as every component's are.
     @Test(arguments: [("success", OuroTone.success), ("warning", .warning), ("danger", .destructive), ("info", .primary), ("neutral", .secondary), ("", .secondary)])

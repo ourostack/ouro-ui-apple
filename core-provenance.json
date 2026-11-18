@@ -6,7 +6,7 @@
     "Sources/OuroHXTesting/Resources/components.claims.json": "d634ea48cae87fb445bc2e072d0a4def5eb289bf5767a6aef4aa6cdd79fb5aa3"
   },
   "tree": {
-    "coreTag": "v0.18.0",
+    "coreTag": "v0.18.1",
     "files": {
       "Tests/OuroA2UITests/Conformance/cases/action-buttons.json": {
         "from": "standard/hx/a2ui/conformance/cases/action-buttons.json",
@@ -62,11 +62,11 @@
       },
       "Tests/OuroA2UITests/Conformance/catalog.json": {
         "from": "standard/hx/a2ui/catalog.json",
-        "sha256": "3bd062f13485ae42bc0e871735d448f1c34242e65b198d81853c16f8b50ced9f"
+        "sha256": "030135da2854b5f9266896ff7483aa61ff67ce53cb44ad9f8ed8b12152909ee5"
       },
       "Tests/OuroA2UITests/Conformance/recipe.catalog.json": {
         "from": "standard/hx/a2ui/conformance/recipe.catalog.json",
-        "sha256": "67e44a7f4c6dad70db1174b685b7a6c9d04f3be43d8dcc43d80ee4a1e2622b93"
+        "sha256": "fef333526255a51db942c09be42d3a37f2872585ce4205872214c8ca60755db9"
       },
       "Tests/OuroHXTests/Specs/avatar.spec.json": {
         "from": "standard/hx/components/avatar.spec.json",

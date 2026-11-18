@@ -1,0 +1,256 @@
+{
+  "description": "Fields the person fills in: a TextField, a Checkbox and a Select write to the data model, and a button input bound to a field's path stays bound so the press sends the person's answer; one bound to a path no field writes is read now.",
+  "catalog": "recipe.catalog.json",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "plan",
+        "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
+        "dataModel": {
+          "recipe": {
+            "id": "rcp_lemon_orzo",
+            "title": "Lemon orzo"
+          },
+          "servings": 4,
+          "share": {
+            "with": ""
+          },
+          "vegetarian": true,
+          "oven": "Fan"
+        },
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "children": [
+              "title",
+              "servings",
+              "vegetarian",
+              "oven",
+              "share_with",
+              "actions"
+            ]
+          },
+          {
+            "id": "title",
+            "component": "Heading",
+            "text": {
+              "@path": "/recipe/title"
+            },
+            "level": 1
+          },
+          {
+            "id": "servings",
+            "component": "TextField",
+            "label": "Servings",
+            "value": {
+              "@path": "/servings"
+            },
+            "type": "number",
+            "hint": "How many people you're cooking for."
+          },
+          {
+            "id": "vegetarian",
+            "component": "Checkbox",
+            "label": "Make it vegetarian",
+            "value": {
+              "@path": "/vegetarian"
+            }
+          },
+          {
+            "id": "oven",
+            "component": "Select",
+            "label": "Oven",
+            "value": {
+              "@path": "/oven"
+            },
+            "options": [
+              "Fan",
+              "Conventional",
+              "Grill"
+            ]
+          },
+          {
+            "id": "share_with",
+            "component": "TextField",
+            "label": "Send to",
+            "value": {
+              "@path": "/share/with"
+            },
+            "hint": "An email address."
+          },
+          {
+            "id": "actions",
+            "component": "Stack",
+            "direction": "horizontal",
+            "children": [
+              "shop",
+              "share"
+            ]
+          },
+          {
+            "id": "shop",
+            "component": "ActionButton",
+            "action": "add_recipe_to_shopping_list",
+            "input": {
+              "recipe": {
+                "@path": "/recipe/id"
+              },
+              "servings": {
+                "@path": "/servings"
+              }
+            },
+            "emphasis": "primary"
+          },
+          {
+            "id": "share",
+            "component": "ActionButton",
+            "action": "share_recipe",
+            "input": {
+              "recipe": {
+                "@path": "/recipe/id"
+              },
+              "recipeTitle": {
+                "@path": "/recipe/title"
+              },
+              "with": {
+                "@path": "/share/with"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "surfaces": {
+      "plan": {
+        "id": "root",
+        "component": "Card",
+        "props": {},
+        "children": [
+          {
+            "id": "title",
+            "component": "Heading",
+            "props": {
+              "text": "Lemon orzo",
+              "level": 1
+            },
+            "children": []
+          },
+          {
+            "id": "servings",
+            "component": "TextField",
+            "props": {
+              "label": "Servings",
+              "value": "/servings",
+              "hint": "How many people you're cooking for.",
+              "type": "number",
+              "multiline": false
+            },
+            "children": []
+          },
+          {
+            "id": "vegetarian",
+            "component": "Checkbox",
+            "props": {
+              "label": "Make it vegetarian",
+              "value": "/vegetarian"
+            },
+            "children": []
+          },
+          {
+            "id": "oven",
+            "component": "Select",
+            "props": {
+              "label": "Oven",
+              "value": "/oven",
+              "options": [
+                "Fan",
+                "Conventional",
+                "Grill"
+              ]
+            },
+            "children": []
+          },
+          {
+            "id": "share_with",
+            "component": "TextField",
+            "props": {
+              "label": "Send to",
+              "value": "/share/with",
+              "hint": "An email address.",
+              "type": "text",
+              "multiline": false
+            },
+            "children": []
+          },
+          {
+            "id": "actions",
+            "component": "Stack",
+            "props": {
+              "direction": "horizontal",
+              "gap": "medium"
+            },
+            "children": [
+              {
+                "id": "shop",
+                "component": "ActionButton",
+                "props": {
+                  "emphasis": "primary",
+                  "action": "add_recipe_to_shopping_list",
+                  "label": "Add ingredients to list",
+                  "consent": "write",
+                  "press": "run",
+                  "input": {
+                    "recipe": "rcp_lemon_orzo",
+                    "servings": {
+                      "@path": "/servings"
+                    }
+                  }
+                },
+                "children": []
+              },
+              {
+                "id": "share",
+                "component": "ActionButton",
+                "props": {
+                  "emphasis": "secondary",
+                  "action": "share_recipe",
+                  "label": "Share recipe",
+                  "consent": "consequential",
+                  "press": "confirm",
+                  "input": {
+                    "recipe": "rcp_lemon_orzo",
+                    "recipeTitle": "Lemon orzo",
+                    "with": {
+                      "@path": "/share/with"
+                    }
+                  },
+                  "confirm": {
+                    "title": "Share recipe",
+                    "description": "Send this recipe to someone.",
+                    "fields": [
+                      {
+                        "label": "Recipe",
+                        "value": "Lemon orzo",
+                        "raw": "rcp_lemon_orzo"
+                      },
+                      {
+                        "label": "Send to",
+                        "value": "",
+                        "bind": "/share/with"
+                      }
+                    ]
+                  }
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

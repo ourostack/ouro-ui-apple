@@ -124,7 +124,7 @@ Ouro UI's [one action model](https://github.com/ourostack/ouro-ui-core/blob/main
 | `OuroFeel` | your UI tests | checks how the app feels, one per genre of jank: the way back, overlay dismissal, inside the window, tap landing, double-draw, jumps, chrome, snaps, settle and place ([Ouro Feel](#ouro-feel-how-it-feels-measured)) |
 | `OuroFeelCore`, `OuroFeelRecorder`, `OuroFeelRecorderInjectable` | Ouro Feel's internals | the measurements, the in-app recorder, and the same recorder as a library a UI test loads into a simulator app so the app never links it |
 | `OuroReins` | your app's UI-free core, its tests and agents | every screen as state and actions, driven with `ls` and `do` headless or over a debug-only socket; journeys; a network guard that fails any request ([docs/ouro-reins/README.md](docs/ouro-reins/README.md)) |
-| `OuroA2UI` | your app, when an agent composes UI for a person | `A2UISurface`: Ouro HX's [A2UI](https://github.com/a2ui-project/a2ui) catalog in SwiftUI, where every button is one of your declared actions and pressing it follows its consent class; `A2UI.validate` and `A2UI.resolve`, ported from core and proved against core's conformance cases ([agent-composed UI](#agent-composed-ui-a2ui)) |
+| `OuroA2UI` | your app, when an agent composes UI for a person | `A2UISurface`: Ouro HX's [A2UI](https://github.com/a2ui-project/a2ui) catalog in SwiftUI, where every button is one of your declared actions and pressing it follows its consent class; `A2UI.validate` and `A2UI.resolve`, and `ComposedTree` for a tree that came another way, ported from core and proved against core's conformance cases ([agent-composed UI](#agent-composed-ui-a2ui)) |
 | `ouro-devicehub` | a Mac CI job | presses Device Hub's buttons: `dump`, `press "Partially Open"`, `serve <dir>` |
 
 ```swift
@@ -233,21 +233,37 @@ A2UI's `action` at once, consequential opens an `.ouroSheet` with what the agent
 person confirms, and person-only calls `onHandoff` with the declaration's `how` and never sends one.
 
 ```swift
-switch A2UI.resolve(messages, catalog: try A2UICatalog(data: catalogJSON)) {
+switch A2UI.resolveSurfaces(messages, catalog: try A2UICatalog(data: catalogJSON)) {
 case .success(let surfaces):
-    if let (id, node?) = surfaces.first {
-        A2UISurface(node, surfaceId: id) { action in agent.send(action) } onHandoff: { action, _ in router.open(action) }
+    if let surface = surfaces.first {
+        A2UISurface(surface) { action in agent.send(action) } onHandoff: { action, _ in router.open(action) }
     }
 case .failure(let p):
     agent.reply(p.problems.map(\.json))   // A2UI's validation error format, so the agent can correct itself
 }
 ```
 
-`Tests/OuroA2UITests` runs core's 10 conformance cases (vendored from ouro-ui-core v0.13.1 and pinned in
+A `TextField`, `Checkbox` or `Select` lets the person answer: it starts with what the surface's data model holds at its
+`value`, a JSON pointer, and writes their answer there. The surface keeps the data model, and a button whose input is
+bound to that pointer sends what they entered, in the confirm sheet and in the press (`ComposedTree.resolveButton`,
+`PersonPress.of(_:confirmed:data:)`). They draw with `OuroTextField`, `OuroCheckbox` and, for one choice from a short
+list, `OuroSegmentedControl`.
+
+A tree that didn't come as A2UI, such as an MCP tool result's `structuredContent.ouro` or your own code's, goes
+through `ComposedTree`, which reads it and checks it against your catalog (core's `validateTree`) before
+`ComposedSurface` draws it:
+
+```swift
+let tree = try ComposedTree(ouro: result["structuredContent"]?["ouro"] ?? .null, catalog: catalog)
+ComposedSurface(tree) { press in callTool(press.action, press.input) } onHandoff: { action, _ in router.open(action) }
+```
+
+`Tests/OuroA2UITests` runs core's 13 conformance cases (vendored from ouro-ui-core v0.18.0 and pinned in
 `core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
 web's `a2ui-surface` passes. The decisions are core's
-[2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md)
-and [2026-11-14-composed-ui-own-tree.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-14-composed-ui-own-tree.md).
+[2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md),
+[2026-11-14-composed-ui-own-tree.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-14-composed-ui-own-tree.md)
+and [2026-11-17-composed-fields.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-17-composed-fields.md).
 
 ## The gallery
 

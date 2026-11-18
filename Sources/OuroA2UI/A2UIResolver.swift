@@ -28,6 +28,15 @@ public struct A2UINode: Sendable, Equatable {
     public let props: A2UIObject
     public let children: [A2UINode]
 
+    /// A node of the composed tree. Check a tree your own code built with ``ComposedTree/validate(_:catalog:path:)``
+    /// (or build it with ``ComposedTree/init(tree:data:catalog:)``) before you draw it.
+    public init(id: String, component: String, props: A2UIObject, children: [A2UINode] = []) {
+        self.id = id
+        self.component = component
+        self.props = props
+        self.children = children
+    }
+
     public var json: A2UIJSON {
         .object(["id": .string(id), "component": .string(component), "props": .object(props), "children": .array(children.map(\.json))])
     }
@@ -139,26 +148,6 @@ extension A2UI {
         return v
     }
 
-    /// The rows of a confirm sheet: each prepared input with the person's label. An id shows its name (the app's
-    /// resolver, else the sibling `shownAs` names, else the value itself), with the id as `raw` when the name replaced
-    /// it; a name field that stands in for an id has no row of its own. Core's `confirmFields`.
-    static func confirmFields(action: String, _ a: A2UICatalogAction, input: A2UIObject, label: A2UILabelResolver?) -> [A2UIJSON] {
-        let names = Set(a.input.compactMap { f -> String? in
-            guard input[f.name] != nil, let n = f.shownAs, a.field(n) != nil else { return nil }
-            return n
-        })
-        return a.input.filter { input[$0.name] != nil && !names.contains($0.name) }.map { f in
-            let raw = text(input[f.name])
-            let sibling = f.shownAs.flatMap { input[$0]?.string }?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let prepared = (sibling?.isEmpty ?? true) ? nil : sibling
-            let given = label?(A2UILabelContext(action: action, field: f.name, value: raw, input: input))
-            let value = given ?? prepared ?? raw
-            var row: A2UIObject = ["label": .string(f.label), "value": .string(value)]
-            if value != raw { row["raw"] = .string(raw) }
-            return .object(row)
-        }
-    }
-
     /// One surface as every renderer must show it; nil when it has no root yet. `label` is the app's own word for an
     /// id (see ``A2UILabelContext``); it wins over the name the agent prepared.
     public static func resolve(_ surface: A2UISurfaceState, catalog cat: A2UICatalog, label: A2UILabelResolver? = nil) -> A2UINode? {
@@ -171,6 +160,10 @@ extension A2UI {
             var children: [A2UINode] = []
             for p in spec.props {
                 let raw = comp[p.name]
+                if p.isPath {
+                    props[p.name] = .string(isBinding(raw) ? absolute(scoped(scope, raw?["@path"]?.string ?? "")) : "")
+                    continue
+                }
                 switch p.kind {
                 case .string:
                     if raw != nil || p.required { props[p.name] = .string(text(value(data, scope, raw))) }
@@ -206,39 +199,77 @@ extension A2UI {
                 }
             }
             if name == "ActionButton" {
+                // Bindings stay bindings here; once the tree is whole, live() reads those no field writes and adds the
+                // catalog's props.
                 let id = text(comp["action"])
-                let a = cat.action(id)!
                 var input = A2UIObject()
-                if !a.isPersonOnly, let given = comp["input"]?.object {
-                    for (k, v) in given.pairs { input[k] = value(data, scope, v) ?? .null }
+                if !cat.action(id)!.isPersonOnly, let given = comp["input"]?.object {
+                    for (k, v) in given.pairs {
+                        input[k] = isBinding(v) ? .object(["@path": .string(absolute(scoped(scope, v["@path"]?.string ?? "")))]) : v
+                    }
                 }
                 props["action"] = .string(id)
-                props["label"] = .string(a.label)
-                props["consent"] = .string(a.consent)
-                props["press"] = .string(a.press.rawValue)
                 props["input"] = .object(input)
-                if a.press == .confirm {
-                    props["confirm"] = .object([
-                        "title": .string(a.label),
-                        "description": .string(a.description),
-                        "fields": .array(confirmFields(action: id, a, input: input, label: label)),
-                    ])
-                }
-                if let how = a.how { props["handoff"] = .string(how) }
             }
             if let label = comp["@accessibility"]?.object?["label"] { props["@label"] = .string(text(value(data, scope, label))) }
             return A2UINode(id: text(comp["id"]), component: name, props: props, children: children)
         }
-        return node(root, "")
+        return live(cat, node(root, ""), data: data, label: label)
     }
 
-    /// Every surface a stream leaves, resolved, or the validator's problems when it has any.
+    /// A pointer that starts at the data model's root.
+    private static func absolute(_ p: String) -> String { p.hasPrefix("/") ? p : "/\(p)" }
+
+    /// The tree with each button input bound to a path no field writes read from the data now, as before fields
+    /// existed; one bound to a field the person fills in stays bound, so a press sends their answer
+    /// (``ComposedTree/resolveButton(_:data:)``). Core's `live`.
+    private static func live(_ cat: A2UICatalog, _ tree: A2UINode, data: A2UIJSON, label: A2UILabelResolver?) -> A2UINode {
+        var written = Set<String>()
+        func collect(_ n: A2UINode) {
+            if inputComponents.contains(n.component), let path = n.props["value"]?.string { written.insert(path) }
+            n.children.forEach(collect)
+        }
+        collect(tree)
+        func fix(_ n: A2UINode) -> A2UINode {
+            let children = n.children.map(fix)
+            guard n.component == "ActionButton", let prepared = n.props["input"]?.object else {
+                return A2UINode(id: n.id, component: n.component, props: n.props, children: children)
+            }
+            var rest = n.props
+            rest["action"] = nil
+            rest["input"] = nil
+            rest["@label"] = nil
+            // A value read from the data is a value: one shaped like a binding is sent as its text, never followed.
+            func read(_ p: String) -> A2UIJSON {
+                let v = get(data, p) ?? .null
+                return isBinding(v) ? .string(text(v)) : v
+            }
+            var input = A2UIObject()
+            for (k, v) in prepared.pairs {
+                if isBinding(v), let p = v["@path"]?.string, !written.contains(p) { input[k] = read(p) } else { input[k] = v }
+            }
+            // The catalog's props, computed once per button, so the app's label resolver is asked once per field.
+            var props = rest
+            for (k, v) in ComposedTree.actionButtonProps(cat, action: text(n.props["action"]), prepared: input, label: label).pairs { props[k] = v }
+            if let l = n.props["@label"] { props["@label"] = l }
+            return A2UINode(id: n.id, component: n.component, props: props, children: children)
+        }
+        return fix(tree)
+    }
+
+    /// Every surface a stream leaves, resolved, or the validator's problems when it has any. Use
+    /// ``resolveSurfaces(_:catalog:label:)`` for each surface's data model too, which its fields start from.
     public static func resolve(_ messages: A2UIJSON, catalog cat: A2UICatalog, label: A2UILabelResolver? = nil) -> Result<[(String, A2UINode?)], A2UIProblems> {
+        resolveSurfaces(messages, catalog: cat, label: label).map { $0.map { ($0.id, $0.node) } }
+    }
+
+    /// Every surface a stream leaves, with its tree and its data model, or the validator's problems when it has any.
+    public static func resolveSurfaces(_ messages: A2UIJSON, catalog cat: A2UICatalog, label: A2UILabelResolver? = nil) -> Result<[A2UIResolvedSurface], A2UIProblems> {
         let problems = validate(messages, catalog: cat)
         if !problems.isEmpty { return .failure(A2UIProblems(problems: problems)) }
         var surfaces = Ordered<A2UISurfaceState>()
         apply(messages.array ?? [], to: &surfaces)
-        return .success(surfaces.pairs.map { ($0.0, resolve($0.1, catalog: cat, label: label)) })
+        return .success(surfaces.pairs.map { A2UIResolvedSurface(id: $0.0, node: resolve($0.1, catalog: cat, label: label), data: $0.1.data) })
     }
 
     /// The A2UI `action` message a composed button sends when the person presses it (after confirming, for a
@@ -265,6 +296,17 @@ extension A2UI {
             ]),
         ])
     }
+}
+
+/// A surface a stream leaves: its id, its tree (nil until it has a root) and its data model, which the tree's fields
+/// start from. Draw it with ``A2UISurface/init(_:now:onAction:onHandoff:)``.
+public struct A2UIResolvedSurface: Sendable, Equatable {
+    /// The surface's id, which each action message names.
+    public let id: String
+    /// The surface's tree; nil until it has a root.
+    public let node: A2UINode?
+    /// The surface's data model: `createSurface`'s `dataModel` with each `updateDataModel` applied.
+    public let data: A2UIJSON
 }
 
 /// The problems a stream that doesn't validate has.

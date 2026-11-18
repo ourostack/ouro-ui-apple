@@ -1,7 +1,8 @@
 import Foundation
 
-/// Ouro HX as an A2UI v1.0 catalog, ported from core's `src/a2ui.mts` (ouro-ui-core v0.7.1). Core's conformance cases,
-/// vendored in `Tests/OuroA2UITests/Conformance`, prove this port gives the same trees and the same problems.
+/// Ouro HX as an A2UI v1.0 catalog, ported from core's `src/a2ui.mts` and `src/composed.mts` (ouro-ui-core v0.18.0).
+/// Core's conformance cases, vendored in `Tests/OuroA2UITests/Conformance`, prove this port gives the same trees and the
+/// same problems.
 public enum A2UI {
     /// A2UI's protocol version these catalogs target.
     public static let version = "1.0"
@@ -26,6 +27,10 @@ public struct A2UIProp: Sendable {
     public let description: String
     public let required: Bool
     public let kind: A2UIPropKind
+    /// A field's `value`: where the person's answer goes, as a JSON pointer into the data model (core's `path` kind,
+    /// A2UI's `DataBinding`). In A2UI it is `{"@path": "/..."}`; in the composed tree it is the pointer, so its
+    /// ``kind`` is ``A2UIPropKind/string``.
+    public internal(set) var isPath = false
 }
 
 public struct A2UIComponentSpec: Sendable {
@@ -36,6 +41,13 @@ public struct A2UIComponentSpec: Sendable {
 
 private func p(_ name: String, _ description: String, required: Bool = false, _ kind: A2UIPropKind) -> A2UIProp {
     A2UIProp(name: name, description: description, required: required, kind: kind)
+}
+
+/// A field's `value`: a pointer into the data model.
+private func path(_ name: String, _ description: String) -> A2UIProp {
+    var prop = A2UIProp(name: name, description: description, required: true, kind: .string)
+    prop.isPath = true
+    return prop
 }
 
 private let tones = ["neutral", "info", "success", "warning", "danger"]
@@ -81,13 +93,34 @@ extension A2UI {
             p("text", "What to do about it, if anything.", .string),
             p("tone", "How serious it is.", .enumeration(values: ["info", "success", "warning", "danger"], default: "info")),
         ])),
+        ("TextField", A2UIComponentSpec(description: "A field the person types an answer into. It starts with what the data model holds at value and writes their answer there; bind an ActionButton's input to the same path, and pressing it sends what they typed.", props: [
+            p("label", "What the field asks for, in a few words, such as \"Servings\".", required: true, .string),
+            path("value", "Where the answer goes, as a JSON pointer into the data model, such as /servings."),
+            p("hint", "One line under the field saying what to enter, when the label isn't enough.", .string),
+            p("type", "text for words; number when the answer is a number, which the field writes as one.", .enumeration(values: ["text", "number"], default: "text")),
+            p("multiline", "true for a longer answer over several lines, such as a note.", .boolean(default: false)),
+        ])),
+        ("Checkbox", A2UIComponentSpec(description: "A yes-or-no choice the person ticks. It starts with what the data model holds at value and writes true or false there.", props: [
+            p("label", "The choice, said so that ticking it means yes, such as \"Make it vegetarian\".", required: true, .string),
+            path("value", "Where the answer goes, as a JSON pointer into the data model, such as /vegetarian."),
+            p("hint", "One line under the choice, when the label isn't enough.", .string),
+        ])),
+        ("Select", A2UIComponentSpec(description: "One choice from a short list. It starts with what the data model holds at value and writes the chosen option there, as text.", props: [
+            p("label", "What the person is choosing, in a few words, such as \"Oven\".", required: true, .string),
+            path("value", "Where the choice goes, as a JSON pointer into the data model, such as /oven."),
+            p("options", "The choices, in order, as the person reads them.", required: true, .strings),
+            p("hint", "One line under the list, when the label isn't enough.", .string),
+        ])),
     ]
+
+    /// The components a person answers with: each writes to the data model at its `value`. Core's `INPUT_COMPONENTS`.
+    public static let inputComponents = ["TextField", "Checkbox", "Select"]
 
     public static let actionButton = A2UIComponentSpec(
         description: "A button for one of the app's declared actions. Its label and what pressing it does come from the action, so you choose only the action, the input you prepared and its emphasis.",
         props: [
             p("action", "The action's id.", required: true, .action),
-            p("input", "The input you prepared, by field name; values may bind to the data model. Never give input to a person-only action.", .input),
+            p("input", "The input you prepared, by field name; a value may bind to the data model with {\"@path\"}, and one bound to a field the person fills in is read when they press. Never give input to a person-only action.", .input),
             p("emphasis", "primary for the one main action on a surface; secondary for the rest.", .enumeration(values: ["primary", "secondary"], default: "secondary")),
         ])
 }

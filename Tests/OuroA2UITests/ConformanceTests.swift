@@ -2,7 +2,7 @@ import Foundation
 @testable import OuroA2UI
 import Testing
 
-/// Core's conformance cases (ouro-ui-core v0.13.1, `standard/hx/a2ui/conformance`): each stream must resolve to the
+/// Core's conformance cases (ouro-ui-core v0.18.0, `standard/hx/a2ui/conformance`): each stream must resolve to the
 /// case's `expect`, byte for byte as core's reference resolver writes it: every surface's tree, or every problem.
 @Suite struct ConformanceTests {
     static let root = Bundle.module.url(forResource: "Conformance", withExtension: nil)!
@@ -14,7 +14,7 @@ import Testing
     static func load(_ path: String) throws -> A2UIJSON { try A2UIJSON.parse(Data(contentsOf: root.appending(path: path))) }
 
     @Test func everyCaseIsHere() {
-        #expect(Self.cases.count == 11)
+        #expect(Self.cases.count == 13)
     }
 
     @Test(arguments: cases) func resolvesToExpect(_ name: String) throws {
@@ -31,6 +31,18 @@ import Testing
         }
         #expect(got.serialized == c["expect"]!.serialized, "\(name)")
         #expect(name.hasPrefix("invalid-") == (got["problems"] != nil))
+    }
+
+    /// Core's "every tree the A2UI adapter resolves passes the composed tree's own validator", for every valid case.
+    @Test(arguments: cases.filter { !$0.hasPrefix("invalid-") })
+    func everyResolvedTreePassesTheTreesValidator(_ name: String) throws {
+        let c = try Self.load("cases/\(name)")
+        let catalog = try A2UICatalog(json: Self.load(c["catalog"]!.string!))
+        let surfaces = try #require(c["expect"]?["surfaces"]?.object)
+        for (id, tree) in surfaces.pairs where tree != .null {
+            #expect(ComposedTree.validate(tree, catalog: catalog) == [], "\(name) surface \(id)")
+            #expect(try ComposedTree(tree: tree, catalog: catalog).root.json.serialized == tree.serialized)
+        }
     }
 
     @Test func numbersReadAsJavaScriptWritesThem() {

@@ -5,11 +5,11 @@
   "title": "Ouro HX catalog for recipe",
   "description": "Ouro HX's components, and a button for each of the recipe actions.",
   "catalogId": "https://ui.ouroboros.bot/a2ui/v1/apps/recipe/catalog.json",
-  "instructions": "Ouro HX for agent-composed UI. Compose for a person reading on a phone: one Card per thing, a Heading first, then what they need to decide, then at most one primary ActionButton.\n\n- Use only these components. Styling comes from the app's theme; there are no colours, sizes or fonts to set.\n- Component ids are identifiers: letters, digits and _, starting with a letter (recipe_name, not recipe-name). The root's id is root.\n- Put content in the data model and bind to it with {\"@path\": \"/...\"}; repeat a template over a list with children: {\"componentId\", \"path\"}.\n- Every Image needs a description of what it shows.\n- ActionButton is the only button. Name one of the app's actions; its label is the action's. Prepare its input from what the person said; when an id field has a name field (shownAs in the catalog), prepare the name too, since the person confirms by the name, not the id. For a consequential action the person sees and confirms what you prepared; a person-only action takes the person to the app's own screen, so give it no input.\n- This catalog has no functions. To act for the person, call the action's own tool (MCP, CLI); never try to press a button.",
+  "instructions": "Ouro HX for agent-composed UI. Compose for a person reading on a phone: one Card per thing, a Heading first, then what they need to decide, then at most one primary ActionButton.\n\n- Use only these components. Styling comes from the app's theme; there are no colours, sizes or fonts to set.\n- Component ids are identifiers: letters, digits and _, starting with a letter (recipe_name, not recipe-name). The root's id is root.\n- Put content in the data model and bind to it with {\"@path\": \"/...\"}; repeat a template over a list with children: {\"componentId\", \"path\"}.\n- Every Image needs a description of what it shows.\n- To ask the person for an answer, use TextField, Checkbox or Select with value: {\"@path\": \"/answer\"}, and bind the ActionButton's input to the same path; pressing the button sends what they entered.\n- ActionButton is the only button. Name one of the app's actions; its label is the action's. Prepare its input from what the person said; when an id field has a name field (shownAs in the catalog), prepare the name too, since the person confirms by the name, not the id. For a consequential action the person sees and confirms what you prepared; a person-only action takes the person to the app's own screen, so give it no input.\n- This catalog has no functions. To act for the person, call the action's own tool (MCP, CLI); never try to press a button.",
   "metadata": {
     "extensions": {
       "bot_ouroboros_hx": {
-        "generator": "ouro-a2ui 0.13.1",
+        "generator": "ouro-a2ui 0.18.0",
         "set": "recipe",
         "actions": {
           "get_recipe": {
@@ -363,6 +363,102 @@
         "title"
       ]
     },
+    "TextField": {
+      "type": "object",
+      "description": "A field the person types an answer into. It starts with what the data model holds at value and writes their answer there; bind an ActionButton's input to the same path, and pressing it sends what they typed.",
+      "properties": {
+        "component": {
+          "const": "TextField"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "What the field asks for, in a few words, such as \"Servings\"."
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DataBinding",
+          "description": "Where the answer goes, as a JSON pointer into the data model, such as /servings."
+        },
+        "hint": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "One line under the field saying what to enter, when the label isn't enough."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "text",
+            "number"
+          ],
+          "default": "text",
+          "description": "text for words; number when the answer is a number, which the field writes as one."
+        },
+        "multiline": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "true for a longer answer over several lines, such as a note."
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value"
+      ]
+    },
+    "Checkbox": {
+      "type": "object",
+      "description": "A yes-or-no choice the person ticks. It starts with what the data model holds at value and writes true or false there.",
+      "properties": {
+        "component": {
+          "const": "Checkbox"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "The choice, said so that ticking it means yes, such as \"Make it vegetarian\"."
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DataBinding",
+          "description": "Where the answer goes, as a JSON pointer into the data model, such as /vegetarian."
+        },
+        "hint": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "One line under the choice, when the label isn't enough."
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value"
+      ]
+    },
+    "Select": {
+      "type": "object",
+      "description": "One choice from a short list. It starts with what the data model holds at value and writes the chosen option there, as text.",
+      "properties": {
+        "component": {
+          "const": "Select"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "What the person is choosing, in a few words, such as \"Oven\"."
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DataBinding",
+          "description": "Where the choice goes, as a JSON pointer into the data model, such as /oven."
+        },
+        "options": {
+          "$ref": "common_types.json#/$defs/DynamicStringList",
+          "description": "The choices, in order, as the person reads them."
+        },
+        "hint": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "One line under the list, when the label isn't enough."
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value",
+        "options"
+      ]
+    },
     "ActionButton": {
       "type": "object",
       "description": "A button for one of the app's declared actions. Its label and what pressing it does come from the action, so you choose only the action, the input you prepared and its emphasis.",
@@ -394,7 +490,7 @@
           "additionalProperties": {
             "$ref": "common_types.json#/$defs/DynamicValue"
           },
-          "description": "The input you prepared, by field name; values may bind to the data model. Never give input to a person-only action."
+          "description": "The input you prepared, by field name; a value may bind to the data model with {\"@path\"}, and one bound to a field the person fills in is read when they press. Never give input to a person-only action."
         },
         "emphasis": {
           "type": "string",
@@ -445,6 +541,15 @@
         },
         {
           "$ref": "#/components/Alert"
+        },
+        {
+          "$ref": "#/components/TextField"
+        },
+        {
+          "$ref": "#/components/Checkbox"
+        },
+        {
+          "$ref": "#/components/Select"
         },
         {
           "$ref": "#/components/ActionButton"

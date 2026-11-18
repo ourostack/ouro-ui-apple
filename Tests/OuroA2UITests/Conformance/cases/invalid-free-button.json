@@ -33,7 +33,7 @@
         "code": "VALIDATION_FAILED",
         "surfaceId": "s",
         "path": "/0/createSurface/components/0/component",
-        "message": "\"Button\" is not in this catalog; use one of Card, Stack, Heading, Text, Image, Badge, List, DescriptionList, Separator, Alert, ActionButton."
+        "message": "\"Button\" is not in this catalog; use one of Card, Stack, Heading, Text, Image, Badge, List, DescriptionList, Separator, Alert, TextField, Checkbox, Select, ActionButton."
       }
     ]
   }

@@ -72,9 +72,21 @@ extension A2UI {
     /// Writes a JSON pointer, creating objects on the way; null deletes.
     public static func set(_ data: A2UIJSON, _ pointer: String, _ value: A2UIJSON) -> A2UIJSON {
         if pointer.isEmpty || pointer == "/" { return value == .null ? .object(A2UIObject()) : value }
+        // A pointer that names an object's prototype writes nothing, as core's setPointer (ouro-ui-core#91).
+        if !isSafePointer(pointer) { return data }
         let root: A2UIJSON = (data.isObject || data.array != nil) ? data : .object(A2UIObject())
         return write(root, tokens(pointer)[...], value)
     }
+
+    /// Whether no segment of a pointer, absolute or relative, is `__proto__`, `constructor` or `prototype`, which in
+    /// JavaScript would reach an object's prototype instead of the data. Every kit refuses them, so every kit refuses the
+    /// same trees and streams (ouro-ui-core#91). Core's `isSafePointer`.
+    public static func isSafePointer(_ pointer: String) -> Bool {
+        !tokens(pointer).contains { $0 == "__proto__" || $0 == "constructor" || $0 == "prototype" }
+    }
+
+    /// Whether a pointer stays in the data: absolute, and safe. Core's `isDataPointer`.
+    public static func isDataPointer(_ pointer: String) -> Bool { pointer.hasPrefix("/") && isSafePointer(pointer) }
 
     private static func tokens(_ pointer: String) -> [String] {
         let body = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer

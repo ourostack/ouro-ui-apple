@@ -258,7 +258,7 @@ let tree = try ComposedTree(ouro: result["structuredContent"]?["ouro"] ?? .null,
 ComposedSurface(tree) { press in callTool(press.action, press.input) } onHandoff: { action, _ in router.open(action) }
 ```
 
-`Tests/OuroA2UITests` runs core's 13 conformance cases (vendored from ouro-ui-core v0.18.1 and pinned in
+`Tests/OuroA2UITests` runs core's 13 conformance cases (vendored from ouro-ui-core v0.18.2 and pinned in
 `core-provenance.json`'s `tree`); each must give core's tree or problems byte for byte, and they are the same cases
 web's `a2ui-surface` passes. The decisions are core's
 [2026-11-13-a2ui-catalog.md](https://github.com/ourostack/ouro-ui-core/blob/main/docs/decisions/2026-11-13-a2ui-catalog.md),

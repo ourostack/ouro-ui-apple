@@ -75,6 +75,15 @@ import Testing
         #expect(try problems(#"{"data":[{"path":"/n","value":1e999}]}"#) == [ComposedTreeProblem(path: "/data/0/value", message: "An update is JSON: text, finite numbers, true, false, null, lists and objects.")])
     }
 
+    /// Ids compare as JavaScript compares them: "é" written as one character isn't "e" and a combining accent.
+    @Test func anIdMatchesCharacterForCharacter() throws {
+        let text: A2UIObject = ["text": .string("x"), "tone": .string("default")]
+        let tree = ComposedTree(root: ComposedNode(id: "root", component: "Card", props: [:], children: [ComposedNode(id: "caf\u{E9}", component: "Text", props: text)]))
+        let update: A2UIJSON = .object(["nodes": .array([ComposedNode(id: "cafe\u{301}", component: "Text", props: text).json])])
+        let app = try Self.app
+        #expect(throws: ComposedTreeProblems.self) { try tree.applying(update, catalog: app) }
+    }
+
     @Test func anMCPResultsUpdateAppliesToTheTreeItChanges() throws {
         let (tree, update, expect) = try Self.replaceAndSet()
         let app = try Self.app

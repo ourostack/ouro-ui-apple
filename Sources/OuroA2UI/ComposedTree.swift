@@ -451,12 +451,13 @@ extension ComposedTree {
         return nil
     }
 
+    /// How many nodes have `id`, compared by code unit as JavaScript's `===` does.
     private static func count(_ id: String, in n: ComposedNode) -> Int {
-        (n.id == id ? 1 : 0) + n.children.reduce(0) { $0 + count(id, in: $1) }
+        (n.id.utf16.elementsEqual(id.utf16) ? 1 : 0) + n.children.reduce(0) { $0 + count(id, in: $1) }
     }
 
     private static func replacing(_ n: ComposedNode, with by: ComposedNode) -> ComposedNode {
-        n.id == by.id ? by : ComposedNode(id: n.id, component: n.component, props: n.props, children: n.children.map { replacing($0, with: by) })
+        n.id.utf16.elementsEqual(by.id.utf16) ? by : ComposedNode(id: n.id, component: n.component, props: n.props, children: n.children.map { replacing($0, with: by) })
     }
 
     /// A tree and its data model after an update, or every problem and no change: never a tree partly updated. Core's

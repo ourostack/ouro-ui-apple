@@ -90,7 +90,7 @@ public struct ComposedSurface: View {
 
     /// What a list of `structuredContent.ouro` results leaves: the last tree that passed, with every update after it
     /// that applied, and the newest result's problems.
-    static func shown(_ results: [A2UIJSON], catalog: A2UICatalog) -> (tree: ComposedTree?, problems: ComposedTreeProblems?) {
+    nonisolated static func shown(_ results: [A2UIJSON], catalog: A2UICatalog) -> (tree: ComposedTree?, problems: ComposedTreeProblems?) {
         var good: ComposedTree?
         var problems: ComposedTreeProblems?
         for result in results {
@@ -123,7 +123,14 @@ public struct ComposedSurface: View {
         }
         .onChange(of: data) { old, new in answers = Self.kept(answers, from: old, to: new) }
         .onAppear { report(shown.problems) }
-        .onChange(of: shown.problems) { _, problems in report(problems) }
+        // Each new result reports its own problems, even when they read as the last one's did.
+        .onChange(of: results) { report(shown.problems) }
+    }
+
+    /// The MCP results the surface was given; none for a tree you hold.
+    private var results: [A2UIJSON] {
+        if case .results(let results, _, _) = source { return results }
+        return []
     }
 
     private func report(_ problems: ComposedTreeProblems?) {
@@ -133,7 +140,7 @@ public struct ComposedSurface: View {
     /// The person's answers that still stand when the data changes from `old` to `new`: every answer but those whose
     /// value, or a list item on the way to it, the change touched, where the new data wins. Web's `carry`
     /// (ourostack/ouro-ui#2115).
-    static func kept(_ answers: A2UIObject, from old: A2UIJSON, to new: A2UIJSON) -> A2UIObject {
+    nonisolated static func kept(_ answers: A2UIObject, from old: A2UIJSON, to new: A2UIJSON) -> A2UIObject {
         var kept = A2UIObject()
         for (pointer, value) in answers.pairs where anchors(old, pointer).allSatisfy({ same(A2UI.get(old, $0), A2UI.get(new, $0)) }) {
             kept[pointer] = value
@@ -143,7 +150,7 @@ public struct ComposedSurface: View {
 
     /// The pointers an answer at `pointer` depends on: the pointer itself and each list item on the way to it, since a
     /// list that loses an item moves the next one into its place. Web's `anchors`.
-    static func anchors(_ data: A2UIJSON, _ pointer: String) -> [String] {
+    nonisolated static func anchors(_ data: A2UIJSON, _ pointer: String) -> [String] {
         let keys = pointer.unicodeScalars.split(separator: "/", omittingEmptySubsequences: false).dropFirst().map { String(String.UnicodeScalarView($0)) }
         let prefixes = keys.indices.map { "/" + keys[...$0].joined(separator: "/") }
         // The data model is an object, so the first key is never a list item.

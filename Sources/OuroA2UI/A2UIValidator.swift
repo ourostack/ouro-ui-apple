@@ -292,6 +292,10 @@ private struct Walk {
                 if prop.required { fail(at, "\(name) needs \(prop.name): \(prop.description)") }
                 continue
             }
+            if prop.isPath {
+                if !isBinding(v) { fail(at, "\(prop.name) is {\"@path\": \"/...\"}: where the person's answer goes in the data model.") }
+                continue
+            }
             switch prop.kind {
             case .string: checkDynamic(v, .string, at)
             case .strings: checkDynamic(v, .strings, at)

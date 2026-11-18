@@ -17,13 +17,17 @@ import Testing
 /// Serialized: drawn in parallel, the same badge twice came out different (seen once locally, 2026-11-14).
 @Suite(.serialized) @MainActor struct PublicComponentTests {
     /// The catalog components Ouro HX has a public component for, and that component's type name. `Alert` is web's
-    /// name for what Ouro HX calls a banner, and `ActionButton` is a button bound to a declared action.
+    /// name for what Ouro HX calls a banner, `Select` is one choice from a short list, which Ouro HX draws as a segmented
+    /// control, and `ActionButton` is a button bound to a declared action.
     static let drawnWith: [String: String] = [
         "Card": "OuroCard",
         "Badge": "OuroBadge",
         "DescriptionList": "OuroDescriptionList",
         "Separator": "OuroSeparator",
         "Alert": "OuroBanner",
+        "TextField": "OuroTextField",
+        "Checkbox": "OuroCheckbox",
+        "Select": "OuroSegmentedControl",
         "ActionButton": "OuroButton",
     ]
 
@@ -76,9 +80,11 @@ import Testing
         return try #require(OuroSnapshot.render(framed, size: nil).flatMap(OuroSnapshot.png))
     }
 
-    func surface(_ node: A2UINode) throws -> Data {
-        try image(ComposedSurface(node, onPress: { _ in }, onHandoff: { _, _ in }))
+    func surface(_ node: A2UINode, data: A2UIJSON = .object(A2UIObject())) throws -> Data {
+        try image(ComposedSurface(node, data: data, onPress: { _ in }, onHandoff: { _, _ in }))
     }
+
+    static let answers: A2UIJSON = .object(["servings": .number(4), "vegetarian": .bool(true), "oven": .string("Fan")])
 
     @Test func card() throws {
         let child = Self.node("Separator")
@@ -113,6 +119,30 @@ import Testing
         let primary = emphasis == "primary"
         let expected = OuroButton("Save recipe", tone: primary ? .primary : .secondary, variant: primary ? .solid : .outline, fullWidth: true) {}
         #expect(try surface(node) == image(expected))
+    }
+
+    /// A field shows what the data holds at its `value`: the same field with other data draws differently.
+    @Test func textField() throws {
+        let node = Self.node("TextField", ["label": .string("Servings"), "value": .string("/servings"), "hint": .string("How many people you're cooking for."),
+                                           "type": .string("number"), "multiline": .bool(false)])
+        let drawn = try surface(node, data: Self.answers)
+        #expect(drawn == (try image(OuroTextField("Servings", text: .constant("4"), description: "How many people you're cooking for."))))
+        #expect(drawn != (try surface(node, data: .object(["servings": .number(6)]))))
+    }
+
+    @Test func checkbox() throws {
+        let node = Self.node("Checkbox", ["label": .string("Make it vegetarian"), "value": .string("/vegetarian")])
+        let drawn = try surface(node, data: Self.answers)
+        #expect(drawn == (try image(OuroCheckbox("Make it vegetarian", isOn: .constant(true)))))
+        #expect(drawn != (try surface(node)), "an empty data model leaves it unticked")
+    }
+
+    @Test func select() throws {
+        let node = Self.node("Select", ["label": .string("Oven"), "value": .string("/oven"), "options": .array(["Fan", "Conventional", "Grill"].map { .string($0) })])
+        let drawn = try surface(node, data: Self.answers)
+        let items = ["Fan", "Conventional", "Grill"].map { OuroSegment($0, value: $0) }
+        #expect(drawn == (try image(OuroSegmentedControl("Oven", selection: .constant("Fan"), fullWidth: true, items: items))))
+        #expect(drawn != (try image(OuroSegmentedControl("Oven", selection: .constant("Grill"), fullWidth: true, items: items))))
     }
 
     /// The check can fail: a private view that looks close to the component draws differently.

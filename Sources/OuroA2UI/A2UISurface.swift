@@ -11,57 +11,93 @@ extension EnvironmentValues {
 }
 
 /// A resolved A2UI surface drawn with Ouro HX: web's `a2ui-surface`. It is the A2UI entry point to
-/// ``ComposedSurface``, which draws the tree; this view only wraps each press in A2UI's `action` message. Every button is
-/// one of the app's declared actions and pressing it follows its consent class: read and write send the action at
-/// once, consequential opens a sheet built from the declaration and sends only when the person confirms, and
-/// person-only hands the person to the app's own screen and never sends one.
+/// ``ComposedSurface``, which draws the tree and keeps its data model; this view only wraps each press in A2UI's
+/// `action` message. Every button is one of the app's declared actions and pressing it follows its consent class: read
+/// and write send the action at once, consequential opens a sheet built from the declaration and sends only when the
+/// person confirms, and person-only hands the person to the app's own screen and never sends one. A button bound to a
+/// field the person fills in sends what they entered.
 ///
 /// ```swift
-/// switch A2UI.resolve(messages, catalog: catalog) {
+/// switch A2UI.resolveSurfaces(messages, catalog: catalog) {
 /// case .success(let surfaces):
-///     if let (id, node?) = surfaces.first {
-///         A2UISurface(node, surfaceId: id) { action in send(action) } onHandoff: { action, how in open(action) }
+///     if let surface = surfaces.first {
+///         A2UISurface(surface) { action in send(action) } onHandoff: { action, how in open(action) }
 ///     }
 /// case .failure(let p): reply(p.problems)   // A2UI's error format, so the agent can correct itself
 /// }
 /// ```
 public struct A2UISurface: View {
-    let node: A2UINode
+    let node: A2UINode?
     let surfaceId: String
+    let data: A2UIJSON
     let onAction: @MainActor (A2UIJSON) -> Void
     let onHandoff: @MainActor (_ action: String, _ how: String) -> Void
     let now: @MainActor () -> Date
 
     /// - Parameters:
-    ///   - node: the surface's root, from ``A2UI/resolve(_:catalog:)-(A2UIJSON,_)``.
+    ///   - node: the surface's root, from ``A2UI/resolve(_:catalog:label:)-(A2UIJSON,_,_)``.
     ///   - surfaceId: the surface's id, which each action message names.
+    ///   - data: the surface's data model, which its fields start from (``A2UIResolvedSurface/data``).
     ///   - now: the clock for each action message's timestamp.
-    ///   - onAction: receives the A2UI `action` message (``A2UI/actionMessage(surfaceId:button:timestamp:confirmed:)``).
+    ///   - onAction: receives the A2UI `action` message (``A2UI/actionMessage(surfaceId:press:timestamp:)``).
     ///   - onHandoff: a person-only button: take the person to the action's own screen; `how` is the declaration's.
-    public init(_ node: A2UINode, surfaceId: String, now: @escaping @MainActor () -> Date = { Date() },
+    public init(_ node: A2UINode, surfaceId: String, data: A2UIJSON, now: @escaping @MainActor () -> Date = { Date() },
                 onAction: @escaping @MainActor (A2UIJSON) -> Void,
                 onHandoff: @escaping @MainActor (_ action: String, _ how: String) -> Void) {
         self.node = node
         self.surfaceId = surfaceId
+        self.data = data
+        self.onAction = onAction
+        self.onHandoff = onHandoff
+        self.now = now
+    }
+
+    /// A surface with no fields, or whose fields start empty: its data model is `{}`. Use
+    /// ``init(_:now:onAction:onHandoff:)`` with a surface from ``A2UI/resolveSurfaces(_:catalog:label:)`` to start its
+    /// fields from its data model.
+    public init(_ node: A2UINode, surfaceId: String, now: @escaping @MainActor () -> Date = { Date() },
+                onAction: @escaping @MainActor (A2UIJSON) -> Void,
+                onHandoff: @escaping @MainActor (_ action: String, _ how: String) -> Void) {
+        self.init(node, surfaceId: surfaceId, data: .object(A2UIObject()), now: now, onAction: onAction, onHandoff: onHandoff)
+    }
+
+    /// A surface from ``A2UI/resolveSurfaces(_:catalog:label:)``: its tree, its id and its data model. A surface with
+    /// no root yet draws nothing.
+    public init(_ surface: A2UIResolvedSurface, now: @escaping @MainActor () -> Date = { Date() },
+                onAction: @escaping @MainActor (A2UIJSON) -> Void,
+                onHandoff: @escaping @MainActor (_ action: String, _ how: String) -> Void) {
+        self.node = surface.node
+        self.surfaceId = surface.id
+        self.data = surface.data
         self.onAction = onAction
         self.onHandoff = onHandoff
         self.now = now
     }
 
     public var body: some View {
-        ComposedSurface(node, onPress: { press in
-            onAction(A2UI.actionMessage(surfaceId: surfaceId, press: press, timestamp: ISO8601DateFormatter().string(from: now())))
-        }, onHandoff: onHandoff)
+        if let node {
+            ComposedSurface(node, data: data, onPress: { press in
+                onAction(A2UI.actionMessage(surfaceId: surfaceId, press: press, timestamp: ISO8601DateFormatter().string(from: now())))
+            }, onHandoff: onHandoff)
+        }
     }
 }
 
-/// How a drawn button reaches the app: a press, or a handoff. Knows no format.
+/// How a drawn button reaches the app, a press or a handoff, and the data model the fields write. Knows no format.
 struct A2UIPressContext {
+    let data: Binding<A2UIJSON>
     let onPress: @MainActor (PersonPress) -> Void
     let onHandoff: @MainActor (String, String) -> Void
 
+    /// A press, with the person's answers read from the data model.
     @MainActor func send(_ button: A2UINode, confirmed: Bool) {
-        if let press = PersonPress.of(button, confirmed: confirmed) { onPress(press) }
+        if let press = PersonPress.of(button, confirmed: confirmed, data: data.wrappedValue) { onPress(press) }
+    }
+
+    /// What the data model holds at a field's pointer; setting nil (or null) deletes it.
+    func value(at pointer: String) -> Binding<A2UIJSON?> {
+        let data = data
+        return Binding(get: { A2UI.get(data.wrappedValue, pointer) }, set: { data.wrappedValue = A2UI.set(data.wrappedValue, pointer, $0 ?? .null) })
     }
 }
 
@@ -121,6 +157,12 @@ struct A2UINodeView: View {
             OuroSeparator()
         case "Alert":
             OuroBanner(node.text("title"), description: node.props["text"]?.string, tone: A2UIMetrics.tone(node.text("tone")))
+        case "TextField":
+            A2UITextField(node: node, value: context.value(at: node.text("value")))
+        case "Checkbox":
+            OuroCheckbox(node.text("label"), isOn: A2UIFields.bool(context.value(at: node.text("value"))), description: A2UIFields.hint(node))
+        case "Select":
+            A2UISelect(node: node, value: context.value(at: node.text("value")))
         case "ActionButton":
             A2UIActionButton(node: node, context: context)
         default:
@@ -224,6 +266,12 @@ struct A2UIActionButton: View {
     let context: A2UIPressContext
     @State private var confirming = false
 
+    /// The rows the confirm sheet shows: what the press will send, the agent's input with the person's answers in the
+    /// fields bound to theirs.
+    static func confirmRows(_ node: A2UINode, data: A2UIJSON) -> [A2UIJSON] {
+        ComposedTree.resolveButton(node, data: data).props["confirm"]?["fields"]?.array ?? []
+    }
+
     var body: some View {
         let press = A2UIPress(rawValue: node.text("press")) ?? .run
         let primary = node.text("emphasis") == "primary"
@@ -237,12 +285,88 @@ struct A2UIActionButton: View {
         .accessibilityHint(press == .handoff ? node.text("handoff") : "")
         .ouroSheet(isPresented: $confirming, title: node.props["confirm"]?["title"]?.string ?? node.text("label"),
                    description: node.props["confirm"]?["description"]?.string) {
-            A2UIConfirmFields(fields: node.props["confirm"]?["fields"]?.array ?? [])
+            A2UIConfirmFields(fields: Self.confirmRows(node, data: context.data.wrappedValue))
         } footer: {
             OuroButton(node.text("label"), fullWidth: true) {
                 confirming = false
                 context.send(node, confirmed: true)
             }
+        }
+    }
+}
+
+/// How the catalog's fields read and write the data model.
+enum A2UIFields {
+    /// A field's `hint`, or nil when it has none.
+    static func hint(_ node: A2UINode) -> String? {
+        node.props["hint"]?.string.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// A checkbox is ticked only when the data holds `true`, and writes `true` or `false`.
+    static func bool(_ value: Binding<A2UIJSON?>) -> Binding<Bool> {
+        Binding(get: { value.wrappedValue == .bool(true) }, set: { value.wrappedValue = .bool($0) })
+    }
+
+    /// What a field writes for what the person typed: the text itself, or for a number field the number, and null
+    /// (which leaves the data model without it) when the field is empty or isn't a number.
+    static func answer(_ typed: String, number: Bool) -> A2UIJSON {
+        guard number else { return .string(typed) }
+        let t = typed.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty, t.unicodeScalars.allSatisfy({ "0123456789.,-+eE".unicodeScalars.contains($0) }),
+              let n = Double(t) ?? Double(t.replacingOccurrences(of: ",", with: ".")), n.isFinite else { return .null }
+        return .number(n)
+    }
+}
+
+/// A catalog `TextField` as Ouro HX's ``OuroTextField``: it shows what the data holds at its `value` and writes what
+/// the person types there, a number for `type: number`.
+struct A2UITextField: View {
+    let node: A2UINode
+    let value: Binding<A2UIJSON?>
+    /// What the person typed, kept while it says the same as the data: a number field's "4." or "" shows as typed.
+    @State private var typed: String?
+
+    var body: some View {
+        let number = node.text("type") == "number"
+        let typed = $typed
+        let value = value
+        let text = Binding<String>(get: { typed.wrappedValue ?? A2UI.text(value.wrappedValue) }, set: { t in
+            typed.wrappedValue = t
+            value.wrappedValue = A2UIFields.answer(t, number: number)
+        })
+        OuroTextField(node.text("label"), text: text, description: A2UIFields.hint(node))
+            .composedInput(multiline: node.props["multiline"] == .bool(true), number: number)
+            .onChange(of: value.wrappedValue) { _, stored in
+                if let t = typed.wrappedValue, A2UIFields.answer(t, number: number) != (stored ?? .null) { typed.wrappedValue = nil }
+            }
+    }
+}
+
+/// A catalog `Select` as Ouro HX's ``OuroSegmentedControl``, the control for one choice from a short list: it shows
+/// the option the data holds at its `value` pressed, and writes the chosen option's text there.
+struct A2UISelect: View {
+    let node: A2UINode
+    let value: Binding<A2UIJSON?>
+    @Environment(\.ouroTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        var seen = Set<String>()
+        let options = (node.props["options"]?.array ?? []).compactMap(\.string).filter { seen.insert($0).inserted }
+        let selection = Binding<String>(get: { A2UI.text(value.wrappedValue) }, set: { value.wrappedValue = .string($0) })
+        let control = OuroSegmentedControl(node.text("label"), selection: selection, fullWidth: true, items: options.map { OuroSegment($0, value: $0) })
+        if let hint = A2UIFields.hint(node) {
+            VStack(alignment: .leading, spacing: 6) {
+                control
+                // The hint as OuroTextField draws its description, raised to read on the page.
+                Text(hint)
+                    .font(.footnote)
+                    .foregroundStyle(Color(OuroTextFieldPalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast)).description))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            control
         }
     }
 }

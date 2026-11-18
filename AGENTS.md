@@ -82,8 +82,8 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 
 ## Agent-composed UI (A2UI)
 
-- `Sources/OuroA2UI` ports core's `src/a2ui.mts` (validator, resolver, action message) and `src/composed.mts` (the tree
-  and a press) to Swift. `ComposedSurface` draws the tree and knows no format; `A2UISurface` is A2UI's entry point and
+- `Sources/OuroA2UI` ports core's `src/a2ui.mts` (validator, resolver, action message) and `src/composed.mts` (the tree,
+  its validator, a button bound to the data model and a press; `ComposedTree.swift`) to Swift. `ComposedSurface` draws the tree and knows no format; `A2UISurface` is A2UI's entry point and
   only wraps a press in A2UI's message. Keep format code out of the tree view. A behaviour change starts in core; then vendor its catalogs and conformance cases into
   `Tests/OuroA2UITests/Conformance` and pin each in `core-provenance.json`'s `tree` (`from` is its path in core).
 - Every case must match core's `expect` byte for byte (`A2UIJSON` keeps key order and writes numbers as JavaScript

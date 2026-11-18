@@ -134,6 +134,11 @@ public struct OuroTextField: View {
     let hideLabel: Bool
     let clearable: Bool
     let onSubmit: (() -> Void)?
+    /// Grows over several lines, for a longer answer. Only an agent-composed `TextField` with `multiline` sets it, so
+    /// it isn't public: web draws that with its `TextArea`, which Ouro HX for Apple doesn't have yet.
+    var multiline = false
+    /// Offers the number keyboard, for an agent-composed `TextField` whose `type` is `number`.
+    var number = false
     @State private var revealed = false
     @FocusState private var focused: Bool
     @Environment(\.ouroTheme) private var theme
@@ -261,6 +266,10 @@ public struct OuroTextField: View {
         Group {
             if type == .password && !revealed {
                 SecureField(label, text: $text, prompt: prompt)
+            } else if multiline {
+                TextField(label, text: $text, prompt: prompt, axis: .vertical)
+                    .lineLimit(3...)
+                    .padding(.vertical, 10)
             } else {
                 TextField(label, text: $text, prompt: prompt)
             }
@@ -268,7 +277,7 @@ public struct OuroTextField: View {
         .textFieldStyle(.plain)
         .foregroundStyle(Color(palette.text))
         .focused($focused)
-        .literalInput(type)
+        .literalInput(type, number: number)
         .submitLabel(type == .search ? .search : .done)
         .onSubmit { onSubmit?() }
         .accessibilityLabel(Text(required ? "\(label), required" : label))
@@ -277,13 +286,24 @@ public struct OuroTextField: View {
     }
 }
 
+extension OuroTextField {
+    /// The field an agent-composed `TextField` draws: several lines when `multiline`, the number keyboard when
+    /// `number`. For OuroA2UI's surface only.
+    package func composedInput(multiline: Bool, number: Bool) -> OuroTextField {
+        var field = self
+        field.multiline = multiline
+        field.number = number
+        return field
+    }
+}
+
 private extension View {
     /// The type's keyboard and autofill, and no capitalisation or autocorrection for what must be typed exactly.
-    @ViewBuilder func literalInput(_ type: OuroTextFieldType) -> some View {
+    @ViewBuilder func literalInput(_ type: OuroTextFieldType, number: Bool) -> some View {
         let literal = OuroTextFieldMetrics.isLiteral(type)
         #if os(iOS) || os(visionOS)
         self
-            .keyboardType(OuroTextFieldMetrics.keyboard(type))
+            .keyboardType(number ? .decimalPad : OuroTextFieldMetrics.keyboard(type))
             .textContentType(OuroTextFieldMetrics.contentType(type).map(\.uiKit))
             .textInputAutocapitalization(literal ? .never : nil)
             .autocorrectionDisabled(literal)

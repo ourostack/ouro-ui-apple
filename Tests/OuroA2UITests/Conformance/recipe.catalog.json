@@ -9,7 +9,7 @@
   "metadata": {
     "extensions": {
       "bot_ouroboros_hx": {
-        "generator": "ouro-a2ui 0.20.0",
+        "generator": "ouro-a2ui 0.21.0",
         "set": "recipe",
         "actions": {
           "get_recipe": {

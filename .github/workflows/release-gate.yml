@@ -1,0 +1,44 @@
+name: Release gate
+
+# macOS jobs run only on main (never on a pull request), so a release is allowed only when CI's macOS proof on main passed
+# for the exact commit being released (scripts/release-gate.sh). A tag on a commit that is not proven is deleted, and a
+# release published on one goes back to a draft, so nothing ships on an unproven commit.
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  gate:
+    name: macOS proof on main for this commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: The commit passed CI on main
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        run: |
+          sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$TAG" --jq .sha)"
+          if sh scripts/release-gate.sh "$GITHUB_REPOSITORY" "$sha"; then exit 0; fi
+          echo "failed=true" >> "$GITHUB_OUTPUT"
+      - name: Take back the unproven release
+        if: steps.gate.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        run: |
+          if [ "${{ github.event_name }}" = release ]; then
+            gh release edit "$TAG" --draft -R "$GITHUB_REPOSITORY"
+          fi
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" || true
+          echo "::error::$TAG is not on a commit whose macOS proof on main is green; the tag was removed. Wait for main's CI, then tag again."
+          exit 1

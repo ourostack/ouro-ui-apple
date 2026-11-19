@@ -13,6 +13,14 @@ import Testing
 
     static func load(_ path: String) throws -> A2UIJSON { try A2UIJSON.parse(Data(contentsOf: root.appending(path: path))) }
 
+    /// When OURO_CASE_RESULTS names a file, each case appends `<case>\t<pass|FAIL>` there, which CI turns into a per-case table.
+    static func record(_ name: String, _ passed: Bool) {
+        guard let path = ProcessInfo.processInfo.environment["OURO_CASE_RESULTS"] else { return }
+        let line = Data("\(name)\t\(passed ? "pass" : "FAIL")\n".utf8)
+        if let h = FileHandle(forWritingAtPath: path) { defer { try? h.close() }; _ = try? h.seekToEnd(); try? h.write(contentsOf: line) }
+        else { FileManager.default.createFile(atPath: path, contents: line) }
+    }
+
     @Test func everyCaseIsHere() {
         #expect(Self.cases.count == 13)
     }
@@ -29,6 +37,8 @@ import Testing
         case .failure(let p):
             got = .object(["problems": .array(p.problems.map(\.json))])
         }
+        let passed = got.serialized == c["expect"]!.serialized && name.hasPrefix("invalid-") == (got["problems"] != nil)
+        Self.record(name, passed)
         #expect(got.serialized == c["expect"]!.serialized, "\(name)")
         #expect(name.hasPrefix("invalid-") == (got["problems"] != nil))
     }

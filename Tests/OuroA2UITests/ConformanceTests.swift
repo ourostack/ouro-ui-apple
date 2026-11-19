@@ -16,9 +16,11 @@ import Testing
     /// When OURO_CASE_RESULTS names a file, each case appends `<case>\t<pass|FAIL>` there, which CI turns into a per-case table.
     static func record(_ name: String, _ passed: Bool) {
         guard let path = ProcessInfo.processInfo.environment["OURO_CASE_RESULTS"] else { return }
-        let line = Data("\(name)\t\(passed ? "pass" : "FAIL")\n".utf8)
-        if let h = FileHandle(forWritingAtPath: path) { defer { try? h.close() }; _ = try? h.seekToEnd(); try? h.write(contentsOf: line) }
-        else { FileManager.default.createFile(atPath: path, contents: line) }
+        let line = "\(name)\t\(passed ? "pass" : "FAIL")\n"
+        let fd = open(path, O_WRONLY | O_APPEND | O_CREAT, 0o644)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
+        _ = line.withCString { write(fd, $0, strlen($0)) }
     }
 
     @Test func everyCaseIsHere() {

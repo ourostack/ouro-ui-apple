@@ -25,7 +25,7 @@ Releases are tags `vX.Y.Z` on `main`, published as GitHub releases.
    gh workflow run ios27-claims.yml -f ref=<commit>
    gh run download <run id> -n ios27-claims -D .build   # .build/ios27-claims.txt, attached in step 3
    ```
-   macOS jobs run only on `main`, never on a pull request, so the `Release gate` workflow (`scripts/release-gate.sh`) requires CI's push run on `main` to have passed for the exact tagged commit. A tag on an unproven commit is deleted, and a release published on one goes back to a draft. A red `main` is reverted by `auto-revert.yml` (ourostack/.github).
+   macOS jobs run only on `main`, never on a pull request, so the `Release gate` workflow (`scripts/release-gate.sh`) requires CI's push run on `main` to have passed for the exact tagged commit. A tag on an unproven commit is deleted, and a release published on one goes back to a draft. A red `main` is reverted by ourostack/.github's central auto-revert.
 3. Check the next free tag (`git ls-remote --tags origin`), then tag and publish:
 
    ```sh

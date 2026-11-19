@@ -113,6 +113,8 @@ jobs:
           test "$status" -eq 3
       - name: Shards find their build, including after "re-run failed jobs"
         run: sh scripts/test-ci-wait-for-build.sh
+      - name: The release gate reads main's macOS proof
+        run: sh scripts/test-release-gate.sh
       - name: UI shards retry the machine's failures, never the app's
         run: sh scripts/test-ci-ui-infra.sh
 

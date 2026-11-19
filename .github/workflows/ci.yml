@@ -236,7 +236,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           { echo "### Core's conformance cases, per case"; echo; echo "| Case | Result |"; echo "| --- | --- |"
-            sort "$RUNNER_TEMP/cases.tsv" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'; } >> "$GITHUB_STEP_SUMMARY"
+            sort "$RUNNER_TEMP/cases.tsv" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'; } | tee -a "$GITHUB_STEP_SUMMARY"
       # A missing or changed component snapshot fails the job (in the last step, so the builds and DocC below still
       # run); its render goes up as an artifact to record from.
       - name: Component snapshots (references in Tests/OuroHXTests/__Snapshots__/macOS-<major>)

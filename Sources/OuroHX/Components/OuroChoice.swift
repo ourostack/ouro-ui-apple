@@ -320,7 +320,7 @@ private struct OuroCheckboxBox: View {
             shape.fill(filled ? Color(palette.fill) : .clear)
             shape.strokeBorder(Color(invalid ? palette.invalidEdge : filled ? palette.fill : palette.edge), lineWidth: 1)
             if indeterminate {
-                Capsule().fill(Color(palette.tick)).frame(width: side * 0.5, height: 2)
+                Capsule(style: .continuous).fill(Color(palette.tick)).frame(width: side * 0.5, height: 2)
             } else {
                 OuroTick()
                     .trim(from: 0, to: isOn || reduceMotion ? 1 : 0)

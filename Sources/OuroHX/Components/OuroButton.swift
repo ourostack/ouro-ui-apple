@@ -434,10 +434,11 @@ extension EnvironmentValues {
     @Entry public var ouroButtonFillsWidth = false
 }
 
-/// A capsule at the height it is drawn: ends of ``OuroButtonMetrics/pillRadius(height:)``.
+/// A capsule at the height it is drawn: ends of ``OuroButtonMetrics/pillRadius(height:)``, drawn as a squircle
+/// (`.continuous`) like every Ouro corner.
 struct PillShape: Shape {
     func path(in rect: CGRect) -> Path {
-        RoundedRectangle(cornerRadius: OuroButtonMetrics.pillRadius(height: rect.height), style: .circular).path(in: rect)
+        RoundedRectangle(cornerRadius: OuroButtonMetrics.pillRadius(height: rect.height), style: .continuous).path(in: rect)
     }
 }
 

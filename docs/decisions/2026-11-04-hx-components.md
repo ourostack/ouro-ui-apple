@@ -74,8 +74,9 @@ Status: accepted (W8 of the HX and AX native program).
       bounce), `pressOut` (0.35 s, 0.15), `enter` (0.55 s, 0.25), `exit` (0.35 s, none), `settle` and `layout`. Core's
       durations still set the Reduce Motion crossfade.
     - **Capsule buttons**, 34/50/56 points drawn, every one at least 44 points to touch, semibold body type: the
-      shape of iOS 26's own buttons. The ends are circular, not continuous (a continuous corner at half the height
-      reads slightly square), and a capsule at every text size: the radius is half the height drawn, up to 44 points,
+      shape of iOS 26's own buttons. The ends are continuous, a squircle like every other Ouro corner. (This record
+      first chose circular ends, because a continuous corner at half the height reads slightly square. Ari overruled
+      that on 2026-11-20: "ABSOLUTELY NO ROUNDED CORNERS / squircle ONLY … absolutely NO regressions".) It is a capsule at every text size: the radius is half the height drawn, up to 44 points,
       so a two-line label at the accessibility sizes is a rounded rectangle, not an oval. The icon is a step smaller
       than the words; soft fills are 14% of the tone in light and 26% in dark; outlines are the tone at 40%, not the
       neutral border, so an outline row reads as its tones. Press is scale only, on touch-down; no haptic on a plain

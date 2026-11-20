@@ -94,8 +94,8 @@ private struct NameField: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(minHeight: target)
-            .background(colors.card, in: .rect(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(colors.border))
+            .background(colors.card, in: .rect(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(colors.border))
             .accessibilityIdentifier("sheet.name")
             .focused($focused)
             .onAppear { focused = true }
@@ -114,8 +114,8 @@ private struct NotesField: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(minHeight: target)
-            .background(colors.card, in: .rect(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(colors.border))
+            .background(colors.card, in: .rect(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(colors.border))
             .accessibilityIdentifier("sheet.notes")
     }
 }

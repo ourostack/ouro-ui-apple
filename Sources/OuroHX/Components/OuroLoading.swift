@@ -172,7 +172,7 @@ public struct OuroSkeleton: View {
         return VStack(alignment: .leading, spacing: 0) {
             ForEach(0..<lines, id: \.self) { i in
                 GeometryReader { g in
-                    Capsule(style: .continuous).fill(fill)
+                    Capsule().fill(fill)
                         .frame(width: g.size.width * (lines > 1 && i == lines - 1 ? OuroLoadingMetrics.lastLineFraction : 1), height: height * 0.6)
                         .frame(maxHeight: .infinity)
                 }
@@ -188,8 +188,8 @@ public struct OuroSkeleton: View {
             RoundedRectangle(cornerRadius: theme.radius(.md), style: .continuous).fill(fill)
                 .frame(width: OuroItemMetrics.mediaSide(.sm), height: OuroItemMetrics.mediaSide(.sm))
             VStack(alignment: .leading, spacing: 8) {
-                Capsule(style: .continuous).fill(fill).frame(height: 12).frame(maxWidth: .infinity)
-                Capsule(style: .continuous).fill(fill).frame(height: 10).frame(maxWidth: 160)
+                Capsule().fill(fill).frame(height: 12).frame(maxWidth: .infinity)
+                Capsule().fill(fill).frame(height: 10).frame(maxWidth: 160)
             }
         }
         .padding(.vertical, OuroItemMetrics.verticalPadding(.md))
@@ -197,9 +197,9 @@ public struct OuroSkeleton: View {
 
     private func card(_ fill: Color) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Capsule(style: .continuous).fill(fill).frame(width: 160, height: 14)
-            Capsule(style: .continuous).fill(fill).frame(height: 10)
-            Capsule(style: .continuous).fill(fill).frame(height: 10).frame(maxWidth: 220)
+            Capsule().fill(fill).frame(width: 160, height: 14)
+            Capsule().fill(fill).frame(height: 10)
+            Capsule().fill(fill).frame(height: 10).frame(maxWidth: 220)
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -316,20 +316,20 @@ public struct OuroProgress: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule(style: .continuous).fill(Color(palette.track))
+                    Capsule().fill(Color(palette.track))
                     if let fraction {
-                        Capsule(style: .continuous).fill(Color(palette.fill(tone, style: style)))
+                        Capsule().fill(Color(palette.fill(tone, style: style)))
                             .frame(width: geo.size.width * fraction)
                             .animation(OuroMotion.animation(.base, reduceMotion: reduceMotion), value: fraction)
                     } else if reduceMotion {
-                        Capsule(style: .continuous).fill(Color(palette.fill(tone, style: style))).opacity(0.35)
+                        Capsule().fill(Color(palette.fill(tone, style: style))).opacity(0.35)
                     } else {
-                        Capsule(style: .continuous).fill(Color(palette.fill(tone, style: style)))
+                        Capsule().fill(Color(palette.fill(tone, style: style)))
                             .frame(width: geo.size.width * 0.35)
                             .offset(x: (geo.size.width * 1.35) * phase - geo.size.width * 0.35)
                     }
                 }
-                .clipShape(Capsule(style: .continuous))
+                .clipShape(Capsule())
             }
             .frame(height: OuroLoadingMetrics.barHeight)
         }

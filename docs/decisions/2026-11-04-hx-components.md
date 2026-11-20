@@ -454,7 +454,10 @@ The first two controls that hold a value, ninth and tenth in the 1.0 order.
   dash is web's `M4 8h8` with round caps, and both strokes are web's 2 on the 16-point grid, so 2.5 points on the
   20-point box. Only the box presses in, as on web: the row's button style passes the press to it. Under a pointer
   the empty box's edge is the foreground. With keyboard focus it shows web's 2-point ring, 2 points out, in place of
-  the system's. In dark mode an empty box takes the input colour at 30%. The press keeps OuroHX's native press
+  the system's. Native leaves out web's dark-mode tint on an empty box (`dark:bg-input/30`): on Pearl's black it
+  is 1.1:1, hardly visible, and Apple's accessibility audit fails the row for it. The box is a squircle at every
+  size: native divides web's radius (clamped to half the side) by 1.528, the length a continuous corner reaches
+  along each edge, since a continuous corner at web's radius on a 20-point box closes into a circle. The press keeps OuroHX's native press
   springs (decision 15) instead of web's 160 ms curve, so a press released early never jumps. Native adds the
   selection haptic. ``OuroCheckboxMark`` is the box on its own, so apps with their own rows, such as Spoonjoy's
   checklists, draw the same box. CheckboxFramesTests films it on the gallery's clock, one frame every 50 ms after

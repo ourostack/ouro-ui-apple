@@ -441,6 +441,20 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroChoiceMetrics.edge(p, filled: false, invalid: true, hovering: true) == p.invalidEdge)
         #expect(OuroChoiceMetrics.focusRingWidth == 2 && OuroChoiceMetrics.focusRingOffset == 2)
     }
+
+    /// Ari's ruling: a squircle, never a circle. Web's box is a squircle whose corners reach the radius along each edge
+    /// (CSS clamps it to half the side); a continuous corner reaches 1.528 times its radius, so the box's radius is
+    /// web's divided by that, well short of half the side, which would close it into a circle.
+    @Test func theBoxIsASquircleNotACircle() {
+        for theme in OuroThemeName.allCases.map(OuroTokens.theme) {
+            for side in [OuroChoiceMetrics.boxSide(.touch), OuroChoiceMetrics.boxSide(.pointer)] {
+                let r = OuroChoiceMetrics.boxRadius(themeRadius: theme.radius(.sm), side: side)
+                #expect(r * OuroChoiceMetrics.continuousCornerReach <= side / 2 + 0.001, "\(theme.name) \(side)")
+                #expect(r < side / 2 * 0.7, "\(theme.name) \(side): a radius this close to half the side draws a circle")
+            }
+        }
+        #expect(abs(OuroChoiceMetrics.boxRadius(themeRadius: 10.8, side: 20) - 10 / 1.528) < 0.001)
+    }
 }
 
 @Suite struct LoadingMetricsTests {
@@ -867,13 +881,6 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             #expect(ratio(c.fill, c.surface) >= 2.99, "\(name) checked box")
             #expect(ratio(c.hoverEdge, c.surface) >= 2.99, "\(name) hovered box edge")
             #expect(ratio(c.ring, c.surface) >= 2.99, "\(name) focus ring")
-            // Web's `dark:bg-input/30`: an empty box is tinted in dark mode only.
-            if style.scheme == .dark {
-                let input = OuroColor.resolve(style.colors.input)
-                #expect(c.emptyFill.map { abs(Double($0.opacity) - Double(input.opacity) * 0.3) < 0.001 } == true, "\(name) dark empty box")
-            } else {
-                #expect(c.emptyFill == nil, "\(name) light empty box")
-            }
         }
     }
 

@@ -18,6 +18,16 @@ public enum OuroChoiceMetrics {
 
     /// The box's side: web's 20 points to touch, 16 with a pointer.
     public static func boxSide(_ input: OuroInput) -> CGFloat { input == .touch ? 20 : 16 }
+
+    /// How far along each edge an iOS continuous corner reaches, in multiples of its radius.
+    public static let continuousCornerReach: CGFloat = 1.528
+    /// The box's continuous corner radius: web's check radius (the theme's `sm`), clamped to half the side as CSS
+    /// clamps it, then sized so the continuous corner reaches as far along each edge as web's `corner-shape: squircle`
+    /// does (exactly the radius). At the theme's radius itself a continuous corner on a 20-point box closes into a
+    /// circle; web's box is a squircle.
+    public static func boxRadius(themeRadius: CGFloat, side: CGFloat) -> CGFloat {
+        min(themeRadius, side / 2) / continuousCornerReach
+    }
     /// A checkbox row is at least 44 points tall to touch, the box's whole row its target.
     public static func rowMinHeight(_ input: OuroInput) -> CGFloat { input == .touch ? 44 : 24 }
     /// Web's `gap-3` between the box and its words.
@@ -103,8 +113,6 @@ public enum OuroChoiceMetrics {
     /// Web's focus ring: 2 points wide, 2 points out from the box (`outline-2 outline-offset-2`).
     public static let focusRingWidth: CGFloat = 2
     public static let focusRingOffset: CGFloat = 2
-    /// An empty box in dark mode takes the input colour at 30% (web's `dark:bg-input/30`); in light mode it is clear.
-    public static let darkEmptyFillOpacity = 0.3
 }
 
 // MARK: Segmented control
@@ -272,8 +280,6 @@ public struct OuroCheckboxPalette: Sendable {
     public var hoverEdge: Color.Resolved
     /// The keyboard focus ring.
     public var ring: Color.Resolved
-    /// The empty box's fill: the input colour at 30% in dark mode, none in light.
-    public var emptyFill: Color.Resolved?
 
     public init(style: OuroHXStyle) {
         let c = style.colors
@@ -285,18 +291,11 @@ public struct OuroCheckboxPalette: Sendable {
         error = OuroInk.readable(OuroInk.r(c.destructive), on: page, style)
         edge = OuroColor.push(OuroInk.r(c.mutedForeground), against: page, to: line)
         invalidEdge = OuroColor.push(OuroInk.r(c.destructive), against: page, to: line)
+        hoverEdge = OuroColor.push(OuroInk.r(c.foreground), against: page, to: line)
         fill = OuroColor.push(OuroInk.r(c.primary), against: page, to: line)
         // The tick is a graphic, so WCAG 1.4.11's 3:1 on the fill, not text's 4.5.
         tick = OuroColor.push(OuroInk.r(c.primaryForeground), against: fill, to: line)
-        hoverEdge = OuroColor.push(OuroInk.r(c.foreground), against: page, to: line)
         ring = OuroColor.push(OuroInk.r(c.ring), against: page, to: line)
-        if style.scheme == .dark {
-            var input = OuroInk.r(c.input)
-            input.opacity *= Float(OuroChoiceMetrics.darkEmptyFillOpacity)
-            emptyFill = input
-        } else {
-            emptyFill = nil
-        }
     }
 }
 
@@ -418,14 +417,14 @@ public struct OuroCheckboxMark: View {
         let palette = OuroCheckboxPalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         let side = OuroChoiceMetrics.boxSide(.current)
         let filled = isOn || indeterminate
-        let radius = theme.radius(.sm)
+        let radius = OuroChoiceMetrics.boxRadius(themeRadius: theme.radius(.sm), side: side)
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         let edge = OuroChoiceMetrics.edge(palette, filled: filled, invalid: invalid, hovering: hovering && isEnabled)
         let tick = OuroChoiceMetrics.tick(isOn: isOn, reduceMotion: reduceMotion)
         let stroke = StrokeStyle(lineWidth: OuroChoiceMetrics.strokeWidth(side: side), lineCap: .round, lineJoin: .round)
         let ring = OuroChoiceMetrics.focusRingOffset + OuroChoiceMetrics.focusRingWidth / 2
         ZStack {
-            shape.fill(filled ? Color(palette.fill) : palette.emptyFill.map { Color($0) } ?? .clear)
+            shape.fill(filled ? Color(palette.fill) : .clear)
             shape.strokeBorder(Color(edge), lineWidth: 1)
             switch OuroChoiceMetrics.glyph(indeterminate: indeterminate) {
             case .dash:

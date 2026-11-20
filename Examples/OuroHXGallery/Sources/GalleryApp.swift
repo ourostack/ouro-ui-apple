@@ -171,9 +171,9 @@ private struct ColorGrid: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6) {
             ForEach(Tokens.all(colors), id: \.name) { token in
                 VStack(spacing: 2) {
-                    RoundedRectangle(cornerRadius: theme.radius(.sm), style: .continuous)
+                    RoundedRectangle(cornerRadius: theme.radius(.sm))
                         .fill(token.color)
-                        .overlay(RoundedRectangle(cornerRadius: theme.radius(.sm), style: .continuous).strokeBorder(colors.border, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: theme.radius(.sm)).strokeBorder(colors.border, lineWidth: 1))
                         .frame(height: 30)
                     Text(token.name)
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
@@ -204,13 +204,13 @@ private struct PairList: View {
                 .foregroundStyle(pair.text)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(pair.surface, in: .rect(cornerRadius: theme.radius(.md), style: .continuous))
+                .background(pair.surface, in: .rect(cornerRadius: theme.radius(.md)))
             }
             Text("Radii").font(.headline).padding(.top, 8)
             HStack(alignment: .bottom, spacing: 8) {
                 ForEach(OuroRadius.allCases, id: \.self) { step in
                     VStack(spacing: 3) {
-                        UnevenRoundedRectangle(topLeadingRadius: theme.radius(step), style: .continuous)
+                        UnevenRoundedRectangle(topLeadingRadius: theme.radius(step))
                             .fill(colors.primary)
                             .frame(width: 38, height: 38)
                         Text(step.rawValue).font(.caption2.monospaced()).foregroundStyle(colors.mutedForeground)
@@ -238,7 +238,7 @@ private struct FeelPage: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .foregroundStyle(colors.primaryForeground)
-                    .background(colors.primary, in: .rect(cornerRadius: theme.radius(.lg), style: .continuous))
+                    .background(colors.primary, in: .rect(cornerRadius: theme.radius(.lg)))
             }
             .buttonStyle(.ouroPress)
             .ouroHaptic(.turned, trigger: lit)

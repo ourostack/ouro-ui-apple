@@ -81,7 +81,7 @@ struct RecipeFeed: View {
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(colors.primaryForeground)
                         .frame(width: 48, height: 48)
-                        .background(colors.primary.gradient, in: .rect(cornerRadius: 12, style: .continuous))
+                        .background(colors.primary.gradient, in: .rect(cornerRadius: 12))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(recipe.name).font(.body.weight(.semibold))

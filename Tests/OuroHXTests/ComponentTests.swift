@@ -387,6 +387,60 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroChoiceMetrics.stacksSegments(at: .accessibility1))
         #expect(!OuroChoiceMetrics.stacksSegments(at: .large))
     }
+
+    /// Web's tick motion, from core's tokens: checking fills the box over `fast`, then draws the tick over `draw`, ease
+    /// out; unchecking takes it back over `fast` at once. The fill and edge cross-fade over `fast` on CSS `ease`.
+    @Test func theTickDrawsOnceTheBoxHasFilledAndRetractsAtOnce() {
+        let out = OuroTokens.Ease.out
+        let check = OuroChoiceMetrics.tickMotion(checking: true, reduceMotion: false)
+        #expect(check == OuroChoiceMetrics.TickMotion(ease: out, duration: OuroTokens.Duration.draw, delay: OuroTokens.Duration.fast, draws: true))
+        #expect(check.duration == 0.24 && check.delay == 0.15)
+        let uncheck = OuroChoiceMetrics.tickMotion(checking: false, reduceMotion: false)
+        #expect(uncheck == OuroChoiceMetrics.TickMotion(ease: out, duration: OuroTokens.Duration.fast, delay: 0, draws: true))
+        #expect(out == OuroCubicBezier(x1: 0.23, y1: 1, x2: 0.32, y2: 1))
+        #expect(OuroChoiceMetrics.boxFade == OuroMotion.Step.curve(OuroCubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1), duration: 0.15))
+        // At rest the tick is all there when checked and none of it when not, at full opacity: it draws, never fades.
+        #expect(OuroChoiceMetrics.tick(isOn: true, reduceMotion: false).trim == 1 && OuroChoiceMetrics.tick(isOn: true, reduceMotion: false).opacity == 1)
+        #expect(OuroChoiceMetrics.tick(isOn: false, reduceMotion: false).trim == 0 && OuroChoiceMetrics.tick(isOn: false, reduceMotion: false).opacity == 1)
+    }
+
+    /// Core claim `motion.reduced`: under Reduce Motion nothing draws. The whole tick fades in and out over `fast`, ease
+    /// out, with no delay; the fill still cross-fades, since a colour change does not move.
+    @Test func underReduceMotionTheWholeTickFades() {
+        for checking in [true, false] {
+            let motion = OuroChoiceMetrics.tickMotion(checking: checking, reduceMotion: true)
+            #expect(motion == OuroChoiceMetrics.TickMotion(ease: OuroTokens.Ease.out, duration: OuroTokens.Duration.fast, delay: 0, draws: false))
+        }
+        #expect(OuroChoiceMetrics.tick(isOn: true, reduceMotion: true).trim == 1 && OuroChoiceMetrics.tick(isOn: true, reduceMotion: true).opacity == 1)
+        #expect(OuroChoiceMetrics.tick(isOn: false, reduceMotion: true).trim == 1 && OuroChoiceMetrics.tick(isOn: false, reduceMotion: true).opacity == 0)
+        #expect(OuroMotion.pressScale(isPressed: true, reduceMotion: true) == 1)
+    }
+
+    /// The mixed state: a dash, web's `M4 8h8` with the tick's round caps and stroke, in place of the tick; the box fills
+    /// as when checked, and VoiceOver hears mixed.
+    @Test func aMixedBoxShowsTheDash() {
+        #expect(OuroChoiceMetrics.glyph(indeterminate: true) == .dash)
+        #expect(OuroChoiceMetrics.glyph(indeterminate: false) == .tick)
+        #expect(OuroChoiceMetrics.dash == [CGPoint(x: 4, y: 8), CGPoint(x: 12, y: 8)])
+        #expect(OuroChoiceMetrics.tick == [CGPoint(x: 3.5, y: 8.5), CGPoint(x: 6.5, y: 11.5), CGPoint(x: 12.5, y: 4.5)])
+        // Web's stroke is 2 on the 16-point grid, so it grows with the 20-point box to touch.
+        #expect(OuroChoiceMetrics.strokeWidth(side: OuroChoiceMetrics.boxSide(.touch)) == 2.5)
+        #expect(OuroChoiceMetrics.strokeWidth(side: OuroChoiceMetrics.boxSide(.pointer)) == 2)
+        #expect(OuroChoiceMetrics.checkboxValue(isOn: false, indeterminate: true) == "Mixed")
+        let palette = OuroCheckboxPalette(style: OuroHXStyle(theme: OuroTokens.theme(.pearl), scheme: .light, contrast: .standard))
+        #expect(OuroChoiceMetrics.edge(palette, filled: true, invalid: false, hovering: false) == palette.fill)
+    }
+
+    /// The edge: destructive when invalid (even hovered), the fill when checked or mixed, the foreground under a
+    /// pointer while empty, else the muted edge. The focus ring is 2 points, 2 out.
+    @Test func theEdgeFollowsWebsStates() {
+        let p = OuroCheckboxPalette(style: OuroHXStyle(theme: OuroTokens.theme(.pearl), scheme: .light, contrast: .standard))
+        #expect(OuroChoiceMetrics.edge(p, filled: false, invalid: false, hovering: false) == p.edge)
+        #expect(OuroChoiceMetrics.edge(p, filled: false, invalid: false, hovering: true) == p.hoverEdge)
+        #expect(OuroChoiceMetrics.edge(p, filled: true, invalid: false, hovering: true) == p.fill)
+        #expect(OuroChoiceMetrics.edge(p, filled: false, invalid: true, hovering: true) == p.invalidEdge)
+        #expect(OuroChoiceMetrics.focusRingWidth == 2 && OuroChoiceMetrics.focusRingOffset == 2)
+    }
 }
 
 @Suite struct LoadingMetricsTests {
@@ -811,6 +865,15 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
             #expect(ratio(c.tick, c.fill) >= 2.99, "\(name) tick")
             #expect(ratio(c.edge, c.surface) >= 2.99, "\(name) box edge")
             #expect(ratio(c.fill, c.surface) >= 2.99, "\(name) checked box")
+            #expect(ratio(c.hoverEdge, c.surface) >= 2.99, "\(name) hovered box edge")
+            #expect(ratio(c.ring, c.surface) >= 2.99, "\(name) focus ring")
+            // Web's `dark:bg-input/30`: an empty box is tinted in dark mode only.
+            if style.scheme == .dark {
+                let input = OuroColor.resolve(style.colors.input)
+                #expect(c.emptyFill.map { abs(Double($0.opacity) - Double(input.opacity) * 0.3) < 0.001 } == true, "\(name) dark empty box")
+            } else {
+                #expect(c.emptyFill == nil, "\(name) light empty box")
+            }
         }
     }
 

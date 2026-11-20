@@ -72,7 +72,8 @@ public enum OuroChoiceMetrics {
 
         /// The animation, on ``OuroMotion/clock`` when one is installed, the delay counted on that clock too.
         public var animation: Animation? {
-            OuroMotion.clocked(ease.animation(duration: duration).delay(delay), on: OuroMotion.clock)
+            let base: Animation = ease.animation(duration: duration).delay(delay)
+            return OuroMotion.clocked(base, on: OuroMotion.clock) as Animation
         }
     }
 

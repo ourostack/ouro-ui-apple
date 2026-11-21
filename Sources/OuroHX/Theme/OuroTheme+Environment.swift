@@ -23,8 +23,8 @@ extension OuroTheme {
     public func radius(_ step: OuroRadius) -> Double { radius * step.scale }
 
     /// The corner of the controls a person presses or types into: web's `rounded-ouro-control`, which is
-    /// `--ouro-control-radius` where a theme sets one and the `lg` step otherwise. No core theme sets one, so it is
-    /// the `lg` step in every theme: 18 points in Pearl, 6 in Cookbook.
+    /// `--ouro-control-radius` where a theme sets one and the `lg` step otherwise: 18 points in Pearl. No core
+    /// theme sets one yet; Cookbook's capsule comes with core's `--ouro-control-radius` for it.
     public var controlRadius: Double { radius(.lg) }
 }
 

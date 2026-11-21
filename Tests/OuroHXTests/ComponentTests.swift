@@ -60,10 +60,9 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroButtonMetrics.cornerRadius(theme: theme, height: 8) == min(theme.radius, 4))
     }
 
-    /// The two themes the press film compares with web: Pearl's 1.125rem and Cookbook's 0.375rem, in points.
-    @Test func pearlAndCookbookCornersAreCores() {
+    /// Pearl's control radius is its 1.125rem `--radius`, in points: 18, short of half a 50-point button.
+    @Test func pearlsCornerIsCores() {
         #expect(OuroTokens.pearl.controlRadius == 18)
-        #expect(OuroTokens.theme(.cookbook).controlRadius == 6)
         #expect(OuroButtonMetrics.cornerRadius(theme: OuroTokens.pearl, height: 50) == 18)
     }
 

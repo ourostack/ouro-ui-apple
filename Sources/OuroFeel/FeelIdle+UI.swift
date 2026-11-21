@@ -43,9 +43,11 @@ extension OuroFeel {
         var elements: [String: CGRect] = [:]
         if let root = try? app.snapshot() {
             func walk(_ node: any XCUIElementSnapshot) {
-                let type = node.elementType, identifier = node.identifier, label = node.label
+                // Read once, up front: `&&` and `||` take their right side as a closure, and a closure that captures
+                // the snapshot fails a Release build ("sending 'node' risks causing data races").
+                let type = node.elementType, identifier = node.identifier, label = node.label, enabled = node.isEnabled
                 let named = watch.contains(identifier) || watch.contains(label)
-                if named || (Self.controlTypes.contains(type) && node.isEnabled) {
+                if named || (Self.controlTypes.contains(type) && enabled) {
                     var key = named && !watch.contains(identifier) ? label : Self.key(node)
                     // Two controls with one name (two "Close" buttons) are told apart by order.
                     if elements[key] != nil {

@@ -43,7 +43,7 @@ struct SettingsScreen: View {
 
 | Web | Apple | What it is |
 |---|---|---|
-| `Button` | ``OuroButton``, ``OuroButtonStyle`` (`.buttonStyle(.ouro())`) | Any action. Tones, variants (`solid`, `soft`, `outline`, `plain`, `glass`), sizes and a `pill` shape. `role: .destructive` draws the destructive tone. |
+| `Button` | ``OuroButton``, ``OuroButtonStyle`` (`.buttonStyle(.ouro())`) | Any action. Tones, variants (`solid`, `soft`, `outline`, `plain`, `glass`), sizes and a `pill` shape. `role: .destructive` draws the destructive tone. `.ouroAction(light:dark:)` paints solid primary buttons in the app's own main-action colours, web's `--ouro-action`. |
 | `Badge` | ``OuroBadge`` | A short label or a count beside something else. Tones and variants (`solid`, `soft`, `outline`); secondary solid by default, as on web. It is words, not a control: a chip someone presses is an ``OuroButton`` at size `.sm`. |
 | `Card` | ``OuroCard`` | A surface that groups one thing: a title (a heading for VoiceOver), a description, an action beside them, a body and a footer. `outline` (the theme's card colour with an edge) or `plain`; `md` or `sm` padding. The action goes under the title at the accessibility sizes. No media slot yet. |
 | `Item`, `ItemGroup` | ``OuroItem``, ``OuroItemGroup`` | A row: a title, a description, leading media (an icon tile or a picture at `sm`, `md` or `lg`) and trailing actions. A row with `onPress` is one button, at least 44 points tall, and its actions stay their own. At the accessibility sizes the actions go under the words and a picture above them. A group names its rows with a label (a heading) and divides them (`divided`), frames them (`outline`) or neither (`plain`). |

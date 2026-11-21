@@ -79,8 +79,20 @@ public struct OuroButtonPalette: Sendable {
 
     /// `isEnabled: false` gives the disabled look, the same for every tone and variant: a muted fill with an outline
     /// and a label still reading at the target, rather than web's half opacity, which Xcode's audit fails.
-    public init(tone: OuroTone, variant: OuroButtonVariant, style: OuroHXStyle, isEnabled: Bool = true) {
+    /// `action` is the app's main-action colours (``OuroAction``, web's `--ouro-action`): only a solid primary
+    /// button, the page's main action, takes them.
+    public init(tone: OuroTone, variant: OuroButtonVariant, style: OuroHXStyle, isEnabled: Bool = true, action: OuroAction? = nil) {
         let c = style.colors
+        let action = tone == .primary && variant == .solid ? action : nil
+        if !isEnabled, let action, let disabled = action.disabledFill {
+            // Web's `--ouro-action-disabled` and its foreground: the app's own disabled main action.
+            let base = OuroInk.r(disabled)
+            fill = base
+            surface = base
+            border = nil
+            label = OuroInk.readable(OuroInk.r(action.disabledForeground ?? action.foreground), on: base, style)
+            return
+        }
         guard isEnabled else {
             // Every variant looks the same disabled: a muted chip with an outline and a label that still reads. Some
             // themes' tones are close to their muted grey, so the outline and fill, not the colour alone, say it.
@@ -92,7 +104,7 @@ public struct OuroButtonPalette: Sendable {
             return
         }
         let background = OuroInk.r(c.background)
-        let (toneFill, toneLabel) = tone.fill(c)
+        let (toneFill, toneLabel) = action.map { ($0.fill, $0.foreground) } ?? tone.fill(c)
         let fill = OuroInk.r(toneFill)
         // Secondary's own colour is a pale fill, so as text it reads as the page's foreground.
         let toneText = tone == .secondary ? OuroInk.r(c.foreground) : fill
@@ -222,9 +234,10 @@ public struct OuroButtonStyle: ButtonStyle {
         private var isEnabled: Bool { environmentEnabled || loading }
         @Environment(\.ouroButtonFillsWidth) private var fillsWidth
         @Environment(\.ouroButtonOwnsLabel) private var ownsLabel
+        @Environment(\.ouroAction) private var action
 
         var body: some View {
-            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled)
+            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled, action: action?.colors(for: scheme))
             let pressed = configuration.isPressed
             let visual = style.size.visualHeight(on: .current, target: touchTarget)
             let pressable = style.size.minimumHeight(on: .current, target: touchTarget)
@@ -294,6 +307,50 @@ public struct OuroButtonStyle: ButtonStyle {
                 content.background(.regularMaterial, in: shape)
             }
         }
+    }
+}
+
+/// An app's main-action colours, web's `--ouro-action`, `--ouro-action-foreground`, `--ouro-action-disabled` and
+/// `--ouro-action-disabled-foreground`. A solid primary button, the page's main action, paints these instead of the
+/// theme's primary; every other button keeps the theme's tones. The label is still raised until it reads on the fill.
+public struct OuroAction: Sendable, Equatable {
+    public var fill: Color
+    public var foreground: Color
+    /// The disabled main action's fill; nil keeps the muted chip every disabled button shows.
+    public var disabledFill: Color?
+    public var disabledForeground: Color?
+
+    public init(fill: Color, foreground: Color, disabledFill: Color? = nil, disabledForeground: Color? = nil) {
+        self.fill = fill
+        self.foreground = foreground
+        self.disabledFill = disabledFill
+        self.disabledForeground = disabledForeground
+    }
+}
+
+/// ``OuroAction`` for each colour scheme, as a theme sets `--ouro-action` in light and dark.
+public struct OuroActionColors: Sendable, Equatable {
+    public var light: OuroAction
+    public var dark: OuroAction
+
+    public init(light: OuroAction, dark: OuroAction) {
+        self.light = light
+        self.dark = dark
+    }
+
+    public func colors(for scheme: ColorScheme) -> OuroAction { scheme == .dark ? dark : light }
+}
+
+extension EnvironmentValues {
+    /// The app's main-action colours; see ``View/ouroAction(light:dark:)``.
+    @Entry public var ouroAction: OuroActionColors? = nil
+}
+
+extension View {
+    /// Paints every solid primary ``OuroButton`` inside in the app's own main-action colours, as a web theme sets
+    /// `--ouro-action`: `.ouroAction(light: OuroAction(fill: charcoal, foreground: bone), dark: …)`.
+    public func ouroAction(light: OuroAction, dark: OuroAction) -> some View {
+        environment(\.ouroAction, OuroActionColors(light: light, dark: dark))
     }
 }
 

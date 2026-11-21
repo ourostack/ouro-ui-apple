@@ -582,6 +582,38 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         }
     }
 
+    /// An app's main action (web's `--ouro-action`): a solid primary button paints it, its label still reads, and
+    /// every other button keeps the theme's tones. Spoonjoy's charcoal and bone are the example.
+    @Test func aSolidPrimaryButtonTakesTheAppsMainAction() {
+        let charcoal = Color(.sRGB, red: 0.157, green: 0.137, blue: 0.114) // #28231d
+        let bone = Color(.sRGB, red: 0.984, green: 0.98, blue: 0.957) // #fbfaf4
+        // Spoonjoy web's --sj-action-disabled: bone on it reads at 10:1, past the 7:1 increased-contrast bar.
+        let grey = Color(.sRGB, red: 0.275, green: 0.239, blue: 0.2) // #463d33
+        let action = OuroAction(fill: charcoal, foreground: bone, disabledFill: grey, disabledForeground: bone)
+        for (name, style) in styles {
+            let main = OuroButtonPalette(tone: .primary, variant: .solid, style: style, action: action)
+            #expect(main.fill.map { distance($0, OuroColor.resolve(charcoal)) < 0.05 } == true, "\(name): the fill is the action")
+            #expect(ratio(main.label, main.surface) >= target(style), "\(name) main action label")
+            let disabled = OuroButtonPalette(tone: .primary, variant: .solid, style: style, isEnabled: false, action: action)
+            #expect(disabled.fill.map { distance($0, OuroColor.resolve(grey)) < 0.001 } == true, "\(name): the disabled fill is the app's")
+            #expect(ratio(disabled.label, disabled.surface) >= target(style), "\(name) disabled main action label")
+            for variant in OuroButtonVariant.allCases where variant != .solid {
+                #expect(OuroButtonPalette(tone: .primary, variant: variant, style: style, action: action).label
+                        == OuroButtonPalette(tone: .primary, variant: variant, style: style).label, "\(name) \(variant) keeps the theme")
+            }
+            for tone in OuroTone.allCases where tone != .primary {
+                #expect(OuroButtonPalette(tone: tone, variant: .solid, style: style, action: action).fill
+                        == OuroButtonPalette(tone: tone, variant: .solid, style: style).fill, "\(name) \(tone) keeps the theme")
+            }
+        }
+        // Without its own disabled colours, the main action greys out like any button.
+        let plain = OuroAction(fill: charcoal, foreground: bone)
+        let style = OuroHXStyle(theme: OuroTokens.theme(.cookbook), scheme: .light)
+        #expect(OuroButtonPalette(tone: .primary, variant: .solid, style: style, isEnabled: false, action: plain).fill
+                == OuroButtonPalette(tone: .primary, variant: .solid, style: style, isEnabled: false).fill)
+        #expect(OuroActionColors(light: action, dark: plain).colors(for: .dark) == plain)
+    }
+
     @Test func bannerTextAndIconReadInEveryThemeAndMode() {
         for (name, style) in styles {
             for tone in OuroTone.allCases {

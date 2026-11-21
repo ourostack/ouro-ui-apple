@@ -18,6 +18,16 @@ public enum OuroChoiceMetrics {
 
     /// The box's side: web's 20 points to touch, 16 with a pointer.
     public static func boxSide(_ input: OuroInput) -> CGFloat { input == .touch ? 20 : 16 }
+
+    /// How far along each edge an iOS continuous corner reaches, in multiples of its radius.
+    public static let continuousCornerReach: CGFloat = 1.528
+    /// The box's continuous corner radius: web's check radius (the theme's `sm`), clamped to half the side as CSS
+    /// clamps it, then sized so the continuous corner reaches as far along each edge as web's `corner-shape: squircle`
+    /// does (exactly the radius). At the theme's radius itself a continuous corner on a 20-point box closes into a
+    /// circle; web's box is a squircle.
+    public static func boxRadius(themeRadius: CGFloat, side: CGFloat) -> CGFloat {
+        min(themeRadius, side / 2) / continuousCornerReach
+    }
     /// A checkbox row is at least 44 points tall to touch, the box's whole row its target.
     public static func rowMinHeight(_ input: OuroInput) -> CGFloat { input == .touch ? 44 : 24 }
     /// Web's `gap-3` between the box and its words.
@@ -43,6 +53,66 @@ public enum OuroChoiceMetrics {
 
     /// The tick draws once the box has filled, over core's `draw` duration after `fast`; under Reduce Motion it fades.
     public static func tickDraws(reduceMotion: Bool) -> Bool { !reduceMotion }
+
+    /// The dash a mixed box shows in place of the tick: web's SVG path `M4 8h8`, on the tick's grid and with its caps.
+    public static let dash: [CGPoint] = [CGPoint(x: 4, y: 8), CGPoint(x: 12, y: 8)]
+
+    /// What the box shows: the dash when mixed, otherwise the tick (drawn or not).
+    public enum Glyph: Sendable { case tick, dash }
+    public static func glyph(indeterminate: Bool) -> Glyph { indeterminate ? .dash : .tick }
+
+    /// The tick's and the dash's stroke: web's `strokeWidth` 2 on the 16-point grid, scaled with the box, so 2.5 points
+    /// on the 20-point box to touch and 2 on the 16-point one.
+    public static func strokeWidth(side: CGFloat) -> CGFloat { 2 * side / 16 }
+
+    /// CSS's `ease`, which web cross-fades the box's fill, edge and colour on.
+    public static let cssEase = OuroCubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1)
+    /// The fill, the edge and the hover edge cross-fade over core's `fast` duration on CSS `ease`, as web's box does.
+    /// Reduce Motion keeps it: a colour change does not move.
+    public static let boxFade = OuroMotion.Step.curve(cssEase, duration: OuroTokens.Duration.fast)
+
+    /// How the tick moves when the box changes, as data.
+    public struct TickMotion: Equatable, Sendable {
+        public let ease: OuroCubicBezier
+        public let duration: Double
+        /// Seconds after the change before the tick moves: on checking, the time the fill takes.
+        public let delay: Double
+        /// Whether it draws along its path (`trim`), rather than fading.
+        public let draws: Bool
+
+        /// The animation, on ``OuroMotion/clock`` when one is installed, the delay counted on that clock too.
+        public var animation: Animation? {
+            let base: Animation = ease.animation(duration: duration).delay(delay)
+            return OuroMotion.clocked(base, on: OuroMotion.clock) as Animation
+        }
+    }
+
+    /// Web's tick motion. Checking draws it along its path over `draw`, ease out, once the fill has had `fast`;
+    /// unchecking takes it back over `fast`, ease out, at once. Under Reduce Motion nothing draws: the whole tick fades
+    /// in or out over `fast`, ease out.
+    public static func tickMotion(checking: Bool, reduceMotion: Bool) -> TickMotion {
+        typealias D = OuroTokens.Duration
+        let out = OuroTokens.Ease.out
+        if reduceMotion { return TickMotion(ease: out, duration: D.fast, delay: 0, draws: false) }
+        return checking ? TickMotion(ease: out, duration: D.draw, delay: D.fast, draws: true)
+            : TickMotion(ease: out, duration: D.fast, delay: 0, draws: true)
+    }
+
+    /// Where the tick rests: how much of its path shows (`trim`'s end) and its opacity. It draws in and out, or under
+    /// Reduce Motion is always whole and fades.
+    public static func tick(isOn: Bool, reduceMotion: Bool) -> (trim: CGFloat, opacity: Double) {
+        reduceMotion ? (1, isOn ? 1 : 0) : (isOn ? 1 : 0, 1)
+    }
+
+    /// The box's edge: destructive when invalid, the fill when checked or mixed, the foreground under a pointer
+    /// (web's `pointer-fine:hover:border-foreground`), else the muted edge.
+    public static func edge(_ palette: OuroCheckboxPalette, filled: Bool, invalid: Bool, hovering: Bool) -> Color.Resolved {
+        invalid ? palette.invalidEdge : filled ? palette.fill : hovering ? palette.hoverEdge : palette.edge
+    }
+
+    /// Web's focus ring: 2 points wide, 2 points out from the box (`outline-2 outline-offset-2`).
+    public static let focusRingWidth: CGFloat = 2
+    public static let focusRingOffset: CGFloat = 2
 }
 
 // MARK: Segmented control
@@ -206,6 +276,10 @@ public struct OuroCheckboxPalette: Sendable {
     public var fill: Color.Resolved
     public var tick: Color.Resolved
     public var surface: Color.Resolved
+    /// The empty box's edge under a pointer: the foreground.
+    public var hoverEdge: Color.Resolved
+    /// The keyboard focus ring.
+    public var ring: Color.Resolved
 
     public init(style: OuroHXStyle) {
         let c = style.colors
@@ -217,9 +291,11 @@ public struct OuroCheckboxPalette: Sendable {
         error = OuroInk.readable(OuroInk.r(c.destructive), on: page, style)
         edge = OuroColor.push(OuroInk.r(c.mutedForeground), against: page, to: line)
         invalidEdge = OuroColor.push(OuroInk.r(c.destructive), against: page, to: line)
+        hoverEdge = OuroColor.push(OuroInk.r(c.foreground), against: page, to: line)
         fill = OuroColor.push(OuroInk.r(c.primary), against: page, to: line)
         // The tick is a graphic, so WCAG 1.4.11's 3:1 on the fill, not text's 4.5.
         tick = OuroColor.push(OuroInk.r(c.primaryForeground), against: fill, to: line)
+        ring = OuroColor.push(OuroInk.r(c.ring), against: page, to: line)
     }
 }
 
@@ -233,7 +309,8 @@ public struct OuroCheckboxPalette: Sendable {
 /// ```
 ///
 /// The whole row is its target, at least 44 points tall to touch. Checking fills the box, then draws the tick along
-/// its path (it fades under Reduce Motion), with a selection tick to feel. VoiceOver hears the label (with required),
+/// its path (it fades under Reduce Motion), with a selection tick to feel; the box presses in under the finger, takes
+/// the foreground for its edge under a pointer and shows a ring with keyboard focus (``OuroCheckboxMark``). VoiceOver hears the label (with required),
 /// the state (checked, not checked or mixed) and the error and description as its hint. `indeterminate` shows a dash
 /// and is controlled: clear it where you set `isOn`. Disable it with `.disabled(_:)`.
 public struct OuroCheckbox: View {
@@ -247,7 +324,6 @@ public struct OuroCheckbox: View {
     @Environment(\.ouroTheme) private var theme
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
 
     public init(_ label: String, isOn: Binding<Bool>, description: String? = nil, error: String? = nil, required: Bool = false, indeterminate: Bool = false, hideLabel: Bool = false) {
@@ -269,7 +345,7 @@ public struct OuroCheckbox: View {
         } label: {
             HStack(alignment: .top, spacing: OuroChoiceMetrics.boxGap) {
                 // Web's `mt-0.5`: the box sits on the label's first line.
-                OuroCheckboxBox(isOn: isOn, indeterminate: indeterminate, invalid: invalid, palette: palette)
+                OuroCheckboxMark(isOn: isOn, indeterminate: indeterminate, invalid: invalid)
                     .padding(.top, hideLabel ? 0 : 2)
                 if !hideLabel {
                     VStack(alignment: .leading, spacing: 4) {
@@ -292,8 +368,10 @@ public struct OuroCheckbox: View {
             .frame(minHeight: OuroChoiceMetrics.rowMinHeight(.current))
             .contentShape(Rectangle())
         }
-        .buttonStyle(OuroSegmentPress())
+        .buttonStyle(OuroCheckboxPressStyle())
+        .focusEffectDisabled()
         .opacity(isEnabled ? 1 : 0.5)
+        .animation(OuroChoiceMetrics.boxFade.animation, value: isEnabled)
         .ouroHaptic(.checked, trigger: isOn)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(OuroChoiceMetrics.checkboxName(label, required: required)))
@@ -303,44 +381,110 @@ public struct OuroCheckbox: View {
     }
 }
 
-/// The box: its edge, the fill when checked or mixed, and the tick or the dash.
-private struct OuroCheckboxBox: View {
+/// Ouro HX's checkbox box on its own, web's `Checkbox` box: for a row an app lays out itself, such as a checklist's.
+/// It fills, then draws its tick along its path; unchecking takes the tick back. Under Reduce Motion nothing draws and
+/// the tick fades. It presses in with the row when the row's button style is ``OuroCheckboxPressStyle`` (or the row
+/// sets `ouroCheckboxPressed`), takes the foreground for its edge under a pointer, and shows a ring when it has keyboard
+/// focus. Its colours come from the theme: the primary fill, its foreground for the tick. It is decoration to
+/// VoiceOver, so the row says its state (``OuroChoiceMetrics/checkboxValue(isOn:indeterminate:)``).
+///
+/// ```swift
+/// Button { item.checked.toggle() } label: {
+///     HStack { OuroCheckboxMark(isOn: item.checked); Text(item.name) }
+/// }
+/// .buttonStyle(OuroCheckboxPressStyle())
+/// ```
+public struct OuroCheckboxMark: View {
     let isOn: Bool
     let indeterminate: Bool
     let invalid: Bool
-    let palette: OuroCheckboxPalette
     @Environment(\.ouroTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.isFocused) private var isFocused
+    @Environment(\.ouroCheckboxPressed) private var pressed
+    @State private var hovering = false
 
-    var body: some View {
+    public init(isOn: Bool, indeterminate: Bool = false, invalid: Bool = false) {
+        self.isOn = isOn
+        self.indeterminate = indeterminate
+        self.invalid = invalid
+    }
+
+    public var body: some View {
+        let palette = OuroCheckboxPalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast))
         let side = OuroChoiceMetrics.boxSide(.current)
         let filled = isOn || indeterminate
-        let shape = RoundedRectangle(cornerRadius: theme.radius(.sm), style: .continuous)
+        let radius = OuroChoiceMetrics.boxRadius(themeRadius: theme.radius(.sm), side: side)
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let edge = OuroChoiceMetrics.edge(palette, filled: filled, invalid: invalid, hovering: hovering && isEnabled)
+        let tick = OuroChoiceMetrics.tick(isOn: isOn, reduceMotion: reduceMotion)
+        let stroke = StrokeStyle(lineWidth: OuroChoiceMetrics.strokeWidth(side: side), lineCap: .round, lineJoin: .round)
+        let ring = OuroChoiceMetrics.focusRingOffset + OuroChoiceMetrics.focusRingWidth / 2
         ZStack {
             shape.fill(filled ? Color(palette.fill) : .clear)
-            shape.strokeBorder(Color(invalid ? palette.invalidEdge : filled ? palette.fill : palette.edge), lineWidth: 1)
-            if indeterminate {
-                Capsule(style: .continuous).fill(Color(palette.tick)).frame(width: side * 0.5, height: 2)
-            } else {
-                OuroTick()
-                    .trim(from: 0, to: isOn || reduceMotion ? 1 : 0)
-                    .stroke(Color(palette.tick), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    .opacity(reduceMotion && !isOn ? 0 : 1)
-                    .animation(isOn && !reduceMotion ? OuroMotion.animation(.draw, reduceMotion: false)?.delay(OuroTokens.Duration.fast) : OuroMotion.animation(.fast, reduceMotion: reduceMotion), value: isOn)
+            shape.strokeBorder(Color(edge), lineWidth: 1)
+            switch OuroChoiceMetrics.glyph(indeterminate: indeterminate) {
+            case .dash:
+                // Web shows and hides the dash at once (`hidden`/`block`); only the fill under it fades.
+                OuroGridPath(points: OuroChoiceMetrics.dash)
+                    .stroke(Color(palette.tick), style: stroke)
+                    .transition(.identity)
+            case .tick:
+                OuroGridPath(points: OuroChoiceMetrics.tick)
+                    .trim(from: 0, to: tick.trim)
+                    .stroke(Color(palette.tick), style: stroke)
+                    .opacity(tick.opacity)
+                    .animation(OuroChoiceMetrics.tickMotion(checking: isOn, reduceMotion: reduceMotion).animation, value: isOn)
+                    .transition(.identity)
             }
         }
         .frame(width: side, height: side)
-        .animation(OuroMotion.animation(.fast, reduceMotion: reduceMotion), value: filled)
+        .animation(OuroChoiceMetrics.boxFade.animation, value: filled)
+        .animation(OuroChoiceMetrics.boxFade.animation, value: hovering)
+        // Web's focus ring: `outline-2 outline-offset-2` in the ring colour, following the box's corner.
+        .overlay {
+            if isFocused {
+                RoundedRectangle(cornerRadius: radius + ring, style: .continuous)
+                    .stroke(Color(palette.ring), lineWidth: OuroChoiceMetrics.focusRingWidth)
+                    .padding(-ring)
+            }
+        }
+        // The box presses in, not its row: web's `active:scale-(--ouro-press-scale)` on the box.
+        .scaleEffect(OuroMotion.pressScale(isPressed: pressed && isEnabled, reduceMotion: reduceMotion))
+        .animation(OuroMotion.animation(pressed ? .pressIn : .pressOut, reduceMotion: reduceMotion), value: pressed)
+        .onHover { hovering = $0 }
         .accessibilityHidden(true)
     }
 }
 
-/// Web's tick path, scaled from its 16-point grid.
-private struct OuroTick: Shape {
+extension EnvironmentValues {
+    /// Whether the row an ``OuroCheckboxMark`` sits in is pressed, so the box presses in. ``OuroCheckboxPressStyle`` sets
+    /// it; a row with its own button style can set it from its configuration.
+    @Entry public var ouroCheckboxPressed = false
+}
+
+/// A checkbox row's button style: the row itself does not move, and the ``OuroCheckboxMark`` in it presses in, as web's
+/// box does. The system's focus effect gives way to the box's own ring.
+public struct OuroCheckboxPressStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .environment(\.ouroCheckboxPressed, configuration.isPressed)
+    }
+}
+
+/// A line through points on the box's 16-point grid, as web's SVG paths, scaled to the box.
+private struct OuroGridPath: Shape {
+    let points: [CGPoint]
+
     func path(in rect: CGRect) -> Path {
         let s = min(rect.width, rect.height) / 16
         var p = Path()
-        for (i, point) in OuroChoiceMetrics.tick.enumerated() {
+        for (i, point) in points.enumerated() {
             let at = CGPoint(x: rect.minX + point.x * s, y: rect.minY + point.y * s)
             if i == 0 { p.move(to: at) } else { p.addLine(to: at) }
         }

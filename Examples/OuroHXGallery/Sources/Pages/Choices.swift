@@ -39,5 +39,11 @@ struct ChoicesPage: View {
             OuroCheckbox("I agree to the terms", isOn: $agreed, error: agreed ? nil : "Agree to the terms to continue.", required: true)
             OuroCheckbox("Archived", isOn: .constant(true)).disabled(true)
         }
+        .task {
+            // `-demo check` on the gallery's clock (`-clock 1`): arms the clock so its count shows, and CheckboxFramesTests
+            // taps a box and films it one 0.05 s tick at a time. Nothing is scheduled; the test's taps are the change.
+            guard demo == "check", let clock = GalleryClock.shared else { return }
+            clock.after(3600) {}
+        }
     }
 }

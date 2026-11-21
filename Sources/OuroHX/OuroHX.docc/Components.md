@@ -52,7 +52,7 @@ struct SettingsScreen: View {
 | `DescriptionList` | ``OuroDescriptionList`` | Pairs of a term and its details. Stacked below 448 points of its own width (`stackBelow: .md` is 512) and at the accessibility sizes; side by side above, terms in a `min(40%, 224)` column. Each pair is heard as one. |
 | `TextField` | ``OuroTextField`` | A labelled field for a line of text. Its label stays above it and names it (`hideLabel` keeps the name and hides the words); a description, an error that says what is wrong, `required`; `type` (`text`, `email`, `password`, `tel`, `url`, `search`) sets the keyboard and autofill, and `password` adds a show button; `clearable`; `outline` or `plain`; `md` (44 points) or `lg` (56). A date or time is SwiftUI's `DatePicker`. |
 | `SegmentedControl` | ``OuroSegmentedControl`` | Two to five equal segments with a thumb that slides to the pressed one, for switching how a view shows its content. 44 points to touch; stacks at the accessibility sizes; a selection haptic. |
-| `Checkbox` | ``OuroCheckbox`` | A box and what checking it means, with `description`, `error`, `required` and `indeterminate` (a dash, "Mixed"). The whole row is a 44-point target; the tick draws, or fades under Reduce Motion. |
+| `Checkbox` | ``OuroCheckbox`` | A box and what checking it means, with `description`, `error`, `required` and `indeterminate` (a dash, "Mixed"). The whole row is a 44-point target; the box fills, then the tick draws, or fades under Reduce Motion. ``OuroCheckboxMark`` is the box alone, for a row an app lays out itself. |
 | `Skeleton` | ``OuroSkeleton`` | The outline of what is loading, in its place: `rect`, `text` (lines, the last shorter), `circle`, `row` (an ``OuroItem``'s height) or `card`. Holds still for a second, then breathes; still under Reduce Motion. VoiceOver hears one "Loading". |
 | `Spinner` | ``OuroSpinner`` | The system's activity indicator at web's sizes (16, 20, 32 points), named by what it waits for. |
 | `Progress` | ``OuroProgress`` | How far along some work is: a label, a value from `min` to `max` (`nil` while unknown, which slides, or pulses under Reduce Motion), `showValue`, a tone. VoiceOver hears the label and the percentage. |
@@ -263,6 +263,8 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroSegment``
 - ``OuroSegmentedControlPalette``
 - ``OuroCheckbox``
+- ``OuroCheckboxMark``
+- ``OuroCheckboxPressStyle``
 - ``OuroCheckboxPalette``
 - ``OuroChoiceMetrics``
 

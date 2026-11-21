@@ -587,7 +587,8 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     @Test func aSolidPrimaryButtonTakesTheAppsMainAction() {
         let charcoal = Color(.sRGB, red: 0.157, green: 0.137, blue: 0.114) // #28231d
         let bone = Color(.sRGB, red: 0.984, green: 0.98, blue: 0.957) // #fbfaf4
-        let grey = Color(.sRGB, red: 0.42, green: 0.396, blue: 0.361) // #6b655c
+        // Spoonjoy web's --sj-action-disabled: bone on it reads at 10:1, past the 7:1 increased-contrast bar.
+        let grey = Color(.sRGB, red: 0.275, green: 0.239, blue: 0.2) // #463d33
         let action = OuroAction(fill: charcoal, foreground: bone, disabledFill: grey, disabledForeground: bone)
         for (name, style) in styles {
             let main = OuroButtonPalette(tone: .primary, variant: .solid, style: style, action: action)

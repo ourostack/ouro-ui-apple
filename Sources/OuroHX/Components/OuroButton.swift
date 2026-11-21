@@ -235,10 +235,11 @@ public struct OuroButtonStyle: ButtonStyle {
         @Environment(\.ouroButtonFillsWidth) private var fillsWidth
         @Environment(\.ouroButtonOwnsLabel) private var ownsLabel
         @Environment(\.ouroAction) private var action
+        @Environment(\.ouroHeldPress) private var heldPress
 
         var body: some View {
             let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled, action: action?.colors(for: scheme))
-            let pressed = configuration.isPressed
+            let pressed = heldPress ?? configuration.isPressed
             let visual = style.size.visualHeight(on: .current, target: touchTarget)
             let pressable = style.size.minimumHeight(on: .current, target: touchTarget)
             // A pill is a capsule at every height, its ends half the height it is drawn (taller at large text sizes),
@@ -359,6 +360,20 @@ extension EnvironmentValues {
     @Entry var ouroButtonLoading = false
     /// Set by ``OuroButton``, whose label takes Ouro's icon spacing; a plain `Button` keeps the label style around it.
     @Entry var ouroButtonOwnsLabel = false
+}
+
+private struct OuroHeldPressKey: EnvironmentKey {
+    static let defaultValue: Bool? = nil
+}
+
+@_spi(OuroMotionClock) extension EnvironmentValues {
+    /// Holds an ``OuroButtonStyle`` button pressed (true) or released (false) whatever the finger does, so a test can
+    /// film the press one clock tick at a time: XCUITest's tap presses and lifts at once, and its long press blocks
+    /// screenshots until it lets go. Nil, the default, follows the finger. Test-only, like ``OuroMotionClock``.
+    public var ouroHeldPress: Bool? {
+        get { self[OuroHeldPressKey.self] }
+        set { self[OuroHeldPressKey.self] = newValue }
+    }
 }
 
 private struct OuroLabelIfOwned: ViewModifier {

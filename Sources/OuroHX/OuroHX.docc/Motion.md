@@ -36,6 +36,10 @@ whole loop. A wall-clock wait in the app (a toast's countdown, an animation's `d
 spring interrupted mid-flight adds to the new one rather than merging into it; and a sample mid-motion can read a tick
 apart between runs, as an element's accessibility frame can lag what is drawn. Verdicts and settle times hold.
 
+A press cannot be filmed through XCUITest, whose tap presses and lifts at once. Under the same SPI,
+`.environment(\.ouroHeldPress, true)` holds an ``OuroButtonStyle`` button pressed, and `false` lets it go, whatever the
+finger does; the gallery's `-demo press` and its ButtonFramesTests film a press and a release that way.
+
 ```swift
 let clock = OuroMotionClock()
 OuroMotion.clock = clock

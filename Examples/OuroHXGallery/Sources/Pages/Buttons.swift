@@ -1,4 +1,4 @@
-import OuroHX
+@_spi(OuroMotionClock) import OuroHX
 import SwiftUI
 
 final class ButtonsGalleryPage: GalleryComponentPage {
@@ -12,11 +12,14 @@ final class ButtonsGalleryPage: GalleryComponentPage {
 struct ButtonsPage: View {
     @State private var saving = false
     @State private var presses = 0
+    /// `-demo press`: the primary button held pressed, then let go, on the gallery's clock.
+    @State private var held: Bool?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             OuroButton("Save recipe", systemImage: "checkmark", fullWidth: true, haptic: .finished) { presses += 1 }
                 .accessibilityIdentifier("button.primary")
+                .environment(\.ouroHeldPress, held)
             // Glass first, over a field of colour as it would float over a photo; glass over a white page shows nothing.
             ForEach([OuroButtonVariant.glass] + OuroButtonVariant.allCases.filter { $0 != .glass }, id: \.self) { variant in
                 VStack(alignment: .leading, spacing: 8) {
@@ -53,6 +56,15 @@ struct ButtonsPage: View {
                 OuroButton("Unavailable", variant: .outline) {}.disabled(true)
                 OuroButton("Publish") {}.disabled(true)
             }
+        }
+        .task {
+            // `-demo press` on the gallery's clock (`-clock 1`): ButtonFramesTests films the primary button one 0.05 s
+            // tick at a time as it is pressed at tick 1 and let go at tick 9, 400 ms later. A real finger cannot be
+            // held while XCUITest takes screenshots, so the press is held for it (`ouroHeldPress`).
+            guard demo == "press", let clock = GalleryClock.shared else { return }
+            held = false
+            clock.after(0.05) { held = true }
+            clock.after(0.45) { held = false }
         }
     }
 }

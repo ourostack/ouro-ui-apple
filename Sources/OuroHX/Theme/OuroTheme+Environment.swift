@@ -22,10 +22,10 @@ extension OuroTheme {
     /// The radius of a step, in points: the base radius (`--radius`, 18 in Pearl, 6 in Cookbook) times the step's scale.
     public func radius(_ step: OuroRadius) -> Double { radius * step.scale }
 
-    /// The corner of the controls a person presses or types into: web's `rounded-ouro-control`, which is
-    /// `--ouro-control-radius` where a theme sets one and the `lg` step otherwise: 18 points in Pearl. No core
-    /// theme sets one yet; Cookbook's capsule comes with core's `--ouro-control-radius` for it.
-    public var controlRadius: Double { radius(.lg) }
+    /// The corner of the controls a person presses or types into, in points: web's `rounded-ouro-control`, which is
+    /// `--ouro-control-radius` where a theme sets one and the `lg` step otherwise (18 points in Pearl). Draw it clamped
+    /// to half the control's height, as CSS clamps a radius, so a full radius makes a capsule.
+    public var controlCorner: Double { radius(.lg) }
 }
 
 /// A theme as it is seen: the theme, the colour scheme and the contrast setting, and the colours they give.

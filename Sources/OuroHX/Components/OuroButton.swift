@@ -64,7 +64,7 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
     }
 }
 
-/// A button's outline: `rounded`, the default, the theme's control radius (``OuroTheme/controlRadius``) as a squircle,
+/// A button's outline: `rounded`, the default, the theme's control radius (``OuroTheme/controlCorner``) as a squircle,
 /// as web's button is in every theme; or `pill`, a capsule, for a moment that wants Apple's iOS 26 look.
 public enum OuroButtonShape: String, CaseIterable, Sendable { case rounded, pill }
 
@@ -167,7 +167,7 @@ public enum OuroButtonMetrics {
 
     /// A rounded button's corner for a button `height` points tall in `theme`: the theme's control radius, at most half
     /// the height, as CSS draws a `border-radius` larger than the box.
-    public static func cornerRadius(theme: OuroTheme, height: CGFloat) -> CGFloat { min(theme.controlRadius, height / 2) }
+    public static func cornerRadius(theme: OuroTheme, height: CGFloat) -> CGFloat { min(theme.controlCorner, height / 2) }
 
     /// A pill's end radius for a button `height` points tall: half of it, a capsule, at every text size, up to 44
     /// points, so a label wrapped onto several lines becomes a rounded rectangle rather than an oval.

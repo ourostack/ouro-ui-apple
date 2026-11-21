@@ -366,6 +366,33 @@ private func card(_ y: Double, key: String = "card", label: String = "Card") -> 
         #expect(r.findings.contains { $0.what.contains("busy") })
     }
 
+    /// A runner that stalls 0.25 s mid-push leaves the page where it was in the first sample after the stall, and the
+    /// next sample catches up all at once: the hold before the jump spans the stall, so it was never seen (#249, main
+    /// run 44857911592: 60.7 pt in one 18 ms frame on a push that travelled through 18 places).
+    @Test func aJumpRightAfterAStallIsNotASnap() {
+        var ys: [Double] = [800, 760, 720, 680]
+        ys += [680, 420, 420, 420, 420]
+        var t = 0.0
+        let frames = ys.enumerated().map { i, y -> FeelFrame in
+            if i > 0 { t += i == 4 ? 0.25 : 0.018 }
+            return FeelFrame(t: t, seen: [box(y)])
+        }
+        let r = FeelFilm(window: phone, frames: frames).snaps(of: "panel")
+        #expect(r.detections.isEmpty, "\(r.text)")
+        #expect(r.measures["snaps"] == 0)
+        #expect(r.findings.contains { $0.unchecked && $0.what.contains("busy") })
+        // The same jump with every sample on time is a snap.
+        let quick = ys.enumerated().map { i, y in FeelFrame(t: Double(i) * 0.018, seen: [box(y)]) }
+        #expect(!FeelFilm(window: phone, frames: quick).snaps(of: "panel").detections.isEmpty)
+        // So is one whose hold after the jump spans the stall: the hold before it was seen.
+        var late = 0.0
+        let after = [800.0, 800, 800, 420, 420, 420, 420].enumerated().map { i, y -> FeelFrame in
+            if i > 0 { late += i == 4 ? 0.25 : 0.018 }
+            return FeelFrame(t: late, seen: [box(y)])
+        }
+        #expect(!FeelFilm(window: phone, frames: after).snaps(of: "panel").detections.isEmpty)
+    }
+
     /// A gap only a little longer than usual is not a stall: a move across it is judged as usual.
     @Test func aMoveInASlightlyLongGapIsStillASnap() {
         var frames = stride(from: 0.0, to: 1.0, by: 0.07).map { FeelFrame(t: $0, seen: [box(200)]) }

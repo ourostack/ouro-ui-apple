@@ -20,9 +20,9 @@ public enum OuroMotion {
         case sheet
         /// A line drawing itself (`ouro.duration.draw`, ease out).
         case draw
-        /// A finger landing on a control: a critically damped spring, quick enough to feel under the finger.
+        /// A finger landing on a control: a critically damped spring that lands where web's press does.
         case pressIn
-        /// A finger lifting: a slower spring with a little bounce, which picks up wherever the press had got to.
+        /// A finger lifting: the same spring back, which picks up wherever the press had got to and never overshoots.
         case pressOut
         /// Something arriving, such as a toast: a spring with a little bounce.
         case enter
@@ -66,6 +66,11 @@ public enum OuroMotion {
         }
     }
 
+    /// The pace of the press springs (`pressIn`, `pressOut`): SwiftUI's spring `duration`, critically damped.
+    public static let pressSpringDuration = 0.1
+    /// CSS's `ease`, the curve web's `.press` fades a pressed control's shade on.
+    public static let cssEase = OuroCubicBezier(x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0)
+
     /// The crossfade every kind but `press` becomes under Reduce Motion.
     public static let reducedMotionCrossfade = OuroTokens.Duration.base
 
@@ -83,8 +88,9 @@ public enum OuroMotion {
         case .draw: return .curve(E.out, duration: D.draw)
         // Native springs, not core's web curves (decision 15): springs retarget without a jump. The settings are
         // Apple's own presets where one fits (`.smooth` is bounce 0), and the reference board's estimates otherwise.
-        case .pressIn: return .spring(visualDuration: 0.15, bounce: 0)
-        case .pressOut: return .spring(visualDuration: 0.35, bounce: 0.15)
+        // A press is a spring both ways, critically damped (no bounce), whose 0.1 s pace puts it within 4% of web's
+        // `ouro.duration.press` ease out (160 ms) at every 50 ms frame, so a native press and a web one film alike.
+        case .pressIn, .pressOut: return .spring(visualDuration: pressSpringDuration, bounce: 0)
         case .enter: return .spring(visualDuration: 0.55, bounce: 0.25)
         case .exit: return .spring(visualDuration: 0.35, bounce: 0)
         case .settle: return .spring(visualDuration: 0.35, bounce: 0.2)
@@ -98,6 +104,13 @@ public enum OuroMotion {
 
     public static func animation(_ kind: Kind, reduceMotion: Bool) -> Animation? {
         step(kind, reduceMotion: reduceMotion).animation
+    }
+
+    /// The shade a pressed control takes as it is pressed and let go: web's `opacity` fade on `.press`,
+    /// `ouro.duration.fast` on CSS's `ease`, and none under Reduce Motion. Not a ``Kind``: the press's own controls use
+    /// it beside `pressIn` and `pressOut`, and an app has no reason to choose it.
+    public static func pressShadeStep(reduceMotion: Bool) -> Step {
+        reduceMotion ? .none : .curve(cssEase, duration: OuroTokens.Duration.fast)
     }
 
     /// `transition`, or a plain fade under Reduce Motion.

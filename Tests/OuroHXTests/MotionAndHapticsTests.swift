@@ -36,14 +36,34 @@ import Testing
     /// The components move on springs, which keep the finger's or the last animation's velocity when retargeted, so
     /// a press released early or a toast dismissed while arriving turns around smoothly. Fixed-duration curves restart.
     @Test func componentsMoveOnSprings() {
-        #expect(OuroMotion.step(.pressIn, reduceMotion: false) == .spring(visualDuration: 0.15, bounce: 0))
-        #expect(OuroMotion.step(.pressOut, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.15))
+        #expect(OuroMotion.step(.pressIn, reduceMotion: false) == .spring(visualDuration: 0.1, bounce: 0))
+        #expect(OuroMotion.step(.pressOut, reduceMotion: false) == .spring(visualDuration: 0.1, bounce: 0))
         #expect(OuroMotion.step(.enter, reduceMotion: false) == .spring(visualDuration: 0.55, bounce: 0.25))
         #expect(OuroMotion.step(.exit, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0))
         #expect(OuroMotion.step(.settle, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0.2))
         #expect(OuroMotion.step(.layout, reduceMotion: false) == .spring(visualDuration: 0.35, bounce: 0))
         #expect(OuroMotion.step(.pressIn, reduceMotion: true) == .none)
         #expect(OuroMotion.step(.pressOut, reduceMotion: true) == .none)
+    }
+
+    /// A press and its release film as web's do: at every 50 ms frame the spring is within 5% of the way along that
+    /// web's 160 ms ease out is (`ouro.duration.press`, `ouro.ease.out`), and being critically damped, it never
+    /// passes its target. The shade fades on web's 150 ms CSS `ease`.
+    @Test func pressSpringsTrackWebsPressWithoutOvershoot() {
+        let e = OuroTokens.Ease.out
+        let web = UnitCurve.bezier(startControlPoint: UnitPoint(x: e.x1, y: e.y1), endControlPoint: UnitPoint(x: e.x2, y: e.y2))
+        let spring = Spring(duration: OuroMotion.pressSpringDuration, bounce: 0)
+        for frame in 0...8 {
+            let t = Double(frame) * 0.05
+            let webValue = web.value(at: min(1, t / OuroTokens.Duration.press))
+            let nativeValue = spring.value(target: 1.0, time: t)
+            #expect(abs(nativeValue - webValue) <= 0.05, "at \(frame * 50) ms native is \(nativeValue), web \(webValue)")
+        }
+        for ms in 0...600 {
+            #expect(spring.value(target: 1.0, time: Double(ms) / 1000) <= 1.0 + 1e-9, "overshoots at \(ms) ms")
+        }
+        #expect(OuroMotion.pressShadeStep(reduceMotion: false) == .curve(OuroMotion.cssEase, duration: OuroTokens.Duration.fast))
+        #expect(OuroMotion.pressShadeStep(reduceMotion: true) == .none)
     }
 
     @Test func pressScalesOnlyWithMotion() {

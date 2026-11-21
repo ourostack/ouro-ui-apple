@@ -235,10 +235,11 @@ public struct OuroButtonStyle: ButtonStyle {
         @Environment(\.ouroButtonFillsWidth) private var fillsWidth
         @Environment(\.ouroButtonOwnsLabel) private var ownsLabel
         @Environment(\.ouroAction) private var action
+        @Environment(\.ouroHeldPress) private var heldPress
 
         var body: some View {
             let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled, action: action?.colors(for: scheme))
-            let pressed = configuration.isPressed
+            let pressed = heldPress ?? configuration.isPressed
             let visual = style.size.visualHeight(on: .current, target: touchTarget)
             let pressable = style.size.minimumHeight(on: .current, target: touchTarget)
             // A pill is a capsule at every height, its ends half the height it is drawn (taller at large text sizes),
@@ -258,12 +259,16 @@ public struct OuroButtonStyle: ButtonStyle {
                 .padding(.vertical, 7)
                 .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: visual)
                 .frame(minWidth: OuroInput.current == .touch ? max(touchTarget, OuroButtonSize.minimumTarget(on: .touch)) : OuroButtonSize.minimumTarget(on: .pointer))
-                .background { background(palette, shape: shape, pressed: pressed) }
+                // The shade fades in on its own curve, as web's does, not on the press spring below.
+                .background {
+                    background(palette, shape: shape, pressed: pressed)
+                        .animation(OuroMotion.pressShadeStep(reduceMotion: reduceMotion).animation, value: pressed)
+                }
                 .modifier(GlassIfNeeded(enabled: style.variant == .glass, interactive: isEnabled, shape: shape,
                                         page: Color(palette.surface), scheme: scheme))
                 .scaleEffect(OuroButtonMetrics.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
-                // Springs both ways: a quick one as the finger lands, a softer one as it lifts, which picks up from
-                // wherever the press had got to rather than restarting.
+                // Springs both ways, critically damped, landing where web's 160 ms ease out does; a spring picks up
+                // from wherever the press had got to rather than restarting.
                 .animation(OuroMotion.animation(pressed ? .pressIn : .pressOut, reduceMotion: reduceMotion), value: pressed)
                 // The target reaches past a small capsule to the full 44 points, and the hit area is the whole of it.
                 .padding(.vertical, max(0, (pressable - visual) / 2))
@@ -359,6 +364,20 @@ extension EnvironmentValues {
     @Entry var ouroButtonLoading = false
     /// Set by ``OuroButton``, whose label takes Ouro's icon spacing; a plain `Button` keeps the label style around it.
     @Entry var ouroButtonOwnsLabel = false
+}
+
+private struct OuroHeldPressKey: EnvironmentKey {
+    static let defaultValue: Bool? = nil
+}
+
+@_spi(OuroMotionClock) extension EnvironmentValues {
+    /// Holds an ``OuroButtonStyle`` button pressed (true) or released (false) whatever the finger does, so a test can
+    /// film the press one clock tick at a time: XCUITest's tap presses and lifts at once, and its long press blocks
+    /// screenshots until it lets go. Nil, the default, follows the finger. Test-only, like ``OuroMotionClock``.
+    public var ouroHeldPress: Bool? {
+        get { self[OuroHeldPressKey.self] }
+        set { self[OuroHeldPressKey.self] = newValue }
+    }
 }
 
 private struct OuroLabelIfOwned: ViewModifier {

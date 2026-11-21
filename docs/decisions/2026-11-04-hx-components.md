@@ -70,8 +70,9 @@ Status: accepted (W8 of the HX and AX native program).
     W8 evidence), and every transition is recorded frame by frame and probed for hitches in the gallery
     (`MotionTests`). What changed, and why:
     - **Springs, not web's curves.** Core's motion tokens are CSS easings for the web; SwiftUI's springs carry
-      velocity through an interruption, which a fixed curve cannot. `OuroMotion` gains `pressIn` (0.15 s, no
-      bounce), `pressOut` (0.35 s, 0.15), `enter` (0.55 s, 0.25), `exit` (0.35 s, none), `settle` and `layout`. Core's
+      velocity through an interruption, which a fixed curve cannot. `OuroMotion` gains `pressIn` and `pressOut`
+      (0.1 s, no bounce, within 4% of web's 160 ms ease out at every 50 ms frame, 2026-11-21; first 0.15 s and 0.35 s
+      with a bounce), `enter` (0.55 s, 0.25), `exit` (0.35 s, none), `settle` and `layout`. Core's
       durations still set the Reduce Motion crossfade.
     - **Capsule buttons**, 34/50/56 points drawn, every one at least 44 points to touch, semibold body type: the
       shape of iOS 26's own buttons. The ends are continuous, a squircle like every other Ouro corner. (This record

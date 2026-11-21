@@ -186,6 +186,19 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroCardMetrics.pressTint == 0.06)
     }
 
+    /// The initializers from before `media` and `onPress` still compile, and still make a card that takes no press;
+    /// the new ones take a picture and a press.
+    @Test @MainActor func everyCardInitializerCompiles() {
+        let body = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") }
+        let action = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") } action: { Text("Edit") }
+        let footer = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") } action: { Text("Edit") } footer: { Text("4 items") }
+        #expect(body.onPress == nil && action.onPress == nil && footer.onPress == nil)
+        let pressable = OuroCard("Weeknight dinners", onPress: {}) { Text("12 recipes") }
+        let pictured = OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: {}, media: { Color.orange })
+        #expect(pressable.onPress != nil && pressable.media == nil)
+        #expect(pictured.onPress != nil && pictured.media != nil)
+    }
+
     @Test func aCardsWordsHaveNoLineLimit() {
         #expect(OuroCardMetrics.titleLineLimit == nil)
         #expect(OuroCardMetrics.descriptionLineLimit == nil)

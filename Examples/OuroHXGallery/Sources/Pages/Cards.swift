@@ -28,10 +28,10 @@ struct CardsPage: View {
             OuroCard("Tonight", description: "Lemon orzo with peas, 25 minutes", size: .sm) {
                 OuroButton("Start cooking", systemImage: "frying.pan", fullWidth: true) { toast("Cooking", tone: .success) }
             }
-            OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: { toast("Opening Weeknight dinners") }) {
+            OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: { toast("Opening Weeknight dinners") }, media: {
                 LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
                     .aspectRatio(4 / 3, contentMode: .fit)
-            }
+            })
             .accessibilityIdentifier("card.media")
             OuroCard("Shared with the household", variant: .plain) {
                 Text("Sam and Alex can see and edit this cookbook.")

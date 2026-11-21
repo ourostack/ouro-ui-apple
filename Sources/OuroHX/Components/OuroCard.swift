@@ -82,9 +82,9 @@ public enum OuroCardMetrics {
 ///     OuroButton("Edit", variant: .plain, size: .sm) { edit() }
 /// }
 ///
-/// OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: { open() }) {
+/// OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: { open() }, media: {
 ///     CoverArt().aspectRatio(4 / 3, contentMode: .fill)
-/// }
+/// })
 /// ```
 ///
 /// `media` runs edge to edge across an outlined card's top, inside its corners, and is a rounded picture of its own on
@@ -114,13 +114,26 @@ public struct OuroCard<Content: View, Action: View, Footer: View>: View {
         description: String? = nil,
         variant: OuroCardVariant = OuroCardMetrics.defaultVariant,
         size: OuroCardSize = OuroCardMetrics.defaultSize,
-        onPress: (@MainActor () -> Void)? = nil,
+        onPress: (@MainActor () -> Void)?,
         @ViewBuilder content: () -> Content,
         @ViewBuilder action: () -> Action,
         @ViewBuilder footer: () -> Footer
     ) {
         self.init(title, description: description, variant: variant, size: size, onPress: onPress, media: nil,
                   content: content(), action: action(), footer: footer())
+    }
+
+    /// A card with a body, an action beside its title and a footer.
+    public init(
+        _ title: String? = nil,
+        description: String? = nil,
+        variant: OuroCardVariant = OuroCardMetrics.defaultVariant,
+        size: OuroCardSize = OuroCardMetrics.defaultSize,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder action: () -> Action,
+        @ViewBuilder footer: () -> Footer
+    ) {
+        self.init(title, description: description, variant: variant, size: size, onPress: nil, content: content, action: action, footer: footer)
     }
 
     /// A card with a picture across its top.
@@ -241,16 +254,30 @@ extension OuroCard where Action == EmptyView, Footer == EmptyView {
         description: String? = nil,
         variant: OuroCardVariant = OuroCardMetrics.defaultVariant,
         size: OuroCardSize = OuroCardMetrics.defaultSize,
-        onPress: (@MainActor () -> Void)? = nil,
+        onPress: (@MainActor () -> Void)?,
         @ViewBuilder content: () -> Content
     ) {
         self.init(title, description: description, variant: variant, size: size, onPress: onPress, content: content, action: { EmptyView() }, footer: { EmptyView() })
     }
 }
 
+extension OuroCard where Action == EmptyView, Footer == EmptyView {
+    /// A card with a body, and a title and description if you give them.
+    public init(
+        _ title: String? = nil,
+        description: String? = nil,
+        variant: OuroCardVariant = OuroCardMetrics.defaultVariant,
+        size: OuroCardSize = OuroCardMetrics.defaultSize,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.init(title, description: description, variant: variant, size: size, onPress: nil, content: content)
+    }
+}
+
 extension OuroCard where Content == EmptyView, Action == EmptyView, Footer == EmptyView {
     /// A picture with its title and description under it, such as a cookbook in a grid: web's
-    /// `<Card href=… title=… description=… media={…} />`.
+    /// `<Card href=… title=… description=… media={…} />`. Pass `media:` by its label: a trailing closure here reads
+    /// as a body.
     public init<Media: View>(
         _ title: String,
         description: String? = nil,
@@ -271,11 +298,25 @@ extension OuroCard where Footer == EmptyView {
         description: String? = nil,
         variant: OuroCardVariant = OuroCardMetrics.defaultVariant,
         size: OuroCardSize = OuroCardMetrics.defaultSize,
-        onPress: (@MainActor () -> Void)? = nil,
+        onPress: (@MainActor () -> Void)?,
         @ViewBuilder content: () -> Content,
         @ViewBuilder action: () -> Action
     ) {
         self.init(title, description: description, variant: variant, size: size, onPress: onPress, content: content, action: action, footer: { EmptyView() })
+    }
+}
+
+extension OuroCard where Footer == EmptyView {
+    /// A card with a body and an action beside its title.
+    public init(
+        _ title: String? = nil,
+        description: String? = nil,
+        variant: OuroCardVariant = OuroCardMetrics.defaultVariant,
+        size: OuroCardSize = OuroCardMetrics.defaultSize,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder action: () -> Action
+    ) {
+        self.init(title, description: description, variant: variant, size: size, onPress: nil, content: content, action: action)
     }
 }
 

@@ -465,6 +465,17 @@ The first two controls that hold a value, ninth and tenth in the 1.0 order.
 - **Not yet:** web's `CheckboxGroup` (a labelled group with one error), `readOnly`, and form `name`/`value`, which
   have no SwiftUI form to submit to.
 
+## The app's main action (2026-11-21)
+
+- **Web's `--ouro-action`, natively.** On web, a solid primary button, the page's main action, paints
+  `--ouro-action` and its foreground when the theme sets them, and the theme's primary when it doesn't. Its disabled
+  look comes from `--ouro-action-disabled` and its foreground. Spoonjoy sets them to charcoal by day and amber at
+  night, with brass left as its primary. Native takes the same colours through `.ouroAction(light:dark:)`
+  (`OuroAction`, `OuroActionColors`). Only a solid primary button reads them; every other tone and variant keeps the
+  theme's colours, and the label is still raised until it reads on the fill. Without disabled colours, the main
+  action greys out like any button. Web's hover and active fills are left out: native presses with its state layer
+  and springs (decision 15).
+
 ## OuroSkeleton, OuroSpinner and OuroProgress (2026-11-14)
 
 Seventh and eighth in the 1.0 order, shipped together because they are one job, waiting: the loading half of the 13

@@ -271,8 +271,9 @@ public struct FeelFilm: Codable, Equatable, Sendable {
     /// The samples must be at most `maxGap` seconds apart around such a move, or the check cannot tell a snap from a
     /// quick transition. XCUITest's snapshot waits while the app animates, so when sampling is otherwise quick (the
     /// median gap within `maxGap`) a move inside a gap at least three times the median was not seen, and the check fails
-    /// saying so; so does sampling usually slower than `maxGap`, moves seen or not, and a film in which the element
-    /// never moved more than `distance` (or, with `appearing`, never arrived). It never passes on what it did not see.
+    /// saying so, as it does for a move right after such a gap (the sample after a stall still shows the old place); so
+    /// does sampling usually slower than `maxGap`, moves seen or not, and a film in which the element never moved more
+    /// than `distance` (or, with `appearing`, never arrived). It never passes on what it did not see.
     public func snaps(of key: String, distance: Double = 40, appearing: Bool = false, maxGap: Double = 0.15, tolerance: Double = 0.5) -> FeelResult {
         timed(snapsUntimed(of: key, distance: distance, appearing: appearing, maxGap: maxGap, tolerance: tolerance))
     }
@@ -308,6 +309,8 @@ public struct FeelFilm: Codable, Equatable, Sendable {
             }
             return false
         }
+        // A stall on the app's clock in otherwise quick sampling: the app drew nothing for that long.
+        func stalled(_ gap: Double) -> Bool { gap > maxGap && typicalGap <= maxGap && gap >= typicalGap * 3 }
         var findings: [FeelFinding] = []
         for i in 0..<max(0, frames.count - 1) {
             let gap = frames[i + 1].t - frames[i].t
@@ -320,9 +323,16 @@ public struct FeelFilm: Codable, Equatable, Sendable {
                 what = "\"\(key)\" appeared in full at \(FeelResult.number(round3(frames[i + 1].t))) s with no transition"
             }
             guard let what else { continue }
-            if gap <= maxGap {
+            let stallBefore = i > 0 ? frames[i].t - frames[i - 1].t : 0
+            if gap <= maxGap && places[i] != nil && stalled(stallBefore) {
+                // The first sample after a stall still shows where the element was before it, and the next catches up
+                // all at once, so the hold before this move was never seen: a transition that ran through the stall
+                // looks exactly like a snap (#249).
+                findings.append(.couldNotCheck("the app was busy for \(FeelResult.number(round3(stallBefore))) s just before \"\(key)\" moved "
+                    + "\(FeelResult.number(round3(moved(i) ?? 0))) pt, so whether it travelled or snapped was not seen; rerun, or slow the motion"))
+            } else if gap <= maxGap {
                 findings.append(FeelFinding(what: what))
-            } else if typicalGap <= maxGap && gap >= typicalGap * 3 {
+            } else if stalled(gap) {
                 // Sampling was quick except around this move: the app was busy, which a transition and a snap with heavy
                 // layout both cause, so the move cannot be judged.
                 findings.append(.couldNotCheck("the app was busy for \(FeelResult.number(round3(gap))) s while \"\(key)\" moved "

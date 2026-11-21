@@ -96,6 +96,14 @@ final class FeelCatchesTests: XCTestCase {
                 app.terminate()
                 (app, feel, film) = filmed()
             }
+            // A good push the runner stalled right before the title moved cannot be judged, so it is filmed once more
+            // and the retry is printed; a second unjudged film still fails (#249).
+            let busy = { (f: FeelFilm) in f.snaps(of: "transition.title", appearing: true).findings.contains { $0.unchecked && $0.what.contains("busy") } }
+            if !bug && busy(film) {
+                print("[ouro-feel] the push film was busy where the title moved: \(film.snaps(of: "transition.title", appearing: true).text); filming it once more")
+                app.terminate()
+                (app, feel, film) = filmed()
+            }
             let title = app.staticTexts["transition.title"]
             XCTAssertFalse(film.track("transition.title").isEmpty, title.exists
                 ? "the push landed after the film ended, so it was not filmed"
@@ -110,8 +118,7 @@ final class FeelCatchesTests: XCTestCase {
                 feel.record(snap, name: "snap-bug", film: film)
                 // On a slow machine the page can arrive across a frame longer than the snap check's gap, which it then
                 // cannot judge; it still never passes, and the title's single place shows the page did not travel.
-                let busy = snap.findings.contains { $0.unchecked && $0.what.contains("was busy") }
-                XCTAssertTrue(!snap.detections.isEmpty || busy, snap.text)
+                XCTAssertTrue(!snap.detections.isEmpty || busy(film), snap.text)
                 XCTAssertFalse(snap.passed, snap.text)
                 XCTAssertLessThanOrEqual(xs.count, 2, "the bug build's page did not travel: \(xs.sorted())")
             } else {

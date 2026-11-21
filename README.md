@@ -17,7 +17,7 @@ every other agent that comes knocking.
 ```swift
 // Package.swift
 platforms: [.iOS(.v18), .macOS(.v15)],
-.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "1.6.0"),
+.package(url: "https://github.com/ourostack/ouro-ui-apple.git", from: "1.7.0"),
 
 // your target
 .product(name: "OuroHX", package: "ouro-ui-apple"),

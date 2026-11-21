@@ -56,7 +56,8 @@ final class CheckboxFramesTests: XCTestCase {
             if step > 0 {
                 advance()
                 let ticked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", String(start + step)), object: clock)
-                XCTAssertEqual(XCTWaiter().wait(for: [ticked], timeout: 10), .completed, "the app stopped taking ticks at \(step)")
+                // Feel's own films wait 30 s for a tick (FeelScreen.film's stall): a loaded iPad runner took over 10.
+                XCTAssertEqual(XCTWaiter().wait(for: [ticked], timeout: 30), .completed, "the app stopped taking ticks at \(step)")
             }
             let shot = box.screenshot()
             let attachment = XCTAttachment(screenshot: shot)

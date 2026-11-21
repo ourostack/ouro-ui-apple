@@ -15,7 +15,7 @@ final class ButtonFramesTests: XCTestCase {
     static let tick = "bot.ouro.hx.gallery.tick"
     /// The gallery presses at tick 1 and lets go at tick 9.
     static let pressAt = 1, releaseAt = 9
-    /// 750 ms after the release: past `pressOut`'s spring (0.35 s, a little bounce).
+    /// 750 ms after the release: well past `pressOut`'s critically damped spring, which lands by 150 ms.
     static let last = 24
 
     override func setUp() { continueAfterFailure = true }

@@ -259,12 +259,16 @@ public struct OuroButtonStyle: ButtonStyle {
                 .padding(.vertical, 7)
                 .frame(maxWidth: style.fullWidth || fillsWidth ? .infinity : nil, minHeight: visual)
                 .frame(minWidth: OuroInput.current == .touch ? max(touchTarget, OuroButtonSize.minimumTarget(on: .touch)) : OuroButtonSize.minimumTarget(on: .pointer))
-                .background { background(palette, shape: shape, pressed: pressed) }
+                // The shade fades in on its own curve, as web's does, not on the press spring below.
+                .background {
+                    background(palette, shape: shape, pressed: pressed)
+                        .animation(OuroMotion.animation(.pressShade, reduceMotion: reduceMotion), value: pressed)
+                }
                 .modifier(GlassIfNeeded(enabled: style.variant == .glass, interactive: isEnabled, shape: shape,
                                         page: Color(palette.surface), scheme: scheme))
                 .scaleEffect(OuroButtonMetrics.pressScale(isPressed: pressed, reduceMotion: reduceMotion))
-                // Springs both ways: a quick one as the finger lands, a softer one as it lifts, which picks up from
-                // wherever the press had got to rather than restarting.
+                // Springs both ways, critically damped, landing where web's 160 ms ease out does; a spring picks up
+                // from wherever the press had got to rather than restarting.
                 .animation(OuroMotion.animation(pressed ? .pressIn : .pressOut, reduceMotion: reduceMotion), value: pressed)
                 // The target reaches past a small capsule to the full 44 points, and the hit area is the whole of it.
                 .padding(.vertical, max(0, (pressable - visual) / 2))

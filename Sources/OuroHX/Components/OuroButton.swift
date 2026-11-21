@@ -167,7 +167,7 @@ public enum OuroButtonMetrics {
 
     /// A rounded button's corner for a button `height` points tall in `theme`: the theme's control radius, at most half
     /// the height, as CSS draws a `border-radius` larger than the box.
-    public static func cornerRadius(theme: OuroTheme, height: CGFloat) -> CGFloat { min(theme.controlCorner, height / 2) }
+    public static func controlCorner(theme: OuroTheme, height: Double) -> Double { min(theme.controlCorner, height / 2) }
 
     /// A pill's end radius for a button `height` points tall: half of it, a capsule, at every text size, up to 44
     /// points, so a label wrapped onto several lines becomes a rounded rectangle rather than an oval.
@@ -539,6 +539,6 @@ struct OuroControlShape: Shape {
     let theme: OuroTheme
 
     func path(in rect: CGRect) -> Path {
-        RoundedRectangle(cornerRadius: OuroButtonMetrics.cornerRadius(theme: theme, height: rect.height), style: .continuous).path(in: rect)
+        RoundedRectangle(cornerRadius: OuroButtonMetrics.controlCorner(theme: theme, height: rect.height), style: .continuous).path(in: rect)
     }
 }

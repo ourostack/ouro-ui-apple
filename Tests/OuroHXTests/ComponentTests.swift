@@ -56,14 +56,14 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     func aButtonsCornerIsTheThemesControlRadius(name: OuroThemeName) {
         let theme = OuroTokens.theme(name)
         #expect(theme.controlCorner == theme.radius)
-        #expect(OuroButtonMetrics.cornerRadius(theme: theme, height: 200) == theme.radius)
-        #expect(OuroButtonMetrics.cornerRadius(theme: theme, height: 8) == min(theme.radius, 4))
+        #expect(OuroButtonMetrics.controlCorner(theme: theme, height: 200) == theme.radius)
+        #expect(OuroButtonMetrics.controlCorner(theme: theme, height: 8) == min(theme.radius, 4))
     }
 
     /// Pearl's control radius is its 1.125rem `--radius`, in points: 18, short of half a 50-point button.
     @Test func pearlsCornerIsCores() {
         #expect(OuroTokens.pearl.controlCorner == 18)
-        #expect(OuroButtonMetrics.cornerRadius(theme: OuroTokens.pearl, height: 50) == 18)
+        #expect(OuroButtonMetrics.controlCorner(theme: OuroTokens.pearl, height: 50) == 18)
     }
 
     /// A button's resting fill is the theme's primary token: Pearl's `#0066cc`, as web's computed background.

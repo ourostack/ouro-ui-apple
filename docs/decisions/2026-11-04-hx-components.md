@@ -533,3 +533,36 @@ The 1.0 decision asks that the components which change with the iPhone Duo's fol
   look for the fold themselves would put layout that belongs to the page into every row.
 - **Not yet:** a Duo simulator run in CI. The rule is pure and unit tested; the real hinge is driven by Spoonjoy's
   on-demand Duo tour.
+
+## Immersive controls (2026-11-20)
+
+Gatefold build 53: tapping a page for the reader's controls stepped the page back and laid paper behind the controls,
+so on the folded Duo half the page went (measured: 19 of 19 lines moved and 7 hidden; on an iPad 29 of 29 moved and
+16 hidden). Every app that shows controls over a page, a photo or a video meets the same choice, so it is a component
+here and a spec in core (`immersive-controls`, with the claim `content.holds-still`).
+
+- **An overlay, never a stack or a padding.** `.ouroImmersiveControls(isPresented:top:bottom:)` draws its bars over
+  the content, which keeps its size and place (`contentHoldsStill`). No paper, no dim: the bars are Liquid Glass, one
+  `GlassEffectContainer` each, and the app draws its controls in squircle glass shapes.
+- **The bands the hardware already takes.** `OuroImmersiveControlsPlacement` puts the top bar at the safe area's top,
+  beside a camera housing from `reservedRegions(kind: .occlusion)` (iOS 27.1), so on the Duo's cover screen it stands
+  beside the camera, and the bottom bar resting on the home indicator, in the 13 points it takes, across the width
+  under the housing. A housing across the middle of the top moves the top bar below it; a band the safe area already
+  holds (an iPad's status bar) does not.
+- **Safe area passed in when the content ignores it.** An edge-to-edge page ignores the safe area, and everything
+  below it reads zero insets (Gatefold's reader did, on the iPad); `safeArea:` takes the screen's own.
+- **Motion.** Each bar slides in from its own edge with `OuroAppearance.move(edge:)`, and crossfades under Reduce
+  Motion (`motion`).
+
+### Prior art
+
+Read on 2026-11-20.
+
+- [Apple Books in iOS 27.2 (9to5Mac, 2026-10-06)](https://9to5mac.com/2026/10/06/ios-27-2-gives-apple-books-new-design-updates-as-iphone-duo-nears/):
+  adopt. Close in the upper-left corner, Bookmark a standalone button in the upper-right, the menu a Liquid Glass menu
+  in the lower-right, Back in the lower-left, over a page that holds still.
+- [Apple Human Interface Guidelines: Toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars):
+  adopt, floating Liquid Glass bars of grouped controls.
+- Photos and Safari on iOS 26: borrow, controls that come and go over a photo or a page without moving it.
+- SwiftUI's `.toolbar` with `.toolbarVisibility(.hidden)`: ignore here. It belongs to a navigation stack, and its bars change
+  the content's safe area as they come and go, so content that keeps to the safe area moves with them.

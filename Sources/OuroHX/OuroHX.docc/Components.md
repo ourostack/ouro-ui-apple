@@ -1,6 +1,6 @@
 # Components
 
-Button, Badge, Card, Item, TextField, SegmentedControl, Checkbox, Separator, DescriptionList, Avatar, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web, drawn in SwiftUI and at
+Button, Badge, Card, Item, TextField, SegmentedControl, Checkbox, Separator, DescriptionList, Avatar, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web (and ImmersiveControls, Apple's first), drawn in SwiftUI and at
 their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
@@ -62,6 +62,7 @@ struct SettingsScreen: View {
 | `SyncStatus` | ``OuroSyncStatus`` | One line that says where changes are: saved, saving, offline or not saved, each with its symbol, and Retry on a problem. Spoken only when a problem starts and when it clears; keeps its longest state's size. |
 | `Sheet` | `.ouroSheet(isPresented:title:…)` | A panel from the bottom edge with a title, a body, an actions row and a close button. |
 | `toast`, `Toaster` | `@Environment(\.ouroToast)`, `.ouroToaster()`, ``OuroToast`` | A short message that VoiceOver reads once and that dismisses itself. |
+| `ImmersiveControls` | `.ouroImmersiveControls(isPresented:top:bottom:)` | A top and a bottom bar of controls over a page, photo, video or map that fills the screen, standing in the bands the status bar and the home indicator already take, beside any camera housing. The content never moves, scales or reflows for them. Apple only for now. |
 
 `OuroEmpty` and `OuroAlert` are not types: they are unavailable names whose compiler error names the Apple one.
 
@@ -186,6 +187,9 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroBanner``: Spoonjoy's `HeldChangeBanner` (a titled message with its way out) and web's `Alert`.
 - ``OuroSyncStatus``: web's `SyncStatus`, and Gatefold's `SyncStatusLine`, Spoonjoy's `OfflineStatusView` and Ouro MD's `DocumentStatusBar`.
 - The sheet and the toast follow web's `Sheet` and `Toaster`; neither app had a toast.
+- `.ouroImmersiveControls`: Gatefold's reader controls (build 53, where showing them stepped the page back and laid
+  paper over half its words), laid out the way Apple Books lays its reader's controls in iOS 27.2 (Close top leading,
+  Bookmark top trailing, the rest along the foot), and the way Photos and Safari lay theirs over content that holds still.
 
 ## Topics
 
@@ -322,6 +326,12 @@ Radii elsewhere come from the theme (``OuroTheme/radius(_:)``).
 - ``OuroToastQueue``
 - ``OuroToastPalette``
 - ``OuroToastMetrics``
+
+### Immersive controls
+
+- ``SwiftUICore/View/ouroImmersiveControls(isPresented:safeArea:occlusions:top:bottom:)``
+- ``OuroImmersiveControlsPlacement``
+- ``OuroImmersiveControlsMetrics``
 
 ### Shared
 

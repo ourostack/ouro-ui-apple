@@ -174,6 +174,18 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 
     /// Core claim `text.reflows`: a card's title and description have no line limit at any size.
+    /// Web's media pull: the picture runs to an outlined card's edge with the padding's gap under it, and is a rounded
+    /// picture of its own on a plain card. A linked card's press tints it 6% toward its words.
+    @Test func aCardsMediaSitsAsWebsDoes() {
+        #expect(OuroCardMetrics.mediaGap(size: .md, variant: .outline) == 24)
+        #expect(OuroCardMetrics.mediaGap(size: .sm, variant: .outline) == 16)
+        #expect(OuroCardMetrics.mediaGap(size: .md, variant: .plain) == 16)
+        #expect(OuroCardMetrics.mediaGap(size: .sm, variant: .plain) == 12)
+        #expect(OuroCardMetrics.plainMediaRadius(size: .md) == .xl)
+        #expect(OuroCardMetrics.plainMediaRadius(size: .sm) == .lg)
+        #expect(OuroCardMetrics.pressTint == 0.06)
+    }
+
     @Test func aCardsWordsHaveNoLineLimit() {
         #expect(OuroCardMetrics.titleLineLimit == nil)
         #expect(OuroCardMetrics.descriptionLineLimit == nil)

@@ -1,7 +1,7 @@
 # Components
 
 Button, Badge, Card, Item, TextField, SegmentedControl, Checkbox, Separator, DescriptionList, Avatar, Skeleton, Spinner, Progress, PageHeader, EmptyState, Banner, SyncStatus, Sheet and Toast: the same components as Ouro HX for web (and ImmersiveControls, Apple's first), drawn in SwiftUI and at
-their best with no options: capsule buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
+their best with no options: buttons that answer on touch-down, Liquid Glass toasts and sheet controls on iOS
 26, and springs you can interrupt everywhere.
 
 ## Overview
@@ -136,8 +136,9 @@ What the components don't do for you, and how to match them:
 Everything moves on springs (``OuroMotion``), never fixed durations, so a change mid-way turns around from where it
 is instead of jumping. The defaults are the designed version; options are for the exceptions.
 
-- **Buttons** are capsules at every text size, 50 points tall at the medium size (34 drawn small, 56 large, each
-  with at least a 44-point target); a label wrapped onto several lines rounds its corners at 44 points. Outlines
+- **Buttons** are squircles at the theme's control radius, as web's are (18 points in Pearl, 6 in Cookbook, never more
+  than half the height), 50 points tall at the medium size (34 drawn small, 56 large, each with at least a 44-point
+  target). `shape: .pill` makes a capsule, whose corners stop at 44 points when a label wraps onto several lines. Outlines
   are drawn in their tone at 50%, secondary's in the page's foreground at 25% (two points of the full tone under
   Increase Contrast), and an icon sits on the label's first line. A plain button's words sit on the layout margin,
   its target still 44 points. A press answers on touch-down: it shrinks to 97% and springs back on a critically damped

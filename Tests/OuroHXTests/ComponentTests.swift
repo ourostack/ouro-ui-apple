@@ -45,9 +45,34 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         }
     }
 
-    /// A button's default outline is a capsule, as Apple's own buttons are from iOS 26.
-    @Test func theDefaultShapeIsACapsule() {
-        #expect(OuroButtonStyle().shape == .pill)
+    /// A button's default outline is web's: the theme's control radius, not a capsule.
+    @Test func theDefaultShapeIsTheThemesControlRadius() {
+        #expect(OuroButtonStyle().shape == .rounded)
+    }
+
+    /// A rounded button's corner is core's `--radius` for the theme (no core theme sets `--ouro-control-radius`, so
+    /// web's `rounded-ouro-control` is the `lg` step), clamped to half the button's height as CSS clamps it.
+    @Test(arguments: OuroThemeName.allCases)
+    func aButtonsCornerIsTheThemesControlRadius(name: OuroThemeName) {
+        let theme = OuroTokens.theme(name)
+        #expect(theme.controlRadius == theme.radius)
+        #expect(OuroButtonMetrics.cornerRadius(theme: theme, height: 200) == theme.radius)
+        #expect(OuroButtonMetrics.cornerRadius(theme: theme, height: 8) == min(theme.radius, 4))
+    }
+
+    /// The two themes the press film compares with web: Pearl's 1.125rem and Cookbook's 0.375rem, in points.
+    @Test func pearlAndCookbookCornersAreCores() {
+        #expect(OuroTokens.pearl.controlRadius == 18)
+        #expect(OuroTokens.theme(.cookbook).controlRadius == 6)
+        #expect(OuroButtonMetrics.cornerRadius(theme: OuroTokens.pearl, height: 50) == 18)
+    }
+
+    /// A button's resting fill is the theme's primary token: Pearl's `#0066cc`, as web's computed background.
+    @Test func aSolidButtonRestsOnThePrimaryToken() throws {
+        let style = OuroHXStyle(theme: OuroTokens.pearl, scheme: .light)
+        let palette = OuroButtonPalette(tone: .primary, variant: .solid, style: style)
+        let fill = try #require(palette.fill)
+        #expect(abs(Double(fill.red) - 0) < 0.002 && abs(Double(fill.green) - 0.4) < 0.002 && abs(Double(fill.blue) - 0.8) < 0.002)
     }
 
     /// A pill stays a capsule at every text size, its ends half its height, up to 44 points, so a label wrapped onto

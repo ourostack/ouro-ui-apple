@@ -157,12 +157,14 @@ public struct OuroFeel {
         }
         // `outer` is the nearest scroll view outside `scroll` that scrolls up and down, for a carousel inside a list.
         func walk(_ node: any XCUIElementSnapshot, scroll: CGRect?, across: Bool, outer: CGRect?) {
-            let type = node.elementType
-            let control = Self.controlTypes.contains(type) && node.isEnabled
-            let named = !also.isEmpty && (also.contains(node.identifier) || also.contains(node.label))
+            // Read once, up front: `&&` and `||` take their right side as a closure, and a closure that captures the
+            // snapshot fails a Release build ("sending 'node' risks causing data races").
+            let type = node.elementType, enabled = node.isEnabled, identifier = node.identifier, label = node.label
+            let control = Self.controlTypes.contains(type) && enabled
+            let named = !also.isEmpty && (also.contains(identifier) || also.contains(label))
             if control || named {
                 // Keyed by the name asked for, so a request by label finds it even when it has an identifier.
-                let key = named && !also.contains(node.identifier) ? node.label : Self.key(node)
+                let key = named && !also.contains(identifier) ? label : Self.key(node)
                 var element = FeelElement(key: key, type: control ? Self.name(type) : "element", frame: node.frame,
                                           scroll: scroll, scrollsHorizontally: across)
                 element.outerScroll = across ? outer : nil

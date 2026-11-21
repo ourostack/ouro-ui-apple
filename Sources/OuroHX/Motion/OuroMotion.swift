@@ -24,8 +24,6 @@ public enum OuroMotion {
         case pressIn
         /// A finger lifting: the same spring back, which picks up wherever the press had got to and never overshoots.
         case pressOut
-        /// The shade a pressed control takes: web's `opacity` fade on `.press`, `ouro.duration.fast` on CSS's `ease`.
-        case pressShade
         /// Something arriving, such as a toast: a spring with a little bounce.
         case enter
         /// Something leaving: a quick spring with no bounce, so it never wobbles on its way out.
@@ -44,7 +42,7 @@ public enum OuroMotion {
         case interactive
 
         /// The two press kinds, which do nothing under Reduce Motion.
-        public var isPress: Bool { self == .press || self == .pressIn || self == .pressOut || self == .pressShade }
+        public var isPress: Bool { self == .press || self == .pressIn || self == .pressOut }
     }
 
     /// How a change moves, as data, so a test can check it without rendering.
@@ -93,7 +91,6 @@ public enum OuroMotion {
         // A press is a spring both ways, critically damped (no bounce), whose 0.1 s pace puts it within 4% of web's
         // `ouro.duration.press` ease out (160 ms) at every 50 ms frame, so a native press and a web one film alike.
         case .pressIn, .pressOut: return .spring(visualDuration: pressSpringDuration, bounce: 0)
-        case .pressShade: return .curve(cssEase, duration: D.fast)
         case .enter: return .spring(visualDuration: 0.55, bounce: 0.25)
         case .exit: return .spring(visualDuration: 0.35, bounce: 0)
         case .settle: return .spring(visualDuration: 0.35, bounce: 0.2)
@@ -107,6 +104,13 @@ public enum OuroMotion {
 
     public static func animation(_ kind: Kind, reduceMotion: Bool) -> Animation? {
         step(kind, reduceMotion: reduceMotion).animation
+    }
+
+    /// The shade a pressed control takes as it is pressed and let go: web's `opacity` fade on `.press`,
+    /// `ouro.duration.fast` on CSS's `ease`, and none under Reduce Motion. Not a ``Kind``: the press's own controls use
+    /// it beside `pressIn` and `pressOut`, and an app has no reason to choose it.
+    public static func pressShadeStep(reduceMotion: Bool) -> Step {
+        reduceMotion ? .none : .curve(cssEase, duration: OuroTokens.Duration.fast)
     }
 
     /// `transition`, or a plain fade under Reduce Motion.

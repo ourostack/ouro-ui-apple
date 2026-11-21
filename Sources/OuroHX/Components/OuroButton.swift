@@ -262,7 +262,7 @@ public struct OuroButtonStyle: ButtonStyle {
                 // The shade fades in on its own curve, as web's does, not on the press spring below.
                 .background {
                     background(palette, shape: shape, pressed: pressed)
-                        .animation(OuroMotion.animation(.pressShade, reduceMotion: reduceMotion), value: pressed)
+                        .animation(OuroMotion.pressShadeStep(reduceMotion: reduceMotion).animation, value: pressed)
                 }
                 .modifier(GlassIfNeeded(enabled: style.variant == .glass, interactive: isEnabled, shape: shape,
                                         page: Color(palette.surface), scheme: scheme))

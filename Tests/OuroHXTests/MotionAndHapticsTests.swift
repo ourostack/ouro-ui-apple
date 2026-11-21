@@ -62,8 +62,8 @@ import Testing
         for ms in 0...600 {
             #expect(spring.value(target: 1.0, time: Double(ms) / 1000) <= 1.0 + 1e-9, "overshoots at \(ms) ms")
         }
-        #expect(OuroMotion.step(.pressShade, reduceMotion: false) == .curve(OuroMotion.cssEase, duration: OuroTokens.Duration.fast))
-        #expect(OuroMotion.step(.pressShade, reduceMotion: true) == .none)
+        #expect(OuroMotion.pressShadeStep(reduceMotion: false) == .curve(OuroMotion.cssEase, duration: OuroTokens.Duration.fast))
+        #expect(OuroMotion.pressShadeStep(reduceMotion: true) == .none)
     }
 
     @Test func pressScalesOnlyWithMotion() {

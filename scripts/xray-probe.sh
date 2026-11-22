@@ -7,6 +7,7 @@
 #   sh scripts/xray-probe.sh --app <path.app> --out <dir> [--platform ios|macos] [--runtime 27.1]
 #     [--device-type "iPhone Duo"] [--commit <sha>] [--name <name>] [--disposable]
 #     [--sign-identity <sha1> --team <id> [--keychain <path>]] [--seed-dir <dir>] [--ready-file <path>]
+#     [--app-env KEY=VALUE ...] [--prepare <command>]
 #
 # On macOS, AppIntentsTesting runs only for a test bundle signed by the app's own team (error 800 otherwise).
 # --sign-identity names an Apple Development identity of that team: the probe bundle is signed with it, and so is the
@@ -15,11 +16,16 @@
 # --ready-file (iOS) names a file, relative to the app's data container, that the app writes once its first launch has
 # made and indexed its content. The first launch then waits up to 60 s for it rather than a fixed 8 s, so a loaded
 # machine doesn't probe an app whose content Spotlight has not been given yet (#165).
+# --app-env (iOS, repeatable) sets KEY=VALUE in the app's environment on every launch, the first one and the probe's,
+# such as a debug build's server address. Values are not secret: they reach the probe's log.
+# --prepare (iOS) runs <command> with sh once the app is installed and before its first launch, with OURO_AX_UDID and
+# OURO_AX_BUNDLE_ID set, so a caller can put a signed-in session or other files in the app's data container
+# (`xcrun simctl get_app_container "$OURO_AX_UDID" "$OURO_AX_BUNDLE_ID" data`). If it fails, the probe stops.
 #
 # Run it with DEVELOPER_DIR set to an Xcode whose AppIntentsTesting matches the OS it runs on, and build the app with
 # the same Xcode. XRAY names the ouro-ax-xray binary (default: .build/release/ouro-ax-xray).
 set -eu
-app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""; sign_identity=""; team=""; keychain=""; seed_dir=""; ready_file=""
+app=""; out=""; platform="ios"; runtime="27.1"; device_type="iPhone Duo"; commit=""; name=""; disposable=""; sign_identity=""; team=""; keychain=""; seed_dir=""; ready_file=""; app_env=""; prepare=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --app) app="$2"; shift 2 ;;
@@ -35,6 +41,11 @@ while [ $# -gt 0 ]; do
     --keychain) keychain="$2"; shift 2 ;;
     --seed-dir) seed_dir="$2"; shift 2 ;;
     --ready-file) ready_file="$2"; shift 2 ;;
+    --app-env)
+      case "$2" in [A-Za-z_]*=*) ;; *) echo "xray-probe: --app-env takes KEY=VALUE, not $2" >&2; exit 2 ;; esac
+      app_env="$app_env$2
+"; shift 2 ;;
+    --prepare) prepare="$2"; shift 2 ;;
     *) echo "xray-probe: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -42,6 +53,9 @@ done
 here="$(cd "$(dirname "$0")/.." && pwd)"
 xray="${XRAY:-$here/.build/release/ouro-ax-xray}"
 [ -z "$sign_identity" ] || [ -n "$team" ] || { echo "xray-probe: --sign-identity needs --team" >&2; exit 2; }
+[ "$platform" = ios ] || { [ -z "$app_env" ] && [ -z "$prepare" ]; } || { echo "xray-probe: --app-env and --prepare are iOS only" >&2; exit 2; }
+# The probe hands the app the same environment through XCUIApplication.launchEnvironment, as JSON.
+app_env_json="$(printf '%s' "$app_env" | python3 -I -c 'import json,sys; print(json.dumps(dict(l.split("=", 1) for l in sys.stdin.read().splitlines() if l)))')"
 mkdir -p "$out"
 (cd "$here/Templates/XrayProbe" && xcodegen generate >/dev/null)
 xcodebuild -version | tee "$out/xcode.txt"
@@ -59,6 +73,18 @@ if [ "$platform" = "ios" ]; then
   xcrun simctl boot "$udid"
   xcrun simctl bootstatus "$udid" -b >/dev/null
   xcrun simctl install "$udid" "$app"
+  if [ -n "$prepare" ]; then
+    echo "xray-probe: preparing the app's container"
+    OURO_AX_UDID="$udid" OURO_AX_BUNDLE_ID="$bundle_id" sh -c "$prepare"
+  fi
+  # Launches the app with --app-env's variables (simctl passes SIMCTL_CHILD_KEY to the app as KEY).
+  launch_app() {
+    set --
+    while IFS= read -r kv; do [ -z "$kv" ] || set -- "$@" "SIMCTL_CHILD_$kv"; done <<VARS
+$app_env
+VARS
+    env "$@" xcrun simctl launch "$udid" "$bundle_id" >/dev/null
+  }
   # Stops the app and waits for it to exit, so XCTest launches it from nothing: a copy still running when XCTest
   # launches races XCTest's own terminate and relaunch, and the launch can fail with no process ID (#36).
   stop_app() {
@@ -89,7 +115,7 @@ if [ "$platform" = "ios" ]; then
       ready="$(xcrun simctl get_app_container "$udid" "$bundle_id" data)/$ready_file"
       rm -f "$ready"
     fi
-    xcrun simctl launch "$udid" "$bundle_id" >/dev/null
+    launch_app
     sleep 8
     if [ -n "$ready_file" ]; then
       i=0
@@ -106,6 +132,7 @@ if [ "$platform" = "ios" ]; then
   plan="$("$xray" plan --app "$app" $disposable)"
   ios_probe() {
     TEST_RUNNER_OURO_AX_PLAN="$plan" TEST_RUNNER_OURO_AX_DISPOSABLE="$([ -n "$disposable" ] && echo 1 || echo 0)" TEST_RUNNER_OURO_AX_RAN_ON="iOS $runtime Simulator ($device_type), $(head -1 "$out/xcode.txt")" \
+      TEST_RUNNER_OURO_AX_APP_ENV="$app_env_json" \
       sh "$here/scripts/ci-quiet-watch.sh" "$probe_quiet" "$1" \
       xcodebuild test -project "$here/Templates/XrayProbe/XrayProbe.xcodeproj" -scheme XrayProbe-iOS -destination "id=$udid" -retry-tests-on-failure -test-iterations 2 \
       -derivedDataPath "$here/.build/xray-probe-ios"

@@ -321,6 +321,10 @@ bundle (AppIntentsTesting runs only there) and an Xcode whose AppIntentsTesting 
 If your app indexes its content on its first launch, have it write a file in its data container when that is done,
 and pass the file's path with `--ready-file` (the fixture writes `Documents/ouro-ax-ready`), so a slow machine never
 probes the index before it has been given anything.
+For content behind a sign-in, `--prepare <command>` runs once the app is installed and before its first launch, with
+the simulator's UDID in `OURO_AX_UDID`, so it can put a test account's session in the app's data container, and
+`--app-env KEY=VALUE` reaches every launch of the app, such as a debug build's test server. Pair them with
+`--disposable` only when that account and server are throwaway.
 The report says what each lane proved, and that none of it proves what Siri will do; for that, write a Siri scenario
 set ([Examples/SiriScenarios](Examples/SiriScenarios)) and run its generated tests on a 27.3 beta device. The whys
 are in [docs/decisions/2026-11-03-ax-xray.md](docs/decisions/2026-11-03-ax-xray.md).

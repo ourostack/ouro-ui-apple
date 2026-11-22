@@ -16,6 +16,11 @@ final class XrayProbeTests: XCTestCase {
         }
         // XCTest must launch the app: that is what gives AppIntentsTesting a runner service in it to talk to.
         let app = XCUIApplication(bundleIdentifier: plan.bundleIdentifier)
+        // xray-probe.sh --app-env: the variables every launch of the app gets, such as a debug build's server.
+        if let raw = env["OURO_AX_APP_ENV"], !raw.isEmpty {
+            let variables = try JSONDecoder().decode([String: String].self, from: Data(raw.utf8))
+            app.launchEnvironment.merge(variables) { _, new in new }
+        }
         // A launch can fail inside XCTest (no process ID). Carry on past it to say so plainly, so the log and the
         // script's retry tell "the probe could not reach the app" from the app failing a claim.
         continueAfterFailure = true

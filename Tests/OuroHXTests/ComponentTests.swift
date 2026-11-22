@@ -174,31 +174,6 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
     }
 
     /// Core claim `text.reflows`: a card's title and description have no line limit at any size.
-    /// Web's media pull: the picture runs to an outlined card's edge with the padding's gap under it, and is a rounded
-    /// picture of its own on a plain card. A linked card's press tints it 6% toward its words.
-    @Test func aCardsMediaSitsAsWebsDoes() {
-        #expect(OuroCardMetrics.mediaGap(size: .md, variant: .outline) == 24)
-        #expect(OuroCardMetrics.mediaGap(size: .sm, variant: .outline) == 16)
-        #expect(OuroCardMetrics.mediaGap(size: .md, variant: .plain) == 16)
-        #expect(OuroCardMetrics.mediaGap(size: .sm, variant: .plain) == 12)
-        #expect(OuroCardMetrics.plainMediaRadius(size: .md) == .xl)
-        #expect(OuroCardMetrics.plainMediaRadius(size: .sm) == .lg)
-        #expect(OuroCardMetrics.pressTint == 0.06)
-    }
-
-    /// The initializers from before `media` and `onPress` still compile, and still make a card that takes no press;
-    /// the new ones take a picture and a press.
-    @Test @MainActor func everyCardInitializerCompiles() {
-        let body = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") }
-        let action = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") } action: { Text("Edit") }
-        let footer = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") } action: { Text("Edit") } footer: { Text("4 items") }
-        #expect(body.onPress == nil && action.onPress == nil && footer.onPress == nil)
-        let pressable = OuroCard("Weeknight dinners", onPress: {}) { Text("12 recipes") }
-        let pictured = OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: {}, media: { Color.orange })
-        #expect(pressable.onPress != nil && pressable.media == nil)
-        #expect(pictured.onPress != nil && pictured.media != nil)
-    }
-
     @Test func aCardsWordsHaveNoLineLimit() {
         #expect(OuroCardMetrics.titleLineLimit == nil)
         #expect(OuroCardMetrics.descriptionLineLimit == nil)

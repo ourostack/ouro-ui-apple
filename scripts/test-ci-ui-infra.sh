@@ -23,6 +23,10 @@ check "a screenshot timeout next to a real assertion" fail \
 check "an app launch the simulator timed out, and an app it never handed back" retry \
   "<unknown>:0: error: -[FeelCatchesTests testAPushUnderATabBar] : Failed to launch <XCUIApplicationImpl: 0x1 bot.ouro.feel.fixture> via Xcode: Timed out while launching application via Xcode." \
   "<unknown>:0: error: -[FeelCatchesTests testLateOrLingeringChrome] : Failed to get background assertion for target app with pid 0: No failure details provided"
+check "an app launch the simulator never reported on (#267)" retry \
+  "<unknown>:0: error: -[OuroHXGalleryUITests.ComponentClaimTests testAnEmptyStatesSymbolSitsAboveItsTitle] : Failed to get launch progress for <XCUIApplicationImpl: 0x106bcfa40 bot.ouro.hx.gallery at /Users/runner/work/x/OuroHXGallery.app>: Timed out while requesting launch progress."
+check "a launch it never reported on next to a real assertion" fail \
+  "<unknown>:0: error: -[G testA] : Failed to get launch progress for <XCUIApplicationImpl: 0x1 bot.ouro.hx.gallery>" "$E"
 check "a launch timeout next to a real assertion" fail \
   "<unknown>:0: error: -[G testA] : Failed to launch <X> via Xcode: Timed out while launching application via Xcode." "$E"
 check "xcodebuild hung and the watch stopped it (#164)" retry \

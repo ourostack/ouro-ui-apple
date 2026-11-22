@@ -77,6 +77,7 @@ extension OuroTheme {
     ///   - darkLabel: text on `dark`; nil picks white or ink, whichever reads better.
     public func withPrimary(light: Color, dark: Color, lightLabel: Color? = nil, darkLabel: Color? = nil) -> OuroTheme {
         OuroTheme(name: name, light: self.light.withPrimary(light, label: lightLabel),
-                  dark: self.dark.withPrimary(dark, label: darkLabel), radius: radius, extras: extras, heading: heading)
+                  dark: self.dark.withPrimary(dark, label: darkLabel), radius: radius, extras: extras, heading: heading,
+                  controlRadius: controlRadius)
     }
 }

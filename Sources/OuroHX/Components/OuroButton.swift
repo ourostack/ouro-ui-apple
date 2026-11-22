@@ -31,14 +31,14 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
         }
     }
 
-    /// The height the button is drawn at, which grows with the text: on a touch screen a small button is a 34-point
-    /// capsule centred in its 44-point target, Apple's small-control proportion; the others are drawn at their full
+    /// The height the button is drawn at, which grows with the text: on a touch screen a small button is drawn 34 points
+    /// tall, centred in its 44-point target, Apple's small-control proportion; the others are drawn at their full
     /// target, 50 and 56 points, the proportions of iOS 26's prominent buttons.
     public func visualHeight(on input: OuroInput, target: CGFloat) -> CGFloat {
         self == .sm && input == .touch ? 34 : minimumHeight(on: input, target: target)
     }
 
-    /// Padding at the label's sides: generous, so a capsule's ends have room to round.
+    /// Padding at the label's sides: generous, so a pill's ends have room to round.
     public var horizontalPadding: CGFloat {
         switch self { case .sm: 14; case .md: 20; case .lg: 24 }
     }
@@ -64,8 +64,8 @@ public enum OuroButtonSize: String, CaseIterable, Sendable {
     }
 }
 
-/// A button's outline: `pill`, a capsule, the default, as Apple's own buttons are from iOS 26 and Spoonjoy's and
-/// Gatefold's are; or `rounded`, the theme's `lg` radius, web's look.
+/// A button's outline: `rounded`, the default, the theme's control radius (``OuroTheme/controlCorner``) as a squircle,
+/// as web's button is in every theme; or `pill`, a capsule, for a moment that wants Apple's iOS 26 look.
 public enum OuroButtonShape: String, CaseIterable, Sendable { case rounded, pill }
 
 /// The resolved colours of a button, for one tone, variant and theme as seen. `surface` is what the label sits on:
@@ -165,6 +165,10 @@ public enum OuroButtonMetrics {
         OuroMotion.pressScale(isPressed: isPressed, reduceMotion: reduceMotion)
     }
 
+    /// A rounded button's corner for a button `height` points tall in `theme`: the theme's control radius, at most half
+    /// the height, as CSS draws a `border-radius` larger than the box.
+    public static func controlCorner(theme: OuroTheme, height: Double) -> Double { min(theme.controlCorner, height / 2) }
+
     /// A pill's end radius for a button `height` points tall: half of it, a capsule, at every text size, up to 44
     /// points, so a label wrapped onto several lines becomes a rounded rectangle rather than an oval.
     public static func pillRadius(height: CGFloat) -> CGFloat { min(height / 2, 44) }
@@ -202,7 +206,7 @@ public struct OuroButtonStyle: ButtonStyle {
     public var shape: OuroButtonShape
     public var fullWidth: Bool
 
-    public init(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .pill, fullWidth: Bool = false) {
+    public init(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .rounded, fullWidth: Bool = false) {
         self.variant = variant
         self.tone = tone
         self.size = size
@@ -245,7 +249,7 @@ public struct OuroButtonStyle: ButtonStyle {
             // A pill is a capsule at every height, its ends half the height it is drawn (taller at large text sizes),
             // up to 44 points: a label wrapped onto several lines becomes a rounded rectangle, not an oval. Circular
             // ends, a true capsule: a continuous corner at half the height reads slightly square.
-            let shape = style.shape == .pill ? AnyShape(PillShape()) : AnyShape(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous))
+            let shape = style.shape == .pill ? AnyShape(PillShape()) : AnyShape(OuroControlShape(theme: theme))
             configuration.label
                 // Ouro's icon-and-words spacing on an OuroButton's own label only, so a plain `Button` styled
                 // `.ouro()` keeps a label style set around it (`.iconOnly`, `.titleOnly`).
@@ -389,8 +393,8 @@ private struct OuroLabelIfOwned: ViewModifier {
 }
 
 extension ButtonStyle where Self == OuroButtonStyle {
-    /// Ouro HX's button look: `.buttonStyle(.ouro())`, `.buttonStyle(.ouro(.glass, shape: .pill))`.
-    public static func ouro(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .pill, fullWidth: Bool = false) -> OuroButtonStyle {
+    /// Ouro HX's button look: `.buttonStyle(.ouro())`, or `.buttonStyle(.ouro(.glass, shape: .pill))` for a capsule.
+    public static func ouro(_ variant: OuroButtonVariant = .solid, tone: OuroTone = .primary, size: OuroButtonSize = .md, shape: OuroButtonShape = .rounded, fullWidth: Bool = false) -> OuroButtonStyle {
         OuroButtonStyle(variant, tone: tone, size: size, shape: shape, fullWidth: fullWidth)
     }
 }
@@ -421,7 +425,7 @@ public struct OuroButton<Label: View>: View {
         tone: OuroTone = .primary,
         variant: OuroButtonVariant = .solid,
         size: OuroButtonSize = .md,
-        shape: OuroButtonShape = .pill,
+        shape: OuroButtonShape = .rounded,
         fullWidth: Bool = false,
         role: ButtonRole? = nil,
         loading: Bool = false,
@@ -469,7 +473,7 @@ extension OuroButton where Label == SwiftUI.Label<Text, Image> {
         tone: OuroTone = .primary,
         variant: OuroButtonVariant = .solid,
         size: OuroButtonSize = .md,
-        shape: OuroButtonShape = .pill,
+        shape: OuroButtonShape = .rounded,
         fullWidth: Bool = false,
         role: ButtonRole? = nil,
         loading: Bool = false,
@@ -490,7 +494,7 @@ extension OuroButton where Label == Text {
         tone: OuroTone = .primary,
         variant: OuroButtonVariant = .solid,
         size: OuroButtonSize = .md,
-        shape: OuroButtonShape = .pill,
+        shape: OuroButtonShape = .rounded,
         fullWidth: Bool = false,
         role: ButtonRole? = nil,
         loading: Bool = false,
@@ -527,5 +531,14 @@ private struct ButtonLabel: LabelStyle {
             configuration.icon.font(iconFont)
             configuration.title
         }
+    }
+}
+
+/// A control's squircle at the theme's control radius, clamped to half its height as CSS clamps a `border-radius`.
+struct OuroControlShape: Shape {
+    let theme: OuroTheme
+
+    func path(in rect: CGRect) -> Path {
+        RoundedRectangle(cornerRadius: OuroButtonMetrics.controlCorner(theme: theme, height: rect.height), style: .continuous).path(in: rect)
     }
 }

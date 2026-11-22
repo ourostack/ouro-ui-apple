@@ -19,8 +19,14 @@ public enum OuroRadius: String, CaseIterable, Sendable {
 }
 
 extension OuroTheme {
-    /// The radius of a step, in points: the base radius (`--radius`, 12 in Pearl) times the step's scale.
+    /// The radius of a step, in points: the base radius (`--radius`, 18 in Pearl, 6 in Cookbook) times the step's scale.
     public func radius(_ step: OuroRadius) -> Double { radius * step.scale }
+
+    /// The corner of the controls a person presses or types into, in points: web's `rounded-ouro-control`, which is
+    /// `--ouro-control-radius` where a theme sets one (core's ``OuroTheme/controlRadius``: 9999 in Cookbook) and the
+    /// `lg` step otherwise (18 points in Pearl). Draw it clamped to half the control's height, as web's ouro-base caps
+    /// it, so Cookbook's controls are squircle capsules.
+    public var controlCorner: Double { controlRadius ?? radius(.lg) }
 }
 
 /// A theme as it is seen: the theme, the colour scheme and the contrast setting, and the colours they give.

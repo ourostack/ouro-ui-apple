@@ -82,9 +82,8 @@ public enum OuroCardMetrics {
 ///     OuroButton("Edit", variant: .plain, size: .sm) { edit() }
 /// }
 ///
-/// OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: { open() }, media: {
-///     CoverArt().aspectRatio(4 / 3, contentMode: .fill)
-/// })
+/// OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: { open() },
+///          media: CoverArt().aspectRatio(4 / 3, contentMode: .fill))
 /// ```
 ///
 /// `media` runs edge to edge across an outlined card's top, inside its corners, and is a rounded picture of its own on
@@ -276,18 +275,19 @@ extension OuroCard where Action == EmptyView, Footer == EmptyView {
 
 extension OuroCard where Content == EmptyView, Action == EmptyView, Footer == EmptyView {
     /// A picture with its title and description under it, such as a cookbook in a grid: web's
-    /// `<Card href=… title=… description=… media={…} />`. Pass `media:` by its label: a trailing closure here reads
-    /// as a body.
+    /// `<Card href=… title=… description=… media={…} />`. `media` is a view, not a closure, as web's `media` is an
+    /// element. A closure here would also match a trailing body, so `OuroCard("Pantry", onPress: …) { Text("Flour") }`
+    /// would draw its body as the picture.
     public init<Media: View>(
         _ title: String,
         description: String? = nil,
         variant: OuroCardVariant = OuroCardMetrics.defaultVariant,
         size: OuroCardSize = OuroCardMetrics.defaultSize,
         onPress: (@MainActor () -> Void)? = nil,
-        @ViewBuilder media: () -> Media
+        media: Media
     ) {
-        self.init(title, description: description, variant: variant, size: size, onPress: onPress, media: media,
-                  content: { EmptyView() }, action: { EmptyView() }, footer: { EmptyView() })
+        self.init(title, description: description, variant: variant, size: size, onPress: onPress, media: AnyView(media),
+                  content: EmptyView(), action: EmptyView(), footer: EmptyView())
     }
 }
 

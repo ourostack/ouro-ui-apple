@@ -193,8 +193,11 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         let action = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") } action: { Text("Edit") }
         let footer = OuroCard("Pantry", description: "On hand", variant: .outline, size: .md) { Text("Flour") } action: { Text("Edit") } footer: { Text("4 items") }
         #expect(body.onPress == nil && action.onPress == nil && footer.onPress == nil)
+        // A trailing closure is always the body: none of these, nor a bare card, is drawn as a picture card.
+        let bare = OuroCard("Pantry") { Text("Flour") }
+        #expect(body.media == nil && action.media == nil && footer.media == nil && bare.media == nil)
         let pressable = OuroCard("Weeknight dinners", onPress: {}) { Text("12 recipes") }
-        let pictured = OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: {}, media: { Color.orange })
+        let pictured = OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: {}, media: Color.orange)
         #expect(pressable.onPress != nil && pressable.media == nil)
         #expect(pictured.onPress != nil && pictured.media != nil)
     }

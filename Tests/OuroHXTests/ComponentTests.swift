@@ -436,6 +436,31 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroChoiceMetrics.boxSide(.pointer) == 16)
     }
 
+    /// Cookbook's segmented control is a squircle capsule with a capsule thumb, as web's `rounded-ouro-control` and
+    /// `rounded-ouro-control-md` draw it: core's 9999 control radius, capped at half the segment and half the thumb.
+    @Test func cookbooksSegmentedControlIsACapsule() {
+        let cookbook = OuroTokens.cookbook
+        #expect(OuroChoiceMetrics.trackCorner(theme: cookbook, height: 44) == 22)
+        #expect(OuroChoiceMetrics.thumbCorner(theme: cookbook, height: 44) == 20)
+        #expect(OuroChoiceMetrics.trackCorner(theme: cookbook, height: 36) == 18)
+        #expect(OuroChoiceMetrics.thumbCorner(theme: cookbook, height: 36) == 16)
+    }
+
+    /// Themes without a control radius keep their corners: the track is the `lg` step and the thumb the `md` step,
+    /// short of half a segment, so Pearl's control is unchanged (18 and 14.4 points).
+    @Test(arguments: OuroThemeName.allCases)
+    func aSegmentedControlsCornersAreTheThemesControlRadius(name: OuroThemeName) {
+        let theme = OuroTokens.theme(name)
+        for height in [OuroChoiceMetrics.segmentHeight(.touch), OuroChoiceMetrics.segmentHeight(.pointer)] {
+            #expect(OuroChoiceMetrics.trackCorner(theme: theme, height: height) == min(CGFloat(theme.controlRadius ?? theme.radius(.lg)), height / 2))
+            #expect(OuroChoiceMetrics.thumbCorner(theme: theme, height: height) == min(CGFloat(theme.controlRadius ?? theme.radius(.md)), height / 2 - 2))
+        }
+        if name == .pearl {
+            #expect(OuroChoiceMetrics.trackCorner(theme: theme, height: 44) == 18)
+            #expect(abs(OuroChoiceMetrics.thumbCorner(theme: theme, height: 44) - 14.4) < 0.0001)
+        }
+    }
+
     /// Core claim `name.spoken`: a checkbox is heard by its label (with required), its state, then its error and
     /// description.
     @Test func aCheckboxSaysWhatItIsAndWhereItStands() {

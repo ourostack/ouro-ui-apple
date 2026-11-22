@@ -50,20 +50,36 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroButtonStyle().shape == .rounded)
     }
 
-    /// A rounded button's corner is core's `--radius` for the theme (no core theme sets `--ouro-control-radius`, so
-    /// web's `rounded-ouro-control` is the `lg` step), clamped to half the button's height as CSS clamps it.
+    /// A rounded button's corner is the theme's `--ouro-control-radius` where core sets one, and its `lg` step
+    /// (`--radius`) otherwise, as web's `rounded-ouro-control`, clamped to half the button's height as ouro-base caps it.
     @Test(arguments: OuroThemeName.allCases)
     func aButtonsCornerIsTheThemesControlRadius(name: OuroThemeName) {
         let theme = OuroTokens.theme(name)
-        #expect(theme.controlCorner == theme.radius)
-        #expect(OuroButtonMetrics.controlCorner(theme: theme, height: 200) == theme.radius)
-        #expect(OuroButtonMetrics.controlCorner(theme: theme, height: 8) == min(theme.radius, 4))
+        let corner = theme.controlRadius ?? theme.radius
+        #expect(theme.controlCorner == corner)
+        #expect(OuroButtonMetrics.controlCorner(theme: theme, height: 200) == min(corner, 100))
+        #expect(OuroButtonMetrics.controlCorner(theme: theme, height: 8) == min(corner, 4))
     }
 
-    /// Pearl's control radius is its 1.125rem `--radius`, in points: 18, short of half a 50-point button.
+    /// Pearl sets no control radius, so its corner is its 1.125rem `--radius`, in points: 18, short of half a
+    /// 50-point button.
     @Test func pearlsCornerIsCores() {
+        #expect(OuroTokens.pearl.controlRadius == nil)
         #expect(OuroTokens.pearl.controlCorner == 18)
         #expect(OuroButtonMetrics.controlCorner(theme: OuroTokens.pearl, height: 50) == 18)
+    }
+
+    /// Cookbook's primary button is a squircle capsule: core's control radius (9999) caps at half its height, and
+    /// the outline is a continuous rounded rectangle, never a circular one.
+    @Test func cookbooksPrimaryButtonIsACapsule() {
+        let cookbook = OuroTokens.cookbook
+        #expect(cookbook.controlRadius == 9999)
+        #expect(OuroButtonMetrics.controlCorner(theme: cookbook, height: 50) == 25)
+        #expect(OuroButtonMetrics.controlCorner(theme: cookbook.withPrimary(light: .red, dark: .red), height: 50) == 25)
+        let rect = CGRect(x: 0, y: 0, width: 200, height: 50)
+        let drawn = OuroControlShape(theme: cookbook).path(in: rect)
+        #expect(drawn == RoundedRectangle(cornerRadius: 25, style: .continuous).path(in: rect))
+        #expect(drawn != RoundedRectangle(cornerRadius: 25, style: .circular).path(in: rect))
     }
 
     /// A button's resting fill is the theme's primary token: Pearl's `#0066cc`, as web's computed background.

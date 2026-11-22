@@ -136,8 +136,8 @@ What the components don't do for you, and how to match them:
 Everything moves on springs (``OuroMotion``), never fixed durations, so a change mid-way turns around from where it
 is instead of jumping. The defaults are the designed version; options are for the exceptions.
 
-- **Buttons** are squircles at the theme's control radius, as web's are (18 points in Pearl, never more than half the
-  height), 50 points tall at the medium size (34 drawn small, 56 large, each with at least a 44-point
+- **Buttons** are squircles at the theme's control radius, as web's are (18 points in Pearl; Cookbook's 9999 makes a
+  squircle capsule, since the corner never exceeds half the height), 50 points tall at the medium size (34 drawn small, 56 large, each with at least a 44-point
   target). `shape: .pill` makes a capsule, whose corners stop at 44 points when a label wraps onto several lines. Outlines
   are drawn in their tone at 50%, secondary's in the page's foreground at 25% (two points of the full tone under
   Increase Contrast), and an icon sits on the label's first line. A plain button's words sit on the layout margin,

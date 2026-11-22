@@ -1,5 +1,5 @@
 {
-  "version": "0.4.0",
+  "version": "0.9.0",
   "claims": [
     {
       "id": "target.touch",
@@ -13,7 +13,21 @@
         "text-field",
         "segmented-control",
         "checkbox",
-        "sync-status"
+        "sync-status",
+        "tabs",
+        "tab-bar",
+        "sidebar",
+        "dialog",
+        "confirm-dialog",
+        "select",
+        "switch",
+        "swipe-actions",
+        "reorderable",
+        "conversation-list",
+        "reaction-bar",
+        "message-list",
+        "composer",
+        "table"
       ],
       "rule": "On a touch screen, every control a component draws (its button, action, dismiss or close control) can be pressed anywhere in a target at least 44 by 44 points (CSS pixels on web).",
       "why": "A smaller target is missed by people with a tremor or limited dexterity, and by everyone on the move.",
@@ -23,7 +37,7 @@
         "finding": "Targets under 44 by 44 fail WCAG 2.5.5 (level AAA, chosen on purpose above 2.5.8's AA floor of 24) and Apple's HIG minimum (https://developer.apple.com/design/human-interface-guidelines/accessibility#Buttons-and-controls)."
       },
       "checks": {
-        "web": "registry/ouro/components/ouro/button/button.touch.test.tsx measures the Button's box on a coarse pointer, and the Toaster test \"gives the dismiss and action buttons 44px touch targets\". Not yet checked on web: the Sheet's close control and the Alert's dismiss button. The web checks for text-field are not yet listed here. The web checks for segmented-control, checkbox, sync-status are not yet listed here.",
+        "web": "registry/ouro/components/ouro/button/button.touch.test.tsx measures the Button's box on a coarse pointer, and the Toaster test \"gives the dismiss and action buttons 44px touch targets\". Not yet checked on web: the Sheet's close control and the Alert's dismiss button. The web checks for text-field are not yet listed here. The web checks for segmented-control, checkbox, sync-status, tabs, tab-bar, sidebar are not yet listed here.",
         "apple": "TouchTargetTests (Tests/OuroHXTests/ComponentTests.swift) read every button size's and every close control's minimum target; the gallery's ComponentClaimTests.testEveryControlIs44Points measures every button's frame on every component page, and testEveryComponentPagePassesTheAccessibilityAudit runs performAccessibilityAudit, whose hitRegion audit fails a small target. The TextField: TextFieldMetricsTests.aTextFieldIsATouchTarget asserts 44 and 56 points tall, and testEveryControlIs44Points measures its Clear and Show password buttons on the gallery's textfields page. The SegmentedControl, Checkbox and SyncStatus: ChoiceMetricsTests asserts segments 44 points tall on touch and the checkbox row 44 points; testEveryControlIs44Points measures them and the sync line's Retry on the gallery's choices and sync pages.",
         "android": "ouro-ui-android's ClaimsTest (ouro-hx/src/test, Robolectric) measures every Button in the gallery at 48 by 48 dp or more, Android's minimum. Not yet the other components this claim covers; the kit ships Button, Badge, Card and Item."
       },
@@ -40,7 +54,16 @@
         "skeleton",
         "segmented-control",
         "checkbox",
-        "sync-status"
+        "sync-status",
+        "tabs",
+        "tab-bar",
+        "dialog",
+        "confirm-dialog",
+        "select",
+        "switch",
+        "swipe-actions",
+        "reorderable",
+        "immersive-controls"
       ],
       "rule": "With Reduce Motion on, a component animates no movement: no slide, scale, spring or bounce. What would move crossfades instead, over `ouro.duration.base`, and a press does not scale. A drag may still follow the finger, since the person is moving it.",
       "why": "Movement across the screen can make people with vestibular disorders dizzy or sick.",
@@ -50,8 +73,8 @@
         "finding": "WCAG 2.3.3, and Apple's HIG on Motion (https://developer.apple.com/design/human-interface-guidelines/motion): motion triggered by interaction must be possible to turn off, unless it is essential, as following a finger is."
       },
       "checks": {
-        "web": "The Button test \"does not scale with reduced motion\", the Sheet test \"drops transform motion under reduced motion and keeps an opacity fade\" and the Toaster test \"slides on the ease-out curve in 300ms or less, never animates height, and only fades with reduced motion\". Not yet checked on web: the Alert. The drag allowance: the Toaster test \"still follows the finger with reduced motion, then returns or fades with no travel\". The web checks for skeleton are not yet listed here. The web checks for segmented-control, checkbox, sync-status are not yet listed here.",
-        "apple": "ComponentMotionTests (Tests/OuroHXTests/ComponentTests.swift) read each component's transition and press scale with reduceMotion true and false: a crossfade with it on, never a move or a scale. The Skeleton: LoadingMetricsTests.aSkeletonHoldsStillUnderReduceMotion asserts it never breathes under Reduce Motion. The SegmentedControl, Checkbox and SyncStatus: ChoiceMetricsTests asserts no press scale or thumb slide under Reduce Motion, and SyncStatusTests asserts the saving arrows hold still (OuroSyncStatusMetrics.spins).",
+        "web": "The Button test \"does not scale with reduced motion\", the Sheet test \"drops transform motion under reduced motion and keeps an opacity fade\" and the Toaster test \"slides on the ease-out curve in 300ms or less, never animates height, and only fades with reduced motion\". Not yet checked on web: the Alert. The drag allowance: the Toaster test \"still follows the finger with reduced motion, then returns or fades with no travel\". The web checks for skeleton are not yet listed here. The web checks for segmented-control, checkbox, sync-status, tabs, tab-bar are not yet listed here.",
+        "apple": "ComponentMotionTests (Tests/OuroHXTests/ComponentTests.swift) read each component's transition and press scale with reduceMotion true and false: a crossfade with it on, never a move or a scale. The Skeleton: LoadingMetricsTests.aSkeletonHoldsStillUnderReduceMotion asserts it never breathes under Reduce Motion. The SegmentedControl, Checkbox and SyncStatus: ChoiceMetricsTests asserts no press scale or thumb slide under Reduce Motion, and SyncStatusTests asserts the saving arrows hold still (OuroSyncStatusMetrics.spins). ImmersiveControls: ImmersiveControlsTests.motion asserts each bar slides in from its own edge, and crossfades over ouro.duration.base under Reduce Motion.",
         "android": "ouro-ui-android's ClaimsTest reads every Button's reported press scale: 0.97 with animations on, 1 with Remove animations. Not yet the other components this claim covers."
       },
       "fix": "Pick the animation from the Reduce Motion setting: OuroMotion's step on Apple, `motion-reduce:` on web."
@@ -78,7 +101,24 @@
         "description-list",
         "segmented-control",
         "checkbox",
-        "sync-status"
+        "sync-status",
+        "tabs",
+        "tab-bar",
+        "sidebar",
+        "dialog",
+        "confirm-dialog",
+        "select",
+        "switch",
+        "field",
+        "item-group",
+        "swipe-actions",
+        "reorderable",
+        "conversation-list",
+        "message",
+        "reaction-bar",
+        "message-list",
+        "composer",
+        "table"
       ],
       "rule": "Every control has a name a screen reader speaks and the role it plays (button, heading); a component's title is a heading; decorative icons are hidden from the screen reader.",
       "why": "A control without a name is announced as \"button\" or skipped, so a blind person cannot tell what it does.",
@@ -88,7 +128,7 @@
         "finding": "WCAG 4.1.2. Apple: https://developer.apple.com/documentation/accessibility/supporting-voiceover-in-your-app."
       },
       "checks": {
-        "web": "The Empty test \"renders the title as an <h3>, the description, the icon and the action\", the Alert test \"shows a dismiss button with onDismiss, named by dismissLabel\" and the Sheet test \"renders a Close button last in the sheet, hidden until keyboard focus, that closes it\" query by role and name; the axe lane checks names. Not yet checked on web: the Badge, the Card and the Item. The web checks for text-field, avatar, page-header, skeleton, spinner, progress are not yet listed here. The web checks for separator, description-list, segmented-control, checkbox, sync-status are not yet listed here.",
+        "web": "The Empty test \"renders the title as an <h3>, the description, the icon and the action\", the Alert test \"shows a dismiss button with onDismiss, named by dismissLabel\" and the Sheet test \"renders a Close button last in the sheet, hidden until keyboard focus, that closes it\" query by role and name; the axe lane checks names. Not yet checked on web: the Badge, the Card and the Item. The web checks for text-field, avatar, page-header, skeleton, spinner, progress are not yet listed here. The web checks for separator, description-list, segmented-control, checkbox, sync-status, tabs, tab-bar, sidebar are not yet listed here.",
         "apple": "The gallery's ComponentClaimTests.testVoiceOverLabels finds each control by its VoiceOver label as a button, each title as text, and no decorative icon; testEveryComponentPagePassesTheAccessibilityAudit runs performAccessibilityAudit's sufficientElementDescription and trait audits on every page. The Badge: testVoiceOverLabels reads a recipe row on the gallery's badges page as one element that says its badges' words and not their decorative icons, and finds no badge as a button. The Card: testVoiceOverLabels reads the cards page's titles and description as text and its action as a button. The Item: testVoiceOverLabels reads a pressable row on the items page as one button named by its title and description, its action as its own button, and no decorative icon. The TextField, Avatar, PageHeader, Skeleton, Spinner and Progress: testVoiceOverLabels finds each on its gallery page by its spoken name (a field by its label and never its placeholder, the header's title and its actions, the spinner by its label); AvatarMetricsTests.anAvatarIsNamedByItsPerson, TextFieldMetricsTests.theHintReadsTheErrorThenTheDescription and LoadingMetricsTests.aBarSaysHowFarAlong assert the rest. The Separator, DescriptionList, SegmentedControl, Checkbox and SyncStatus: testVoiceOverLabels finds each on its gallery page by its spoken name (a separator's label as text, each pair as its term then its details, each segment by its word, the checkbox by its label with its value, the sync line by its words); DisplayMetricsTests, ChoiceMetricsTests and SyncStatusTests assert the rest.",
         "android": "ouro-ui-android's ClaimsTest reads the Compose semantics tree TalkBack and agents read: each Button, Badge, Card and Item is named and typed as its spec's accessibility.android says. Not yet the other components this claim covers."
       },
@@ -111,7 +151,24 @@
         "progress",
         "description-list",
         "segmented-control",
-        "checkbox"
+        "checkbox",
+        "tabs",
+        "tab-bar",
+        "sidebar",
+        "dialog",
+        "confirm-dialog",
+        "select",
+        "switch",
+        "field",
+        "item-group",
+        "swipe-actions",
+        "reorderable",
+        "conversation-list",
+        "message",
+        "reaction-bar",
+        "message-list",
+        "composer",
+        "table"
       ],
       "rule": "At the largest text size the platform offers (Apple's accessibility sizes, 200% text on web), titles, messages and action labels wrap onto more lines; none is truncated or clipped.",
       "why": "People who need large text lose the words that tell them what an action does when a label is cut off.",
@@ -146,7 +203,24 @@
         "description-list",
         "segmented-control",
         "checkbox",
-        "sync-status"
+        "sync-status",
+        "tabs",
+        "tab-bar",
+        "sidebar",
+        "dialog",
+        "confirm-dialog",
+        "select",
+        "switch",
+        "field",
+        "item-group",
+        "swipe-actions",
+        "reorderable",
+        "conversation-list",
+        "message",
+        "reaction-bar",
+        "message-list",
+        "composer",
+        "table"
       ],
       "rule": "Text and icons that carry meaning reach 4.5:1 against what is behind them in every theme, light and dark, and 7:1 when the platform's increased-contrast setting is on.",
       "why": "Low-contrast text cannot be read by people with low vision, or by anyone in sunlight.",
@@ -156,7 +230,7 @@
         "finding": "WCAG 1.4.3 (4.5:1 for text) and 1.4.6 (7:1, the enhanced level). Ouro chooses 7:1 for increased contrast, and holds meaningful icons to the text ratio, above 1.4.11's 3:1 for graphics."
       },
       "checks": {
-        "web": "The axe lane's color-contrast rule, 4.5:1 in light and dark. Not yet checked on web: 7:1 under increased contrast. Not yet checked on web: the Badge, the Card and the Item. The web checks for text-field, avatar, page-header, progress are not yet listed here. The web checks for separator, description-list, segmented-control, checkbox, sync-status are not yet listed here.",
+        "web": "The axe lane's color-contrast rule, 4.5:1 in light and dark. Not yet checked on web: 7:1 under increased contrast. Not yet checked on web: the Badge, the Card and the Item. The web checks for text-field, avatar, page-header, progress are not yet listed here. The web checks for separator, description-list, segmented-control, checkbox, sync-status, tabs, tab-bar, sidebar are not yet listed here.",
         "apple": "ContrastTests (Tests/OuroHXTests/ComponentTests.swift) compute the WCAG ratio of every component's text and icons on its surface, every tone and variant, in all six themes, light and dark, standard and increased contrast; performAccessibilityAudit's contrast audit runs on the gallery. ComponentSnapshotTests keeps references of every component in light, dark and increased contrast. The Badge: ContrastTests' everyBadgeLabelReadsOnItsFillInEveryThemeAndMode covers every tone and variant, and aBadgeTakesTheButtonsColours checks it uses the button's palette. The Card: ContrastTests' cardTextReadsInEveryThemeAndMode covers both variants and the edge. The Item: itemTextReadsInEveryThemeAndMode covers a row's words, its icon tile's symbol and the lines between rows. The TextField, Avatar, PageHeader and Progress: ContrastTests resolve their palettes in every theme and mode, asserting 5:1 text (7:1 under increased contrast), the field's edge and the bar's fill at 3:1, and every avatar hue. The Separator, DescriptionList, SegmentedControl, Checkbox and SyncStatus: ContrastTests resolve their palettes in every theme and mode, asserting 5:1 text (7:1 under increased contrast) and the checkbox's edge and tick at 3:1.",
         "android": "ouro-ui-android's ClaimsTest computes every Button, Badge, Card and Item word pair at 4.5:1 (7:1 with increased contrast) in all six themes, light and dark, and samples the rendered pixels under each Button and Badge label. Not yet the other components this claim covers."
       },
@@ -168,9 +242,10 @@
       "appliesTo": [
         "alert",
         "toast",
-        "sync-status"
+        "sync-status",
+        "message-list"
       ],
-      "rule": "A banner or toast is announced once when it appears. A destructive banner or toast interrupts what the screen reader is saying, and so does a warning banner; the others, warning toasts included, wait their turn.",
+      "rule": "A banner or toast is announced once when it appears. A destructive banner or toast interrupts what the screen reader is saying, and so does a warning banner; the others, warning toasts included, wait their turn. A message list announces each new message from someone else once, politely, and never the history it opens with or the person's own messages.",
       "why": "A message that is never announced is never heard, and one that always interrupts trains people to ignore it.",
       "evidence": {
         "basis": "principle",
@@ -208,7 +283,8 @@
       "appliesTo": [
         "alert",
         "sheet",
-        "toast"
+        "toast",
+        "dialog"
       ],
       "rule": "A sheet, a dismissible banner and every toast have a close control with a name, which a screen reader can reach and press.",
       "why": "On a phone a screen reader user has no Escape key and may not know the dismiss gesture, so without a control they are stuck.",
@@ -222,6 +298,24 @@
         "apple": "The gallery's ComponentClaimTests.testCloseControlsClose finds the sheet's, the banner's and a toast's close control by its label, presses it and checks the surface is gone."
       },
       "fix": "Render a labelled close button (\"Close\", \"Dismiss\") inside the surface."
+    },
+    {
+      "id": "content.holds-still",
+      "tier": "must",
+      "appliesTo": [
+        "immersive-controls"
+      ],
+      "rule": "Showing or hiding controls over content that fills the screen never moves, scales, reflows, covers with a fill, or dims the content: every line and picture stands where it stood, and the controls stand in the bands the system already takes (the status bar's, a camera housing's side, the home indicator's).",
+      "why": "A reader taps for the controls in the middle of a page; when the page steps back, reflows or is papered over, the words they were reading move or go, and they lose their place.",
+      "evidence": {
+        "basis": "evaluation",
+        "source": "Gatefold build 53 on the iPhone Duo's cover screen and an iPad Pro 13-inch simulator, 2026-11-20 (ourostack/gatefold ControlsOverPageUITests)",
+        "finding": "Showing the reader's controls moved every line on the page (19 of 19 on the Duo, 29 of 29 on the iPad), and paper laid behind the controls hid 7 of 19 and 16 of 29 lines."
+      },
+      "checks": {
+        "apple": "ImmersiveControlsTests (Tests/OuroHXTests/ImmersiveControlsTests.swift): contentHoldsStill measures the content with the bars shown and hidden and finds the same size, and the placement tests put each bar in its band, beside a housing."
+      },
+      "fix": "Lay the controls over the content (an overlay, never a stack or a padding), give them no backing fill or dim, and keep the content's words out of the bands the controls stand in, as a book's margins do."
     }
   ]
 }

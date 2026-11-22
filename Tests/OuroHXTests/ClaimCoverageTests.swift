@@ -43,6 +43,9 @@ import Testing
             "Tests/OuroHXTests/ComponentTests.swift: ToastTests",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAToastWithAnActionWaits",
         ],
+        "content.holds-still": [
+            "Tests/OuroHXTests/ImmersiveControlsTests.swift: contentHoldsStill",
+        ],
         "dismiss.reachable": [
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testCloseControlsClose",
             "Examples/OuroHXGallery/UITests/ComponentClaimTests.swift: testAToastShowsAboveASheet",

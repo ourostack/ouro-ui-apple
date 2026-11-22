@@ -1,5 +1,6 @@
 import OuroFeelRecorder
 import SwiftUI
+import UIKit.UIGestureRecognizerSubclass
 
 /// One page per genre of jank. `-page <name>` picks it; `-bug 1` turns on its known bug. The UI tests prove each
 /// Ouro Feel check fails with the bug and passes without it.
@@ -883,7 +884,7 @@ struct KeyboardPage: View {
 /// (`scroll.place`) is the chapter and the first line in view. It opens at line 20 of chapter 1. Fixed: a tap on the
 /// status bar does nothing (`scrollsToTop` off), and coming back to a chapter returns to the line you left it at. The
 /// bugs, as Ari found them: the status bar tap scrolls to the chapter's start, and coming back lands at the chapter's
-/// end.
+/// end. A swipe is judged from its touches when the finger lifts (`SwipeAcross`).
 struct ScrollReaderPage: View {
     @State private var place = ""
     var body: some View {
@@ -927,12 +928,12 @@ struct ScrollReader: UIViewRepresentable {
             stack.addArrangedSubview(label)
         }
         context.coordinator.stack = stack
-        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
-            let swipe = UISwipeGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.swiped(_:)))
-            swipe.direction = direction
-            swipe.delegate = context.coordinator
-            scroll.addGestureRecognizer(swipe)
+        let swipe = SwipeAcross { [weak scroll, coordinator = context.coordinator] direction in
+            if let scroll { coordinator.swiped(direction, in: scroll) }
         }
+        swipe.cancelsTouchesInView = false
+        swipe.delegate = context.coordinator
+        scroll.addGestureRecognizer(swipe)
         // After SwiftUI has built the view: setting the place binding while it builds may be dropped.
         DispatchQueue.main.async { context.coordinator.show(chapter: 1, in: scroll, line: 20) }
         return scroll
@@ -968,18 +969,49 @@ struct ScrollReader: UIViewRepresentable {
 
         func scrollViewDidScroll(_ scroll: UIScrollView) { report(scroll) }
 
-        @objc func swiped(_ swipe: UISwipeGestureRecognizer) {
-            guard let scroll = swipe.view as? UIScrollView else { return }
-            let next = swipe.direction == .left ? chapter + 1 : chapter - 1
+        func swiped(_ direction: UISwipeGestureRecognizer.Direction, in scroll: UIScrollView) {
+            let next = direction == .left ? chapter + 1 : chapter - 1
             guard next >= 1 else { return }
             left[chapter] = line(scroll)
             // The bug comes back to a chapter at its end; the fixed build to the line you left it at.
-            let land = swipe.direction == .right ? (parent.bug ? ScrollReader.lines : left[next] ?? 1) : (left[next] ?? 1)
+            let land = direction == .right ? (parent.bug ? ScrollReader.lines : left[next] ?? 1) : (left[next] ?? 1)
             show(chapter: next, in: scroll, line: land)
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
     }
+}
+
+/// A swipe across the reader, judged when the finger lifts: at least 50 points sideways and more sideways than up or
+/// down, in the window's coordinates (the reader's own jump to another chapter mid-swipe moves the scroll view's). Not
+/// a UISwipeGestureRecognizer: UIKit holds a recognizer's action until SpringBoard has decided the touch is not a
+/// system gesture, and when SpringBoard is busy past the lift, as on a loaded CI runner, the recognizer ends and its
+/// action is never sent, so the chapter turn was lost (#244). The touches themselves still arrive on time, so this
+/// turns the chapter from them and never waits on SpringBoard.
+final class SwipeAcross: UIGestureRecognizer {
+    private let swiped: (UISwipeGestureRecognizer.Direction) -> Void
+    private var start: CGPoint?
+
+    init(_ swiped: @escaping (UISwipeGestureRecognizer.Direction) -> Void) {
+        self.swiped = swiped
+        super.init(target: nil, action: nil)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if start == nil { start = touches.first?.location(in: nil) }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let start, let end = touches.first?.location(in: nil) {
+            let dx = end.x - start.x, dy = end.y - start.y
+            if abs(dx) >= 50 && abs(dx) > abs(dy) { swiped(dx < 0 ? .left : .right) }
+        }
+        state = .failed
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { state = .failed }
+
+    override func reset() { start = nil }
 }
 
 /// Covered content, and a text column inside the window. A running head over a column of lines and a Close button.

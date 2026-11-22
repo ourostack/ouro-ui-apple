@@ -80,6 +80,9 @@ public enum OuroItemMetrics {
     /// Whether the actions go under the words rather than after them: at the accessibility sizes, as web's
     /// `stackBelow`, so the title has the width and wraps less.
     public static func stacksActions(at size: DynamicTypeSize) -> Bool { size.isAccessibilitySize }
+    /// The narrowest the words get beside the actions, about eight characters of body text. Narrower, the actions go
+    /// under the words, so a long control never squeezes the title into a word a line.
+    public static let minimumWordsWidth: CGFloat = 88
 
     /// Whether the media goes above the words: a picture does at the accessibility sizes, as web's `mediaAbove`; an
     /// icon tile stays beside them.
@@ -149,12 +152,18 @@ public struct OuroItem<Media: View, Actions: View>: View {
             if lifted { mediaView(palette, lifted: true) }
             HStack(alignment: description == nil ? .center : .top, spacing: OuroItemMetrics.spacing) {
                 if hasMedia && !lifted { mediaView(palette, lifted: false) }
-                VStack(alignment: .leading, spacing: 8) {
-                    pressable(words(palette))
-                    if stacked { actionsView }
+                if hasActions && !stacked {
+                    OuroItemWordsAndActions(alignTop: description != nil) {
+                        pressable(words(palette))
+                        actionsView
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        pressable(words(palette))
+                        if stacked { actionsView }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if hasActions && !stacked { actionsView }
             }
         }
         .padding(.vertical, OuroItemMetrics.verticalPadding(size))
@@ -394,5 +403,51 @@ private struct OuroItemGroupEmptyText: View {
             .font(.subheadline)
             .foregroundStyle(Color(OuroItemPalette(style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast)).description))
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The words and the actions of a row: the actions at their own width, as web's `auto` column keeps them, and the words
+/// in the rest. Squeezed, a segmented control truncated its labels (Gatefold's Fine-Tune, 2026-11-22). Where the words
+/// would get less than ``OuroItemMetrics/minimumWordsWidth``, the actions go under the words.
+struct OuroItemWordsAndActions: Layout {
+    var alignTop: Bool
+    var spacing: CGFloat = OuroItemMetrics.spacing
+    var gap: CGFloat = 8
+
+    private func beside(_ width: CGFloat, actions: CGSize) -> Bool {
+        width - actions.width - spacing >= OuroItemMetrics.minimumWordsWidth
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count == 2 else { return .zero }
+        let actions = subviews[1].sizeThatFits(.unspecified)
+        guard let width = proposal.width else {
+            let words = subviews[0].sizeThatFits(.unspecified)
+            return CGSize(width: words.width + spacing + actions.width, height: max(words.height, actions.height))
+        }
+        if beside(width, actions: actions) {
+            let words = subviews[0].sizeThatFits(ProposedViewSize(width: width - actions.width - spacing, height: nil))
+            return CGSize(width: width, height: max(words.height, actions.height))
+        }
+        let words = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let under = subviews[1].sizeThatFits(ProposedViewSize(width: min(actions.width, width), height: nil))
+        return CGSize(width: width, height: words.height + gap + under.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 2 else { return }
+        let actions = subviews[1].sizeThatFits(.unspecified)
+        if beside(bounds.width, actions: actions) {
+            let wordsWidth = bounds.width - actions.width - spacing
+            let words = subviews[0].sizeThatFits(ProposedViewSize(width: wordsWidth, height: nil))
+            func y(_ height: CGFloat) -> CGFloat { alignTop ? bounds.minY : bounds.midY - height / 2 }
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: y(words.height)), proposal: ProposedViewSize(width: wordsWidth, height: words.height))
+            subviews[1].place(at: CGPoint(x: bounds.maxX - actions.width, y: y(actions.height)), proposal: ProposedViewSize(actions))
+        } else {
+            let words = subviews[0].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            subviews[0].place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: words.height))
+            let width = min(actions.width, bounds.width)
+            subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.minY + words.height + gap), proposal: ProposedViewSize(width: width, height: nil))
+        }
     }
 }

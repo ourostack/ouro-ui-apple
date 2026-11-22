@@ -8,7 +8,8 @@ final class CardsGalleryPage: GalleryComponentPage {
     @MainActor override class var content: AnyView { AnyView(CardsPage()) }
 }
 
-/// Cards as an app uses them: one with every slot, a small one, and a plain one inside a surface of its own.
+/// Cards as an app uses them: one with every slot, a small one, a pressable one with a picture, as a cookbook in a grid,
+/// and a plain one inside a surface of its own.
 struct CardsPage: View {
     @Environment(\.ouroToast) private var toast
 
@@ -27,6 +28,10 @@ struct CardsPage: View {
             OuroCard("Tonight", description: "Lemon orzo with peas, 25 minutes", size: .sm) {
                 OuroButton("Start cooking", systemImage: "frying.pan", fullWidth: true) { toast("Cooking", tone: .success) }
             }
+            OuroCard("Weeknight dinners", description: "12 recipes", size: .sm, onPress: { toast("Opening Weeknight dinners") },
+                     media: LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .aspectRatio(4 / 3, contentMode: .fit))
+            .accessibilityIdentifier("card.media")
             OuroCard("Shared with the household", variant: .plain) {
                 Text("Sam and Alex can see and edit this cookbook.")
             }

@@ -29,7 +29,7 @@ OS has them.
 Build it with Xcode. The Command Line Tools alone can't: `swift build` stops at SwiftUI's own macros (`@Entry`, `@State`), whose
 plugin only Xcode has.
 
-**Status:** 1.0. The public API is source-stable: a source break waits for 2.0 (see [Source stability](#source-stability)). The newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). What 1.0 required (eighteen components, claims, platforms, API stability and adoption) is in [docs/decisions/2026-11-14-apple-1-0.md](docs/decisions/2026-11-14-apple-1-0.md). Meets core [v0.14.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v0.14.0): the tokens and the claim sets (AX's
+**Status:** 1.0. The public API is source-stable: a source break waits for 2.0 (see [Source stability](#source-stability)). The newest release is on [Releases](https://github.com/ourostack/ouro-ui-apple/releases/latest). What 1.0 required (eighteen components, claims, platforms, API stability and adoption) is in [docs/decisions/2026-11-14-apple-1-0.md](docs/decisions/2026-11-14-apple-1-0.md). Meets core [v1.9.0](https://github.com/ourostack/ouro-ui-core/releases/tag/v1.9.0): the tokens and the claim sets (AX's
 `apple.claims.json`, HX's `components.claims.json`) are core's, byte for byte, and CI checks it.
 
 ### A first screen

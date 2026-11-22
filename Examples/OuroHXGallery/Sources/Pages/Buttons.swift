@@ -17,6 +17,11 @@ struct ButtonsPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // `-demo shape`: a plain md button, as web's docs draw one, for ButtonShapeShotsTests' side-by-side of the
+            // themes' corners: Pearl's 18pt squircle and Cookbook's squircle capsule.
+            if demo == "shape" {
+                OuroButton("Save recipe") {}.accessibilityIdentifier("button.shape")
+            }
             OuroButton("Save recipe", systemImage: "checkmark", fullWidth: true, haptic: .finished) { presses += 1 }
                 .accessibilityIdentifier("button.primary")
                 .environment(\.ouroHeldPress, held)

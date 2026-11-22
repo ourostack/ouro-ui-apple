@@ -15,6 +15,18 @@ public enum OuroChoiceMetrics {
     public static let segmentTextMix = 0.2
     /// How far the dark thumb is mixed toward the foreground from the track, as web's 16%.
     public static let darkThumbMix = 0.16
+    /// The track's corner for segments `height` points tall: web's `rounded-ouro-control`, the theme's control radius
+    /// (``OuroTheme/controlCorner``) at most half a segment's height, so Cookbook's track is a squircle capsule and
+    /// Pearl's keeps its 18-point squircle. Stacked at the accessibility sizes, it still stops at half one segment.
+    public static func trackCorner(theme: OuroTheme, height: CGFloat) -> CGFloat {
+        min(CGFloat(theme.controlCorner), height / 2)
+    }
+    /// The thumb's corner for segments `height` points tall: web's `rounded-ouro-control-md`, the theme's control
+    /// radius or its `md` step, at most half the thumb's own height (the segment less the track's inset above and
+    /// below), so Cookbook's thumb is a capsule inside the capsule track.
+    public static func thumbCorner(theme: OuroTheme, height: CGFloat) -> CGFloat {
+        min(CGFloat(theme.controlRadius ?? theme.radius(.md)), (height - trackInset * 2) / 2)
+    }
 
     /// The box's side: web's 20 points to touch, 16 with a pointer.
     public static func boxSide(_ input: OuroInput) -> CGFloat { input == .touch ? 20 : 16 }
@@ -208,7 +220,7 @@ public struct OuroSegmentedControl<Value: Hashable>: View {
                 ForEach(items) { item in segment(item, palette) }
             }
             .padding(.horizontal, OuroChoiceMetrics.trackInset)
-            .background(RoundedRectangle(cornerRadius: theme.radius(.lg), style: .continuous).fill(Color(palette.track)))
+            .background(RoundedRectangle(cornerRadius: OuroChoiceMetrics.trackCorner(theme: theme, height: OuroChoiceMetrics.segmentHeight(.current)), style: .continuous).fill(Color(palette.track)))
             .fixedSize(horizontal: !fullWidth && !stacked, vertical: false)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Text(label))
@@ -218,6 +230,7 @@ public struct OuroSegmentedControl<Value: Hashable>: View {
 
     private func segment(_ item: OuroSegment<Value>, _ palette: OuroSegmentedControlPalette) -> some View {
         let on = item.value == selection
+        let thumbCorner = OuroChoiceMetrics.thumbCorner(theme: theme, height: OuroChoiceMetrics.segmentHeight(.current))
         return Button {
             guard !on else { return }
             withAnimation(OuroMotion.animation(.layout, reduceMotion: reduceMotion)) { selection = item.value }
@@ -231,11 +244,11 @@ public struct OuroSegmentedControl<Value: Hashable>: View {
                 .padding(.vertical, OuroChoiceMetrics.trackInset)
                 .background {
                     if on {
-                        RoundedRectangle(cornerRadius: theme.radius(.md), style: .continuous)
+                        RoundedRectangle(cornerRadius: thumbCorner, style: .continuous)
                             .fill(Color(palette.thumb))
                             .overlay {
                                 if let edge = palette.thumbEdge {
-                                    RoundedRectangle(cornerRadius: theme.radius(.md), style: .continuous).strokeBorder(Color(edge), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: thumbCorner, style: .continuous).strokeBorder(Color(edge), lineWidth: 1)
                                 }
                             }
                             .shadow(color: .black.opacity(scheme == .dark ? 0.3 : 0.12), radius: 1.5, y: 1)

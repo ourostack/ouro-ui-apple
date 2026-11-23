@@ -23,6 +23,30 @@ public enum FeelIdle {
     /// Movement of half a point or less is rounding, not a move.
     public static let tolerance: CGFloat = 0.5
 
+    /// The looks `check` needs to judge a screen.
+    public static let leastLooks = 3
+    /// How long a watch may run, as a multiple of its window, while it still lacks `leastLooks` looks.
+    public static let lookCapFactor = 3.0
+
+    /// Looks at the screen with no input for `seconds`, at most every `every` seconds, and on until it has
+    /// `leastLooks` looks: when the looks slow down partway, a window sized from a quick one held only 2 and the
+    /// check could not judge a still screen (#284). It adds looks and drops none, so a move is never missed; once the
+    /// watch has run `lookCapFactor` times its window it stops, and a watch still short of looks is could-not-check,
+    /// never a pass. `now` reads the clock in seconds, `look` takes one look (given its time since the start) and
+    /// `pause` waits.
+    public static func watch(for seconds: Double, every: Double, now: () -> Double,
+                             look: (Double) -> FeelIdleSample, pause: (Double) -> Void) -> [FeelIdleSample] {
+        var samples: [FeelIdleSample] = []
+        let start = now()
+        while now() - start < seconds || (samples.count < leastLooks && now() - start < seconds * lookCapFactor) {
+            let began = now()
+            samples.append(look(began - start))
+            let rest = every - (now() - began)
+            if rest > 0 { pause(rest) }
+        }
+        return samples
+    }
+
     public static func check(_ samples: [FeelIdleSample], pose: String) -> FeelResult {
         var findings: [FeelFinding] = []
         var appeared: [String: Int] = [:], moved: [String: Int] = [:]
@@ -51,7 +75,7 @@ public enum FeelIdle {
         }
         if statusFlips > 0 { findings.append(FeelFinding(what: "the status bar showed or hid \(statusFlips) times \(over)")) }
         let changes = appeared.values.reduce(0, +) + moved.values.reduce(0, +) + statusFlips
-        if samples.count < 3 {
+        if samples.count < leastLooks {
             findings.append(.couldNotCheck("only \(samples.count) looks at the screen in \(pose); it takes at least 3"))
         } else if samples.allSatisfy({ $0.elements.isEmpty }) {
             findings.append(.couldNotCheck("no controls or chrome were on screen in \(pose)"))

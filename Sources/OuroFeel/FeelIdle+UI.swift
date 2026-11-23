@@ -16,14 +16,8 @@ extension OuroFeel {
         var results: [FeelResult] = []
         for pose in poses {
             pose.apply(self)
-            var samples: [FeelIdleSample] = []
-            let start = Date()
-            while Date().timeIntervalSince(start) < seconds {
-                let began = Date()
-                samples.append(idleSample(at: began.timeIntervalSince(start), watch: Set(watch)))
-                let rest = every - Date().timeIntervalSince(began)
-                if rest > 0 { pause(rest) }
-            }
+            let samples = FeelIdle.watch(for: seconds, every: every, now: { Date().timeIntervalSinceReferenceDate },
+                                         look: { self.idleSample(at: $0, watch: Set(watch)) }, pause: { self.pause($0) })
             results.append(FeelIdle.check(samples, pose: pose.name))
         }
         #if os(iOS)

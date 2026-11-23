@@ -57,3 +57,54 @@ private let close = CGRect(x: 16, y: 60, width: 44, height: 44)
         #expect(FeelIdle.check(samples, pose: "p").summary.hasPrefix("could not check"))
     }
 }
+
+/// A clock that only moves when a look or a pause spends time, so a watch can be fed slow looks.
+private final class FakeClock {
+    var t = 0.0
+    func watch(for seconds: Double, every: Double = 0.1, lookTakes: @escaping (Int) -> Double,
+               frame: @escaping (Int) -> CGRect = { _ in close }) -> [FeelIdleSample] {
+        var n = 0
+        return FeelIdle.watch(for: seconds, every: every, now: { self.t }, look: { at in
+            defer { n += 1 }
+            self.t += lookTakes(n)
+            return FeelIdleSample(at: at, elements: ["reader.page": frame(n)], statusBar: true)
+        }, pause: { self.t += $0 })
+    }
+}
+
+@Suite struct IdleWatchTests {
+    static let asOnMain: @Sendable (Int) -> Double = { $0 == 0 ? 4.62 : 5.5 }
+
+    @Test func slowLooksStillGetThreeAndAStillScreenPasses() {
+        // Gatefold main, App run 45150534604: a 10 s window sized from a 1.5 s look; the looks then began at 0 and
+        // 4.62 s, and the window ran out inside the second, so it took at least 5.4 s: 2 looks, could not check.
+        let samples = FakeClock().watch(for: 10, lookTakes: Self.asOnMain)
+        let result = FeelIdle.check(samples, pose: "open, portrait")
+        #expect(samples.count >= 3, "only \(samples.count) looks")
+        #expect(result.passed, "\(result.text)")
+    }
+
+    @Test func slowLooksNeverHideAMove() {
+        let moved = close.offsetBy(dx: 0, dy: 40)
+        let samples = FakeClock().watch(for: 10, lookTakes: Self.asOnMain, frame: { $0 == 2 ? moved : close })
+        let result = FeelIdle.check(samples, pose: "open, portrait")
+        #expect(!result.passed, "a move in the third look passed: \(result.text)")
+        #expect(result.detections.contains { $0.what.contains("\"reader.page\" moved") })
+    }
+
+    @Test func aStuckLookEndsAsCouldNotCheckNeverAPass() {
+        let clock = FakeClock()
+        let samples = clock.watch(for: 10, lookTakes: { _ in 25 })
+        let result = FeelIdle.check(samples, pose: "open, portrait")
+        #expect(samples.count < 3)
+        #expect(clock.t <= 30 + 25, "the watch ran \(clock.t) s")
+        #expect(!result.passed && result.text.contains("could not check"), "\(result.text)")
+    }
+
+    @Test func quickLooksStillStopAtTheWindow() {
+        let clock = FakeClock()
+        let samples = clock.watch(for: 3, lookTakes: { _ in 0.05 })
+        #expect(samples.count == 30)
+        #expect(clock.t < 3.2)
+    }
+}

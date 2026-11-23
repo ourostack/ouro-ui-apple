@@ -23,6 +23,21 @@ public enum FeelIdle {
     /// Movement of half a point or less is rounding, not a move.
     public static let tolerance: CGFloat = 0.5
 
+    /// Looks at the screen with no input for `seconds`, at most every `every` seconds. `now` reads the clock in
+    /// seconds, `look` takes one look (given its time since the start) and `pause` waits.
+    public static func watch(for seconds: Double, every: Double, now: () -> Double,
+                             look: (Double) -> FeelIdleSample, pause: (Double) -> Void) -> [FeelIdleSample] {
+        var samples: [FeelIdleSample] = []
+        let start = now()
+        while now() - start < seconds {
+            let began = now()
+            samples.append(look(began - start))
+            let rest = every - (now() - began)
+            if rest > 0 { pause(rest) }
+        }
+        return samples
+    }
+
     public static func check(_ samples: [FeelIdleSample], pose: String) -> FeelResult {
         var findings: [FeelFinding] = []
         var appeared: [String: Int] = [:], moved: [String: Int] = [:]

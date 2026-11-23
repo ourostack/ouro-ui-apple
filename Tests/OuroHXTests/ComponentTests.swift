@@ -707,6 +707,38 @@ private func target(_ style: OuroHXStyle) -> Double { style.contrast == .increas
         #expect(OuroActionColors(light: action, dark: plain).colors(for: .dark) == plain)
     }
 
+    /// Cookbook's own main action, as web's Cookbook theme sets `--ouro-action` to `sj-action`: a solid primary button
+    /// is charcoal on paper in light mode and brass in dark, with no `.ouroAction` from the app, while brass stays
+    /// Cookbook's primary for accents. No other theme has one, so their buttons keep the primary.
+    @Test func cookbooksMainActionIsCharcoalWithoutTheAppSettingIt() throws {
+        let cookbook = OuroTokens.theme(.cookbook)
+        let action = try #require(cookbook.action)
+        let charcoal = OuroColor.resolve(Color(.sRGB, red: 0.1569, green: 0.1373, blue: 0.1137)) // #28231d
+        let light = OuroHXStyle(theme: cookbook, scheme: .light)
+        let main = OuroButtonPalette(tone: .primary, variant: .solid, style: light, action: action.colors(for: .light))
+        #expect(main.fill.map { distance($0, charcoal) < 0.01 } == true, "light: the fill is sj-action")
+        #expect(distance(OuroColor.resolve(cookbook.light.primary), charcoal) > 0.2, "brass stays the primary")
+        for scheme in [ColorScheme.light, .dark] {
+            for contrast in [ColorSchemeContrast.standard, .increased] {
+                let style = OuroHXStyle(theme: cookbook, scheme: scheme, contrast: contrast)
+                let palette = OuroButtonPalette(tone: .primary, variant: .solid, style: style, action: action.colors(for: scheme))
+                #expect(ratio(palette.label, palette.surface) >= target(style), "\(scheme) \(contrast) label")
+                let disabled = OuroButtonPalette(tone: .primary, variant: .solid, style: style, isEnabled: false, action: action.colors(for: scheme))
+                #expect(ratio(disabled.label, disabled.surface) >= target(style), "\(scheme) \(contrast) disabled label")
+            }
+        }
+        // Cookbook's disabled grey holds no label at 7:1, so under Increase Contrast it greys out like any button.
+        let increased = OuroHXStyle(theme: cookbook, scheme: .light, contrast: .increased)
+        #expect(OuroButtonPalette(tone: .primary, variant: .solid, style: increased, isEnabled: false, action: action.colors(for: .light)).fill
+                == OuroButtonPalette(tone: .primary, variant: .solid, style: increased, isEnabled: false).fill)
+        #expect(OuroButtonPalette(tone: .primary, variant: .solid, style: light, isEnabled: false, action: action.colors(for: .light)).fill
+                .map { distance($0, OuroColor.resolve(Color(.sRGB, red: 0.4196, green: 0.3961, blue: 0.3608))) < 0.01 } == true,
+                "standard contrast keeps sj-action-disabled")
+        for name in OuroThemeName.allCases where name != .cookbook {
+            #expect(OuroTokens.theme(name).action == nil, "\(name) keeps its primary")
+        }
+    }
+
     @Test func bannerTextAndIconReadInEveryThemeAndMode() {
         for (name, style) in styles {
             for tone in OuroTone.allCases {

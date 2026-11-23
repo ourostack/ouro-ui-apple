@@ -27,6 +27,20 @@ extension OuroTheme {
     /// `lg` step otherwise (18 points in Pearl). Draw it clamped to half the control's height, as web's ouro-base caps
     /// it, so Cookbook's controls are squircle capsules.
     public var controlCorner: Double { controlRadius ?? radius(.lg) }
+
+    /// The theme's own main-action colours, which a solid primary ``OuroButton`` paints when the app sets none with
+    /// ``SwiftUI/View/ouroAction(light:dark:)``; nil keeps the primary. Web's Cookbook theme sets `--ouro-action` to
+    /// its `sj-action` tokens, so its main action is charcoal on paper in light mode (brass in dark) while brass stays
+    /// the primary for accents: links, checks, selection. Read from the theme's `sj-action`, `sj-on-action`,
+    /// `sj-action-disabled` and `sj-on-action-disabled` colours, in both schemes, and nil unless it has all of the first two.
+    public var action: OuroActionColors? {
+        func scheme(_ colors: [OuroExtraColor: Color]) -> OuroAction? {
+            guard let fill = colors[.sjAction], let foreground = colors[.sjOnAction] else { return nil }
+            return OuroAction(fill: fill, foreground: foreground, disabledFill: colors[.sjActionDisabled], disabledForeground: colors[.sjOnActionDisabled])
+        }
+        guard let light = scheme(extras.light), let dark = scheme(extras.dark) else { return nil }
+        return OuroActionColors(light: light, dark: dark)
+    }
 }
 
 /// A theme as it is seen: the theme, the colour scheme and the contrast setting, and the colours they give.

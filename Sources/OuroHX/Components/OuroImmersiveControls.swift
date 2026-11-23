@@ -120,8 +120,11 @@ private struct OuroImmersiveControlsModifier<Top: View, Bottom: View>: ViewModif
                         bar(top, width: placement.top.width, height: $topHeight)
                             .offset(x: placement.top.minX, y: placement.top.minY)
                             .transition(OuroImmersiveControlsMetrics.appearance(.top, reduceMotion: reduceMotion).transition)
+                        // Placed by its foot, not by its top and its height: until it is first measured `bottomHeight`
+                        // is a guess, and a taller bar placed by it stood low and then stepped up (gatefold#614).
                         bar(bottom, width: placement.bottom.width, height: $bottomHeight)
-                            .offset(x: placement.bottom.minX, y: placement.bottom.minY)
+                            .alignmentGuide(.top) { $0.height - placement.bottom.maxY }
+                            .offset(x: placement.bottom.minX)
                             .transition(OuroImmersiveControlsMetrics.appearance(.bottom, reduceMotion: reduceMotion).transition)
                     }
                 }

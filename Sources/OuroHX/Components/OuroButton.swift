@@ -85,13 +85,18 @@ public struct OuroButtonPalette: Sendable {
         let c = style.colors
         let action = tone == .primary && variant == .solid ? action : nil
         if !isEnabled, let action, let disabled = action.disabledFill {
-            // Web's `--ouro-action-disabled` and its foreground: the app's own disabled main action.
+            // Web's `--ouro-action-disabled` and its foreground: the app's own disabled main action, unless no label
+            // can read on that fill at the target (Cookbook's grey reaches 5.8:1 at most, short of Increase
+            // Contrast's 7:1); then it greys out like any button below.
             let base = OuroInk.r(disabled)
-            fill = base
-            surface = base
-            border = nil
-            label = OuroInk.readable(OuroInk.r(action.disabledForeground ?? action.foreground), on: base, style)
-            return
+            let text = OuroInk.readable(OuroInk.r(action.disabledForeground ?? action.foreground), on: base, style)
+            if OuroColor.contrastRatio(text, base) >= OuroInk.target(style) {
+                fill = base
+                surface = base
+                border = nil
+                label = text
+                return
+            }
         }
         guard isEnabled else {
             // Every variant looks the same disabled: a muted chip with an outline and a label that still reads. Some
@@ -242,7 +247,7 @@ public struct OuroButtonStyle: ButtonStyle {
         @Environment(\.ouroHeldPress) private var heldPress
 
         var body: some View {
-            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled, action: action?.colors(for: scheme))
+            let palette = OuroButtonPalette(tone: style.resolvedTone(for: configuration.role), variant: style.variant, style: OuroHXStyle(theme: theme, scheme: scheme, contrast: contrast), isEnabled: isEnabled, action: (action ?? theme.action)?.colors(for: scheme))
             let pressed = heldPress ?? configuration.isPressed
             let visual = style.size.visualHeight(on: .current, target: touchTarget)
             let pressable = style.size.minimumHeight(on: .current, target: touchTarget)
@@ -357,7 +362,8 @@ extension EnvironmentValues {
 
 extension View {
     /// Paints every solid primary ``OuroButton`` inside in the app's own main-action colours, as a web theme sets
-    /// `--ouro-action`: `.ouroAction(light: OuroAction(fill: charcoal, foreground: bone), dark: …)`.
+    /// `--ouro-action`: `.ouroAction(light: OuroAction(fill: charcoal, foreground: bone), dark: …)`. Without it a
+    /// button takes the theme's own, ``OuroTheme/action`` (Cookbook's charcoal), or else the primary.
     public func ouroAction(light: OuroAction, dark: OuroAction) -> some View {
         environment(\.ouroAction, OuroActionColors(light: light, dark: dark))
     }

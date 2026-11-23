@@ -94,5 +94,29 @@ import Testing
         #expect(measured(false) == CGSize(width: 300, height: 500))
         #expect(measured(true) == measured(false))
     }
+
+    /// The first time the bars show, the bottom bar is placed before it has been measured. Placed by its height then,
+    /// a bar taller than the 44 points assumed stood that much too low on its first frame and stepped up once measured:
+    /// Gatefold's Contents read at y 1365 and then stood at 1341, and a tap where it had shown fell through to the page
+    /// (gatefold#614). Its foot stands on its band from the first frame, whatever its height.
+    @MainActor @Test("the bottom bar's foot is in place from its first frame, before it is measured")
+    func bottomBarFootFromTheFirstFrame() {
+        final class Feet { var seen: [CGFloat] = [] }
+        let feet = Feet()
+        let content = Color.clear.frame(width: 300, height: 500)
+            .ouroImmersiveControls(isPresented: true) { Text("Close") } bottom: {
+                Color.clear.frame(height: 68)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { feet.seen.append($0) }
+            }
+        let host = NSHostingView(rootView: content)
+        host.frame = CGRect(x: 0, y: 0, width: 300, height: 500)
+        for _ in 0..<5 {
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        }
+        // No safe area here, so the foot is the edge gap above the bottom: 500 - 8.
+        #expect(!feet.seen.isEmpty)
+        #expect(feet.seen.allSatisfy { $0 == 500 - OuroImmersiveControlsMetrics.edgeGap }, "the foot stood at \(feet.seen)")
+    }
     #endif
 }

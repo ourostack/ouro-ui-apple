@@ -447,7 +447,9 @@ inside the viewport and under none of that chrome.
 `over:` names the viewport (a reader's page, a scroll view); by default it is the largest scroll view or web view on
 screen. The content is every text and image inside it that is not chrome, or what you name in `content:`. Content with
 no identifier is named by a fingerprint of its words, never the words. Chrome not on screen could not be checked, so
-name only chrome that shows at rest. Lines in the middle of the page passing under the chrome are how floating works,
+name only chrome that shows at rest. The chrome's frame is the one accessibility reports, so give a pill its padding
+inside the button's label (`Button { Text(…).padding(…) }`), not outside the button, or the glass drawn around the
+words is not seen. The fixture's own pill, padded outside its button, passed its bug build that way ([run 46030232275](https://github.com/ourostack/ouro-ui-apple/actions/runs/46030232275)). Lines in the middle of the page passing under the chrome are how floating works,
 and are not judged; only the end must come clear. To do that, give the scroll content a bottom margin the height of the
 chrome (`.contentMargins(.bottom, …, for: .scrollContent)`), and put the chrome in an overlay rather than a stack.
 

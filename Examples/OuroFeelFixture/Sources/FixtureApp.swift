@@ -1145,10 +1145,13 @@ struct FloatPage: View {
     }
 
     @ViewBuilder private var pill: some View {
-        let button = Button("Start from the beginning") {}
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .accessibilityIdentifier("float.restart")
+        // The padding is inside the label, so the button's frame (what accessibility reports) is the whole pill.
+        let button = Button {} label: {
+            Text("Start from the beginning")
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+        }
+        .accessibilityIdentifier("float.restart")
         if #available(iOS 26, *) {
             button.glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
         } else {

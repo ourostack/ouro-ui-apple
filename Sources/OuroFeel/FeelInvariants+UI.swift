@@ -347,8 +347,9 @@ extension OuroFeel {
             for child in node.children { collect(child) }
         }
         for child in best.children { collect(child) }
-        let viewport = FeelElement(key: Self.key(best).isEmpty ? Self.name(best.elementType) : Self.key(best),
-                                   type: Self.kind(best.elementType), frame: best.frame)
+        let kind = best.elementType == .webView ? "web view" : Self.scrollTypes.contains(best.elementType) ? "scroll view"
+            : Self.kind(best.elementType)
+        let viewport = FeelElement(key: Self.key(best).isEmpty ? kind : Self.key(best), type: kind, frame: best.frame)
         return (window, viewport, chrome.compactMap { bars[$0] }, items)
     }
 

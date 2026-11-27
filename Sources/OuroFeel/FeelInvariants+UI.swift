@@ -15,8 +15,8 @@ extension OuroFeel {
     /// and upward, so the drag is never the system's back swipe or a sheet's pull down), watching a few of its texts
     /// while the finger is down and once it has lifted. Content that moved along the drag's axis panned, even if it
     /// sprang back. A drag never starts in a viewport inside the one it judges (a carousel in a list), nor on a switch,
-    /// slider or field, and a list is never dragged sideways, since its rows slide to show their swipe actions and a
-    /// full swipe fires one. A drag that changed what was on screen (a page turn) is noted as the app's own gesture,
+    /// slider or field; a list is never dragged sideways, nor is a drag sideways started or ended on any row, since a
+    /// row slides to show its swipe actions and a full swipe fires one. A drag that changed what was on screen (a page turn) is noted as the app's own gesture,
     /// not judged, and ends that pose's drags. A viewport no drag could cross is said in a note.
     ///
     /// Accessibility does not say which way a scroll view scrolls. A web view and a list scroll up and down; another
@@ -48,7 +48,8 @@ extension OuroFeel {
                 // one (a delete, in a real app). Its overflow is still judged.
                 if axis == .horizontal, node.read.kind == "list" { continue }
                 guard let (from, to, start) = dragPath(node, axis: axis, screen: screen) else {
-                    undragged[node.read.key, default: []].append(axis)
+                    // The window is nearly always covered by the scroll view on it, so only say so for a viewport.
+                    if node.depth > 0 || screen.nodes.count == 1 { undragged[node.read.key, default: []].append(axis) }
                     continue
                 }
                 let anchors = dragAnchors(node, avoiding: start, screen: screen)
@@ -69,6 +70,9 @@ extension OuroFeel {
         var anchors: [ViewportAnchor]
         var depth: Int
         var parent: Int
+        /// The cells (rows) drawn in it: a sideways drag never starts or ends on one, since a row slides to show its
+        /// swipe actions and a full swipe fires one.
+        var cells: [CGRect] = []
     }
 
     /// Something a drag watches, and how to find it again.
@@ -133,6 +137,7 @@ extension OuroFeel {
                 if declared == nil, kind == "list" || kind == "web view" { nodes[current].read.inferred = false }
             } else if type == .cell {
                 cell = frame
+                nodes[index].cells.append(frame)
             }
             let content = type == .staticText || type == .image || (Self.controlTypes.contains(type) && type != .cell && enabled)
             if content, frame.width > 0, frame.height > 0, !(type != .staticText && identifier.isEmpty && label.isEmpty) {
@@ -181,6 +186,7 @@ extension OuroFeel {
         let deeper = screen.nodes.filter { $0.depth > node.depth }.map(\.read.frame)
         func clear(_ p: CGPoint) -> Bool {
             visible.contains(p) && !deeper.contains { $0.contains(p) } && !screen.avoid.contains { $0.contains(p) }
+                && !(axis == .horizontal && node.cells.contains { $0.contains(p) })
         }
         for share in [0.5, 0.35, 0.65, 0.25, 0.75] as [CGFloat] {
             let a: CGPoint, b: CGPoint
@@ -381,6 +387,8 @@ extension OuroFeel {
         }
         control.tap()
         let first = Date()
+        // Settled means the screen held still, with nothing busy, for twice `quiet`: once to call it settled, and as
+        // long again in case the work runs on with nothing on screen to show it. Any change starts the count again.
         var mark = screenMark(), changed = Date()
         while Date().timeIntervalSince(first) < within {
             if done() { trail.doneAfterFirst = Date().timeIntervalSince(first); break }
@@ -388,16 +396,10 @@ extension OuroFeel {
             let now = screenMark()
             if now.busy || now.mark != mark.mark { changed = Date() }
             mark = now
-            if Date().timeIntervalSince(changed) >= quiet {
+            if Date().timeIntervalSince(changed) >= quiet * 2 {
                 trail.settledAfter = changed.timeIntervalSince(first)
                 break
             }
-        }
-        if trail.doneAfterFirst == nil, trail.settledAfter != nil {
-            // As long again before a second tap, in case the work runs on with nothing on screen to show it.
-            let grace = Date()
-            while Date().timeIntervalSince(grace) < quiet, !done() { pause(0.25) }
-            if done() { trail.doneAfterFirst = Date().timeIntervalSince(first) }
         }
         if trail.doneAfterFirst == nil, trail.settledAfter != nil {
             trail.controlBack = control.exists && control.isEnabled

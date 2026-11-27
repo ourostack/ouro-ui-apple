@@ -250,14 +250,14 @@ feel.expect(feel.tapLanding(on: app.switches["appearance.pageNumbers"], trials: 
 Proves: one tap on a control that starts slow work (a download, a load, a sign-in) ends with what you asked for on
 screen, with no second tap. It taps once, then waits up to `within` seconds (30 by default) for `opens` (an identifier
 or label), or for your `done` to hold. The screen counts as busy while anything on it changes (words, values such as a
-progress figure, frames) or a spinner or progress bar shows. Once it has held still for `quiet` seconds (3 by default)
-with the intent not done, it waits as long again, in case the work runs on with nothing on screen to show it. Then, if
-the same control is back, it taps that control once more: if the second tap finishes the intent, the first tap's work
+progress figure, frames) or a spinner or progress bar shows. Once it has held still, with nothing busy, for twice
+`quiet` seconds (`quiet` is 3 by default; the second half is for work that runs on with nothing on screen to show it)
+and the intent is not done, then if the same control is back, it taps that control once more: if the second tap finishes the intent, the first tap's work
 was dropped when it ended, and the check fails. When the intent never finishes, even after a second tap, or the
 control is gone once the screen settles, it could not check: the work may have failed in the test's state, or need
 longer. So does an intent already done before the tap: name something only the finished intent shows (the open book's
 page, not its title in the library). Launch into a state where the work is needed (the book not downloaded) and is
-safe to repeat. Work that runs longer than `quiet` with nothing changing on screen reads as dropped, so show progress
+safe to repeat. Work that runs longer than twice `quiet` with nothing changing on screen reads as dropped, so show progress
 while it runs, or raise `quiet`.
 
 ```swift
@@ -406,9 +406,10 @@ is fixed. Two readings judge it:
   once it has lifted. Content that moved more than 2 pt along the drag's axis panned, even if it sprang back.
 
 A drag never starts in a viewport inside the one it judges (a carousel in a list: there the list scrolls the way the
-carousel doesn't, so no axis is fixed), nor on a switch, slider, picker or field. A list is never dragged sideways:
-its rows slide to show their swipe actions, and a full swipe fires one, which in a real app may delete something; its
-overflow is still judged. A drag that changed what was on screen (most of what it watched was gone: a page turn, a new
+carousel doesn't, so no axis is fixed), nor on a switch, slider, picker or field. A list is never dragged sideways,
+and no sideways drag starts or ends on a row: a row slides to show its swipe actions, and a full swipe fires one,
+which in a real app may delete something. So a list's sideways hold is judged by its overflow alone, and a list that
+is the largest viewport never makes the drags could-not-check. A drag that changed what was on screen (most of what it watched was gone: a page turn, a new
 screen) is noted as the app's own gesture and not judged, and ends that pose's drags. A viewport no drag could cross
 (too small, or covered by what is inside it) is said in a note; when that is the largest viewport and nothing was
 dragged at all, the check could not check.

@@ -16,7 +16,7 @@ public struct FeelIntentTrail: Codable, Equatable, Sendable {
     public var tappedTwice: Bool
     /// How long the check waited for each tap's work.
     public var within: Double
-    /// How long the screen had to hold still to count as settled; the check waits as long again before a second tap.
+    /// Half of how long the screen had to hold still, with nothing busy, to count as settled before a second tap.
     public var quiet: Double
     /// Whether the intent was already done before the first tap (the check was pointed at something already shown).
     public var doneBefore: Bool
@@ -58,8 +58,9 @@ public enum FeelIntent {
             measures["second tap seconds"] = round3(second)
             findings.append(FeelFinding(what: "\(trail.intent) took a second tap on \"\(trail.control)\": the first tap's work "
                 + "ended after \(seconds(trail.settledAfter ?? trail.within)) s without finishing it, and the "
-                + "same tap again did, after \(seconds(second)) s, though the screen had held still for \(seconds(trail.quiet * 2)) s "
-                + "first (if the work was still running with nothing on screen to show it, show progress while it runs)"))
+                + "same tap again did, after \(seconds(second)) s; the screen had held still, with nothing busy, for "
+                + "\(seconds(trail.quiet * 2)) s first (if the work was still running with nothing on screen to show it, show "
+                + "progress while it runs)"))
         } else if trail.tappedTwice {
             findings.append(.couldNotCheck("\(trail.intent) was not done \(seconds(trail.within)) s after a tap on "
                 + "\"\(trail.control)\", nor after a second tap: the work may have failed (check the fixture's state) or need longer (raise within:)"))

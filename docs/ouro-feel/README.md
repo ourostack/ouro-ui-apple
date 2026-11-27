@@ -47,33 +47,68 @@ an iPad: portrait and landscape), with every check below that fits the screen. A
 each reading mode (paged and scrolling).
 
 When a person reports jank, the first job is the missing check: write the Feel check (or the step) that would have
-caught it, see it fail on the bug, then fix the app and see it pass. If no genre here covers it, add the check to
-Ouro Feel, with a page in the fixture that has the bug behind `-bug 1` (see Proof). Gatefold build 39 is why: none of
-its four reports (a swipe and a top-edge tap that lost the place, a header over the text, a text column off the side)
-was caught, because Gatefold never linked Ouro Feel.
+caught it, see it fail on the bug, then fix the app and see it pass. If no check here covers it, add one (below, Add a
+check). Gatefold build 39 is why: none of its four reports (a swipe and a top-edge tap that lost the place, a header
+over the text, a text column off the side) was caught, because Gatefold never linked Ouro Feel.
 
-## The genres
+## The principles
 
-Each check covers one genre of jank (`FeelGenre`). The way back is the app-wide one: give it your entry points and it
-visits every screen it can reach by tapping cells, links and buttons, checking each screen's layout on the way. Name the
-overlays to check; the motion and place checks watch the elements and steps you give them.
+Ouro Feel holds an app to four promises. Each promise owns a set of checks, and the set is open: every time a person
+meets jank no check caught, it gets a check of its own, named for the promise it keeps rather than for the bug. The
+promises are `FeelPrinciple`, the checks `FeelCheck` (`FeelCheck.all`); a check's report carries its name
+(`FeelResult.check`). The same list, as data, is [checks.json](checks.json), which ui.ouroboros.bot draws its Ouro Feel
+page from; `CatalogTests` fails when the file falls behind the code.
 
-| Genre | What good feels like | Check |
+1. **[Your intent is the unit](#your-intent-is-the-unit).** What you meant takes one go: one tap lands, one tap finishes
+   what it started, and every way in has a way back out.
+2. **[Your place is yours](#your-place-is-yours).** Where you are reading or working stays put through relaunches,
+   turns, stray touches and late replies.
+3. **[The content is the canvas](#the-content-is-the-canvas).** What you read fills its space and stays there: inside
+   the window, still on every axis it doesn't scroll, and never covered or crowded out by chrome.
+4. **[Motion and chrome never surprise](#motion-and-chrome-never-surprise).** Things move once, on purpose, at the
+   display's pace: no ghost, no jump, no snap, no flicker, no stall.
+
+The first fourteen checks were Ouro Feel's genres of jank (`FeelGenre`), and each is still a `FeelCheck`
+(`FeelCheck(genre)`). That enum stays as it is so no app's code breaks; every check added since lives only in
+`FeelCheck`.
+
+The way back is the app-wide check: give it your entry points and it visits every screen it can reach by tapping
+cells, links and buttons, checking each screen's layout on the way. Name the overlays to check; the motion and place
+checks watch the elements and steps you give them.
+
+## Add a check
+
+A jank report no check caught is the usual start, and adding a check should take an afternoon, not a design review.
+
+1. **Name the promise it keeps,** not the bug: "viewport holds still", not "the page drags sideways". Pick the
+   principle it serves; if it serves none, that is a new principle, and worth a line in the decision record.
+2. **Add it to `FeelCheck`** (`Sources/OuroFeelCore/FeelGenre.swift`): a `static let` with its name, what good feels
+   like, its principle and its calls, and a line in `FeelCheck.all`. Adding to `FeelCheck` never breaks an app's code
+   (`scripts/api-break.sh` agrees); `FeelGenre` stays closed.
+3. **Judge it in `OuroFeelCore`,** a pure function from what was read to a `FeelResult` built with `FeelResult.judged`,
+   with a unit test in `Tests/OuroFeelTests` for the bug, for its near misses and for what it cannot see ("could not
+   check", never a pass).
+4. **Read the screen in `OuroFeel`,** an `OuroFeel` method that drives XCUITest and hands what it read to the judge,
+   with poses where layout can change.
+5. **Prove it on the fixture:** a page in `Examples/OuroFeelFixture` with the bug behind `-bug 1`, and a test in
+   `FeelCatchesTests` that sees it fail with the bug and pass without it. CI's last Feel shard runs any test the shard
+   plan doesn't name, so a new test needs no plan edit.
+6. **Write it down:** run `OURO_FEEL_WRITE_CATALOG=1 swift test --filter CatalogTests` to update `checks.json`, add its
+   row
+   to the principle's table above and its section below, and say where it came from.
+
+Then run it on the app that showed the jank, see it fail there, and let that app's fix make it pass.
+
+## Your intent is the unit
+
+What you meant takes one go: one tap lands, one tap finishes what it started, and every way in has a way back out.
+
+| Check | What good feels like | Call |
 |---|---|---|
 | the way back | Every screen you reach has a visible way back and a gesture back, and both return you where you were. | `feel.wayBack(from:follow:depth:)` |
 | overlay dismissal | Every sidebar, popover and menu goes away with a tap outside it, and once you pick something in it. | `feel.overlays(_:)` |
-| inside the window | Every control and what you read sits wholly inside the window, in every orientation and after turning the device and back; no header, bar or control covers the text or sits under the status bar. | `feel.insideWindow(poses:also:)`, `feel.uncovered(by:content:poses:)`; also on every screen `wayBack` reaches |
-| tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
-| double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
-| jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)`; at an open, from pixels, `feel.screenFilm(...).revealHolds(cover:until:)` |
-| late or lingering chrome | Bars and controls hand over in one beat: never two states at once, never a blank between them. | `film.chrome(from:to:grace:)` |
-| snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
-| settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
-| place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
-| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. With no input, nothing changes at all. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)`; with no input, `feel.stillWhileIdle(for:watch:poses:)` |
-| place kept through stray input | A stray tap (the middle, the top edge), an edge swipe that goes nowhere, a swipe across and back, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)`; for a reader, `across: FeelPlaceStep.strayReading` |
-| navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:between:read:)` |
-| hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `film.hitches()`, `feel.measureHitches(in:)` |
+| tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapid:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
+| one action finishes the intent | A tap that starts slow work (a download, a load, a sign-in) finishes what you asked for when the work is done; you never tap it twice. | `feel.finishesIntent(_:opens:within:quiet:)`, `feel.finishesIntent(_:named:within:quiet:done:)` |
 
 ### The way back
 
@@ -170,6 +205,140 @@ feel.expect(feel.overlays([
 ]))
 ```
 
+### Tap landing
+
+Proves: single taps, never retried, land at the centre and the four edges (4 pt in). A loaded machine can report a
+change late, so a tap that has not landed within `within` gets twice as long again before it counts as a miss; one
+that lands then is noted as late. A zero-length press
+(`.zeroPress`) is opt-in: a system Toggle ignored it 3 times in 3 on the iOS 27.2 simulator, so it is only fair for a
+control that acts on touch-down. With a
+`title:` it also taps the row's title and the gap beside it: `rowToggles: true` when the row acts as one button,
+`false` (default) when it should not. A tap lands when `read` (default: the control's value) changes within `within` seconds (default 3, since a busy
+simulator is slow to report a change).
+Paced taps wait 0.6 s after each one for the control to settle.
+`baseline:` takes `feel.osBaseline()`, the same loop on a Settings switch on this simulator; when that misses too, the
+report marks "the simulator may be dropping taps" as inference.
+
+People also tap while a control is still animating. For a control with two states (a switch, a checkbox, passed
+as the element itself), `rapid:` adds that many double taps at its centre (off by default, since a counter, a stepper
+or a row that opens a screen never ends where it started), each from a settled control. A pair that ends where it
+started had both taps land, or neither; one that ends changed lost a tap. Each pair is read once the control has held
+still for a second (a loaded machine can apply the second tap late), never resent. It is read from where the control ends, so
+the report marks it as inference, and it is scored only when the paced single taps at the centre all landed (otherwise could not check). XCUITest's
+single taps wait for the app to go idle, about 0.6 s apart, so only its double tap sends taps faster than an animation.
+Because "neither landed" also ends where it started, one triple tap follows the pairs (an element tap, since a coordinate has no triple; the same touch path): if every pair
+ended where it started, the triple must end changed to show quick taps reach the control, or the result is could not
+check. That catches a control that swallows every burst, not one that eats exactly the second tap of each.
+
+The bar is absolute: every pair must end where it started. Our bar is higher than UIKit's: on the iOS 27.2 simulator
+the Settings switch (a UIKit switch) kept only the first tap of a double tap, 0 pairs in 5, while a SwiftUI `Toggle`
+kept both in 5 of 5. So `rapidBaseline:` (`feel.osBaseline(rapid: true)`, the same double taps on a Settings switch's
+knob, since XCUITest gives that switch the whole row's frame, where a tap does nothing) is opt-in context only: the
+report gives both rates (`rapid rate`, `rapid baseline`) and says "the OS control also drops these", but a baseline
+never turns a fail into a pass.
+
+```swift
+let baseline = feel.osBaseline()
+let rapidBaseline = feel.osBaseline(rapid: true)
+feel.expect(feel.tapLanding(on: app.switches["appearance.pageNumbers"], trials: 5,
+                            title: app.staticTexts["Page Numbers"], rowToggles: true,
+                            baseline: baseline, rapid: 5, rapidBaseline: rapidBaseline))
+```
+
+### One action finishes the intent
+
+Proves: one tap on a control that starts slow work (a download, a load, a sign-in) ends with what you asked for on
+screen, with no second tap. It taps once, then waits up to `within` seconds (30 by default) for `opens` (an identifier
+or label), or for your `done` to hold. The screen counts as busy while anything on it changes (words, values such as a
+progress figure, frames) or a spinner or progress bar shows. Once it has held still, with nothing busy, for twice
+`quiet` seconds (`quiet` is 3 by default; the second half is for work that runs on with nothing on screen to show it)
+and the intent is not done, then if the same control is back, it taps that control once more: if the second tap finishes the intent, the first tap's work
+was dropped when it ended, and the check fails. When the intent never finishes, even after a second tap, or the
+control is gone once the screen settles, it could not check: the work may have failed in the test's state, or need
+longer. So does an intent already done before the tap: name something only the finished intent shows (the open book's
+page, not its title in the library). Launch into a state where the work is needed (the book not downloaded) and is
+safe to repeat. Work that runs longer than twice `quiet` with nothing changing on screen reads as dropped, so show progress
+while it runs, or raise `quiet`.
+
+```swift
+feel.expect(feel.finishesIntent(app.buttons["library.book.mobyDick"], opens: "reader.page"))
+feel.expect(feel.finishesIntent(app.buttons["Sign In"], named: "signing in") { app.tabBars.firstMatch.exists })
+```
+
+From Gatefold, 2026-11-27: opening a book that was not downloaded downloaded it and stopped there, so it took a second
+tap to open. The fixture's `intent` page has the same book (`testOneActionFinishesTheIntent`).
+
+## Your place is yours
+
+Where you are reading or working stays put through relaunches, turns, stray touches and late replies.
+
+| Check | What good feels like | Call |
+|---|---|---|
+| place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
+| place kept through stray input | A stray tap (the middle, the top edge), an edge swipe that goes nowhere, a swipe across and back, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)`; for a reader, `across: FeelPlaceStep.strayReading` |
+| navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:between:read:)` |
+
+### Place stability
+
+Proves: the place (by default every static text on screen) reads the same after each step: `.background`, `.rotate`,
+`.relaunch` (the default list), or `FeelPlaceStep("reopen") { feel in … }`. It stores and reports only the first 16
+hex digits of a SHA-256 of what it read, never the content.
+
+```swift
+feel.expect(feel.place(read: { app.otherElements["reader.page"].value as? String ?? "" }))
+```
+
+`.relaunch` reuses `app.launchArguments`, so drop any reset arguments before calling it.
+
+### Place kept through stray input, and navigation that fights you
+
+Both read the place after every action and keep only fingerprints (`FeelPlaceTrail`), judged in reads, never seconds.
+`read` names the place and nothing else (a location, a page number, the page's words) and returns an empty string while
+the place loads; reading every text on screen would count the controls a stray tap shows as a moved place.
+
+`feel.placeHeld(across:read:)` runs actions that must keep the place and fails if any read after one shows another
+place, even if it later came back. The default steps are `.strayTap()` (the middle of the window, where a reader shows
+or hides its controls; pass `at:` where the middle is a deliberate control), `.edgeSwipe` (the way back's own gesture,
+for a screen where it is not a way back) and `.background`. Add `.noInput` to catch a late reply that moves the place
+while you are idle, and `.sheetDismissed("Contents", sheet: "contents.title") { app in … }` for a sheet opened and
+swiped away (a sheet that never opened or closed could not be checked).
+
+Two more steps are for a reader, and `FeelPlaceStep.strayReading` adds them to the stray ones:
+
+- `.topEdgeTap()` taps the very top of the window, where the status bar is. iOS scrolls a scroll view to its top on
+  that tap (`scrollsToTop`), so a reader that scrolls jumps to the start of the chapter. Turn it off on the reading
+  view.
+- `.swipeAcrossAndBack` swipes left across the middle, then right. On a page that scrolls up and down a sideways swipe
+  is stray; on a paged one it turns the page and back. Either way you must end where you started: a reader that
+  changes chapter on the first swipe must bring you back to your place, not to the chapter's start or end.
+
+Both lost Ari's place in Gatefold build 39's scroll mode.
+
+`feel.placeFights(_:reads:hold:read:)` runs your own moves. After each one the place must land (the first place two
+reads in a row agree on, so a page that shows a place for one read on its way is fine), where you chose when the move
+says (`.move(step, landsOn: "Chapter 3")`), and hold for at least `hold` reads. Going back to where you were, even for
+one read, is a late restore; moving on after landing is a re-sent or late jump; landing elsewhere than you chose is an
+input queued during a jump. Give it enough `reads` to outlast your app's restore or sync, and `between:` to advance an
+app on its own clock between reads.
+
+```swift
+let place = { app.otherElements["reader.page"].value as? String ?? "" }
+let turn = FeelPlaceStep("next page") { feel in feel.app.swipeLeft() }
+feel.expect(feel.placeHeld(across: FeelPlaceStep.stray + [.noInput], read: place))
+feel.expect(feel.placeFights([turn, turn], read: place))
+```
+
+## The content is the canvas
+
+What you read fills its space and stays there: inside the window, still on every axis it doesn't scroll, and never
+covered or crowded out by chrome.
+
+| Check | What good feels like | Call |
+|---|---|---|
+| inside the window | Every control and what you read sits wholly inside the window, in every orientation and after turning the device and back; no header, bar or control covers the text or sits under the status bar. | `feel.insideWindow(poses:also:)`, `feel.uncovered(by:content:within:poses:)`; also on every screen `wayBack` reaches |
+| viewport holds still | Nothing pans on an axis it doesn't scroll, and no content is wider or taller than its viewport on an axis that is fixed, in every pose. | `feel.viewportHolds(scrolling:poses:)` |
+| chrome floats over content | Glass and overlays float over the content: it runs underneath them, never shrinks or is cropped to make room, and its end can always be brought clear of them. | `feel.chromeFloats(_:over:content:toEnd:poses:)` |
+
 ### Inside the window
 
 Proves: every enabled control's frame lies inside the window frame in portrait, landscape, and portrait again after
@@ -220,45 +389,98 @@ feel.expect(feel.uncovered(by: ["reader.runningHead", "reader.close"], within: "
 From Gatefold build 39: its running head sat over the first line of text on the folded iPhone Duo, and its controls
 sat under the status bar on the open one.
 
-### Tap landing
+### Viewport holds still
 
-Proves: single taps, never retried, land at the centre and the four edges (4 pt in). A loaded machine can report a
-change late, so a tap that has not landed within `within` gets twice as long again before it counts as a miss; one
-that lands then is noted as late. A zero-length press
-(`.zeroPress`) is opt-in: a system Toggle ignored it 3 times in 3 on the iOS 27.2 simulator, so it is only fair for a
-control that acts on touch-down. With a
-`title:` it also taps the row's title and the gap beside it: `rowToggles: true` when the row acts as one button,
-`false` (default) when it should not. A tap lands when `read` (default: the control's value) changes within `within` seconds (default 3, since a busy
-simulator is slow to report a change).
-Paced taps wait 0.6 s after each one for the control to settle.
-`baseline:` takes `feel.osBaseline()`, the same loop on a Settings switch on this simulator; when that misses too, the
-report marks "the simulator may be dropping taps" as inference.
+Proves: in each pose (portrait, landscape and portrait again by default, as `insideWindow`), no scroll view, web view
+or the window pans on an axis it does not scroll, and no content is wider or taller than its viewport on an axis that
+is fixed. Two readings judge it:
 
-People also tap while a control is still animating. For a control with two states (a switch, a checkbox, passed
-as the element itself), `rapid:` adds that many double taps at its centre (off by default, since a counter, a stepper
-or a row that opens a screen never ends where it started), each from a settled control. A pair that ends where it
-started had both taps land, or neither; one that ends changed lost a tap. Each pair is read once the control has held
-still for a second (a loaded machine can apply the second tap late), never resent. It is read from where the control ends, so
-the report marks it as inference, and it is scored only when the paced single taps at the centre all landed (otherwise could not check). XCUITest's
-single taps wait for the app to go idle, about 0.6 s apart, so only its double tap sends taps faster than an animation.
-Because "neither landed" also ends where it started, one triple tap follows the pairs (an element tap, since a coordinate has no triple; the same touch path): if every pair
-ended where it started, the triple must end changed to show quick taps reach the control, or the result is could not
-check. That catches a control that swallows every burst, not one that eats exactly the second tap of each.
+- **Content past a fixed edge.** Every text, image and control drawn in a viewport (not in a viewport inside it) must
+  lie within the viewport's sides when it scrolls only up and down, and within its top and bottom when it scrolls only
+  sideways. Content in the window, outside any scroll view, must lie within the window both ways. A line wider than its
+  page is a page a finger can pan, or one that is cut off. An image past both sides by about the same amount (within
+  4 pt or a tenth) is a centred crop, a cover filled to its frame or a hero that stretches as the page is pulled
+  (Spoonjoy's recipe cover, 2026-11-27), so it is left to the drag; an image past one side only is cut off.
+- **A drag along a fixed axis.** It drags across each viewport along every axis that it and every viewport around it
+  leave fixed: leftward, from three quarters of the way across to under a third, and upward, so the drag is never the
+  system's back swipe or a sheet's pull down. It watches up to four of the viewport's texts (and two of the window's,
+  since a page that pans as a whole carries its chrome along) every tenth of a second while the finger is down, and
+  once it has lifted. Content that moved more than 2 pt along the drag's axis panned, even if it sprang back. A frame
+  has moved only as far as both its edges moved the same way, so a text whose words change as the page loads, which
+  moves one edge, is not a pan.
 
-The bar is absolute: every pair must end where it started. Our bar is higher than UIKit's: on the iOS 27.2 simulator
-the Settings switch (a UIKit switch) kept only the first tap of a double tap, 0 pairs in 5, while a SwiftUI `Toggle`
-kept both in 5 of 5. So `rapidBaseline:` (`feel.osBaseline(rapid: true)`, the same double taps on a Settings switch's
-knob, since XCUITest gives that switch the whole row's frame, where a tap does nothing) is opt-in context only: the
-report gives both rates (`rapid rate`, `rapid baseline`) and says "the OS control also drops these", but a baseline
-never turns a fail into a pass.
+A drag never starts in a viewport inside the one it judges (a carousel in a list: there the list scrolls the way the
+carousel doesn't, so no axis is fixed), nor on a switch, slider, picker or field. A list is never dragged sideways,
+and no sideways drag starts or ends on a row: a row slides to show its swipe actions, and a full swipe fires one,
+which in a real app may delete something. So a list's sideways hold is judged by its overflow alone, and a list that
+is the largest viewport never makes the drags could-not-check. A drag that changed what was on screen (most of what it watched was gone: a page turn, a new
+screen) is noted as the app's own gesture and not judged, and ends that pose's drags. A viewport no drag could cross
+(too small, or covered by what is inside it) is said in a note; when that is the largest viewport and nothing was
+dragged at all, the check could not check.
+
+Accessibility does not say which way a scroll view scrolls. A web view and a list of rows scroll up and down; another
+scroll view scrolls sideways when its content runs past its sides and nowhere past its top or bottom, and each piece
+past the sides is no wider than the viewport (a carousel's cards, a pager's next page in the tree), and up and down
+otherwise: a line wider than its page is never a card. Declare a viewport the guess gets wrong, by
+identifier or label in `scrolling:`. Findings on a guessed axis are marked as inference, and the report lists which were guessed. Run
+it on a screen at rest, with no sheet up, since a sheet's drag moves it on purpose.
 
 ```swift
-let baseline = feel.osBaseline()
-let rapidBaseline = feel.osBaseline(rapid: true)
-feel.expect(feel.tapLanding(on: app.switches["appearance.pageNumbers"], trials: 5,
-                            title: app.staticTexts["Page Numbers"], rowToggles: true,
-                            baseline: baseline, rapid: 5, rapidBaseline: rapidBaseline))
+feel.expect(feel.viewportHolds())                                        // portrait, landscape, portrait again
+feel.expect(feel.viewportHolds(scrolling: ["reader.pager": .horizontal], poses: [.current]))
 ```
+
+From Gatefold, 2026-11-27: the reading page could be dragged sideways, cutting off the text's left edge, while every
+check passed (Ari: "being able to mess with viewport is very much something ouro feel should be catching"). The
+fixture's `viewport` page scrolls both ways with lines wider than the window in its bug build, and holds a sideways
+shelf inside a page that scrolls up and down in both (`testViewportHoldsStill`).
+
+### Chrome floats over content
+
+Proves: in each pose, each piece of chrome you name (a glass pill, a floating bar, a button over the page) floats over
+the content's viewport rather than beside it, and once the content is brought to its end, its last line lies wholly
+inside the viewport and under none of that chrome.
+
+- **At rest,** each piece of chrome must sit over the viewport: its middle inside the viewport's frame. Chrome whose
+  middle is outside it, beside the viewport's edge, has taken that room from the content, and the report says how much.
+- **At the end,** the content's last line (the lowest text or image in the viewport) must lie wholly inside the
+  viewport and the window, on every side, and under none of the chrome. By default the check swipes up the viewport until that line holds still
+  for two swipes, up to 15; pass `toEnd:` to bring it there yourself (a book's last page). Content that kept moving
+  could not be checked. A last line still wholly outside the window once the swipes have moved the content and it
+  holds still is one no finger can bring on screen, and fails (inference); after `toEnd:`, or swipes that moved
+  nothing, it could not be checked.
+
+`over:` names the viewport (a reader's page, a scroll view); by default it is the largest scroll view or web view on
+screen. The content is every text and image inside it that is not chrome, or what you name in `content:`. Content with
+no identifier is named by a fingerprint of its words, never the words. Chrome not on screen could not be checked, so
+name only chrome that shows at rest. The chrome's frame is the one accessibility reports, so give a pill its padding
+inside the button's label (`Button { Text(…).padding(…) }`), not outside the button, or the glass drawn around the
+words is not seen. The fixture's own pill, padded outside its button, passed its bug build that way ([run 46030232275](https://github.com/ourostack/ouro-ui-apple/actions/runs/46030232275)). Lines in the middle of the page passing under the chrome are how floating works,
+and are not judged; only the end must come clear. To do that, give the scroll content a bottom margin the height of the
+chrome (`.contentMargins(.bottom, …, for: .scrollContent)`), and put the chrome in an overlay rather than a stack.
+
+```swift
+feel.expect(feel.chromeFloats(["reader.restart"], over: "reader.page"))
+```
+
+From Gatefold, 2026-11-27: a Liquid Glass "start from the beginning" pill shrank the reading area and hid its last
+lines, instead of floating over the text. The fixture has both halves: `float`, whose bug build stacks the pill under
+the page (`testChromeFloatsOverContent`), and `float-under`, whose bug build floats it with no room at the end
+(`testChromeLeavesTheEndClear`).
+
+## Motion and chrome never surprise
+
+Things move once, on purpose, at the display's pace: no ghost, no jump, no snap, no flicker, no stall.
+
+| Check | What good feels like | Call |
+|---|---|---|
+| double-draw | Each piece of content is on screen once; nothing shows a ghost copy mid-transition. | `film.doubleDraws(of:)` |
+| jump after landing | Once something lands it stays put; nothing nudges it afterwards. | `film.jumps(of:rest:limit:)`; at an open, from pixels, `feel.screenFilm(...).revealHolds(cover:until:)` |
+| late or lingering chrome | Bars and controls hand over in one beat: never two states at once, never a blank between them. | `film.chrome(from:to:grace:)` |
+| snap with no transition | Things that move travel there; nothing teleports across the screen. | `film.snaps(of:distance:appearing:)` |
+| settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
+| flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. With no input, nothing changes at all. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)`; with no input, `feel.stillWhileIdle(for:watch:poses:)` |
+| hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `film.hitches()`, `feel.measureHitches(in:)` |
 
 ### Motion: double-draw, jump after landing, chrome, snap, settle
 
@@ -371,18 +593,6 @@ timed on the test runner's clock and can run long under load, so leave margin in
 element was never seen moving (a film started by a tap begins after the motion is over) or was still moving when the
 film ended. `jumps` counts moves after the first one, so start the film before the transition. To see every
 frame of a transition, record it inside the app (above).
-
-### Place stability
-
-Proves: the place (by default every static text on screen) reads the same after each step: `.background`, `.rotate`,
-`.relaunch` (the default list), or `FeelPlaceStep("reopen") { feel in … }`. It stores and reports only the first 16
-hex digits of a SHA-256 of what it read, never the content.
-
-```swift
-feel.expect(feel.place(read: { app.otherElements["reader.page"].value as? String ?? "" }))
-```
-
-`.relaunch` reuses `app.launchArguments`, so drop any reset arguments before calling it.
 
 ### Flicker
 
@@ -502,44 +712,6 @@ let film = feel.screenFilm(cover: true, atLeast: 4) { app.buttons["Open"].tap() 
 feel.expect(film.revealHolds())
 ```
 
-### Place kept through stray input, and navigation that fights you
-
-Both read the place after every action and keep only fingerprints (`FeelPlaceTrail`), judged in reads, never seconds.
-`read` names the place and nothing else (a location, a page number, the page's words) and returns an empty string while
-the place loads; reading every text on screen would count the controls a stray tap shows as a moved place.
-
-`feel.placeHeld(across:read:)` runs actions that must keep the place and fails if any read after one shows another
-place, even if it later came back. The default steps are `.strayTap()` (the middle of the window, where a reader shows
-or hides its controls; pass `at:` where the middle is a deliberate control), `.edgeSwipe` (the way back's own gesture,
-for a screen where it is not a way back) and `.background`. Add `.noInput` to catch a late reply that moves the place
-while you are idle, and `.sheetDismissed("Contents", sheet: "contents.title") { app in … }` for a sheet opened and
-swiped away (a sheet that never opened or closed could not be checked).
-
-Two more steps are for a reader, and `FeelPlaceStep.strayReading` adds them to the stray ones:
-
-- `.topEdgeTap()` taps the very top of the window, where the status bar is. iOS scrolls a scroll view to its top on
-  that tap (`scrollsToTop`), so a reader that scrolls jumps to the start of the chapter. Turn it off on the reading
-  view.
-- `.swipeAcrossAndBack` swipes left across the middle, then right. On a page that scrolls up and down a sideways swipe
-  is stray; on a paged one it turns the page and back. Either way you must end where you started: a reader that
-  changes chapter on the first swipe must bring you back to your place, not to the chapter's start or end.
-
-Both lost Ari's place in Gatefold build 39's scroll mode.
-
-`feel.placeFights(_:reads:hold:read:)` runs your own moves. After each one the place must land (the first place two
-reads in a row agree on, so a page that shows a place for one read on its way is fine), where you chose when the move
-says (`.move(step, landsOn: "Chapter 3")`), and hold for at least `hold` reads. Going back to where you were, even for
-one read, is a late restore; moving on after landing is a re-sent or late jump; landing elsewhere than you chose is an
-input queued during a jump. Give it enough `reads` to outlast your app's restore or sync, and `between:` to advance an
-app on its own clock between reads.
-
-```swift
-let place = { app.otherElements["reader.page"].value as? String ?? "" }
-let turn = FeelPlaceStep("next page") { feel in feel.app.swipeLeft() }
-feel.expect(feel.placeHeld(across: FeelPlaceStep.stray + [.noInput], read: place))
-feel.expect(feel.placeFights([turn, turn], read: place))
-```
-
 ### Hitches
 
 `FeelHitches.analyze(timestamps:refresh:)` turns display-link timestamps (from a probe in your app, such as the HX
@@ -585,5 +757,6 @@ the gesture may be off on that screen (see the way back). Say the same when you 
 
 ## Proof
 
-`Examples/OuroFeelFixture` has one page per genre with a known bug behind `-bug 1`. Its UI tests
-(`FeelCatchesTests`) prove each check fails on the bug and passes without it; CI runs them on every pull request.
+`Examples/OuroFeelFixture` has a page for each check with a known bug behind `-bug 1`. Its UI tests
+(`FeelCatchesTests`) prove each check fails on the bug and passes without it; CI runs them on every push to `main` and
+every release (the required "Ouro Feel catches every genre's bug").

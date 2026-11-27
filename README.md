@@ -123,7 +123,7 @@ Ouro UI's [one action model](https://github.com/ourostack/ouro-ui-core/blob/main
 | `OuroAXTestingProbe` | the X-ray's test plan | runs the X-ray's behaviour stage with AppIntentsTesting ([Templates/XrayProbe](Templates/XrayProbe)) |
 | `ouro-ax-skills` | you and CI | lints `Skills.skillsbundle` for Siri: `swift run ouro-ax-skills lint path/to/Skills.skillsbundle` |
 | `OuroAXSkillsLintPlugin` | your build | the same lint at build time, with errors pinned to the line |
-| `OuroFeel` | your UI tests | checks how the app feels, one per genre of jank: the way back, overlay dismissal, inside the window, tap landing, double-draw, jumps, chrome, snaps, settle and place ([Ouro Feel](#ouro-feel-how-it-feels-measured)) |
+| `OuroFeel` | your UI tests | checks how the app feels against four principles, each with a growing set of checks: the way back, tap landing, a viewport that holds still, chrome that floats over content, one action that finishes the intent, jumps, snaps, flicker and more ([Ouro Feel](#ouro-feel-how-it-feels-measured)) |
 | `OuroFeelCore`, `OuroFeelRecorder`, `OuroFeelRecorderInjectable` | Ouro Feel's internals | the measurements, the in-app recorder, and the same recorder as a library a UI test loads into a simulator app so the app never links it |
 | `OuroReins` | your app's UI-free core, its tests and agents | every screen as state and actions, driven with `ls` and `do` headless or over a debug-only socket; journeys; a network guard that fails any request ([docs/ouro-reins/README.md](docs/ouro-reins/README.md)) |
 | `OuroA2UI` | your app, when an agent composes UI for a person | `A2UISurface`: Ouro HX's [A2UI](https://github.com/a2ui-project/a2ui) catalog in SwiftUI, where every button is one of your declared actions and pressing it follows its consent class; `A2UI.validate` and `A2UI.resolve`, and `ComposedTree` for a tree that came another way, ported from core and proved against core's conformance cases ([agent-composed UI](#agent-composed-ui-a2ui)) |
@@ -195,9 +195,11 @@ The linter exits 0 when all is well, 1 when it trips over itself, 2 for a usage 
 
 ## Ouro Feel: how it feels, measured
 
-Jank comes in genres, and each one now has a check that never gets tired: the way back, overlay dismissal, inside the
-window, tap landing, double-draw, jump after landing, late or lingering chrome, snap with no transition, settle time,
-place stability, flicker, place kept through stray input and navigation that fights you. Link `OuroFeel` into your UI tests, walk every screen your entry points reach, and leave only real taste to the humans.
+Ouro Feel holds an app to four promises: your intent is the unit, your place is yours, the content is the canvas, and
+motion and chrome never surprise. Each owns a growing set of checks that never get tired, from the way back and tap
+landing to a viewport that holds still, chrome that floats over the content and one tap that finishes what it started;
+every jank report no check caught adds one. Link `OuroFeel` into your UI tests, walk every screen your entry points
+reach, and leave only real taste to the humans.
 
 ```swift
 let feel = OuroFeel(app)

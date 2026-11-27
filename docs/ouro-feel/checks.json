@@ -1,0 +1,159 @@
+{
+  "principles" : [
+    {
+      "checks" : [
+        {
+          "calls" : [
+            "feel.wayBack(from:follow:depth:)"
+          ],
+          "good" : "Every screen you reach has a visible way back and a gesture back, and both return you where you were.",
+          "name" : "the way back"
+        },
+        {
+          "calls" : [
+            "feel.overlays(_:)"
+          ],
+          "good" : "Every sidebar, popover and menu goes away with a tap outside it, and once you pick something in it.",
+          "name" : "overlay dismissal"
+        },
+        {
+          "calls" : [
+            "feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapid:rapidBaseline:)",
+            "feel.osBaseline(rapid:)"
+          ],
+          "good" : "One tap anywhere on a control works, every time, with no second try.",
+          "name" : "tap landing"
+        },
+        {
+          "calls" : [
+            "feel.finishesIntent(_:opens:within:quiet:)",
+            "feel.finishesIntent(_:named:within:quiet:done:)"
+          ],
+          "good" : "A tap that starts slow work (a download, a load, a sign-in) finishes what you asked for when the work is done; you never tap it twice.",
+          "name" : "one action finishes the intent"
+        }
+      ],
+      "id" : "intent",
+      "name" : "your intent is the unit",
+      "promise" : "What you meant takes one go: one tap lands, one tap finishes what it started, and every way in has a way back out."
+    },
+    {
+      "checks" : [
+        {
+          "calls" : [
+            "feel.place(across:read:)"
+          ],
+          "good" : "Reopen, relaunch or turn the device and you are exactly where you were.",
+          "name" : "place stability"
+        },
+        {
+          "calls" : [
+            "feel.placeHeld(across:reads:between:read:)"
+          ],
+          "good" : "A stray tap (the middle, the top edge), an edge swipe that goes nowhere, a swipe across and back, dismissing a sheet or leaving the app never moves your place.",
+          "name" : "place kept through stray input"
+        },
+        {
+          "calls" : [
+            "feel.placeFights(_:reads:hold:between:read:)"
+          ],
+          "good" : "After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again.",
+          "name" : "navigation that fights you"
+        }
+      ],
+      "id" : "place",
+      "name" : "your place is yours",
+      "promise" : "Where you are reading or working stays put through relaunches, turns, stray touches and late replies."
+    },
+    {
+      "checks" : [
+        {
+          "calls" : [
+            "feel.insideWindow(poses:also:)",
+            "feel.uncovered(by:content:within:poses:)"
+          ],
+          "good" : "Every control and what you read sits wholly inside the window, in every orientation and after turning the device and back; no header, bar or control covers the text or sits under the status bar.",
+          "name" : "inside the window"
+        },
+        {
+          "calls" : [
+            "feel.viewportHolds(scrolling:poses:)"
+          ],
+          "good" : "Nothing pans on an axis it doesn't scroll, and no content is wider or taller than its viewport on an axis that is fixed, in every pose.",
+          "name" : "viewport holds still"
+        },
+        {
+          "calls" : [
+            "feel.chromeFloats(_:over:content:toEnd:poses:)"
+          ],
+          "good" : "Glass and overlays float over the content: it runs underneath them, never shrinks or is cropped to make room, and its end can always be brought clear of them.",
+          "name" : "chrome floats over content"
+        }
+      ],
+      "id" : "canvas",
+      "name" : "the content is the canvas",
+      "promise" : "What you read fills its space and stays there: inside the window, still on every axis it doesn't scroll, and never covered or crowded out by chrome."
+    },
+    {
+      "checks" : [
+        {
+          "calls" : [
+            "film.doubleDraws(of:)"
+          ],
+          "good" : "Each piece of content is on screen once; nothing shows a ghost copy mid-transition.",
+          "name" : "double-draw"
+        },
+        {
+          "calls" : [
+            "film.jumps(of:rest:limit:)",
+            "feel.screenFilm(...).revealHolds(cover:until:)"
+          ],
+          "good" : "Once something lands it stays put; nothing nudges it afterwards.",
+          "name" : "jump after landing"
+        },
+        {
+          "calls" : [
+            "film.chrome(from:to:grace:)"
+          ],
+          "good" : "Bars and controls hand over in one beat: never two states at once, never a blank between them.",
+          "name" : "late or lingering chrome"
+        },
+        {
+          "calls" : [
+            "film.snaps(of:distance:appearing:)"
+          ],
+          "good" : "Things that move travel there; nothing teleports across the screen.",
+          "name" : "snap with no transition"
+        },
+        {
+          "calls" : [
+            "film.settles(_:within:)"
+          ],
+          "good" : "The screen comes to rest promptly after you act.",
+          "name" : "settle time"
+        },
+        {
+          "calls" : [
+            "film.flickers(of:within:changes:)",
+            "feel.screenFilm(...).flickers(within:states:)",
+            "feel.stillWhileIdle(for:watch:poses:)"
+          ],
+          "good" : "Each thing changes once on its way to where it ends; nothing flips back and forth before it settles, and with no input nothing changes at all.",
+          "name" : "flicker"
+        },
+        {
+          "calls" : [
+            "FeelHitches.analyze(timestamps:refresh:)",
+            "film.hitches()",
+            "feel.measureHitches(in:)"
+          ],
+          "good" : "Motion runs at the display's pace with no visible stall.",
+          "name" : "hitches"
+        }
+      ],
+      "id" : "motion",
+      "name" : "motion and chrome never surprise",
+      "promise" : "Things move once, on purpose, at the display's pace: no ghost, no jump, no snap, no flicker, no stall."
+    }
+  ]
+}

@@ -32,6 +32,10 @@ struct FixtureApp: App {
             case "scroll-reader": ScrollReaderPage()
             case "cover": CoverPage()
             case "idle": IdlePage()
+            case "viewport": ViewportPage()
+            case "float": FloatPage(under: false)
+            case "float-under": FloatPage(under: true)
+            case "intent": IntentPage()
             default: NavPage()
             }
         }
@@ -1073,6 +1077,135 @@ struct IdlePage: View {
                 try? await Task.sleep(for: .milliseconds(330))
                 flip.toggle()
             }
+        }
+    }
+}
+
+/// Viewport holds still. A page that scrolls up and down, with a shelf that scrolls sideways inside it, which a drag
+/// across never judges. The bug, as Gatefold's reading page (2026-11-27): the page also scrolls sideways and its lines
+/// run wider than the window, so a drag across pans the text and cuts off its leading edge.
+struct ViewportPage: View {
+    var body: some View {
+        ScrollView(bug ? [.vertical, .horizontal] : .vertical) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Chapter One").font(.headline).accessibilityIdentifier("viewport.title")
+                ScrollView(.horizontal) {
+                    HStack(spacing: 12) {
+                        ForEach(1...6, id: \.self) { i in
+                            Button {} label: {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.orange.opacity(0.35))
+                                    .frame(width: 140, height: 90)
+                                    .overlay(Text("Shelf \(i)"))
+                            }
+                            .accessibilityIdentifier("viewport.shelf.\(i)")
+                        }
+                    }
+                }
+                .frame(height: 100)
+                ForEach(1...30, id: \.self) { i in
+                    Text("Line \(i) of a page that scrolls up and down, and never sideways")
+                        .accessibilityIdentifier("viewport.line.\(i)")
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .accessibilityIdentifier("viewport.page")
+    }
+}
+
+/// Chrome floats over content. A page of lines with a glass "Start from the beginning" pill over its foot, and room
+/// at the end of the lines so the last one scrolls clear of it. The bug, as Gatefold's (2026-11-27): the pill sits
+/// under the page in a stack, so the page shrinks to make room. With `under`, the other half of the bug: the pill
+/// floats, but the lines end at the page's foot, so the last one can never be brought out from under it.
+struct FloatPage: View {
+    let under: Bool
+
+    var body: some View {
+        if bug && !under {
+            VStack(spacing: 0) {
+                lines
+                pill.padding(.vertical, 12)
+            }
+        } else {
+            lines
+                .contentMargins(.bottom, bug ? 0 : 80, for: .scrollContent)
+                .overlay(alignment: .bottom) { pill.padding(.bottom, 12) }
+        }
+    }
+
+    private var lines: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(1...40, id: \.self) { Text("Line \($0) of the chapter").accessibilityIdentifier("float.line.\($0)") }
+            }
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityIdentifier("float.page")
+    }
+
+    @ViewBuilder private var pill: some View {
+        // The padding is inside the label, so the button's frame (what accessibility reports) is the whole pill.
+        let button = Button {} label: {
+            Text("Start from the beginning")
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+        }
+        .accessibilityIdentifier("float.restart")
+        if #available(iOS 26, *) {
+            button.glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
+        } else {
+            button.background(.thinMaterial, in: Capsule(style: .continuous))
+        }
+    }
+}
+
+/// One action finishes the intent. A book that is not downloaded yet: a tap downloads it, its row counting up the
+/// percent, and opens it. The bug, as Gatefold's (2026-11-27): the download finishes and the book stays shut until a
+/// second tap.
+struct IntentPage: View {
+    @State private var downloaded = false
+    @State private var progress: Double?
+    @State private var open = false
+
+    var body: some View {
+        if open {
+            VStack(spacing: 16) {
+                Text("Call me Ishmael.").accessibilityIdentifier("intent.reader")
+                Button("Close") { open = false }.accessibilityIdentifier("intent.close")
+            }
+        } else {
+            VStack(spacing: 16) {
+                Button(action: tap) {
+                    HStack {
+                        Text("Moby-Dick")
+                        Spacer()
+                        if let progress {
+                            Text("\(Int((progress * 100).rounded()))%").monospacedDigit()
+                        } else if !downloaded {
+                            Image(systemName: "icloud.and.arrow.down").accessibilityLabel("Download")
+                        }
+                    }
+                    .padding()
+                }
+                .accessibilityIdentifier("intent.book")
+                if let progress { ProgressView(value: progress).accessibilityIdentifier("intent.progress") }
+            }
+            .padding(24)
+        }
+    }
+
+    private func tap() {
+        guard progress == nil else { return }
+        if downloaded { open = true; return }
+        Task { @MainActor in
+            for step in 1...10 {
+                progress = Double(step) / 10
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            progress = nil
+            downloaded = true
+            if !bug { open = true }
         }
     }
 }

@@ -281,14 +281,15 @@ extension OuroFeel {
     func chromeFloatsNow(_ chrome: [String], over key: String?, content: [String], toEnd: ((OuroFeel) -> Void)?,
                          pose: String) -> FeelResult {
         let rest = floatRead(chrome, over: key, content: content)
-        var reachedEnd = true
+        var reachedEnd = true, swiped = false
         if let toEnd {
             toEnd(self)
             pause(1)
         } else if let v = rest.viewport {
             reachedEnd = false
             let visible = v.frame.intersection(rest.window)
-            var last = endMark(rest.content), steady = 0
+            let first = endMark(rest.content)
+            var last = first, steady = 0
             for _ in 0..<15 where !visible.isNull {
                 point(visible.midX, visible.minY + visible.height * 0.75)
                     .press(forDuration: 0.05, thenDragTo: point(visible.midX, visible.minY + visible.height * 0.15),
@@ -299,11 +300,13 @@ extension OuroFeel {
                 last = now
                 if steady >= 2 { reachedEnd = true; break }
             }
+            if reachedEnd { swiped = last != first }
             pause(0.6)
         }
         let end = floatRead(chrome, over: key, content: content)
         return FeelFloat.check(viewport: rest.viewport, chrome: rest.chrome, end: end.content, endViewport: end.viewport?.frame,
-                               endChrome: end.chrome, window: rest.window, reachedEnd: reachedEnd, expected: chrome, pose: pose)
+                               endChrome: end.chrome, window: rest.window, reachedEnd: reachedEnd, swiped: swiped,
+                               expected: chrome, pose: pose)
     }
 
     /// The content's last line, as a mark that holds still once the content is at its end.

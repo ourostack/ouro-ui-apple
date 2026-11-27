@@ -398,9 +398,9 @@ is fixed. Two readings judge it:
 - **Content past a fixed edge.** Every text, image and control drawn in a viewport (not in a viewport inside it) must
   lie within the viewport's sides when it scrolls only up and down, and within its top and bottom when it scrolls only
   sideways. Content in the window, outside any scroll view, must lie within the window both ways. A line wider than its
-  page is a page a finger can pan, or one that is cut off. Images are left to the drag: a cover filled to its frame
-  and cropped, or a hero that stretches as the page is pulled, reports a frame wider than the page while nothing can
-  be panned (Spoonjoy's recipe cover, 2026-11-27).
+  page is a page a finger can pan, or one that is cut off. An image past both sides by about the same amount (within
+  4 pt or a tenth) is a centred crop, a cover filled to its frame or a hero that stretches as the page is pulled
+  (Spoonjoy's recipe cover, 2026-11-27), so it is left to the drag; an image past one side only is cut off.
 - **A drag along a fixed axis.** It drags across each viewport along every axis that it and every viewport around it
   leave fixed: leftward, from three quarters of the way across to under a third, and upward, so the drag is never the
   system's back swipe or a sheet's pull down. It watches up to four of the viewport's texts (and two of the window's,
@@ -446,7 +446,9 @@ inside the viewport and under none of that chrome.
 - **At the end,** the content's last line (the lowest text or image in the viewport) must lie wholly inside the
   viewport and the window, on every side, and under none of the chrome. By default the check swipes up the viewport until that line holds still
   for two swipes, up to 15; pass `toEnd:` to bring it there yourself (a book's last page). Content that kept moving
-  could not be checked, and so could a last line wholly outside the window: the swipes never brought it on screen.
+  could not be checked. A last line still wholly outside the window once the swipes have moved the content and it
+  holds still is one no finger can bring on screen, and fails (inference); after `toEnd:`, or swipes that moved
+  nothing, it could not be checked.
 
 `over:` names the viewport (a reader's page, a scroll view); by default it is the largest scroll view or web view on
 screen. The content is every text and image inside it that is not chrome, or what you name in `content:`. Content with

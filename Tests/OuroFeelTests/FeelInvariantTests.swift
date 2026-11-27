@@ -39,6 +39,11 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         let cover = FeelElement(key: "recipe.cover", type: "image", frame: CGRect(x: -135, y: 62, width: 672, height: 300))
         let line = text("line 1", CGRect(x: 24, y: 380, width: 354, height: 22))
         #expect(FeelViewport.check([reader([cover, line])], drags: [], pose: "p").passed)
+        // Past one side only, it is cut off.
+        let shifted = FeelElement(key: "page.image", type: "image", frame: CGRect(x: -60, y: 62, width: 462, height: 300))
+        let cut = FeelViewport.check([reader([shifted, line])], drags: [], pose: "p")
+        #expect(cut.detections.count == 1)
+        #expect(cut.detections[0].what.contains("runs 60 pt past the leading side"))
     }
 
     @Test func aPagerMayRunPastItsSidesButNotItsBottom() {
@@ -188,6 +193,13 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         #expect(result.detections.isEmpty, "\(result.text)")
         #expect(result.summary.hasPrefix("could not check"))
         #expect(result.text.contains("never brought into the window"))
+        // Swipes that moved the content and stopped with the line still below: no finger can bring it on screen.
+        let stuck = FeelFloat.check(viewport: pageView, chrome: [], end: [below], endViewport: page, endChrome: [], window: phone,
+                                    reachedEnd: true, swiped: true, expected: [], pose: "p")
+        #expect(stuck.detections.count == 1)
+        #expect(stuck.detections[0].inferred)
+        #expect(stuck.detections[0].what.contains("cannot be brought on screen"))
+        #expect(stuck.detections[0].what.contains("326 pt outside the window"))
     }
 
     @Test func noPosesCouldNotBeChecked() {

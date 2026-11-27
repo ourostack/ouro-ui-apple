@@ -20,10 +20,13 @@ public enum FeelFloat {
     ///   - chrome: the chrome named, at rest.
     ///   - end: the content in the viewport once brought to its end, and the viewport's frame then.
     ///   - reachedEnd: whether the content stopped moving on the way to its end.
+    ///   - swiped: whether swipes brought the content there and moved it on the way. Then a last line still wholly
+    ///     outside the window is one no finger can bring on screen; otherwise (`toEnd:`, or swipes that moved nothing)
+    ///     the end could not be checked.
     ///   - expected: the chrome keys asked for; one not seen could not be judged.
     public static func check(viewport: FeelElement?, chrome: [FeelElement], end: [FeelElement], endViewport: CGRect?,
-                             endChrome: [FeelElement], window: CGRect, reachedEnd: Bool, expected: [String],
-                             pose: String) -> FeelResult {
+                             endChrome: [FeelElement], window: CGRect, reachedEnd: Bool, swiped: Bool = false,
+                             expected: [String], pose: String) -> FeelResult {
         var findings: [FeelFinding] = []
         guard let viewport else {
             return FeelResult.judged(check: FeelCheck.chromeFloats.name, passing: "", failing: { _ in "" },
@@ -62,8 +65,16 @@ public enum FeelFloat {
             // A last line wholly outside the window was never brought on screen, so the end was not reached there.
             let unseen = last.filter { $0.frame.intersection(window).isNull || $0.frame.intersection(window).isEmpty }
             if !last.isEmpty && unseen.count == last.count {
-                findings.append(.couldNotCheck("the content's last line (\(last[0].type) \"\(last[0].key)\") was never brought "
-                    + "into the window in \(pose), so its end was not judged"))
+                let line = last[0]
+                if swiped {
+                    let below = max(line.frame.minY - window.maxY, window.minY - line.frame.maxY, 0)
+                    findings.append(FeelFinding(what: "at its end, the content's last line (\(line.type) \"\(line.key)\") cannot "
+                        + "be brought on screen: swipes moved the content until it held still with that line "
+                        + "\(FeelResult.number(below.rounded())) pt outside the window, in \(pose)", inferred: true))
+                } else {
+                    findings.append(.couldNotCheck("the content's last line (\(line.type) \"\(line.key)\") was never brought "
+                        + "into the window in \(pose), so its end was not judged"))
+                }
             }
             for line in last where !(clear.isNull || clear.isEmpty) && unseen.count < last.count {
                 // The line must lie wholly inside what can be seen: past any edge, it is cut off.

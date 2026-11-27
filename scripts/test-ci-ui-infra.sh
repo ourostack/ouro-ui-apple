@@ -16,6 +16,10 @@ check "testmanagerd lost" retry "Lost connection to testmanagerd" "** TEST FAILE
 check "accessibility lost mid-run (#84)" retry \
   "<unknown>:0: error: -[OuroFeelFixtureUITests.FeelCatchesTests testFlicker] : Failed to get list of active applications: Error Domain=XCTDaemonErrorDomain Code=13" \
   "Test Case '-[OuroFeelFixtureUITests.FeelCatchesTests testFlicker]' failed (75.274 seconds)."
+check "accessibility never loaded, so the runner never started (#289)" retry \
+  "Testing failed:" \
+  "	OuroFeelFixtureUITests-Runner (5323) encountered an error (The test runner failed to initialize for UI testing. (Underlying Error: Timed out waiting for AX loaded notification))" \
+  "** TEST EXECUTE FAILED **"
 check "only screenshot timeouts (#43)" retry \
   "<unknown>:0: error: -[G testA] : Failed to get screenshot: Timed out while requesting screenshot"
 check "a screenshot timeout next to a real assertion" fail \

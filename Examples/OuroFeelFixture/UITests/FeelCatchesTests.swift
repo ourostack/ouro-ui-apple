@@ -851,7 +851,7 @@ final class FeelCatchesTests: XCTestCase {
             _ = jump.waitForExistence(timeout: 10)
             // At least 4 s: the page lands 1.5 s after Jump, and a loaded runner can take the tap late.
             let film = feel.screenFilm(cover: true, atLeast: 4) { jump.tap() }
-            let result = film.beforeAfterOrVeil()
+            let result = feel.beforeAfterOrVeil(film)
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("neither the before, the after nor a veil") }, result.text)
             }
@@ -866,8 +866,9 @@ final class FeelCatchesTests: XCTestCase {
             _ = app.wait(for: .runningForeground, timeout: 10)
             RunLoop.current.run(until: Date().addingTimeInterval(1))
             let film = feel.screenFilm(cover: true, atLeast: 5) { XCUIDevice.shared.orientation = .landscapeLeft }
+            // Judged before turning back: its later picture must be of the landscape after.
+            let result = feel.beforeAfterOrVeil(film)
             XCUIDevice.shared.orientation = .portrait
-            let result = film.beforeAfterOrVeil()
             if isBugBuild(app) {
                 XCTAssertTrue(result.detections.contains { $0.what.contains("neither the before, the after nor a veil") }, result.text)
             }

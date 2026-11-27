@@ -36,9 +36,14 @@ public enum FeelFold {
             let (a, b): (CGFloat, CGFloat) = upright
                 ? (fold.minX - item.frame.minX, item.frame.maxX - fold.maxX)
                 : (fold.minY - item.frame.minY, item.frame.maxY - fold.maxY)
-            findings.append(FeelFinding(what: "\(item.type) \"\(item.key)\" runs across the fold in \(posture): "
-                + "\(FeelResult.number(max(0, a).rounded())) pt of it on one side and "
-                + "\(FeelResult.number(max(0, b).rounded())) pt on the other"))
+            if a > tolerance, b > tolerance {
+                findings.append(FeelFinding(what: "\(item.type) \"\(item.key)\" runs across the fold in \(posture): "
+                    + "\(FeelResult.number(a.rounded())) pt of it on one side and \(FeelResult.number(b.rounded())) pt on the other"))
+            } else {
+                let under = item.frame.intersection(fold)
+                findings.append(FeelFinding(what: "\(item.type) \"\(item.key)\" reaches under the fold in \(posture): "
+                    + "\(FeelResult.number((upright ? under.width : under.height).rounded())) pt of it lies under the fold"))
+            }
         }
         if spread {
             if upright {
@@ -62,8 +67,8 @@ public enum FeelFold {
                                  findings: findings)
     }
 
-    /// Whether `frame` reaches past both edges of `fold` along the fold's short side, and overlaps it along its long
-    /// side. A zero-width fold (a seam) is crossed by anything more than a point past it on each side.
+    /// Whether `frame` reaches into `fold` by more than a point on both axes: across it, or under it (a hinge hides
+    /// what lies under it). A zero-width fold (a seam) is crossed by anything more than a point past it on each side.
     static func crosses(_ frame: CGRect, _ fold: CGRect) -> Bool {
         let acrossX = frame.minX < fold.maxX - tolerance && frame.maxX > fold.minX + tolerance
         let acrossY = frame.minY < fold.maxY - tolerance && frame.maxY > fold.minY + tolerance
@@ -99,11 +104,17 @@ public enum FeelRelayout {
     ///   - turned: the elements compared (identified ones), `waited` seconds after `change`.
     ///   - fresh: the same, from a fresh launch in the posture the change ended in.
     ///   - settled: whether the turned layout had stopped changing when it was read.
+    ///   - beforeWindow: the window before a turn, when the change is one that must change its shape (a turn). A turn
+    ///     that left the window as it was (a portrait-only app, a platform with nothing to turn) tried nothing, so it
+    ///     cannot be checked. Nil for a change that may keep the window's size (folding or unfolding).
     public static func compare(turned: [FeelElement], fresh: [FeelElement], turnedWindow: CGRect, freshWindow: CGRect,
-                               change: String, waited: Double, settled: Bool = true) -> FeelResult {
+                               change: String, waited: Double, settled: Bool = true, beforeWindow: CGRect? = nil) -> FeelResult {
         var findings: [FeelFinding] = []
         let after = "\(FeelIntent.seconds(waited)) s after \(change)"
-        if abs(turnedWindow.width - freshWindow.width) > tolerance || abs(turnedWindow.height - freshWindow.height) > tolerance {
+        if let beforeWindow, sameSize(beforeWindow, turnedWindow) {
+            findings.append(.couldNotCheck("the window kept its shape (\(size(turnedWindow))) through \(change), so nothing "
+                + "turned and there was no new layout to compare"))
+        } else if !sameSize(turnedWindow, freshWindow) {
             findings.append(.couldNotCheck("the window was \(size(turnedWindow)) \(after), but \(size(freshWindow)) on a fresh "
                 + "launch, so the launch was not in the same posture and the layouts could not be compared"))
         } else if fresh.isEmpty {
@@ -150,6 +161,10 @@ public enum FeelRelayout {
             || abs(a.width - b.width) > tolerance || abs(a.height - b.height) > tolerance
     }
 
+    static func sameSize(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.width - b.width) <= tolerance && abs(a.height - b.height) <= tolerance
+    }
+
     static func size(_ r: CGRect) -> String { "\(FeelResult.number(r.width.rounded()))×\(FeelResult.number(r.height.rounded())) pt" }
 
     /// Several changes as one result: it passes only if every change does.
@@ -181,17 +196,25 @@ public struct FeelTurnRead: Codable, Equatable, Sendable {
     public var line: Int
     /// Whether the content was scrolled since the turn before this one.
     public var scrolledFirst: Bool
+    /// Whether that scroll moved what was on screen. A scroll that moved nothing leaves the turn after a scroll untried.
+    public var scrollMoved: Bool
+    /// Whether the window changed shape through the turn. A turn that kept it (a portrait-only app, a platform with
+    /// nothing to turn) tried nothing.
+    public var shapeChanged: Bool
 
-    public init(turn: String, before: [String], after: [String], line: Int, scrolledFirst: Bool = false) {
+    public init(turn: String, before: [String], after: [String], line: Int, scrolledFirst: Bool = false,
+                scrollMoved: Bool = true, shapeChanged: Bool = true) {
         self.turn = turn
         self.before = before
         self.after = after
         self.line = line
         self.scrolledFirst = scrolledFirst
+        self.scrollMoved = scrollMoved
+        self.shapeChanged = shapeChanged
     }
 }
 
-/// Your place survives a turn, under posture changes re-lay out in place: after a turn, the first words on screen are
+/// Your place survives a turn, under your place is yours: after a turn, the first words on screen are
 /// within a line of the first words before it, however you scrolled since the last turn.
 ///
 /// From Gatefold, 2026-11-27 (ourostack/gatefold#650): in scroll mode, rotating after a scroll landed back at the
@@ -208,6 +231,19 @@ public enum FeelTurnPlace {
             let bare = word.lowercased().filter { $0.isLetter || $0.isNumber }
             return bare.isEmpty ? nil : String(FeelPlace.fingerprint(bare).prefix(8))
         }
+    }
+
+    /// The texts read, in reading order, from what is shown of each inside `viewport` (the window, or the scroll view
+    /// read): every text more than a point of which shows, so the reading starts at the viewport's top edge in every
+    /// orientation, whether or not a status bar is over it, and a paragraph that began above the screen is still the
+    /// first thing read.
+    public static func reading(_ texts: [(frame: CGRect, text: String)], in viewport: CGRect) -> [String] {
+        texts.filter { item in
+            let shown = item.frame.intersection(viewport)
+            return !shown.isNull && shown.width > FeelCover.tolerance && shown.height > FeelCover.tolerance
+        }
+        .sorted { ($0.frame.minY, $0.frame.minX) < ($1.frame.minY, $1.frame.minX) }
+        .map(\.text)
     }
 
     /// How many words the reading moved through the turn: positive when it starts that many words further on, negative
@@ -227,9 +263,20 @@ public enum FeelTurnPlace {
     public static func judge(_ reads: [FeelTurnRead]) -> FeelResult {
         var findings: [FeelFinding] = []
         var moves: [Double] = []
+        var judged = 0
         for read in reads {
             let line = max(1, read.line)
-            let scrolled = read.scrolledFirst ? ", after a scroll," : ""
+            guard read.shapeChanged else {
+                findings.append(.couldNotCheck("the window kept its shape through turning to \(read.turn), so nothing turned "
+                    + "and the place was not judged"))
+                continue
+            }
+            if read.scrolledFirst && !read.scrollMoved {
+                findings.append(.couldNotCheck("the scroll before turning to \(read.turn) moved nothing on screen, so a turn "
+                    + "after a scroll was not tried"))
+            }
+            let scrolled = read.scrolledFirst && read.scrollMoved ? ", after a scroll," : ""
+            judged += 1
             guard !read.before.isEmpty, !read.after.isEmpty else {
                 findings.append(.couldNotCheck("no words were on screen \(read.before.isEmpty ? "before" : "after") turning to "
                     + "\(read.turn)\(scrolled.isEmpty ? "" : " after a scroll"), so the place was not judged"))
@@ -248,7 +295,7 @@ public enum FeelTurnPlace {
         }
         if reads.isEmpty { findings.append(.couldNotCheck("no turns were made")) }
         return FeelResult.judged(check: FeelCheck.placeSurvivesTurns.name,
-                                 passing: "the place stayed within a line through \(reads.count) turns",
+                                 passing: "the place stayed within a line through \(judged) turns",
                                  failing: { "\($0 == 1 ? "a turn" : "\($0) turns") lost the place" },
                                  measures: ["turns": Double(reads.count), "most words moved": moves.max() ?? 0],
                                  findings: findings)

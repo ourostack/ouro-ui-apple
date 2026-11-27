@@ -1289,30 +1289,25 @@ struct RelayoutPage: View {
 
 /// Your place survives a turn. A scrolling page of lines, one text each. Fixed: a turn keeps the line at the top. The
 /// bug, as Gatefold#650: the place is saved at the first turn only, so a turn after a scroll goes back to it. The page
-/// starts a point below the safe area and is clipped, so it never runs under the status bar and the line it keeps at
-/// the top is the first line a reader sees, in either orientation.
+/// runs under the status bar, as a SwiftUI scroll view does by default.
 struct TurnPlacePage: View {
     @State private var top: Int?
     @State private var anchor: Int?
 
     var body: some View {
         GeometryReader { geo in
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 1)
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(0..<240, id: \.self) { n in
-                            Text(prose(n)).lineLimit(1).frame(height: 32, alignment: .leading).id(n)
-                        }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(0..<240, id: \.self) { n in
+                        Text(prose(n)).lineLimit(1).frame(height: 32, alignment: .leading).id(n)
                     }
-                    .scrollTargetLayout()
-                    .padding(.horizontal, 24)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .scrollPosition(id: $top, anchor: .top)
-                .clipped()
-                .accessibilityIdentifier("turn.page")
+                .scrollTargetLayout()
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .scrollPosition(id: $top, anchor: .top)
+            .accessibilityIdentifier("turn.page")
             .onChange(of: geo.size) {
                 guard bug else { return }
                 if let anchor { top = anchor } else { anchor = top ?? 0 }
@@ -1446,7 +1441,8 @@ struct TargetsPage: View {
 }
 
 /// The screen shows only the before, the after or a veil, at a jump. Big pages that look nothing alike. Fixed: Jump
-/// puts up a plain veil, then page 30. The bug, as Gatefold#653: another page shows on the way to it.
+/// puts up a plain veil, then page 30. The bug: another page shows on the way to it, for 1.5 s (Gatefold#653 showed one
+/// for about 0.2 s, too short for a screenshot film to catch).
 struct LandingPage: View {
     @State private var shown = 1
     @State private var veil = false

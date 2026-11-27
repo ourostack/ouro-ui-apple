@@ -66,8 +66,8 @@ page from; `CatalogTests` fails when the file falls behind the code.
 - **[The content is the canvas](#the-content-is-the-canvas).** What you read fills its space and stays there: inside
   the window, still on every axis it doesn't scroll, and never covered or crowded out by chrome.
 - **[Posture changes re-lay out in place](#posture-changes-re-lay-out-in-place).** When the device turns, folds or
-  unfolds, the screen lays out as if it had launched that way: nothing lingers from the old shape, nothing runs across
-  the fold, and your place stays where it was.
+  unfolds, the screen lays out as if it had launched that way: nothing lingers from the old shape, and nothing runs
+  across the fold.
 - **[Motion and chrome never surprise](#motion-and-chrome-never-surprise).** Nothing moves unbidden: things move once, on
   purpose, at the display's pace, and the screen only ever shows where it was or where it is going. No ghost, no jump,
   no snap, no flicker, no stall.
@@ -114,7 +114,7 @@ What you meant takes one go: one tap lands, one tap finishes what it started, an
 | tap landing | One tap anywhere on a control works, every time, with no second try. | `feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapid:rapidBaseline:)`, `feel.osBaseline(rapid:)` |
 | one action finishes the intent | A tap that starts slow work (a download, a load, a sign-in) finishes what you asked for when the work is done; you never tap it twice. | `feel.finishesIntent(_:opens:within:quiet:)`, `feel.finishesIntent(_:named:within:quiet:done:)` |
 | a jump lands on its own, on time | A jump (a contents entry, a search hit, a scrubber drop) lands on its target within its budget, with no further tap. | `feel.landsOnItsOwn(_:on:budget:within:nudge:)`, `feel.landsOnItsOwn(named:budget:within:nudge:jump:landed:)` |
-| every target is big enough to hit | Every button, link and tab is at least 44 by 44 points, so a tap lands where you aim. | `feel.targetsBigEnough(minimum:ignoring:poses:)` |
+| every target is big enough to hit | Every button, link and tab is at least the platform's default control size (44 by 44 points on iOS), so a tap lands where you aim. | `feel.targetsBigEnough(minimum:ignoring:poses:)` |
 
 ### The way back
 
@@ -284,11 +284,13 @@ waits for the app to go idle around a tap; that wait is reported as `action seco
 If it has not landed once `within` is over, it taps the middle of the window once (`nudge`): a jump that lands only
 then was waiting for input, and fails. One that never lands, even after the tap, could not be checked: the jump may
 have been lost, or the target is named wrong. So could one whose target was already on screen: name what only the
-landed jump shows (the target page's words, not a title both pages show). The 2 s default is for a simulator on a
-loaded CI runner; give a device its own budget.
+landed jump shows (an element of the target page's own, not a title the Contents entry and the page both show). The
+target has landed once it shows in the window; one that exists off screen (the next page, laid out ahead) has not. The
+2 s default is for a simulator on a loaded CI runner; give a device its own budget.
 
 ```swift
-feel.expect(feel.landsOnItsOwn(app.buttons["contents.chapter14"], on: "Chapter XIV"))
+// "reader.chapter14.text": an identifier only chapter 14's page shows.
+feel.expect(feel.landsOnItsOwn(app.buttons["contents.chapter14"], on: "reader.chapter14.text"))
 feel.expect(feel.landsOnItsOwn(named: "the scrubber to the end", jump: { scrubber.adjust(toNormalizedSliderPosition: 1) },
                                landed: { app.staticTexts["Chapter LXI"].exists }))
 ```
@@ -299,11 +301,14 @@ page waits for that tap in its bug build (`testAJumpLandsOnItsOwn`).
 
 ### Every target is big enough to hit
 
-Proves: in each pose, every enabled button, link, tab and menu on screen is at least 44 by 44 points by its
-accessibility frame, the minimum [Apple's Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/buttons)
-give for a button's hit region. The system's own controls that Apple sizes below it are left out: switches, sliders,
-steppers, fields, a segmented control's segments, pickers, the keyboard's keys and a sheet's grabber. Name anything
-else to leave out in `ignoring:` (an inline link in running text). A finding is marked inference: a UIKit control that
+Proves: in each pose, every enabled button, link, tab and menu on screen is at least the platform's default control
+size by its accessibility frame, from the table under "Offer sufficiently sized controls" in [Apple's Human Interface
+Guidelines, Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility#Mobility): 44 by
+44 points on iOS, iPadOS and watchOS, 28 on macOS, 60 on visionOS (`FeelTargets.minimum`; pass `minimum:` for another
+line). The system's own controls that Apple sizes below it are left out, with everything inside them: switches,
+sliders, steppers, text fields, search fields and text views (so a field's clear button), a segmented control's
+segments, pickers, the keyboard's keys and a sheet's grabber. Name anything else to leave out in `ignoring:` (an
+inline link in running text). A finding is marked inference: a UIKit control that
 answers taps beyond its frame (`point(inside:with:)`) is bigger than it reads. In SwiftUI, give a small glyph its
 44-point frame inside the button's label (`.frame(width: 44, height: 44).contentShape(Rectangle())`), so the frame
 accessibility reports is the one a finger hits. The HX gallery's `testEveryControlIs44Points` holds Ouro's own
@@ -313,8 +318,9 @@ components to the same line.
 feel.expect(feel.targetsBigEnough(poses: FeelPose.roundTrip))
 ```
 
-From the Gatefold jank hunt, 2026-11-27: on the iPhone Duo, the reader's `reader.close` had a 14 by 14 point
-accessibility frame. Unverified as a real tap-size problem there; cheap to check everywhere. The fixture's `targets`
+From the Gatefold jank hunt, 2026-11-27: the hunt's own notes (not public, and no issue was filed) record a dump of the
+iPhone Duo's reader with `reader.close` at a 14 by 14 point accessibility frame, and call it unverified as a real
+tap-size problem; it is cheap to check everywhere. The fixture's `targets`
 page has a 14-point close button in its bug build (`testEveryTargetIsBigEnoughToHit`).
 
 ## Your place is yours
@@ -326,6 +332,7 @@ Where you are reading or working stays put through relaunches, turns, stray touc
 | place stability | Reopen, relaunch or turn the device and you are exactly where you were. | `feel.place(across:read:)` |
 | place kept through stray input | A stray tap (the middle, the top edge), an edge swipe that goes nowhere, a swipe across and back, dismissing a sheet or leaving the app never moves your place. | `feel.placeHeld(across:reads:between:read:)`; for a reader, `across: FeelPlaceStep.strayReading` |
 | navigation that fights you | After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again. | `feel.placeFights(_:reads:hold:between:read:)` |
+| your place survives a turn | After a turn, the first words on screen are within a line of the first words before it, however you scrolled since the last turn. | `feel.placeSurvivesTurns(_:within:line:between:read:)` |
 
 ### Place stability
 
@@ -376,6 +383,32 @@ let turn = FeelPlaceStep("next page") { feel in feel.app.swipeLeft() }
 feel.expect(feel.placeHeld(across: FeelPlaceStep.stray + [.noInput], read: place))
 feel.expect(feel.placeFights([turn, turn], read: place))
 ```
+
+### Your place survives a turn
+
+Proves: through each turn (landscape, portrait, landscape, portrait by default, `FeelPose.turns`), the first words on
+screen after it are within a line of the first words before it. Before every turn but the first it runs `between`,
+which by default drags the content up half the window, slowly, so the place moves on as a reader's does. The words are
+those `read` returns (the app's own report of its visible text, such as `reader.visibleText`), or by default every
+text any of which shows in the window, or inside `within`, in reading order (`FeelTurnPlace.reading(_:in:)`), leaving
+out bars' words. So the reading starts at the same top edge in each orientation, whether or not the status bar is over
+it (a SwiftUI scroll view runs under it by default, and shows it in portrait only), and a paragraph that began above the
+screen is still the first thing read. The two readings are
+lined up by their first four words: a turn's reflow moves the start by a few words and passes; more than a line
+(`line` words, by default the first text's words, at most 15) fails, and so does a start found in neither reading.
+A turn that left the window's shape as it was (a portrait-only app, or a platform with nothing to turn,
+where `FeelPose.turns` is the current pose) could not be checked, and so could not a turn after a scroll that moved
+nothing on screen. Only a fingerprint of each word goes in the report. It sits under this principle because place's
+promise names turns. Place stability's `.rotate` step compares the whole reading exactly; this one is for a page whose
+words reflow when it turns.
+
+```swift
+feel.expect(feel.placeSurvivesTurns(read: { app.otherElements["reader.page"].value as? String ?? "" }))
+```
+
+From Gatefold, 2026-11-27 (ourostack/gatefold#650): in scroll mode, rotating after a scroll landed back at the
+previous rotation's place, a screen and a half earlier. The fixture's `turn-place` page saves its place at the first
+turn only in its bug build, and runs under the status bar in both (`testYourPlaceSurvivesATurn`).
 
 ## The content is the canvas
 
@@ -523,7 +556,7 @@ the page (`testChromeFloatsOverContent`), and `float-under`, whose bug build flo
 
 Proves: after a jump, its target (by identifier or label: the search hit, the linked passage, the chosen chapter's
 heading) lies wholly inside the window, and inside the viewport named `over:` when given, under none of the chrome you
-name. It runs `jump`, waits up to `within` seconds (5 by default) for the target, then for its frame to hold still for
+name and, with no `over:`, not under the status bar. It runs `jump`, waits up to `within` seconds (5 by default) for the target, then for its frame to hold still for
 half a second, and reads the target and the chrome together. Chrome that is not on screen once the jump lands covers
 nothing, and the report notes it. A target that never shows could not be checked. Give the hit its own element (a
 search highlight with an identifier) so its frame is the hit's, not its paragraph's.
@@ -560,13 +593,13 @@ page for it in its fixed one (`testANoticeGetsOutOfTheWay`).
 ## Posture changes re-lay out in place
 
 When the device turns, folds or unfolds, the screen lays out as if it had launched that way: nothing lingers from the
-old shape, nothing runs across the fold, and your place stays where it was.
+old shape, and nothing runs across the fold. That your place survives a turn is place's promise, under "Your place is
+yours".
 
 | Check | What good feels like | Call |
 |---|---|---|
 | content clears the fold | In every fold posture nothing you read runs across the fold, and a device held open like a book shows a page on each side of it. | `feel.clearsTheFold(_:content:within:spread:posture:)`, `feel.clearsTheFold(at:content:within:spread:posture:)` |
-| a turn lays out like a fresh launch | A few seconds after the device turns, folds or unfolds, the screen is laid out as a fresh launch in that posture lays it out: nothing lingers, nothing is missing. | `feel.laysOutFresh(after:within:keys:reopen:)`, `feel.laysOutFresh(named:within:keys:reopen:change:)` |
-| your place survives a turn | After a turn, the first words on screen are within a line of the first words before it, however you scrolled since the last turn. | `feel.placeSurvivesTurns(_:within:line:between:read:)` |
+| a turn lays out like a fresh launch | A few seconds after the device turns, folds or unfolds, the screen is laid out as a fresh launch in that posture lays it out: nothing lingers, nothing is missing. | `feel.laysOutFresh(after:within:keys:ignoring:reopen:)`, `feel.laysOutFresh(named:within:keys:ignoring:reopen:change:)` |
 
 The screen-level side of a turn, that it never rests on a stretched, squeezed or blended picture on the way, is judged
 from screenshots under motion: the screen shows only the before, the after or a veil.
@@ -579,8 +612,10 @@ its hinge, `ouro.fold` by default: a clear, accessibility-only view at OuroHX's 
 runs wherever the app knows its fold, from an iPhone Duo driven through Device Hub (OuroHXTesting's `OuroDuoHinge`) to a
 fixture or preview that declares one, and needs no folding simulator; or pass the fold's frame with `at:`. With no fold
 on screen it could not check. Run it once in each fold posture, naming it in `posture:`. The content is chosen as
-`uncovered(by:content:within:poses:)` chooses it. A fold that runs across the screen (tabletop) is judged for crossing
-only; a spread is for a fold that runs top to bottom.
+`uncovered(by:content:within:poses:)` chooses it, leaving out bars' titles (which sit centred across a fold), and a
+named element of `content:` or `within:` that is not on screen could not be checked. Text that reaches under the hinge
+fails too, reported as under the fold rather than across it, since a hinge hides what lies under it. A fold that runs
+across the screen (tabletop) is judged for crossing only; a spread is for a fold that runs top to bottom.
 
 ```swift
 // In the app, over the fold: Color.clear.frame(width: region.frame.width, height: region.frame.height)
@@ -601,8 +636,10 @@ elements with an identifier (or those named in `keys`) are where a fresh launch 
 over and none missing. For each pose it turns the device, waits, reads the layout, then terminates the app and launches
 it again in the same pose with the same arguments, runs `reopen` to bring it back to the same screen if the launch does
 not, waits as long again, and reads the same. Frames within 2 points match. Elements in a scroll view move with its
-scroll, so run it on a screen as it opens, or name the page and its chrome in `keys`. A launch that comes up in another
-window size could not be checked. For a change the test drives itself (folding or unfolding a Duo), use
+scroll, so run it on a screen as it opens, or name the page and its chrome in `keys`. Leave out what only a launch shows,
+such as a "Back to where you were" pill or a welcome toast, with `ignoring:`. A launch that comes up in another window
+size could not be checked, and nor could a turn that left the window's shape as it was (a portrait-only app, or a
+platform with nothing to turn). For a change the test drives itself (folding or unfolding a Duo), use
 `laysOutFresh(named:change:)`; the fresh launch is in whatever posture the change left.
 
 ```swift
@@ -615,26 +652,6 @@ From Gatefold, 2026-11-27: opening an iPhone Duo flat after holding it like a bo
 up and the page cut off mid-line, for 10 s and more (ourostack/gatefold#647); an iPad took 6 to 7 s to land its new
 layout after a turn (#649). The fixture's `relayout` page decides its portrait panel once, at launch, in its bug build
 (`testATurnLaysOutLikeAFreshLaunch`).
-
-### Your place survives a turn
-
-Proves: through each turn (landscape, portrait, landscape, portrait by default, `FeelPose.turns`), the first words on
-screen after it are within a line of the first words before it. Before every turn but the first it runs `between`,
-which by default drags the content up half the window, slowly, so the place moves on as a reader's does. The words are
-those `read` returns (the app's own report of its visible text, such as `reader.visibleText`), or by default every
-text wholly inside the window (below the status bar), or inside `within`, in reading order. The two readings are
-lined up by their first four words: a turn's reflow moves the start by a few words and passes; more than a line
-(`line` words, by default the first text's words, at most 15) fails, and so does a start found in neither reading.
-Only a fingerprint of each word goes in the report. Place stability's `.rotate` step compares the whole reading
-exactly; this one is for a page whose words reflow when it turns.
-
-```swift
-feel.expect(feel.placeSurvivesTurns(read: { app.otherElements["reader.page"].value as? String ?? "" }))
-```
-
-From Gatefold, 2026-11-27 (ourostack/gatefold#650): in scroll mode, rotating after a scroll landed back at the
-previous rotation's place, a screen and a half earlier. The fixture's `turn-place` page saves its place at the first
-turn only in its bug build (`testYourPlaceSurvivesATurn`).
 
 ## Motion and chrome never surprise
 
@@ -650,7 +667,7 @@ was or where it is going. No ghost, no jump, no snap, no flicker, no stall.
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
 | flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. With no input, nothing changes at all. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)`; with no input, `feel.stillWhileIdle(for:watch:poses:)` |
 | hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `film.hitches()`, `feel.measureHitches(in:)` |
-| the screen shows only the before, the after or a veil | Through a turn or a jump the screen rests only on the old view, the new one or a plain veil: never a stretched, squeezed, shrunken or blended picture, a band, or another page. | `feel.screenFilm(...).beforeAfterOrVeil(veils:)` |
+| the screen shows only the before, the after or a veil | Through a turn or a jump the screen rests only on the old view, the new one or a veil (a blank, or the old view dimmed): never a stretched, squeezed, shrunken or blended picture, a band, or another page. | `feel.beforeAfterOrVeil(_:veils:settle:statusBand:ignoring:)`, `film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)` |
 
 ### Motion: double-draw, jump after landing, chrome, snap, settle
 
@@ -884,32 +901,38 @@ feel.expect(film.revealHolds())
 
 ### The screen shows only the before, the after or a veil
 
-`film.beforeAfterOrVeil(veils:)` judges a screen film shot with `cover: true` around a turn or a jump: every state the
-screen rests on must be the before (the cover), the after (the rest the film ends on, which must reach its last sample)
-or a veil. A veil is a picture at least 98% one shade (a blank, a dim; the film's black status band is left out), or
-one that looks like a picture you pass in `veils:` (your app's own loading state). Anything else it rests on fails: a
-stretched, squeezed or shrunken page, two layouts blended, a band, or another page. Rests are the same as the other
-screen-film checks' (`run` samples each under `stable` apart), so frames on their way between two rests, a turn's
-animation or a cross-fade, are not judged; a wrong state too short to rest for `run` samples is not seen, which on a
-film by reads means one shorter than two screenshots. Pictures are compared only with pictures of their own size,
-since a turn changes the screen's shape, and the contact sheet of a failing film gives each sample a cell as big as
-the largest. It cannot be checked without a cover, when the film stalled or skipped, or when the screen was still
-changing at its end.
+`feel.beforeAfterOrVeil(film)` judges a screen film shot with `cover: true` around a turn or a jump: every state the
+screen rests on must be the before (the cover), the after, or a veil. The after is the rest the film ends on, which must
+reach its last sample and match a later picture, which `feel.beforeAfterOrVeil` shoots `settle` seconds (1.5 by
+default) after the film, so a wrong picture that outlasts the film is not taken for the after; with a film judged on
+its own, pass `later:` to `film.beforeAfterOrVeil`. A veil is a picture at least 98% one shade (a blank; the film's
+black status band is left out), the before dimmed or washed evenly (a scrim, or a light veil, over the old page while
+the next loads), or one that looks like a picture you pass in `veils:`. A skeleton, a spinner over a blank or a blurred
+material is none of those on its own, so pass a picture of it (`feel.screenPicture()` while it shows) in `veils:`.
+Anything else it rests on fails: a stretched, squeezed or shrunken page, two layouts blended, a band, or another page.
+Rests are the same as the other screen-film checks' (`run` samples each under `stable` apart), so frames on their way
+between two rests, a turn's animation or a cross-fade, are not judged; a wrong state too short to rest for `run`
+samples is not seen, which on a film by reads means one shorter than two screenshots. Pictures are compared only with
+pictures of their own size, since a turn changes the screen's shape, and the contact sheet of a failing film gives each
+sample a cell as big as the largest. It cannot be checked without a cover, when the film stalled or skipped, when the
+screen was still changing at its end, or when the later picture differs from its end. For a film on the app's clock,
+put the clock's frame in `ignoring:`.
 
 ```swift
 let film = feel.screenFilm(cover: true, atLeast: 4) { XCUIDevice.shared.orientation = .landscapeLeft }
-feel.expect(film.beforeAfterOrVeil())
+feel.expect(feel.beforeAfterOrVeil(film))  // before turning back, so the later picture is of the landscape after
 let jump = feel.screenFilm(cover: true, atLeast: 4) { app.buttons["search.result.0"].tap() }
-feel.expect(jump.beforeAfterOrVeil(veils: [loadingPicture]))
+feel.expect(feel.beforeAfterOrVeil(jump, veils: [skeletonPicture]))
 ```
 
 From Gatefold, 2026-11-27: an iPad turn showed the portrait page stretched to landscape for about 2.5 s, then a tiny
 layout, then two layouts at once (ourostack/gatefold#649); turning the open Duo showed clipped columns, a grey band and
-the next chapter over the page (#648); and a search jump drew two pages at once, then a page that was neither, before
-the target (#653). The fixture has both: `landing`, whose bug build shows another page on the way to the target and
-whose fixed build shows a plain veil first (`testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilAtAJump`), and `turn-film`,
-whose bug build draws the page squeezed for 3 s after a turn
-(`testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilThroughATurn`).
+the next chapter over the page (#648). A search jump that drew two pages at once, then a page that was neither, before
+the target (#653) breaks the same promise, but its wrong states lasted about 0.2 s each, under two screenshots, so this
+check does not catch it yet: that needs a film at the display's pace. The fixture has both cases this does catch:
+`landing`, whose bug build holds another page for 1.5 s on the way to the target and whose fixed build shows a plain
+veil first (`testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilAtAJump`), and `turn-film`, whose bug build draws the page
+squeezed for 3 s after a turn (`testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilThroughATurn`).
 
 ### Hitches
 

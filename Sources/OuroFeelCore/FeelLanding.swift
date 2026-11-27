@@ -177,16 +177,25 @@ public enum FeelNotice {
 // MARK: Every target is big enough to hit
 
 /// Every target is big enough to hit, under your intent is the unit: every button, link and tab on screen is at least
-/// 44 by 44 points, the minimum [Apple's Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/accessibility#Buttons-and-controls)
-/// give for a control's hit region, so a tap lands where you aim.
+/// the default control size [Apple's Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/accessibility#Mobility)
+/// give for its platform ("Offer sufficiently sized controls"): 44 by 44 points on iOS, iPadOS and watchOS, 28 on macOS,
+/// 60 on visionOS and 66 on tvOS, so a tap lands where you aim.
 ///
-/// From the Gatefold jank hunt, 2026-11-27: on the iPhone Duo, the reader's close button had a 14 by 14 point
-/// accessibility frame. The frame is what accessibility reports; a control that answers taps beyond its frame (UIKit's
-/// `point(inside:with:)`) is bigger than it reads, so a finding is marked inference. SwiftUI's `contentShape` and
-/// padding inside a button's label do grow the frame.
+/// From the Gatefold jank hunt's notes, 2026-11-27: a dump of the iPhone Duo's reader showed its close button with a 14
+/// by 14 point accessibility frame, not confirmed as a real tap-size problem. The frame is what accessibility reports;
+/// a control that answers taps beyond its frame (UIKit's `point(inside:with:)`) is bigger than it reads, so a finding
+/// is marked inference. SwiftUI's `contentShape` and padding inside a button's label do grow the frame.
 public enum FeelTargets {
-    /// Apple's minimum, in points.
+    /// The platform's default control size, in points, from the HIG's table.
+    #if os(macOS)
+    public static let minimum: CGFloat = 28
+    #elseif os(visionOS)
+    public static let minimum: CGFloat = 60
+    #elseif os(tvOS)
+    public static let minimum: CGFloat = 66
+    #else
     public static let minimum: CGFloat = 44
+    #endif
     /// Frames come back in fractional points: this much short is rounding, not a smaller target.
     public static let slack: CGFloat = 0.01
 

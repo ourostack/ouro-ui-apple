@@ -9,18 +9,23 @@ extension FeelScreenFilm {
     ///
     /// From Gatefold, 2026-11-27: an iPad turn showed the portrait page stretched to landscape for about 2.5 s, then a
     /// tiny layout, then two layouts at once (ourostack/gatefold#649); an open Duo's turn showed clipped columns, a grey
-    /// band and the next chapter over the page (#648); and a search jump drew two pages at once, then a page that was
-    /// neither, before the target (#653).
+    /// band and the next chapter over the page (#648). A search jump that drew two pages at once, then a page that was
+    /// neither, before the target (#653) is the same promise, but its wrong states lasted about 0.2 s each, under a
+    /// screenshot film's rest, so this does not catch it yet: that needs a film at the display's pace.
     ///
     /// The before is the film's ``cover``, shot just before the action (`screenFilm(cover: true, …)`); the after is the
-    /// rest the film ends on, which must reach its last sample. A veil is a picture at least `uniform` of one shade (a
-    /// blank, a dim) or one under `merge` from a picture in `veils` (the app's own loading state). Rests are
+    /// rest the film ends on, which must reach its last sample and match `later`, a picture shot a second or two after
+    /// the film (``OuroFeel/beforeAfterOrVeil(_:veils:settle:statusBand:ignoring:)`` shoots it), so a wrong picture that
+    /// outlasts the film is not taken for the after. A veil is a picture at least `uniform` of one shade (a blank), a
+    /// dimmed or washed copy of the before (``isDimmed(_:of:merge:)``: the old page greyed while the next one loads), or
+    /// one under `merge` from a picture in `veils` (the app's own loading state, such as a skeleton). Rests are
     /// ``states(stable:merge:run:)``: frames on their way between two rests (a turn's animation, a cross-fade) are not
     /// judged here, so a wrong state too brief to rest for `run` samples is not seen; film at the display's pace to see
     /// one. Pictures are compared only with pictures of the same size, since a turn changes the screen's shape. It cannot
-    /// be checked without a cover, when the film stalled or skipped, or when it was still changing at its end.
-    public func beforeAfterOrVeil(veils: [FeelScreenFrame] = [], uniform: Double = 0.98, stable: Double = 0.6,
-                                  merge: Double = 1.5, run: Int = 2) -> FeelResult {
+    /// be checked without a cover, when the film stalled or skipped, when it was still changing at its end, or without a
+    /// later picture that matches its end.
+    public func beforeAfterOrVeil(veils: [FeelScreenFrame] = [], later: FeelScreenFrame? = nil, uniform: Double = 0.98,
+                                  stable: Double = 0.6, merge: Double = 1.5, run: Int = 2) -> FeelResult {
         let run = max(2, run)
         let check = FeelCheck.beforeAfterOrVeil.name
         guard let cover else {
@@ -34,10 +39,21 @@ extension FeelScreenFilm {
         let found = frames.count >= run ? states(stable: stable, merge: merge, run: run) : []
         if let last = found.last, last.end == frames.count - 1 {
             let after = frames[last.end]
+            if let later {
+                if !near(later, after) {
+                    let by = Self.difference(later, after).map { "\(FeelResult.number(Self.round3($0))) from the after" } ?? "another shape"
+                    findings.append(.couldNotCheck("the screen changed after the film ended (a later picture is \(by)), so the "
+                        + "film did not reach the after; film for longer"))
+                }
+            } else {
+                findings.append(.couldNotCheck("there is no later picture to show the film's end was the after: judge it with "
+                    + "feel.beforeAfterOrVeil(film), or pass later:"))
+            }
             var labels: Set<Int> = []
             for state in found where !labels.contains(state.label) {
                 let picture = frames[state.end]
-                if near(picture, cover) || near(picture, after) || Self.isVeil(picture, uniform: uniform)
+                if near(picture, cover) || near(picture, after) || later.map({ near(picture, $0) }) == true
+                    || Self.isVeil(picture, uniform: uniform) || Self.isDimmed(picture, of: cover, merge: merge)
                     || veils.contains(where: { near(picture, $0) }) { continue }
                 labels.insert(state.label)
                 third += 1
@@ -70,6 +86,29 @@ extension FeelScreenFilm {
         var stamped = result
         stamped.environment = FeelEnvironment.current(clock: timedBy)
         return stamped
+    }
+
+    /// Whether `picture` is `before` dimmed or washed evenly (a dark scrim, a light veil over the old page): each pixel is
+    /// the before's scaled by the same factor, under 0.9, plus the same shade, to within `merge` on average. A different
+    /// page, or the before itself, is not. Pixels black in both (the film's blanked bands) are left out.
+    public static func isDimmed(_ picture: FeelScreenFrame, of before: FeelScreenFrame, merge: Double = 1.5) -> Bool {
+        guard picture.width == before.width, picture.height == before.height, picture.gray.count == before.gray.count else { return false }
+        var xs: [Double] = [], ys: [Double] = []
+        for i in 0..<picture.gray.count where !(picture.gray[i] == 0 && before.gray[i] == 0) {
+            xs.append(Double(before.gray[i]))
+            ys.append(Double(picture.gray[i]))
+        }
+        guard xs.count >= 4 else { return false }
+        let n = Double(xs.count)
+        let mx = xs.reduce(0, +) / n, my = ys.reduce(0, +) / n
+        var sxx = 0.0, sxy = 0.0
+        for (x, y) in zip(xs, ys) { sxx += (x - mx) * (x - mx); sxy += (x - mx) * (y - my) }
+        // The before needs some contrast to be recognised in its dimmed copy (a plain before is judged by isVeil).
+        guard sxx / n > 25 else { return false }
+        let a = sxy / sxx, b = my - a * mx
+        guard a > 0.05, a < 0.9 else { return false }
+        let residual = zip(xs, ys).reduce(0.0) { $0 + abs($1.1 - (a * $1.0 + b)) } / n
+        return residual < merge
     }
 
     /// Whether a picture is a veil: at least `uniform` of its pixels within 6 of its middle shade. Pure black pixels are

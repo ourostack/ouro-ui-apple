@@ -90,6 +90,21 @@ extension OuroFeel {
         return film()
     }
 
+    /// The screen shows only the before, the after or a veil (motion and chrome never surprise): judges `film` (shot
+    /// with `cover: true`) by ``FeelScreenFilm/beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)``, with a later
+    /// picture shot `settle` seconds after it, blanked as the film was (`statusBand`, `ignoring`), to show the film's end
+    /// was the after and not a wrong picture still up. For a film on the app's clock, put the clock's frame in
+    /// `ignoring`, or its new count would read as a change.
+    public func beforeAfterOrVeil(_ film: FeelScreenFilm, veils: [FeelScreenFrame] = [], settle: TimeInterval = 1.5,
+                                  statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelResult {
+        pause(settle)
+        let width = film.frames.last?.width ?? film.cover?.width ?? 160
+        let later = screenPicture(width: width, statusBand: statusBand, ignoring: ignoring)
+        var result = film.beforeAfterOrVeil(veils: veils, later: later)
+        if result.environment == nil { result.environment = environment }
+        return result
+    }
+
     /// Films the whole screen for an app with no clock of its own (#94): one screenshot per XCUITest read, as fast as
     /// screenshots come, each shrunk to a `width`-pixel grayscale thumbnail with the top `statusBand` points and every
     /// rect in `ignoring` blanked. An app that runs on the system's animations (UIKit, a web view, a reader engine)

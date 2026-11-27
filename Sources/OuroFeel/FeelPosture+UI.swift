@@ -9,8 +9,9 @@ extension OuroFeel {
 
     /// The window, what you read and the elements named in `find`, from one accessibility snapshot. The content is every
     /// static text and image with words (or the elements named in `content`), inside the element named `within` when
-    /// given, never inside anything named in `excluding` (chrome, a fold marker, a notice). Content with no identifier is
-    /// keyed by a fingerprint of its words, never the words.
+    /// given, never inside anything named in `excluding` (chrome, a fold marker, a notice), and by default never inside a
+    /// navigation bar, toolbar, tab bar or status bar (their titles are chrome, and sit across a fold). Content with no
+    /// identifier is keyed by a fingerprint of its words, never the words.
     func reading(content: [String] = [], within: String? = nil, excluding: [String] = [], find: [String] = [])
         -> (window: CGRect, content: [FeelElement], found: [String: FeelElement], within: CGRect?) {
         guard let root = try? app.snapshot() else { return (.zero, [], [:], nil) }
@@ -18,9 +19,10 @@ extension OuroFeel {
         let contentKeys = Set(content), skip = Set(excluding), wanted = Set(find)
         var items: [FeelElement] = [], found: [String: FeelElement] = [:]
         var withinFrame: CGRect?
-        func walk(_ node: any XCUIElementSnapshot, inside: Bool) {
+        func walk(_ node: any XCUIElementSnapshot, inside: Bool, inBar: Bool) {
             // Read once, up front: a closure that captures the snapshot fails a Release build.
             let type = node.elementType, identifier = node.identifier, label = node.label, frame = node.frame
+            let inBar = inBar || Self.bars.contains(type)
             let name = wanted.contains(identifier) ? identifier : wanted.contains(label) ? label : nil
             if let name, found[name] == nil { found[name] = FeelElement(key: name, type: Self.kind(type), frame: frame) }
             if skip.contains(identifier) || skip.contains(label) { return }
@@ -30,16 +32,33 @@ extension OuroFeel {
                 withinFrame = frame
             }
             let inside = inside || entering
-            let isContent = contentKeys.isEmpty ? (type == .staticText || type == .image) && !label.isEmpty
+            let isContent = contentKeys.isEmpty ? (type == .staticText || type == .image) && !label.isEmpty && !inBar
                 : contentKeys.contains(identifier) || contentKeys.contains(label)
             if inside, isContent, frame.width > 0, frame.height > 0 {
                 items.append(FeelElement(key: identifier.isEmpty ? "words \(FeelPlace.fingerprint(label))" : identifier,
                                          type: Self.kind(type), frame: frame))
             }
-            for child in node.children { walk(child, inside: inside) }
+            for child in node.children { walk(child, inside: inside, inBar: inBar) }
         }
-        walk(root, inside: within == nil)
+        walk(root, inside: within == nil, inBar: false)
         return (window, items, found, withinFrame)
+    }
+
+    /// Bars whose words are chrome, not what you read.
+    static let bars: Set<XCUIElement.ElementType> = [.navigationBar, .toolbar, .tabBar, .statusBar]
+
+    /// `result` as could not check for each element named in `content` or `within` that was not on screen, as
+    /// ``uncovered(by:content:within:poses:)`` reports them.
+    func missing(_ result: FeelResult, content: [String], within: String?, read: (content: [FeelElement], within: CGRect?),
+                 in place: String) -> FeelResult {
+        var missing = Set(content).subtracting(read.content.map(\.key)).sorted()
+        if let within, read.within == nil { missing.append(within) }
+        guard !missing.isEmpty else { return result }
+        var marked = FeelResult.judged(check: result.check, passing: result.summary, failing: { _ in result.summary },
+                                       measures: result.measures,
+                                       findings: result.findings + missing.map { .couldNotCheck("\"\($0)\" was not on screen in \(place)") })
+        marked.environment = result.environment
+        return marked
     }
 
     // MARK: Content clears the fold
@@ -58,7 +77,7 @@ extension OuroFeel {
         var result = FeelFold.check(content: read.content, fold: read.found[fold]?.frame, window: read.window, spread: spread,
                                     posture: posture)
         result.environment = environment
-        return result
+        return missing(result, content: content, within: within, read: (read.content, read.within), in: posture)
     }
 
     /// ``clearsTheFold(_:content:within:spread:posture:)`` with the fold's frame given, in the window's coordinates (a
@@ -68,7 +87,7 @@ extension OuroFeel {
         let read = reading(content: content, within: within)
         var result = FeelFold.check(content: read.content, fold: fold, window: read.window, spread: spread, posture: posture)
         result.environment = environment
-        return result
+        return missing(result, content: content, within: within, read: (read.content, read.within), in: posture)
     }
 
     // MARK: A turn lays out like a fresh launch
@@ -81,12 +100,15 @@ extension OuroFeel {
     /// identifier (or those named in `keys`), then terminates the app and launches it again in the same pose with the
     /// same arguments, runs `reopen` to bring it back to the same screen if the launch does not, waits as long again, and
     /// reads the same. Elements in a scroll view move with its scroll, so run it on a screen as it opens, or name the page
-    /// and its chrome in `keys`. The app ends relaunched in portrait.
+    /// and its chrome in `keys`. Anything named in `ignoring` is left out: a pill or toast shown only on launch (a
+    /// "Back to where you were"). A turn that leaves the window's shape as it was (a portrait-only app, a platform with
+    /// nothing to turn) could not be checked. The app ends relaunched in portrait.
     public func laysOutFresh(after poses: [FeelPose] = FeelPose.turnAndBack, within: TimeInterval = 3,
-                             keys: [String] = [], reopen: ((OuroFeel) -> Void)? = nil) -> FeelResult {
+                             keys: [String] = [], ignoring: [String] = [], reopen: ((OuroFeel) -> Void)? = nil) -> FeelResult {
         var results: [FeelResult] = []
         for pose in poses {
-            results.append(laysOutFreshNow(named: "turning to \(pose.name)", within: within, keys: keys, reopen: reopen) { pose.apply($0) })
+            results.append(laysOutFreshNow(named: "turning to \(pose.name)", within: within, keys: keys, ignoring: ignoring,
+                                           reopen: reopen, mustTurn: true) { pose.apply($0) })
         }
         #if os(iOS)
         if poses.contains(where: { $0.orientation != nil }) { FeelPose.portrait.apply(self) }
@@ -96,42 +118,46 @@ extension OuroFeel {
         return result
     }
 
-    /// ``laysOutFresh(after:within:keys:reopen:)`` for a change the test makes itself (folding or unfolding an iPhone
+    /// ``laysOutFresh(after:within:keys:ignoring:reopen:)`` for a change the test makes itself (folding or unfolding an iPhone
     /// Duo through OuroHXTesting's `OuroDuoHinge`), named `change` in the report. The fresh launch is in whatever posture
     /// the change left the device in.
-    public func laysOutFresh(named change: String, within: TimeInterval = 3, keys: [String] = [],
+    public func laysOutFresh(named change: String, within: TimeInterval = 3, keys: [String] = [], ignoring: [String] = [],
                              reopen: ((OuroFeel) -> Void)? = nil, change act: (OuroFeel) -> Void) -> FeelResult {
-        var result = laysOutFreshNow(named: change, within: within, keys: keys, reopen: reopen, change: act)
+        var result = laysOutFreshNow(named: change, within: within, keys: keys, ignoring: ignoring, reopen: reopen,
+                                     mustTurn: false, change: act)
         result.environment = environment
         return result
     }
 
-    func laysOutFreshNow(named change: String, within: TimeInterval, keys: [String], reopen: ((OuroFeel) -> Void)?,
-                         change act: (OuroFeel) -> Void) -> FeelResult {
+    func laysOutFreshNow(named change: String, within: TimeInterval, keys: [String], ignoring: [String],
+                         reopen: ((OuroFeel) -> Void)?, mustTurn: Bool, change act: (OuroFeel) -> Void) -> FeelResult {
+        let before = windowFrame
         let started = Date()
         act(self)
         pause(max(0, within - Date().timeIntervalSince(started)))
         let waited = Date().timeIntervalSince(started)
-        let turned = layout(keys: keys)
+        let turned = layout(keys: keys, ignoring: ignoring)
         pause(0.5)
-        let settled = layout(keys: keys).elements == turned.elements
+        let settled = layout(keys: keys, ignoring: ignoring).elements == turned.elements
         app.terminate()
         app.launch()
         reopen?(self)
         pause(within)
-        let fresh = layout(keys: keys)
+        let fresh = layout(keys: keys, ignoring: ignoring)
         return FeelRelayout.compare(turned: turned.elements, fresh: fresh.elements, turnedWindow: turned.window,
-                                    freshWindow: fresh.window, change: change, waited: waited, settled: settled)
+                                    freshWindow: fresh.window, change: change, waited: waited, settled: settled,
+                                    beforeWindow: mustTurn ? before : nil)
     }
 
-    /// Every element with an identifier (or named in `keys`) inside the window, by its frame.
-    func layout(keys: [String]) -> (window: CGRect, elements: [FeelElement]) {
+    /// Every element with an identifier (or named in `keys`) inside the window, by its frame, but those in `ignoring`.
+    func layout(keys: [String], ignoring: [String] = []) -> (window: CGRect, elements: [FeelElement]) {
         guard let root = try? app.snapshot() else { return (.zero, []) }
         let window = Self.mainWindow(root)
-        let wanted = Set(keys)
+        let wanted = Set(keys), skip = Set(ignoring)
         var found: [FeelElement] = []
         func walk(_ node: any XCUIElementSnapshot) {
             let type = node.elementType, identifier = node.identifier, label = node.label, frame = node.frame
+            if skip.contains(identifier) || skip.contains(label) { return }
             let named = wanted.isEmpty ? !identifier.isEmpty : wanted.contains(identifier) || wanted.contains(label)
             if named, type != .application, type != .window, FeelCover.visibleForUI(frame, in: window) {
                 let key = wanted.contains(label) && !wanted.contains(identifier) ? label : Self.key(node)
@@ -145,15 +171,18 @@ extension OuroFeel {
 
     // MARK: Your place survives a turn
 
-    /// Your place survives a turn (posture changes re-lay out in place): through each turn in `turns`, the first words
+    /// Your place survives a turn (your place is yours): through each turn in `turns`, the first words
     /// on screen after it are within a line of the first words before it.
     ///
     /// Before every turn but the first it runs `between`, which by default drags the content up by half the window,
-    /// slowly, so the place moves on as a reader's would (Gatefold lost its place only on a turn after a scroll). The
-    /// words are read by `read` (the app's own report of its visible text, such as `reader.visibleText`), or by default
-    /// from every text wholly inside the window (and below the status bar), or inside `within`, in reading order. A line
-    /// is `line` words, or by default as many words as the first text read holds, at most 15. Only fingerprints of the
-    /// words go in the report. The app ends in portrait.
+    /// slowly, so the place moves on as a reader's would (Gatefold lost its place only on a turn after a scroll); a
+    /// scroll that moved nothing on screen leaves that turn untried, and says so. The words are read by `read` (the app's
+    /// own report of its visible text, such as `reader.visibleText`), or by default from every text any of which shows
+    /// in the window, or inside `within`, in reading order (``FeelTurnPlace/reading(_:in:)``), so the reading starts at
+    /// the same top edge in each orientation, status bar or none; bars' words are left out. A line is `line` words, or by
+    /// default as many words as the first text read holds, at most 15. A turn that left the window's shape as it was
+    /// (a portrait-only app, a platform with nothing to turn) could not be checked. Only fingerprints of the words go in
+    /// the report. The app ends in portrait.
     public func placeSurvivesTurns(_ turns: [FeelPose] = FeelPose.turns,
                                    within: String? = nil, line: Int? = nil, between: ((OuroFeel) -> Void)? = nil,
                                    read: (() -> String)? = nil) -> FeelResult {
@@ -173,11 +202,15 @@ extension OuroFeel {
                 if let between { between(self) } else { scrollOn(within: within) }
             }
             let before = words()
+            let shape = windowFrame
             pose.apply(self)
+            let turned = windowFrame
             let after = words()
             let measured = min(15, max(before.line, after.line))
+            let moved = i == 0 || reads.last.map { $0.after != before.words } ?? true
+            let changed = abs(shape.width - turned.width) > FeelCover.tolerance || abs(shape.height - turned.height) > FeelCover.tolerance
             reads.append(FeelTurnRead(turn: pose.name, before: before.words, after: after.words, line: line ?? max(1, measured),
-                                      scrolledFirst: i > 0))
+                                      scrolledFirst: i > 0, scrollMoved: moved, shapeChanged: changed))
         }
         #if os(iOS)
         if turns.contains(where: { $0.orientation != nil }) { FeelPose.portrait.apply(self) }
@@ -187,29 +220,25 @@ extension OuroFeel {
         return result
     }
 
-    /// The labels of every text wholly inside the window (below the status bar) or inside `within`, in reading order.
+    /// The labels of every text any of which shows in the window, or inside `within`, in reading order, from the same
+    /// top edge in every orientation (``FeelTurnPlace/reading(_:in:)``). Bars' words are left out.
     func visibleLines(within: String?) -> [String] {
         guard let root = try? app.snapshot() else { return [] }
         var clear = Self.mainWindow(root)
-        #if os(iOS)
-        if let bar = statusBar(window: clear) { clear = CGRect(x: clear.minX, y: bar.maxY, width: clear.width, height: clear.maxY - bar.maxY) }
-        #endif
-        var lines: [(CGRect, String)] = []
+        var lines: [(frame: CGRect, text: String)] = []
         func walk(_ node: any XCUIElementSnapshot, inside: Bool) {
             let type = node.elementType, identifier = node.identifier, label = node.label, frame = node.frame
+            if Self.bars.contains(type) { return }
             var inside = inside
             if !inside, let within, identifier == within || label == within {
                 inside = true
                 clear = clear.intersection(frame)
             }
-            if inside, type == .staticText, !label.isEmpty, frame.width > 0,
-               clear.insetBy(dx: -FeelCover.tolerance, dy: -FeelCover.tolerance).contains(frame) {
-                lines.append((frame, label))
-            }
+            if inside, type == .staticText, !label.isEmpty, frame.width > 0 { lines.append((frame, label)) }
             for child in node.children { walk(child, inside: inside) }
         }
         walk(root, inside: within == nil)
-        return lines.sorted { ($0.0.minY, $0.0.minX) < ($1.0.minY, $1.0.minX) }.map(\.1)
+        return clear.isNull ? [] : FeelTurnPlace.reading(lines, in: clear)
     }
 
     /// Drags the content up by half the window, slowly and with a hold, so it moves on without a fling.

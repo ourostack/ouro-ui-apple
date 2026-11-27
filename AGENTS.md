@@ -114,18 +114,17 @@ Guide: [docs/ouro-feel/README.md](docs/ouro-feel/README.md). Decisions:
     its own, on time (`feel.landsOnItsOwn`), every target is big enough to hit (`feel.targetsBigEnough`);
   - *your place is yours:* place stability (`feel.place`), place kept through stray input (`feel.placeHeld`, with
     `FeelPlaceStep.strayReading` for a reader: the top-edge tap and a swipe across and back), navigation that fights
-    you (`feel.placeFights`);
+    you (`feel.placeFights`), your place survives a turn (`feel.placeSurvivesTurns`);
   - *the content is the canvas:* inside the window (`feel.insideWindow`, with `also:` for what you read, and
     `feel.uncovered` for chrome over the text or under the status bar), viewport holds still (`feel.viewportHolds`, with
     `scrolling:` for a pager), chrome floats over content (`feel.chromeFloats`), what you asked for lands in clear
     view (`feel.landsInClearView`), a notice gets out of the way (`feel.noticeGivesWay`);
   - *posture changes re-lay out in place:* content clears the fold (`feel.clearsTheFold`, on a fold the app declares
-    as `ouro.fold`), a turn lays out like a fresh launch (`feel.laysOutFresh`), your place survives a turn
-    (`feel.placeSurvivesTurns`);
+    as `ouro.fold`), a turn lays out like a fresh launch (`feel.laysOutFresh`);
   - *motion and chrome never surprise:* double-draw (`film.doubleDraws`), jump after landing, late or lingering chrome, snap with no transition and
     settle time (`feel.film` then `jumps`, `chrome`, `snaps`, `settles`), flicker (`flickers`, and
     `feel.stillWhileIdle`), the screen shows only the before, the after or a veil (`feel.screenFilm(cover: true)` then
-    `beforeAfterOrVeil`), and hitches as a measure (`FeelHitches`, `measureHitches`).
+    `feel.beforeAfterOrVeil(film)`), and hitches as a measure (`FeelHitches`, `measureHitches`).
 - **Copy-paste:** `let feel = OuroFeel(app); feel.expect(feel.wayBack(from: [.launch]))`. `expect` fails the test;
   `record` reports without failing.
 - **Cold, not warm:** `scripts/ouro-feel-cold.sh --project P --scheme S --test Target/Class/method --runs 5`. A result

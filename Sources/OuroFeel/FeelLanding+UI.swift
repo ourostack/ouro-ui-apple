@@ -9,14 +9,16 @@ extension OuroFeel {
 
     /// A jump lands on its own, on time (your intent is the unit): a tap on `control` (a Contents entry, a search
     /// result) brings `target` (an identifier or label only the landed jump shows) on screen within `budget` seconds,
-    /// with no further input.
+    /// with no further input. The target has landed once it shows in the window: one that exists off screen (the next
+    /// page, laid out ahead) has not.
     public func landsOnItsOwn(_ control: XCUIElement, on target: String, budget: TimeInterval = 2, within: TimeInterval = 10,
                               nudge: Bool = true) -> FeelResult {
         let predicate = NSPredicate(format: "identifier == %@ OR label == %@", target, target)
         let landed = app.descendants(matching: .any).matching(predicate).firstMatch
         let key = control.waitForExistence(timeout: timeout) ? ((try? control.snapshot()).map(Self.key) ?? target) : target
+        let window = windowFrame
         return landsOnItsOwn(named: "the jump from \"\(key)\" to \"\(target)\"", budget: budget, within: within, nudge: nudge,
-                             jump: { control.tap() }, landed: { landed.exists })
+                             jump: { control.tap() }, landed: { landed.exists && FeelCover.visibleForUI(landed.frame, in: window) })
     }
 
     /// A jump lands on its own, on time: runs `jump` (a tap, a scrubber drag and release), then waits up to `within`
@@ -54,7 +56,8 @@ extension OuroFeel {
 
     /// What you asked for lands in clear view (the content is the canvas): after `jump`, `target` (the identifier or
     /// label of the search hit, the linked passage, the chosen heading) lies wholly inside the window, and inside the
-    /// viewport named `over` when given, under none of `chrome` (pills, bars, banners).
+    /// viewport named `over` when given, under none of `chrome` (pills, bars, banners) and, with no `over`, not under the
+    /// status bar.
     ///
     /// It waits up to `within` seconds for the target, then for its frame to hold still for half a second, and reads
     /// the target and the chrome together. Chrome that is not on screen once the jump lands covers nothing, and is noted.
@@ -70,7 +73,13 @@ extension OuroFeel {
             if now != last { last = now; since = Date() }
         }
         let read = reading(find: [target] + chrome + (viewport.map { [$0] } ?? []))
-        var result = FeelClearView.check(target: read.found[target], chrome: chrome.compactMap { read.found[$0] },
+        var covering = chrome.compactMap { read.found[$0] }
+        #if os(iOS)
+        if viewport == nil, let bar = statusBar(window: read.window) {
+            covering.append(FeelElement(key: "status bar", type: "status bar", frame: bar))
+        }
+        #endif
+        var result = FeelClearView.check(target: read.found[target], chrome: covering,
                                          window: read.window, viewport: viewport.flatMap { read.found[$0]?.frame },
                                          expected: chrome, intent: "the jump to \"\(target)\"")
         result.environment = environment
@@ -107,11 +116,13 @@ extension OuroFeel {
     // MARK: Every target is big enough to hit
 
     /// Every target is big enough to hit (your intent is the unit): in each pose, every enabled button, link, tab and
-    /// menu on screen is at least `minimum` points (44, Apple's minimum) on each side, by its accessibility frame.
+    /// menu on screen is at least `minimum` points on each side, by its accessibility frame: by default the platform's
+    /// default control size in Apple's HIG (``FeelTargets/minimum``: 44 on iOS, 28 on macOS, 60 on visionOS).
     ///
-    /// The system's own controls that Apple sizes below it are left out: switches, sliders, steppers, fields, segments
-    /// of a segmented control, pickers, the keyboard's keys and a sheet's grabber. So is anything whose identifier or
-    /// label is in `ignoring` (an inline link in running text, which HIG lets be the text's own size).
+    /// The system's own controls that Apple sizes below it are left out, with everything inside them: switches,
+    /// sliders, steppers, text fields, search fields and text views (a field's clear button), segments of a segmented
+    /// control, pickers, the keyboard's keys and a sheet's grabber. So is anything whose identifier or label is in
+    /// `ignoring` (an inline link in running text, which HIG lets be the text's own size).
     public func targetsBigEnough(minimum: CGFloat = FeelTargets.minimum, ignoring: [String] = [],
                                  poses: [FeelPose] = [.current]) -> FeelResult {
         var results: [FeelResult] = []
@@ -130,7 +141,8 @@ extension OuroFeel {
 
     static let targetTypes: Set<XCUIElement.ElementType> = [.button, .link, .tab, .menuButton, .popUpButton]
     /// Controls whose parts are the system's to size.
-    static let systemSized: Set<XCUIElement.ElementType> = [.segmentedControl, .picker, .datePicker, .keyboard, .switch, .slider, .stepper]
+    static let systemSized: Set<XCUIElement.ElementType> = [.segmentedControl, .picker, .datePicker, .keyboard, .switch, .slider, .stepper,
+                                                           .textField, .secureTextField, .searchField, .textView]
 
     func targets(ignoring: Set<String>) -> (window: CGRect, targets: [FeelElement]) {
         guard let root = try? app.snapshot() else { return (.zero, []) }

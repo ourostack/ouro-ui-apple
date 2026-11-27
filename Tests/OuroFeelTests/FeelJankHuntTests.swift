@@ -39,6 +39,13 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
         #expect(!FeelFold.check(content: [across], fold: seam, window: duo, posture: "flat").passed)
     }
 
+    @Test func contentThatReachesUnderTheFoldSaysSo() {
+        // A column whose edge runs under the hinge but not past it is under the fold, not across it.
+        let under = text("edge", CGRect(x: 32, y: 40, width: 445, height: 22))
+        let result = FeelFold.check(content: [under], fold: hinge, window: duo, posture: "book")
+        #expect(result.detections.map(\.what) == ["text \"edge\" reaches under the fold in book: 10 pt of it lies under the fold"])
+    }
+
     @Test func aFoldAcrossIsJudgedForCrossingOnly() {
         let tabletop = CGRect(x: 0, y: 326, width: 951, height: 17)
         let top = text("top", CGRect(x: 32, y: 40, width: 887, height: 22))
@@ -100,6 +107,18 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
                                      change: "turning", waited: 3).passed)
     }
 
+    @Test func aTurnThatKeptTheWindowsShapeCannotBeChecked() {
+        // A portrait-only app, or a platform with nothing to turn: the window never changed, so nothing was tried.
+        let result = FeelRelayout.compare(turned: [page], fresh: [page], turnedWindow: phone, freshWindow: phone,
+                                          change: "turning to landscape", waited: 3, beforeWindow: phone)
+        #expect(!result.passed)
+        #expect(result.detections.isEmpty)
+        #expect(result.summary.contains("kept its shape"), "\(result.text)")
+        // A change the test names (a fold) may keep the window's size, and is judged.
+        #expect(FeelRelayout.compare(turned: [page], fresh: [page], turnedWindow: phone, freshWindow: phone,
+                                     change: "opening flat", waited: 3).passed)
+    }
+
     @Test func aLaunchInAnotherPostureOrWithNothingCannotBeChecked() {
         let other = FeelRelayout.compare(turned: [page], fresh: [page], turnedWindow: CGRect(x: 0, y: 0, width: 874, height: 402),
                                          freshWindow: phone, change: "turning", waited: 3)
@@ -142,6 +161,36 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
         #expect(moved.detections.map(\.what) == ["turning to landscape moved the place 30 words on, more than a line (8 words)"])
         let back = FeelTurnPlace.judge([FeelTurnRead(turn: "landscape", before: at(130), after: at(100), line: 8)])
         #expect(back.detections.first?.what.contains("30 words back") == true)
+    }
+
+    @Test func aTurnThatKeptTheWindowsShapeCannotBeChecked() {
+        let result = FeelTurnPlace.judge([FeelTurnRead(turn: "landscape", before: at(100), after: at(100), line: 8, shapeChanged: false)])
+        #expect(!result.passed)
+        #expect(result.detections.isEmpty)
+        #expect(result.summary.contains("kept its shape"), "\(result.text)")
+    }
+
+    @Test func aScrollThatMovedNothingCannotBeChecked() {
+        let result = FeelTurnPlace.judge([FeelTurnRead(turn: "landscape", before: at(100), after: at(100), line: 8,
+                                                       scrolledFirst: true, scrollMoved: false)])
+        #expect(!result.passed)
+        #expect(result.detections.isEmpty)
+        #expect(result.summary.contains("moved nothing"), "\(result.text)")
+    }
+
+    @Test func theReadingStartsAtTheViewportsTopAndCountsTextPartlyShown() {
+        // The same top edge in every orientation: a line partly under the status bar, or a paragraph that started
+        // above the screen, is where the reading starts; one wholly above or below the viewport is not read.
+        let viewport = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let texts: [(frame: CGRect, text: String)] = [
+            (CGRect(x: 24, y: 20, width: 300, height: 32), "second"),
+            (CGRect(x: 24, y: -100, width: 300, height: 112), "paragraph"),
+            (CGRect(x: 24, y: -40, width: 300, height: 32), "gone above"),
+            (CGRect(x: 24, y: 873.5, width: 300, height: 32), "a sliver below"),
+            (CGRect(x: 24, y: 900, width: 300, height: 32), "gone below"),
+            (CGRect(x: 24, y: 860, width: 300, height: 32), "last"),
+        ]
+        #expect(FeelTurnPlace.reading(texts, in: viewport) == ["paragraph", "second", "last"])
     }
 
     @Test func noWordsCannotBeChecked() {
@@ -253,16 +302,30 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
     @Test func targetsOf44PointsPass() {
         let ok = [button("close", CGRect(x: 340, y: 62, width: 44, height: 44)),
                   button("rounded", CGRect(x: 20, y: 62, width: 43.995, height: 120))]
-        let result = FeelTargets.check(ok, window: phone, pose: "portrait")
+        let result = FeelTargets.check(ok, window: phone, minimum: 44, pose: "portrait")
         #expect(result.passed, "\(result.text)")
         #expect(result.check == FeelCheck.targetsBigEnough.name)
     }
 
     @Test func aSmallCloseButtonFailsAsInference() {
         // As the Duo dump in the jank hunt: reader.close was 14 by 14.
-        let result = FeelTargets.check([button("reader.close", CGRect(x: 900, y: 20, width: 14, height: 14))], window: duo, pose: "open")
+        let result = FeelTargets.check([button("reader.close", CGRect(x: 900, y: 20, width: 14, height: 14))], window: duo,
+                                       minimum: 44, pose: "open")
         #expect(result.detections.map(\.what) == ["button \"reader.close\" is 14×14 pt, under 44 pt on a side, in open"])
         #expect(result.detections[0].inferred)
+    }
+
+    @Test func theMinimumIsThePlatformsDefaultControlSize() {
+        // Apple's HIG, Accessibility, "Offer sufficiently sized controls": the default control size per platform.
+        #if os(macOS)
+        #expect(FeelTargets.minimum == 28)
+        #elseif os(visionOS)
+        #expect(FeelTargets.minimum == 60)
+        #elseif os(tvOS)
+        #expect(FeelTargets.minimum == 66)
+        #else
+        #expect(FeelTargets.minimum == 44)
+        #endif
     }
 
     @Test func offScreenTargetsAreNotJudgedAndNoTargetsCannotBeChecked() {
@@ -280,6 +343,16 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
         return FeelScreenFrame(t: t, width: w, height: h, gray: gray)
     }
 
+    /// A 4×4 page with its line of "text" on `row`.
+    private func page(_ t: Double, _ v: UInt8, row: Int) -> FeelScreenFrame {
+        var gray = [UInt8](repeating: v, count: 16)
+        for i in 0..<4 { gray[row * 4 + i] = 20 }
+        return FeelScreenFrame(t: t, width: 4, height: 4, gray: gray)
+    }
+
+    /// The film's last picture again, shot later: the screen stayed on the after.
+    private func later(_ f: FeelScreenFilm) -> FeelScreenFrame? { f.frames.last }
+
     private func film(_ values: [(UInt8, Int, Int)], cover: FeelScreenFrame) -> FeelScreenFilm {
         var f = FeelScreenFilm(frames: values.enumerated().map { pic(Double($0.offset) / 10, $0.element.0, w: $0.element.1, h: $0.element.2, stripe: 20) })
         f.byReads = true
@@ -289,7 +362,8 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
 
     @Test func beforeThenAfterPasses() {
         let before = pic(0, 200, stripe: 20)
-        let result = film([(200, 4, 4), (200, 4, 4), (100, 4, 4), (100, 4, 4), (100, 4, 4)], cover: before).beforeAfterOrVeil()
+        let f = film([(200, 4, 4), (200, 4, 4), (100, 4, 4), (100, 4, 4), (100, 4, 4)], cover: before)
+        let result = f.beforeAfterOrVeil(later: later(f))
         #expect(result.passed, "\(result.text)")
         #expect(result.check == FeelCheck.beforeAfterOrVeil.name)
     }
@@ -300,29 +374,64 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
         // A plain grey veil, with the status band painted black.
         let veil = FeelScreenFrame(t: 0.15, width: 4, height: 4, gray: [0, 0, 0, 0] + [UInt8](repeating: 128, count: 12))
         f.frames.insert(contentsOf: [veil, veil, veil], at: 2)
-        #expect(f.beforeAfterOrVeil().passed, "\(f.beforeAfterOrVeil().text)")
+        #expect(f.beforeAfterOrVeil(later: later(f)).passed, "\(f.beforeAfterOrVeil(later: later(f)).text)")
         #expect(FeelScreenFilm.isVeil(veil))
         #expect(!FeelScreenFilm.isVeil(pic(0, 200, stripe: 20)))
     }
 
     @Test func anotherPageOnTheWayFails() {
-        // As Gatefold#653: a page that is neither the old one nor the target, held for a moment.
-        let before = pic(0, 200, stripe: 20)
-        let result = film([(200, 4, 4), (200, 4, 4), (150, 4, 4), (150, 4, 4), (100, 4, 4), (100, 4, 4)], cover: before).beforeAfterOrVeil()
+        // A page that is neither the old one nor the target, held for a moment (as Gatefold#653, there for 0.2 s).
+        let before = page(0, 200, row: 0)
+        var f = FeelScreenFilm(frames: [page(0, 200, row: 0), page(0.1, 200, row: 0), page(0.2, 150, row: 2), page(0.3, 150, row: 2),
+                                        page(0.4, 100, row: 1), page(0.5, 100, row: 1)])
+        f.byReads = true
+        f.cover = before
+        let result = f.beforeAfterOrVeil(later: later(f))
         #expect(!result.passed)
         #expect(result.detections.count == 1)
         #expect(result.detections[0].what.hasPrefix("the screen rested on a state that is neither the before, the after nor a veil, for 2 samples from 0.20 s to 0.30 s"))
         // The app's own loading picture, passed as a veil, is allowed.
-        let declared = film([(200, 4, 4), (200, 4, 4), (150, 4, 4), (150, 4, 4), (100, 4, 4), (100, 4, 4)], cover: before)
-            .beforeAfterOrVeil(veils: [pic(0, 150, stripe: 20)])
+        let declared = f.beforeAfterOrVeil(veils: [page(0, 150, row: 2)], later: later(f))
         #expect(declared.passed, "\(declared.text)")
+    }
+
+    @Test func aDimmedOrWashedCopyOfTheBeforeIsAVeil() {
+        // The old page dimmed while the jump loads (as Gatefold#651's greyed page), or washed with a light material.
+        let before = FeelScreenFrame(t: 0, width: 4, height: 4, gray: [20, 60, 100, 140, 180, 220, 200, 200, 200, 200, 40, 200, 200, 200, 200, 200])
+        let dimmed = FeelScreenFrame(t: 0, width: 4, height: 4, gray: before.gray.map { UInt8(Double($0) * 0.5) })
+        let washed = FeelScreenFrame(t: 0, width: 4, height: 4, gray: before.gray.map { UInt8(Double($0) * 0.4 + 150) })
+        #expect(FeelScreenFilm.isDimmed(dimmed, of: before))
+        #expect(FeelScreenFilm.isDimmed(washed, of: before))
+        // Another page is no dimmed copy, nor is the before itself.
+        #expect(!FeelScreenFilm.isDimmed(page(0, 100, row: 2), of: before))
+        #expect(!FeelScreenFilm.isDimmed(before, of: before))
+        var f = FeelScreenFilm(frames: [before, before, dimmed, dimmed, dimmed, page(0.5, 100, row: 1), page(0.6, 100, row: 1)])
+        f.byReads = true
+        f.cover = before
+        #expect(f.beforeAfterOrVeil(later: later(f)).passed, "\(f.beforeAfterOrVeil(later: later(f)).text)")
+    }
+
+    @Test func aWrongPictureThatOutlastsTheFilmCannotBeChecked() {
+        // The film ended on a wrong page that was still up; a later picture shows the real after.
+        let before = page(0, 200, row: 0)
+        var f = FeelScreenFilm(frames: [before, before, page(0.2, 150, row: 2), page(0.3, 150, row: 2)])
+        f.byReads = true
+        f.cover = before
+        let moved = f.beforeAfterOrVeil(later: page(2, 100, row: 1))
+        #expect(!moved.passed)
+        #expect(moved.detections.isEmpty)
+        #expect(moved.summary.contains("changed after the film ended"), "\(moved.text)")
+        let none = f.beforeAfterOrVeil()
+        #expect(!none.passed)
+        #expect(none.detections.isEmpty)
+        #expect(none.summary.contains("no later picture"), "\(none.text)")
     }
 
     @Test func aStretchedPictureInTheNewShapeFails() {
         // As Gatefold#649: the turn shows the old page stretched to the new shape before the new layout lands.
         let before = pic(0, 200, w: 4, h: 8, stripe: 20)
-        let result = film([(200, 4, 8), (200, 4, 8), (180, 8, 4), (180, 8, 4), (100, 8, 4), (100, 8, 4), (100, 8, 4)], cover: before)
-            .beforeAfterOrVeil()
+        let f = film([(200, 4, 8), (200, 4, 8), (180, 8, 4), (180, 8, 4), (100, 8, 4), (100, 8, 4), (100, 8, 4)], cover: before)
+        let result = f.beforeAfterOrVeil(later: later(f))
         #expect(!result.passed, "\(result.text)")
         #expect(result.detections.count == 1)
         #expect(result.detections[0].what.contains("another shape than the before"))
@@ -333,7 +442,8 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
         bare.cover = nil
         #expect(!bare.beforeAfterOrVeil().passed)
         #expect(bare.beforeAfterOrVeil().detections.isEmpty)
-        let moving = film([(200, 4, 4), (200, 4, 4), (100, 4, 4), (150, 4, 4)], cover: pic(0, 200, stripe: 20)).beforeAfterOrVeil()
+        let still = film([(200, 4, 4), (200, 4, 4), (100, 4, 4), (150, 4, 4)], cover: pic(0, 200, stripe: 20))
+        let moving = still.beforeAfterOrVeil(later: later(still))
         #expect(!moving.passed)
         #expect(moving.detections.isEmpty)
     }

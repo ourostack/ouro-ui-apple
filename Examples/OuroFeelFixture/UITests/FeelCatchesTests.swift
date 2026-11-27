@@ -596,6 +596,61 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// Viewport holds still: the bug build's page scrolls sideways too and its lines run past the window's side, so a
+    /// drag across pans the text; the fixed build's page holds, and the shelf inside it scrolls sideways as it should.
+    func testViewportHoldsStill() {
+        both("viewport") { app, feel in
+            XCTAssertTrue(app.staticTexts["viewport.line.1"].waitForExistence(timeout: 10))
+            let result = feel.viewportHolds()
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("past the trailing side of scroll view \"viewport.page\"") },
+                              result.text)
+                XCTAssertTrue(result.detections.contains { $0.what.contains("moved its content") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Chrome floats over content: the bug build's pill sits under the page and shrinks it; the fixed build's floats
+    /// over the lines, which run underneath and end clear of it.
+    func testChromeFloatsOverContent() {
+        both("float") { app, feel in
+            XCTAssertTrue(app.staticTexts["float.line.1"].waitForExistence(timeout: 10))
+            let result = feel.chromeFloats(["float.restart"], over: "float.page")
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("sits beside") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Chrome floats over content, at the end: the bug build's pill floats, but the last line stays under it however
+    /// far the page scrolls.
+    func testChromeLeavesTheEndClear() {
+        both("float-under") { app, feel in
+            XCTAssertTrue(app.staticTexts["float.line.1"].waitForExistence(timeout: 10))
+            let result = feel.chromeFloats(["float.restart"], over: "float.page")
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("stays") && $0.what.contains("under") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// One action finishes the intent: the bug build's book downloads and stays shut until a second tap; the fixed
+    /// build's opens once its download is done.
+    func testOneActionFinishesTheIntent() {
+        both("intent") { app, feel in
+            let book = app.buttons["intent.book"]
+            XCTAssertTrue(book.waitForExistence(timeout: 10))
+            let result = feel.finishesIntent(book, opens: "intent.reader", within: 20)
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("took a second tap") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
     /// Still while idle: the bug build's Close and status bar take turns three times a second with no input.
     func testStillWhileIdle() {
         both("idle") { app, feel in

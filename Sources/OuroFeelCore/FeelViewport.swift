@@ -117,9 +117,13 @@ public enum FeelViewport {
     }
 
     /// The drag's verdict: nil when the content held still along the drag's axis.
+    ///
+    /// Content pans as a whole, so a frame has moved only as far as both of its edges moved the same way. A text that
+    /// grew or shrank (its words changed as the page loaded: Spoonjoy's Chefs, 2026-11-27) moves one edge, not both.
     public static func panned(_ drag: FeelDrag, in viewport: FeelViewportRead, pose: String) -> FeelFinding? {
         func along(_ a: CGRect, _ b: CGRect) -> CGFloat {
-            drag.axis == .horizontal ? abs(b.midX - a.midX) : abs(b.midY - a.midY)
+            let (low, high) = drag.axis == .horizontal ? (b.minX - a.minX, b.maxX - a.maxX) : (b.minY - a.minY, b.maxY - a.maxY)
+            return low * high > 0 ? min(abs(low), abs(high)) : 0
         }
         var most: CGFloat = 0, stays: CGFloat = 0
         for (key, start) in drag.before {

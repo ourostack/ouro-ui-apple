@@ -77,6 +77,16 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         #expect(result.measures["drags"] == 1)
     }
 
+    @Test func aTextWhoseWordsChangeDuringADragHasNotPanned() {
+        // Its trailing edge moves as its words change; its leading edge holds, so the content did not move.
+        let start: [String: CGRect] = ["row": CGRect(x: 24, y: 80, width: 180, height: 22)]
+        let grew = FeelDrag(viewport: "reader.page", axis: .horizontal, before: start,
+                            during: [["row": CGRect(x: 24, y: 80, width: 264, height: 22)]],
+                            after: ["row": CGRect(x: 24, y: 80, width: 264, height: 22)])
+        let result = FeelViewport.check([reader([text("row", start["row"]!)])], drags: [grew], pose: "p")
+        #expect(result.passed, "\(result.text)")
+    }
+
     @Test func aDragThatChangesTheScreenIsAGestureNotAPan() {
         let start: [String: CGRect] = ["a": CGRect(x: 24, y: 80, width: 100, height: 22), "b": CGRect(x: 24, y: 110, width: 100, height: 22)]
         let drag = FeelDrag(viewport: "reader.page", axis: .horizontal, before: start, during: [], after: [:])

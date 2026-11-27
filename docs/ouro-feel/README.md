@@ -405,7 +405,9 @@ is fixed. Two readings judge it:
   leave fixed: leftward, from three quarters of the way across to under a third, and upward, so the drag is never the
   system's back swipe or a sheet's pull down. It watches up to four of the viewport's texts (and two of the window's,
   since a page that pans as a whole carries its chrome along) every tenth of a second while the finger is down, and
-  once it has lifted. Content that moved more than 2 pt along the drag's axis panned, even if it sprang back.
+  once it has lifted. Content that moved more than 2 pt along the drag's axis panned, even if it sprang back. A frame
+  has moved only as far as both its edges moved the same way, so a text whose words change as the page loads, which
+  moves one edge, is not a pan.
 
 A drag never starts in a viewport inside the one it judges (a carousel in a list: there the list scrolls the way the
 carousel doesn't, so no axis is fixed), nor on a switch, slider, picker or field. A list is never dragged sideways,

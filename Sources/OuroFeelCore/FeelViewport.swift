@@ -87,6 +87,10 @@ public enum FeelViewport {
     public static let panTolerance: CGFloat = 2
 
     /// Content past the viewport's edges on its fixed axes, one finding per viewport and side.
+    ///
+    /// Images are left to the drag: a cover filled to its frame and cropped, or a hero that stretches as the page is
+    /// pulled, reports a frame wider than the page while nothing can be panned (Spoonjoy's recipe cover, 2026-11-27).
+    /// If such an image does pan, the drag across it says so.
     public static func overflow(_ viewport: FeelViewportRead, pose: String) -> [FeelFinding] {
         let fixed = viewport.scrolls.fixed
         guard !fixed.isEmpty else { return [] }
@@ -94,7 +98,7 @@ public enum FeelViewport {
         var findings: [FeelFinding] = []
         func side(_ name: String, _ axis: FeelAxis, _ past: (CGRect) -> CGFloat) {
             guard fixed.contains(axis.axes) else { return }
-            let over = viewport.content.filter { $0.frame.width > 0 && $0.frame.height > 0 }
+            let over = viewport.content.filter { $0.frame.width > 0 && $0.frame.height > 0 && $0.type != "image" }
                 .map { ($0, past($0.frame)) }.filter { $0.1 > tolerance }
             guard let worst = over.max(by: { $0.1 < $1.1 }) else { return }
             let others = over.count > 1 ? " and \(over.count - 1) more" : ""

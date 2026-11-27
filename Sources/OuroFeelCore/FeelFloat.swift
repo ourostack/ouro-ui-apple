@@ -9,7 +9,8 @@ public import CoreGraphics
 /// - **At rest**, each piece of chrome must sit over the content's viewport (its middle inside the viewport's frame). A
 ///   pill whose middle is outside it, beside the viewport's edge, has taken that room from the content.
 /// - **At the end** (scrolled, or turned, as far as it goes), the content's last line must lie wholly inside the
-///   viewport and the window, and under no chrome.
+///   viewport and the window, and under no chrome. A last line wholly outside the window was never brought on screen,
+///   so that end could not be checked.
 public enum FeelFloat {
     /// Frames that overlap by a point or less (rounding, a shared edge) do not cover each other.
     public static let tolerance: CGFloat = 1
@@ -58,7 +59,13 @@ public enum FeelFloat {
             if clear.isNull || clear.isEmpty {
                 findings.append(.couldNotCheck("\"\(viewport.key)\" was not inside the window at its end in \(pose)"))
             }
-            for line in last where !(clear.isNull || clear.isEmpty) {
+            // A last line wholly outside the window was never brought on screen, so the end was not reached there.
+            let unseen = last.filter { $0.frame.intersection(window).isNull || $0.frame.intersection(window).isEmpty }
+            if !last.isEmpty && unseen.count == last.count {
+                findings.append(.couldNotCheck("the content's last line (\(last[0].type) \"\(last[0].key)\") was never brought "
+                    + "into the window in \(pose), so its end was not judged"))
+            }
+            for line in last where !(clear.isNull || clear.isEmpty) && unseen.count < last.count {
                 // The line must lie wholly inside what can be seen: past any edge, it is cut off.
                 let sides: [(String, CGFloat)] = [("bottom", line.frame.maxY - clear.maxY), ("top", clear.minY - line.frame.minY),
                                                   ("trailing side", line.frame.maxX - clear.maxX),

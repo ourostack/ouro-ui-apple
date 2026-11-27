@@ -34,6 +34,13 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         #expect(!result.text.contains("past the bottom"))
     }
 
+    @Test func anImageWiderThanItsPageIsLeftToTheDrag() {
+        // A cover filled to its frame and cropped reads wider than the page; only a drag that pans it fails.
+        let cover = FeelElement(key: "recipe.cover", type: "image", frame: CGRect(x: -135, y: 62, width: 672, height: 300))
+        let line = text("line 1", CGRect(x: 24, y: 380, width: 354, height: 22))
+        #expect(FeelViewport.check([reader([cover, line])], drags: [], pose: "p").passed)
+    }
+
     @Test func aPagerMayRunPastItsSidesButNotItsBottom() {
         let pages = [text("page 1", CGRect(x: 0, y: 62, width: 402, height: 778)),
                      text("page 2", CGRect(x: 402, y: 62, width: 402, height: 778))]
@@ -161,6 +168,16 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
                                      reachedEnd: true, expected: [], pose: "p")
         #expect(result.detections.count == 1)
         #expect(result.detections[0].what.contains("runs 42 pt past the trailing side"))
+    }
+
+    @Test func aLastLineNeverBroughtOnScreenCouldNotBeChecked() {
+        // Below the window altogether: the swipes did not reach the end, so the end is not judged as cut off.
+        let below = text("words 7881", CGRect(x: 24, y: 1_200, width: 354, height: 22))
+        let result = FeelFloat.check(viewport: pageView, chrome: [], end: [below], endViewport: page, endChrome: [], window: phone,
+                                     reachedEnd: true, expected: [], pose: "p")
+        #expect(result.detections.isEmpty, "\(result.text)")
+        #expect(result.summary.hasPrefix("could not check"))
+        #expect(result.text.contains("never brought into the window"))
     }
 
     @Test func noPosesCouldNotBeChecked() {

@@ -205,6 +205,29 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
     }
 }
 
+extension CatalogTests {
+    /// The guide's tables list every check under its principle, with its calls, so a new check is never only in code.
+    @Test func theGuideListsEveryCheckUnderItsPrinciple() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("docs/ouro-feel/README.md")
+        let guide = try String(contentsOf: url, encoding: .utf8)
+        for principle in FeelPrinciple.all {
+            let heading = "## " + principle.name.prefix(1).uppercased() + principle.name.dropFirst()
+            guard let start = guide.range(of: heading + "\n") else {
+                Issue.record("the guide has no section \"\(heading)\"")
+                continue
+            }
+            let section = guide[start.upperBound...].prefix { _ in true }
+            let end = section.range(of: "\n## ")?.lowerBound ?? section.endIndex
+            let body = section[..<end]
+            for check in principle.checks {
+                #expect(body.contains("| \(check.name)") , "\(heading) lists \(check.name)")
+                for call in check.calls { #expect(body.contains(call), "\(heading) names \(call)") }
+            }
+        }
+    }
+}
+
 private extension FeelElement {
     func with(y: CGFloat) -> FeelElement {
         var e = self

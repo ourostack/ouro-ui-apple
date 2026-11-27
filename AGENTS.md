@@ -92,26 +92,33 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
 
 ## Ouro Feel
 
-`OuroFeel` and `OuroFeelCore` check how an app feels, deterministically, from a UI test: one check per genre of jank
-(`FeelGenre`). Guide: [docs/ouro-feel/README.md](docs/ouro-feel/README.md). Decision:
-`docs/decisions/2026-11-05-ouro-feel.md`.
+`OuroFeel` and `OuroFeelCore` check how an app feels, deterministically, from a UI test: four principles
+(`FeelPrinciple`), each with an open set of checks (`FeelCheck`), which grows with every report no check caught.
+Guide: [docs/ouro-feel/README.md](docs/ouro-feel/README.md). Decisions:
+`docs/decisions/2026-11-05-ouro-feel.md`, `docs/decisions/2026-11-27-ouro-feel-principles.md`.
 
 - **Every app built with Ouro UI runs Ouro Feel in CI.** It links `OuroFeel` into its UI test target and runs a Feel
   walk of every primary screen in every device posture it supports (iPhone Duo: closed, open in portrait, open on its
   side; iPad: portrait and landscape), and a reader runs it in every reading mode. An app without it is missing a
   check, not done. Gatefold build 39 shipped jank Feel could have caught, because it never linked it.
 - **A jank report is first a missing check.** Write the Feel check that would have caught it and see it fail; then the
-  app's fix makes it pass. If no genre covers the report, add the check here with a fixture page (below).
+  app's fix makes it pass. If no check covers the report, add one here, named for the invariant it holds rather than
+  the bug, under the principle it serves (the guide's "Add a check": a `FeelCheck`, a judge in `OuroFeelCore` with a
+  unit test, a fixture page, and `checks.json` rewritten). Never add a case to `FeelGenre`: that breaks apps' code.
 - **Before a taste review, run the checks.** A reviewer never re-tests by hand a genre Feel covers; what is left for a
   person is [docs/ouro-feel/taste-rubric.md](docs/ouro-feel/taste-rubric.md).
-- **Genres and their checks:** the way back (`feel.wayBack`), overlay dismissal (`feel.overlays`), inside the window
-  (`feel.insideWindow`, with `also:` for what you read, and `feel.uncovered` for chrome over the text or under the
-  status bar), place kept through stray input (`feel.placeHeld`, with `FeelPlaceStep.strayReading` for a reader:
-  the top-edge tap and a swipe across and back), navigation that fights you (`feel.placeFights`), still while idle
-  (`feel.stillWhileIdle`, in the flicker genre), tap landing (`feel.tapLanding`, `feel.osBaseline`), double-draw,
-  jump after landing, late
-  or lingering chrome, snap with no transition and settle time (`feel.film` then `doubleDraws`, `jumps`, `chrome`,
-  `snaps`, `settles`), place stability (`feel.place`), and hitches as a measure (`FeelHitches`, `measureHitches`).
+- **Principles and their checks** (the guide's tables, and `docs/ouro-feel/checks.json`, which ui.ouroboros.bot reads):
+  - *your intent is the unit:* the way back (`feel.wayBack`), overlay dismissal (`feel.overlays`), tap landing
+    (`feel.tapLanding`, `feel.osBaseline`), one action finishes the intent (`feel.finishesIntent`);
+  - *your place is yours:* place stability (`feel.place`), place kept through stray input (`feel.placeHeld`, with
+    `FeelPlaceStep.strayReading` for a reader: the top-edge tap and a swipe across and back), navigation that fights
+    you (`feel.placeFights`);
+  - *the content is the canvas:* inside the window (`feel.insideWindow`, with `also:` for what you read, and
+    `feel.uncovered` for chrome over the text or under the status bar), viewport holds still (`feel.viewportHolds`, with
+    `scrolling:` for a pager), chrome floats over content (`feel.chromeFloats`);
+  - *motion and chrome never surprise:* double-draw (`film.doubleDraws`), jump after landing, late or lingering chrome, snap with no transition and
+    settle time (`feel.film` then `jumps`, `chrome`, `snaps`, `settles`), flicker (`flickers`, and
+    `feel.stillWhileIdle`), and hitches as a measure (`FeelHitches`, `measureHitches`).
 - **Copy-paste:** `let feel = OuroFeel(app); feel.expect(feel.wayBack(from: [.launch]))`. `expect` fails the test;
   `record` reports without failing.
 - **Cold, not warm:** `scripts/ouro-feel-cold.sh --project P --scheme S --test Target/Class/method --runs 5`. A result
@@ -120,7 +127,9 @@ A factual sentence is a claim on every surface: Markdown, DocC, code comments, a
   hitch figure from the simulator as a device result. A "could not check" failure (findings marked `(not checked)`) is
   not jank found: fix the test or rerun it.
 - **A rule change is a core change with a unit test** (`Tests/OuroFeelTests`), and the fixture
-  (`Examples/OuroFeelFixture`, bug behind `-bug 1`) must still fail on each bug and pass without it.
+  (`Examples/OuroFeelFixture`, bug behind `-bug 1`) must still fail on each bug and pass without it. A change to a
+  check's name, line or calls rewrites `docs/ouro-feel/checks.json` (`OURO_FEEL_WRITE_CATALOG=1 swift test --filter
+  CatalogTests`) and the guide's table in the same pull request.
 - Ouro Feel lives in its own targets and folders (`Sources/OuroFeel*`, `docs/ouro-feel`, `Examples/OuroFeelFixture`);
   keep component work out of them.
 

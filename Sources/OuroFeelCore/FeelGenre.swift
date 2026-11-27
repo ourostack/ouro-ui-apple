@@ -49,8 +49,8 @@ public enum FeelGenre: String, CaseIterable, Codable, Sendable {
         switch self {
         case .wayBack, .overlayDismissal, .tapLanding: .intent
         case .placeStability, .strayInput, .navigationFight: .place
-        case .insideWindow, .doubleDraw: .canvas
-        case .jumpAfterLanding, .chrome, .snap, .settleTime, .flicker, .hitches: .motion
+        case .insideWindow: .canvas
+        case .doubleDraw, .jumpAfterLanding, .chrome, .snap, .settleTime, .flicker, .hitches: .motion
         }
     }
 
@@ -62,12 +62,12 @@ public enum FeelGenre: String, CaseIterable, Codable, Sendable {
         case .insideWindow: ["feel.insideWindow(poses:also:)", "feel.uncovered(by:content:within:poses:)"]
         case .tapLanding: ["feel.tapLanding(on:trials:spots:title:rowToggles:baseline:rapid:rapidBaseline:)", "feel.osBaseline(rapid:)"]
         case .doubleDraw: ["film.doubleDraws(of:)"]
-        case .jumpAfterLanding: ["film.jumps(of:rest:limit:)", "screenFilm.revealHolds(cover:until:)"]
+        case .jumpAfterLanding: ["film.jumps(of:rest:limit:)", "feel.screenFilm(...).revealHolds(cover:until:)"]
         case .chrome: ["film.chrome(from:to:grace:)"]
         case .snap: ["film.snaps(of:distance:appearing:)"]
         case .settleTime: ["film.settles(_:within:)"]
         case .placeStability: ["feel.place(across:read:)"]
-        case .flicker: ["film.flickers(of:within:changes:)", "screenFilm.flickers(within:states:)", "feel.stillWhileIdle(for:watch:poses:)"]
+        case .flicker: ["film.flickers(of:within:changes:)", "feel.screenFilm(...).flickers(within:states:)", "feel.stillWhileIdle(for:watch:poses:)"]
         case .strayInput: ["feel.placeHeld(across:reads:between:read:)"]
         case .navigationFight: ["feel.placeFights(_:reads:hold:between:read:)"]
         case .hitches: ["FeelHitches.analyze(timestamps:refresh:)", "film.hitches()", "feel.measureHitches(in:)"]

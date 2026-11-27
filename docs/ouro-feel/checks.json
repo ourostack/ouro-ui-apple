@@ -77,13 +77,6 @@
         },
         {
           "calls" : [
-            "film.doubleDraws(of:)"
-          ],
-          "good" : "Each piece of content is on screen once; nothing shows a ghost copy mid-transition.",
-          "name" : "double-draw"
-        },
-        {
-          "calls" : [
             "feel.viewportHolds(scrolling:poses:)"
           ],
           "good" : "Nothing pans on an axis it doesn't scroll, and no content is wider or taller than its viewport on an axis that is fixed, in every pose.",
@@ -105,8 +98,15 @@
       "checks" : [
         {
           "calls" : [
+            "film.doubleDraws(of:)"
+          ],
+          "good" : "Each piece of content is on screen once; nothing shows a ghost copy mid-transition.",
+          "name" : "double-draw"
+        },
+        {
+          "calls" : [
             "film.jumps(of:rest:limit:)",
-            "screenFilm.revealHolds(cover:until:)"
+            "feel.screenFilm(...).revealHolds(cover:until:)"
           ],
           "good" : "Once something lands it stays put; nothing nudges it afterwards.",
           "name" : "jump after landing"
@@ -135,7 +135,7 @@
         {
           "calls" : [
             "film.flickers(of:within:changes:)",
-            "screenFilm.flickers(within:states:)",
+            "feel.screenFilm(...).flickers(within:states:)",
             "feel.stillWhileIdle(for:watch:poses:)"
           ],
           "good" : "Each thing changes once on its way to where it ends; nothing flips back and forth before it settles, and with no input nothing changes at all.",

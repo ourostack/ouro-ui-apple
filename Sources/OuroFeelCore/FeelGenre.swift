@@ -110,6 +110,10 @@ public struct FeelPrinciple: Hashable, Codable, Sendable {
 
     /// This principle's checks, in ``FeelCheck/all`` order.
     public var checks: [FeelCheck] { FeelCheck.all.filter { $0.principle == self } }
+
+    /// Principles are the same when their ids are, so rewording a promise never splits one in two.
+    public static func == (a: FeelPrinciple, b: FeelPrinciple) -> Bool { a.id == b.id }
+    public func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 /// One check Ouro Feel runs: its name (the ``FeelResult/check`` its reports carry), what good feels like, the
@@ -132,6 +136,10 @@ public struct FeelCheck: Hashable, Codable, Sendable {
         self.init(name: genre.rawValue, good: genre.good, principle: genre.principle, calls: genre.calls)
     }
 
+    /// Checks are the same when their names are (the name every report carries), whatever their wording.
+    public static func == (a: FeelCheck, b: FeelCheck) -> Bool { a.name == b.name }
+    public func hash(into hasher: inout Hasher) { hasher.combine(name) }
+
     /// Viewport holds still. From Gatefold, 2026-11-27: the reading page could be dragged sideways, cutting off the
     /// text's left edge (Ari: "being able to mess with viewport is very much something ouro feel should be catching").
     public static let viewportHolds = FeelCheck(
@@ -148,11 +156,11 @@ public struct FeelCheck: Hashable, Codable, Sendable {
 
     /// One action finishes the intent. From Gatefold, 2026-11-27: opening a book that was not downloaded downloaded
     /// it and stopped; it took a second tap to open.
-    public static let oneAction = FeelCheck(
+    public static let finishesIntent = FeelCheck(
         name: "one action finishes the intent",
         good: "A tap that starts slow work (a download, a load, a sign-in) finishes what you asked for when the work is done; you never tap it twice.",
         principle: .intent, calls: ["feel.finishesIntent(_:opens:within:quiet:)", "feel.finishesIntent(_:named:within:quiet:done:)"])
 
     /// Every check: the genres first, then each added since, in the order they came.
-    public static let all: [FeelCheck] = FeelGenre.allCases.map(FeelCheck.init) + [viewportHolds, chromeFloats, oneAction]
+    public static let all: [FeelCheck] = FeelGenre.allCases.map(FeelCheck.init) + [viewportHolds, chromeFloats, finishesIntent]
 }

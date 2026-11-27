@@ -8,7 +8,6 @@ public struct FeelAxes: OptionSet, Codable, Hashable, Sendable {
     public static let horizontal = FeelAxes(rawValue: 1)
     public static let vertical = FeelAxes(rawValue: 2)
     public static let both: FeelAxes = [.horizontal, .vertical]
-    public static let none: FeelAxes = []
 
     /// The axes this one leaves fixed.
     public var fixed: FeelAxes { FeelAxes.both.subtracting(self) }
@@ -140,10 +139,23 @@ public enum FeelViewport {
         !drag.before.isEmpty && drag.before.keys.filter { drag.after[$0] == nil }.count * 2 > drag.before.count
     }
 
-    /// One pose: every viewport's overflow, and every drag.
-    public static func check(_ viewports: [FeelViewportRead], drags: [FeelDrag], pose: String) -> FeelResult {
+    /// One pose: every viewport's overflow, and every drag. `undragged` names each viewport and fixed axis no drag
+    /// could cross (too small, or covered by the viewports and controls inside it): each is said in a note, and when it
+    /// is the largest viewport and nothing was dragged at all, the drags could not be checked.
+    public static func check(_ viewports: [FeelViewportRead], drags: [FeelDrag], undragged: [String: [FeelAxis]] = [:],
+                             pose: String) -> FeelResult {
         var findings: [FeelFinding] = []
         for viewport in viewports { findings += overflow(viewport, pose: pose) }
+        for viewport in viewports {
+            guard let axes = undragged[viewport.key], !axes.isEmpty else { continue }
+            findings.append(.note("no drag \(axes.map(\.way).joined(separator: " or ")) could cross \(viewport.name) in \(pose) "
+                + "(too small, or covered by what is inside it), so only its overflow was judged", inferred: false))
+        }
+        let largest = viewports.filter { $0.kind != "window" }.max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+            ?? viewports.first
+        if drags.isEmpty, let largest, let axes = undragged[largest.key], !axes.isEmpty {
+            findings.append(.couldNotCheck("no drag could cross \(largest.name), the largest viewport, in \(pose), so whether it pans was not seen"))
+        }
         var judged = 0
         for drag in drags {
             guard let viewport = viewports.first(where: { $0.key == drag.viewport }) else { continue }
@@ -189,13 +201,15 @@ public enum FeelViewport {
     }
 
     /// Which way a viewport scrolls, guessed from its content's shape: content that runs past its sides and nowhere
-    /// past its top or bottom is a carousel or pager, which scrolls sideways; anything else scrolls up and down. A web
-    /// page and a list scroll up and down.
+    /// past its top or bottom is a carousel or pager, which scrolls sideways, so long as each piece past the sides is a
+    /// card or a page (no wider than the viewport). A line wider than its viewport is never a card: that viewport
+    /// scrolls up and down, and the line is what pans. Anything else scrolls up and down; so do a web page and a list.
     public static func guessAxes(kind: String, frame: CGRect, content: [CGRect]) -> FeelAxes {
         if kind == "web view" || kind == "list" { return .vertical }
-        let across = content.contains { $0.minX < frame.minX - tolerance || $0.maxX > frame.maxX + tolerance }
+        let past = content.filter { $0.minX < frame.minX - tolerance || $0.maxX > frame.maxX + tolerance }
         let down = content.contains { $0.minY < frame.minY - tolerance || $0.maxY > frame.maxY + tolerance }
-        return across && !down ? .horizontal : .vertical
+        let cards = !past.isEmpty && !past.contains { $0.width > frame.width + tolerance }
+        return cards && !down ? .horizontal : .vertical
     }
 
     /// The axes to drag along at a point: those every viewport around it leaves fixed (a carousel in a list leaves

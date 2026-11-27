@@ -14,9 +14,10 @@ extension OuroFeel {
     /// and every viewport around it leave fixed (leftward, from three quarters of the way across to under a third,
     /// and upward, so the drag is never the system's back swipe or a sheet's pull down), watching a few of its texts
     /// while the finger is down and once it has lifted. Content that moved along the drag's axis panned, even if it
-    /// sprang back. A drag never starts in a viewport inside the one it judges (a carousel in a list), on a switch,
-    /// slider or field, and it leaves a list row's own content out, since a row slides to show its swipe actions on
-    /// purpose. A drag that changed what was on screen (a page turn) is noted as the app's own gesture, not judged.
+    /// sprang back. A drag never starts in a viewport inside the one it judges (a carousel in a list), nor on a switch,
+    /// slider or field, and a list is never dragged sideways, since its rows slide to show their swipe actions and a
+    /// full swipe fires one. A drag that changed what was on screen (a page turn) is noted as the app's own gesture,
+    /// not judged, and ends that pose's drags. A viewport no drag could cross is said in a note.
     ///
     /// Accessibility does not say which way a scroll view scrolls. A web view and a list scroll up and down; another
     /// scroll view scrolls sideways when its content runs past its sides and nowhere past its top or bottom (a carousel,
@@ -39,16 +40,25 @@ extension OuroFeel {
 
     func viewportHoldsNow(scrolling: [String: FeelAxes], pose: String) -> FeelResult {
         let screen = viewports(scrolling: scrolling)
-        var drags: [FeelDrag] = []
-        for node in screen.nodes {
+        var drags: [FeelDrag] = [], undragged: [String: [FeelAxis]] = [:]
+        walk: for node in screen.nodes {
             let fixed = FeelViewport.fixedAt(node.chain)
             for axis in [FeelAxis.horizontal, .vertical] where fixed.contains(axis == .horizontal ? .horizontal : .vertical) {
-                guard let (from, to, start) = dragPath(node, axis: axis, screen: screen) else { continue }
+                // A list is never dragged sideways: its rows slide to show their swipe actions, and a full swipe fires
+                // one (a delete, in a real app). Its overflow is still judged.
+                if axis == .horizontal, node.read.kind == "list" { continue }
+                guard let (from, to, start) = dragPath(node, axis: axis, screen: screen) else {
+                    undragged[node.read.key, default: []].append(axis)
+                    continue
+                }
                 let anchors = dragAnchors(node, avoiding: start, screen: screen)
-                drags.append(drag(node.read.key, axis: axis, from: from, to: to, anchors: anchors))
+                let done = drag(node.read.key, axis: axis, from: from, to: to, anchors: anchors)
+                drags.append(done)
+                // A drag that changed the screen (a page turn) leaves every later drag aimed at what is gone.
+                if FeelViewport.changedScreen(done) { break walk }
             }
         }
-        return FeelViewport.check(screen.nodes.map(\.read), drags: drags, pose: pose)
+        return FeelViewport.check(screen.nodes.map(\.read), drags: drags, undragged: undragged, pose: pose)
     }
 
     /// A viewport on screen, with what a drag across it needs.
@@ -82,16 +92,16 @@ extension OuroFeel {
 
     static let dragAvoid: Set<XCUIElement.ElementType> = [
         .switch, .toggle, .slider, .stepper, .segmentedControl, .picker, .pickerWheel, .datePicker, .textField,
-        .secureTextField, .searchField, .textView,
+        .secureTextField, .searchField,
     ]
 
     /// Every viewport on screen (the window first, then each scroll view and web view) and the content drawn in it.
     func viewports(scrolling: [String: FeelAxes]) -> ViewportScreen {
         guard let root = try? app.snapshot() else { return ViewportScreen(window: .zero, nodes: [], avoid: [], counts: [:]) }
         let window = Self.mainWindow(root)
-        var nodes = [ViewportNode(read: FeelViewportRead(key: "window", kind: "window", frame: window, scrolls: .none,
+        var nodes = [ViewportNode(read: FeelViewportRead(key: "window", kind: "window", frame: window, scrolls: [],
                                                          inferred: false, content: []),
-                                  chain: [.none], anchors: [], depth: 0, parent: 0)]
+                                  chain: [[]], anchors: [], depth: 0, parent: 0)]
         var nested: [Int: [CGRect]] = [:]
         var avoid: [CGRect] = [], counts: [String: Int] = [:]
         var unnamed: [String: Int] = [:]
@@ -102,7 +112,11 @@ extension OuroFeel {
             if Self.dragAvoid.contains(type) { avoid.append(frame) }
             var current = index, cell = cell
             if Self.scrollTypes.contains(type), frame.width > 0, frame.height > 0 {
-                let kind = type == .webView ? "web view" : (type == .table || type == .collectionView) && Self.isList(node) ? "list" : "scroll view"
+                // Computed apart, not in an `&&`: its autoclosure would send `node` across isolation, which Xcode 26's
+                // Release build refuses (as in OuroFeel.swift).
+                var list = false
+                if type == .table || type == .collectionView { list = Self.isList(node) }
+                let kind = type == .webView ? "web view" : list ? "list" : "scroll view"
                 var key = identifier.isEmpty ? label : identifier
                 if key.isEmpty {
                     unnamed[kind, default: 0] += 1
@@ -115,7 +129,8 @@ extension OuroFeel {
                                           chain: nodes[index].chain + [declared ?? .vertical], anchors: [],
                                           depth: nodes[index].depth + 1, parent: index))
                 current = nodes.count - 1
-                if declared == nil, kind == "list" { nodes[current].read.inferred = false }
+                // A list and a web page scroll up and down by rule, not by guess.
+                if declared == nil, kind == "list" || kind == "web view" { nodes[current].read.inferred = false }
             } else if type == .cell {
                 cell = frame
             }
@@ -206,8 +221,9 @@ extension OuroFeel {
     /// Drags from `from` to `to`, slowly with a hold, reading the anchors every tenth of a second while the finger is
     /// down (XCUITest's drag keeps the main run loop turning) and once more after it lifts.
     func drag(_ viewport: String, axis: FeelAxis, from: XCUICoordinate, to: XCUICoordinate, anchors: [ViewportAnchor]) -> FeelDrag {
-        var before: [String: CGRect] = [:]
-        for a in anchors { before[a.key] = anchorFrame(a) }
+        var start: [String: CGRect] = [:]
+        for a in anchors { start[a.key] = anchorFrame(a) }
+        let before = start
         let seen = FeelSamples()
         let timer = Timer(timeInterval: 0.1, repeats: true) { [self] _ in
             MainActor.assumeIsolated {
@@ -356,7 +372,13 @@ extension OuroFeel {
             return r
         }
         let key = Self.key(shot)
-        var trail = FeelIntentTrail(intent: intent ?? "what a tap on \"\(key)\" starts", control: key, within: within)
+        var trail = FeelIntentTrail(intent: intent ?? "what a tap on \"\(key)\" starts", control: key, within: within, quiet: quiet)
+        if done() {
+            trail.doneBefore = true
+            var result = FeelIntent.judge(trail)
+            result.environment = environment
+            return result
+        }
         control.tap()
         let first = Date()
         var mark = screenMark(), changed = Date()
@@ -370,6 +392,12 @@ extension OuroFeel {
                 trail.settledAfter = changed.timeIntervalSince(first)
                 break
             }
+        }
+        if trail.doneAfterFirst == nil, trail.settledAfter != nil {
+            // As long again before a second tap, in case the work runs on with nothing on screen to show it.
+            let grace = Date()
+            while Date().timeIntervalSince(grace) < quiet, !done() { pause(0.25) }
+            if done() { trail.doneAfterFirst = Date().timeIntervalSince(first) }
         }
         if trail.doneAfterFirst == nil, trail.settledAfter != nil {
             trail.controlBack = control.exists && control.isEnabled

@@ -251,10 +251,14 @@ Proves: one tap on a control that starts slow work (a download, a load, a sign-i
 screen, with no second tap. It taps once, then waits up to `within` seconds (30 by default) for `opens` (an identifier
 or label), or for your `done` to hold. The screen counts as busy while anything on it changes (words, values such as a
 progress figure, frames) or a spinner or progress bar shows. Once it has held still for `quiet` seconds (3 by default)
-with the intent not done, and the same control is back, it taps that control once more: if the second tap finishes the
-intent, the first tap's work was dropped when it ended, and the check fails. When the intent never finishes, even after
-a second tap, or the control is gone once the screen settles, it could not check: the work may have failed in the test's
-state, or need longer. Launch into a state where the work is needed (the book not downloaded) and is safe to repeat.
+with the intent not done, it waits as long again, in case the work runs on with nothing on screen to show it. Then, if
+the same control is back, it taps that control once more: if the second tap finishes the intent, the first tap's work
+was dropped when it ended, and the check fails. When the intent never finishes, even after a second tap, or the
+control is gone once the screen settles, it could not check: the work may have failed in the test's state, or need
+longer. So does an intent already done before the tap: name something only the finished intent shows (the open book's
+page, not its title in the library). Launch into a state where the work is needed (the book not downloaded) and is
+safe to repeat. Work that runs longer than `quiet` with nothing changing on screen reads as dropped, so show progress
+while it runs, or raise `quiet`.
 
 ```swift
 feel.expect(feel.finishesIntent(app.buttons["library.book.mobyDick"], opens: "reader.page"))
@@ -402,13 +406,17 @@ is fixed. Two readings judge it:
   once it has lifted. Content that moved more than 2 pt along the drag's axis panned, even if it sprang back.
 
 A drag never starts in a viewport inside the one it judges (a carousel in a list: there the list scrolls the way the
-carousel doesn't, so no axis is fixed), on a switch, slider, picker or field, and it leaves out the list row it starts
-on, which slides to show its swipe actions on purpose. A drag that changed what was on screen (most of what it watched
-was gone: a page turn, a new screen) is noted as the app's own gesture and not judged.
+carousel doesn't, so no axis is fixed), nor on a switch, slider, picker or field. A list is never dragged sideways:
+its rows slide to show their swipe actions, and a full swipe fires one, which in a real app may delete something; its
+overflow is still judged. A drag that changed what was on screen (most of what it watched was gone: a page turn, a new
+screen) is noted as the app's own gesture and not judged, and ends that pose's drags. A viewport no drag could cross
+(too small, or covered by what is inside it) is said in a note; when that is the largest viewport and nothing was
+dragged at all, the check could not check.
 
 Accessibility does not say which way a scroll view scrolls. A web view and a list of rows scroll up and down; another
-scroll view scrolls sideways when its content runs past its sides and nowhere past its top or bottom (a carousel, a
-pager whose next page is in the tree), and up and down otherwise. Declare a viewport the guess gets wrong, by
+scroll view scrolls sideways when its content runs past its sides and nowhere past its top or bottom, and each piece
+past the sides is no wider than the viewport (a carousel's cards, a pager's next page in the tree), and up and down
+otherwise: a line wider than its page is never a card. Declare a viewport the guess gets wrong, by
 identifier or label in `scrolling:`. Findings on a guessed axis are marked as inference, and the report lists which were guessed. Run
 it on a screen at rest, with no sheet up, since a sheet's drag moves it on purpose.
 
@@ -430,8 +438,8 @@ inside the viewport and under none of that chrome.
 
 - **At rest,** each piece of chrome must sit over the viewport: its middle inside the viewport's frame. Chrome whose
   middle is outside it, beside the viewport's edge, has taken that room from the content, and the report says how much.
-- **At the end,** the content's last line (the lowest text or image in the viewport) must lie inside the viewport and
-  the window, and under none of the chrome. By default the check swipes up the viewport until that line holds still
+- **At the end,** the content's last line (the lowest text or image in the viewport) must lie wholly inside the
+  viewport and the window, on every side, and under none of the chrome. By default the check swipes up the viewport until that line holds still
   for two swipes, up to 15; pass `toEnd:` to bring it there yourself (a book's last page). Content that kept moving
   could not be checked.
 

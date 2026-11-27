@@ -16,9 +16,14 @@ public struct FeelIntentTrail: Codable, Equatable, Sendable {
     public var tappedTwice: Bool
     /// How long the check waited for each tap's work.
     public var within: Double
+    /// How long the screen had to hold still to count as settled; the check waits as long again before a second tap.
+    public var quiet: Double
+    /// Whether the intent was already done before the first tap (the check was pointed at something already shown).
+    public var doneBefore: Bool
 
     public init(intent: String, control: String, doneAfterFirst: Double? = nil, settledAfter: Double? = nil,
-                controlBack: Bool = false, doneAfterSecond: Double? = nil, tappedTwice: Bool = false, within: Double) {
+                controlBack: Bool = false, doneAfterSecond: Double? = nil, tappedTwice: Bool = false, within: Double,
+                quiet: Double = 3, doneBefore: Bool = false) {
         self.intent = intent
         self.control = control
         self.doneAfterFirst = doneAfterFirst
@@ -27,6 +32,8 @@ public struct FeelIntentTrail: Codable, Equatable, Sendable {
         self.doneAfterSecond = doneAfterSecond
         self.tappedTwice = tappedTwice
         self.within = within
+        self.quiet = quiet
+        self.doneBefore = doneBefore
     }
 }
 
@@ -41,13 +48,18 @@ public enum FeelIntent {
     public static func judge(_ trail: FeelIntentTrail) -> FeelResult {
         var findings: [FeelFinding] = []
         var measures: [String: Double] = ["taps": trail.tappedTwice ? 2 : 1]
-        if let done = trail.doneAfterFirst {
+        if trail.doneBefore {
+            measures["taps"] = 0
+            findings.append(.couldNotCheck("\(trail.intent) was already done before the tap on \"\(trail.control)\": name "
+                + "something only the finished intent shows (the open book's page, not its title in the list)"))
+        } else if let done = trail.doneAfterFirst {
             measures["seconds"] = round3(done)
         } else if trail.tappedTwice, let second = trail.doneAfterSecond {
             measures["second tap seconds"] = round3(second)
             findings.append(FeelFinding(what: "\(trail.intent) took a second tap on \"\(trail.control)\": the first tap's work "
                 + "ended after \(seconds(trail.settledAfter ?? trail.within)) s without finishing it, and the "
-                + "same tap again did, after \(seconds(second)) s"))
+                + "same tap again did, after \(seconds(second)) s, though the screen had held still for \(seconds(trail.quiet * 2)) s "
+                + "first (if the work was still running with nothing on screen to show it, show progress while it runs)"))
         } else if trail.tappedTwice {
             findings.append(.couldNotCheck("\(trail.intent) was not done \(seconds(trail.within)) s after a tap on "
                 + "\"\(trail.control)\", nor after a second tap: the work may have failed (check the fixture's state) or need longer (raise within:)"))
@@ -59,7 +71,7 @@ public enum FeelIntent {
             findings.append(.couldNotCheck("\(trail.intent) was not done \(seconds(trail.within)) s after a tap on "
                 + "\"\(trail.control)\", and the screen was still busy (raise within:)"))
         }
-        return FeelResult.judged(check: FeelCheck.oneAction.name,
+        return FeelResult.judged(check: FeelCheck.finishesIntent.name,
                                  passing: "one tap on \"\(trail.control)\" finished \(trail.intent) in "
                                     + "\(seconds(trail.doneAfterFirst ?? 0)) s",
                                  failing: { _ in "\(trail.intent) took two taps" },

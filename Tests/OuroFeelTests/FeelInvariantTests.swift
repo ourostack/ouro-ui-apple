@@ -85,6 +85,13 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         #expect(result.findings.contains { $0.note && $0.what.contains("declare a pager or carousel") })
     }
 
+    @Test func aPageNoDragCouldCrossIsSaid() {
+        let lines = [text("line 1", CGRect(x: 24, y: 80, width: 354, height: 22))]
+        let result = FeelViewport.check([reader(lines)], drags: [], undragged: ["reader.page": [.horizontal]], pose: "p")
+        #expect(result.summary.hasPrefix("could not check"), "\(result.text)")
+        #expect(result.findings.contains { $0.note && $0.what.contains("no drag sideways could cross scroll view \"reader.page\"") })
+    }
+
     @Test func nothingOnScreenCouldNotBeChecked() {
         #expect(FeelViewport.check([reader([])], drags: [], pose: "p").summary.hasPrefix("could not check"))
     }
@@ -96,8 +103,12 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         let wideAndLong = [CGRect(x: 0, y: 80, width: 600, height: 22), CGRect(x: 0, y: 2_000, width: 100, height: 22)]
         #expect(FeelViewport.guessAxes(kind: "scroll view", frame: page, content: wideAndLong) == .vertical)
         #expect(FeelViewport.guessAxes(kind: "web view", frame: carousel, content: covers) == .vertical)
+        // A short page with one line wider than it is no carousel: a line is never a card, so it scrolls up and down,
+        // and the line is judged as running past its side.
+        let shortWide = [CGRect(x: 24, y: 80, width: 354, height: 22), CGRect(x: 24, y: 110, width: 520, height: 22)]
+        #expect(FeelViewport.guessAxes(kind: "scroll view", frame: page, content: shortWide) == .vertical)
         // A carousel in a list: the list scrolls the way the carousel doesn't, so nothing is fixed at that point.
-        #expect(FeelViewport.fixedAt([.vertical, .horizontal]) == .none)
+        #expect(FeelViewport.fixedAt([.vertical, .horizontal]).isEmpty)
         #expect(FeelViewport.fixedAt([.vertical]) == .horizontal)
         #expect(FeelViewport.fixedAt([]) == .both)
     }
@@ -144,6 +155,18 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         #expect(result.detections[0].what.contains("is cut off: it runs 12 pt past the bottom"))
     }
 
+    @Test func aLastLineCutOffAtTheSideFails() {
+        let wide = text("words 3f2a", CGRect(x: 24, y: 740, width: 420, height: 22))
+        let result = FeelFloat.check(viewport: pageView, chrome: [], end: [wide], endViewport: page, endChrome: [], window: phone,
+                                     reachedEnd: true, expected: [], pose: "p")
+        #expect(result.detections.count == 1)
+        #expect(result.detections[0].what.contains("runs 42 pt past the trailing side"))
+    }
+
+    @Test func noPosesCouldNotBeChecked() {
+        #expect(FeelFloat.combine([]).summary.hasPrefix("could not check"))
+    }
+
     @Test func whatCouldNotBeSeenCouldNotBeChecked() {
         let none = FeelFloat.check(viewport: nil, chrome: [], end: [], endViewport: nil, endChrome: [], window: phone,
                                    reachedEnd: true, expected: [], pose: "p")
@@ -160,7 +183,7 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         let result = FeelIntent.judge(FeelIntentTrail(intent: "open the book", control: "book", doneAfterFirst: 2.4, within: 30))
         #expect(result.passed, "\(result.text)")
         #expect(result.measures["seconds"] == 2.4)
-        #expect(result.check == FeelCheck.oneAction.name)
+        #expect(result.check == FeelCheck.finishesIntent.name)
     }
 
     @Test func aSecondTapThatFinishesFails() {
@@ -179,6 +202,9 @@ private func text(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement(k
         #expect(gone.summary.contains("was gone"))
         let busy = FeelIntent.judge(FeelIntentTrail(intent: "open", control: "book", within: 30))
         #expect(busy.summary.contains("still busy"))
+        // Pointed at something already on screen, a pass would mean nothing.
+        let already = FeelIntent.judge(FeelIntentTrail(intent: "open", control: "book", doneAfterFirst: 0, within: 30, doneBefore: true))
+        #expect(already.summary.hasPrefix("could not check") && already.summary.contains("already done"))
     }
 }
 

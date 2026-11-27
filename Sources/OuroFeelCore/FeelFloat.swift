@@ -55,11 +55,17 @@ public enum FeelFloat {
         } else if let bottom = lines.map(\.frame.maxY).max() {
             let last = lines.filter { $0.frame.maxY >= bottom - tolerance }
             let clear = endFrame.intersection(window)
-            for line in last {
-                let cut = line.frame.maxY - clear.maxY
-                if cut > tolerance {
+            if clear.isNull || clear.isEmpty {
+                findings.append(.couldNotCheck("\"\(viewport.key)\" was not inside the window at its end in \(pose)"))
+            }
+            for line in last where !(clear.isNull || clear.isEmpty) {
+                // The line must lie wholly inside what can be seen: past any edge, it is cut off.
+                let sides: [(String, CGFloat)] = [("bottom", line.frame.maxY - clear.maxY), ("top", clear.minY - line.frame.minY),
+                                                  ("trailing side", line.frame.maxX - clear.maxX),
+                                                  ("leading side", clear.minX - line.frame.minX)]
+                for (side, cut) in sides where cut > tolerance {
                     findings.append(FeelFinding(what: "at its end, the content's last line (\(line.type) \"\(line.key)\") is cut "
-                        + "off: it runs \(FeelResult.number(cut.rounded())) pt past the bottom of \"\(viewport.key)\" in \(pose)"))
+                        + "off: it runs \(FeelResult.number(cut.rounded())) pt past the \(side) of \"\(viewport.key)\" in \(pose)"))
                 }
                 for c in endChrome where FeelCover.covers(c.frame, line.frame) {
                     let overlap = c.frame.intersection(line.frame)
@@ -80,7 +86,10 @@ public enum FeelFloat {
 
     /// Several poses as one result: it passes only if every pose does.
     public static func combine(_ results: [FeelResult]) -> FeelResult {
-        guard results.count > 1 else { return results[0] }
+        guard results.count > 1 else {
+            return results.first ?? check(viewport: nil, chrome: [], end: [], endViewport: nil, endChrome: [], window: .zero,
+                                          reachedEnd: false, expected: [], pose: "no pose")
+        }
         let failed = results.filter { !$0.passed }.count
         return FeelResult.judged(check: FeelCheck.chromeFloats.name,
                                  passing: "chrome floats over the content in \(results.count) poses",

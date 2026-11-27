@@ -1288,25 +1288,31 @@ struct RelayoutPage: View {
 }
 
 /// Your place survives a turn. A scrolling page of lines, one text each. Fixed: a turn keeps the line at the top. The
-/// bug, as Gatefold#650: the place is saved at the first turn only, so a turn after a scroll goes back to it.
+/// bug, as Gatefold#650: the place is saved at the first turn only, so a turn after a scroll goes back to it. The page
+/// starts a point below the safe area and is clipped, so it never runs under the status bar and the line it keeps at
+/// the top is the first line a reader sees, in either orientation.
 struct TurnPlacePage: View {
     @State private var top: Int?
     @State private var anchor: Int?
 
     var body: some View {
         GeometryReader { geo in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(0..<240, id: \.self) { n in
-                        Text(prose(n)).lineLimit(1).frame(height: 32, alignment: .leading).id(n)
+            VStack(spacing: 0) {
+                Color.clear.frame(height: 1)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(0..<240, id: \.self) { n in
+                            Text(prose(n)).lineLimit(1).frame(height: 32, alignment: .leading).id(n)
+                        }
                     }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .scrollTargetLayout()
-                .padding(.horizontal, 24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .scrollPosition(id: $top, anchor: .top)
+                .clipped()
+                .accessibilityIdentifier("turn.page")
             }
-            .scrollPosition(id: $top, anchor: .top)
-            .accessibilityIdentifier("turn.page")
             .onChange(of: geo.size) {
                 guard bug else { return }
                 if let anchor { top = anchor } else { anchor = top ?? 0 }

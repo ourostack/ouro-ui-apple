@@ -123,7 +123,7 @@ Ouro UI's [one action model](https://github.com/ourostack/ouro-ui-core/blob/main
 | `OuroAXTestingProbe` | the X-ray's test plan | runs the X-ray's behaviour stage with AppIntentsTesting ([Templates/XrayProbe](Templates/XrayProbe)) |
 | `ouro-ax-skills` | you and CI | lints `Skills.skillsbundle` for Siri: `swift run ouro-ax-skills lint path/to/Skills.skillsbundle` |
 | `OuroAXSkillsLintPlugin` | your build | the same lint at build time, with errors pinned to the line |
-| `OuroFeel` | your UI tests | checks how the app feels against four principles, each with a growing set of checks: the way back, tap landing, a viewport that holds still, chrome that floats over content, one action that finishes the intent, jumps, snaps, flicker and more ([Ouro Feel](#ouro-feel-how-it-feels-measured)) |
+| `OuroFeel` | your UI tests | checks how the app feels against a few principles, each with a growing set of checks: the way back, tap landing, a viewport that holds still, chrome that floats over content, one action that finishes the intent, content that clears the fold, a turn that lays out like a fresh launch, jumps, snaps, flicker and more ([Ouro Feel](#ouro-feel-how-it-feels-measured)) |
 | `OuroFeelCore`, `OuroFeelRecorder`, `OuroFeelRecorderInjectable` | Ouro Feel's internals | the measurements, the in-app recorder, and the same recorder as a library a UI test loads into a simulator app so the app never links it |
 | `OuroReins` | your app's UI-free core, its tests and agents | every screen as state and actions, driven with `ls` and `do` headless or over a debug-only socket; journeys; a network guard that fails any request ([docs/ouro-reins/README.md](docs/ouro-reins/README.md)) |
 | `OuroA2UI` | your app, when an agent composes UI for a person | `A2UISurface`: Ouro HX's [A2UI](https://github.com/a2ui-project/a2ui) catalog in SwiftUI, where every button is one of your declared actions and pressing it follows its consent class; `A2UI.validate` and `A2UI.resolve`, and `ComposedTree` for a tree that came another way, ported from core and proved against core's conformance cases ([agent-composed UI](#agent-composed-ui-a2ui)) |
@@ -195,10 +195,11 @@ The linter exits 0 when all is well, 1 when it trips over itself, 2 for a usage 
 
 ## Ouro Feel: how it feels, measured
 
-Ouro Feel holds an app to four promises: your intent is the unit, your place is yours, the content is the canvas, and
-motion and chrome never surprise. Each owns a growing set of checks that never get tired, from the way back and tap
-landing to a viewport that holds still, chrome that floats over the content and one tap that finishes what it started;
-every jank report no check caught adds one. Link `OuroFeel` into your UI tests, walk every screen your entry points
+Ouro Feel holds an app to a few promises: your intent is the unit, your place is yours, the content is the canvas,
+posture changes re-lay out in place, and motion and chrome never surprise. Each owns a growing set of checks that never
+get tired, from the way back and tap landing to a viewport that holds still, chrome that floats over the content, one
+tap that finishes what it started and a turn that lays out like a fresh launch; every jank report no check caught adds
+one. Link `OuroFeel` into your UI tests, walk every screen your entry points
 reach, and leave only real taste to the humans.
 
 ```swift

@@ -170,8 +170,18 @@ private func textured(offsets: [Int], pageAt: (Int) -> Int = { _ in 0 }) -> Feel
         #expect(px(4, 0) == 128, "the gap between samples")
     }
 
-    @Test func anEmptyOrMixedFilmHasNoSheet() {
+    @Test func anEmptyFilmHasNoSheet() {
         #expect(FeelScreenFilm(frames: []).contactSheet() == nil)
-        #expect(FeelScreenFilm(frames: [frame(10, at: 0), frame(10, at: 1, size: 5)]).contactSheet() == nil)
+    }
+
+    /// A turn changes the screen's shape: each sample sits in a cell as big as the largest, its strip under the cell.
+    @Test func samplesOfAnotherSizeShareTheLargestCell() throws {
+        let sheet = try #require(FeelScreenFilm(frames: [frame(10, at: 0), frame(200, at: 1, size: 5)]).contactSheet(gap: 2, mark: 3))
+        #expect(sheet.width == 5 + 2 + 5)
+        #expect(sheet.height == 5 + 3)
+        func px(_ x: Int, _ y: Int) -> UInt8 { sheet.gray[y * sheet.width + x] }
+        #expect(px(0, 0) == 10)
+        #expect(px(4, 4) == 128, "the smaller sample leaves its cell's rest blank")
+        #expect(px(7, 4) == 200)
     }
 }

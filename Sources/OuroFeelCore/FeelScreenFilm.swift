@@ -160,13 +160,13 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
     /// Why the film can't be judged, or not all of it: it stalled, its pictures differ in size, it is shorter than a
     /// rest, or a sample came more than twice the usual gap after the one before (on an app's clock only: a film
     /// ``byReads`` has no ticks to skip).
-    func unjudgeable(run: Int) -> [FeelFinding] {
+    func unjudgeable(run: Int, sizes judgeSizes: Bool = true) -> [FeelFinding] {
         var findings: [FeelFinding] = []
         if let at = stalledAt {
             findings.append(.couldNotCheck("the film stopped at \(FeelResult.number(Self.round3(at))) s (the app's clock stopped), so the rest was never seen"))
         }
         let sizes = Set(frames.map { "\($0.width)x\($0.height)" })
-        if sizes.count > 1 {
+        if judgeSizes, sizes.count > 1 {
             findings.append(.couldNotCheck("the film's pictures were not all one size (\(sizes.sorted().joined(separator: ", "))), so they cannot be compared"))
         }
         if frames.count < run {

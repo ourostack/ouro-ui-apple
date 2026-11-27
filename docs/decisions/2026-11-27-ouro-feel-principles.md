@@ -10,20 +10,21 @@ hid its last lines instead of floating over the text; and opening a book that wa
 once it had downloaded. Ari: "being able to mess with viewport is very much something ouro feel should be catching,
 and idk if the site is accurate but trying to fit the ouro feel checks into a neat list of 10 is very silly".
 
-The site said "Ten genres, named and checked" while `FeelGenre` already had fourteen, and the guide's single table had
+The site said "Ten genres, named and checked" while `FeelGenre` already had more, and the guide's single table had
 no place a new kind of jank obviously belonged.
 
 ## Decision
 
-1. **Four principles, each with an open set of checks.** `FeelPrinciple`: your intent is the unit; your place is
-   yours; the content is the canvas; motion and chrome never surprise. Every check (`FeelCheck`) names the principle
+1. **Principles, each with an open set of checks.** `FeelPrinciple`: your intent is the unit; your place is
+   yours; the content is the canvas; motion and chrome never surprise (and, since
+   [the jank-hunt follow-up](2026-11-27-ouro-feel-jank-hunt-checks.md), posture changes re-lay out in place). Every check (`FeelCheck`) names the principle
    it holds. The set under each grows with every report no check caught; a principle is added only when a report
    breaks a promise none of these make.
 2. **Checks are named by the invariant, not the bug.** The three new checks are viewport holds still
    (`feel.viewportHolds`), chrome floats over content (`feel.chromeFloats`) and one action finishes the intent
    (`feel.finishesIntent`).
 3. **`FeelCheck` is open; `FeelGenre` is closed.** Adding a case to a public enum breaks every app that switches over
-   it (`scripts/api-break.sh` reports it), so `FeelGenre` keeps its fourteen cases and each is also a `FeelCheck`. A
+   it (`scripts/api-break.sh` reports it), so `FeelGenre` keeps the cases it has and each is also a `FeelCheck`. A
    new check is a `static let` on `FeelCheck` and a line in `FeelCheck.all`, which breaks nothing.
 4. **The list is data.** `docs/ouro-feel/checks.json` is `FeelCatalog.current`, and `CatalogTests` fails when it falls
    behind the code or when the guide's principle tables leave a check or a call out. ui.ouroboros.bot's Ouro Feel

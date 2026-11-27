@@ -671,8 +671,14 @@ public struct FeelPose: Sendable {
     public static let landscapeAgain = FeelPose(name: "landscape after portrait", orientation: .landscapeLeft)
     /// Portrait, landscape, then portrait again.
     public static let roundTrip = [portrait, landscape, portraitAgain]
+    /// Turns from where the device is: to landscape and back to portrait.
+    public static let turnAndBack = [landscape, portraitAgain]
+    /// Turns from where the device is: landscape, portrait, landscape and portrait again.
+    public static let turns = [landscape, portraitAgain, landscapeAgain, portraitAgain]
     #else
     public static let roundTrip = [current]
+    public static let turnAndBack = [current]
+    public static let turns = [current]
     #endif
 
     #if os(iOS)

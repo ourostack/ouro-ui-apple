@@ -365,8 +365,8 @@ extension OuroFeel {
 
     /// One action finishes the intent: one tap on `control`, then a wait of up to `within` seconds for `done`. The
     /// screen counts as busy while anything on it changes (words, values such as a progress figure, frames) or a
-    /// spinner or progress bar shows; once it has held still for `quiet` seconds with the intent not done and the same
-    /// control is back, the check taps it once more. If that second tap finishes the intent, the first tap's work
+    /// spinner or progress bar shows; once it has held still, with nothing busy, for twice `quiet` seconds with the
+    /// intent not done and the same control is back, the check taps it once more. If that second tap finishes the intent, the first tap's work
     /// was dropped when it ended, which fails. Launch into a state where the work is needed (the book not downloaded)
     /// and is safe to repeat.
     public func finishesIntent(_ control: XCUIElement, named intent: String? = nil, within: TimeInterval = 30,
@@ -378,7 +378,7 @@ extension OuroFeel {
             return r
         }
         let key = Self.key(shot)
-        var trail = FeelIntentTrail(intent: intent ?? "what a tap on \"\(key)\" starts", control: key, within: within, quiet: quiet)
+        var trail = FeelIntentTrail(intent: intent ?? "what a tap on \"\(key)\" starts", control: key, within: within, settle: quiet * 2)
         if done() {
             trail.doneBefore = true
             var result = FeelIntent.judge(trail)

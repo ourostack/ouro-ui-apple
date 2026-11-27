@@ -16,14 +16,14 @@ public struct FeelIntentTrail: Codable, Equatable, Sendable {
     public var tappedTwice: Bool
     /// How long the check waited for each tap's work.
     public var within: Double
-    /// Half of how long the screen had to hold still, with nothing busy, to count as settled before a second tap.
-    public var quiet: Double
+    /// How long the screen had to hold still, with nothing busy, to count as settled before a second tap.
+    public var settle: Double
     /// Whether the intent was already done before the first tap (the check was pointed at something already shown).
     public var doneBefore: Bool
 
     public init(intent: String, control: String, doneAfterFirst: Double? = nil, settledAfter: Double? = nil,
                 controlBack: Bool = false, doneAfterSecond: Double? = nil, tappedTwice: Bool = false, within: Double,
-                quiet: Double = 3, doneBefore: Bool = false) {
+                settle: Double = 6, doneBefore: Bool = false) {
         self.intent = intent
         self.control = control
         self.doneAfterFirst = doneAfterFirst
@@ -32,7 +32,7 @@ public struct FeelIntentTrail: Codable, Equatable, Sendable {
         self.doneAfterSecond = doneAfterSecond
         self.tappedTwice = tappedTwice
         self.within = within
-        self.quiet = quiet
+        self.settle = settle
         self.doneBefore = doneBefore
     }
 }
@@ -59,7 +59,7 @@ public enum FeelIntent {
             findings.append(FeelFinding(what: "\(trail.intent) took a second tap on \"\(trail.control)\": the first tap's work "
                 + "ended after \(seconds(trail.settledAfter ?? trail.within)) s without finishing it, and the "
                 + "same tap again did, after \(seconds(second)) s; the screen had held still, with nothing busy, for "
-                + "\(seconds(trail.quiet * 2)) s first (if the work was still running with nothing on screen to show it, show "
+                + "\(seconds(trail.settle)) s first (if the work was still running with nothing on screen to show it, show "
                 + "progress while it runs)"))
         } else if trail.tappedTwice {
             findings.append(.couldNotCheck("\(trail.intent) was not done \(seconds(trail.within)) s after a tap on "

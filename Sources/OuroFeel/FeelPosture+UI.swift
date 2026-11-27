@@ -178,24 +178,33 @@ extension OuroFeel {
     /// slowly, so the place moves on as a reader's would (Gatefold lost its place only on a turn after a scroll); a
     /// scroll that moved nothing on screen leaves that turn untried, and says so. The words are read by `read` (the app's
     /// own report of its visible text, such as `reader.visibleText`), or by default from every text any of which shows
-    /// in the window, or inside `within`, in reading order (``FeelTurnPlace/reading(_:in:)``), so the reading starts at
-    /// the same top edge in each orientation, status bar or none; bars' words are left out. A line is `line` words, or by
-    /// default as many words as the first text read holds, at most 15. A turn that left the window's shape as it was
+    /// in the window, or inside `within`, in reading order, twice (``FeelTurnPlace/readings(_:in:below:)``): from the
+    /// top, for an app that keeps its place at its scroll view's top (SwiftUI's `scrollPosition`, under the bars), and
+    /// from below the status and navigation bars, for one that keeps it at the safe area's top (UIKit's adjusted content
+    /// inset); a turn passes if any pairing is within a line. Bars' words are left out. A place lost inside one long
+    /// paragraph is not seen, since each reading starts at the paragraph's first word: give such a page `read:`. A
+    /// line is `line` words, or by default as many words as the first text read holds, at most 15. A turn that left the window's shape as it was
     /// (a portrait-only app, a platform with nothing to turn) could not be checked. Only fingerprints of the words go in
     /// the report. The app ends in portrait.
     public func placeSurvivesTurns(_ turns: [FeelPose] = FeelPose.turns,
                                    within: String? = nil, line: Int? = nil, between: ((OuroFeel) -> Void)? = nil,
                                    read: (() -> String)? = nil) -> FeelResult {
         var reads: [FeelTurnRead] = []
-        func words() -> (words: [String], line: Int) {
+        func words() -> (words: [String], belowBars: [String]?, line: Int) {
             if let read {
                 let text = steady(read)
                 let first = text.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? text
-                return (FeelTurnPlace.words(text), FeelTurnPlace.words(first).count)
+                return (FeelTurnPlace.words(text), nil, FeelTurnPlace.words(first).count)
             }
-            let text = steady { self.visibleLines(within: within).joined(separator: "\n") }
-            let first = text.split(separator: "\n").first.map(String.init) ?? ""
-            return (FeelTurnPlace.words(text), FeelTurnPlace.words(first).count)
+            // Both readings from one snapshot, once it holds still.
+            let both = steady { () -> String in
+                let lines = self.visibleLines(within: within)
+                return lines.fromTop.joined(separator: "\n") + "\u{0}" + lines.belowBars.joined(separator: "\n")
+            }
+            let parts = both.split(separator: "\u{0}", omittingEmptySubsequences: false).map(String.init)
+            let top = parts.first ?? "", below = parts.count > 1 ? parts[1] : top
+            let first = top.split(separator: "\n").first.map(String.init) ?? ""
+            return (FeelTurnPlace.words(top), FeelTurnPlace.words(below), FeelTurnPlace.words(first).count)
         }
         for (i, pose) in turns.enumerated() {
             if i > 0 {
@@ -210,7 +219,8 @@ extension OuroFeel {
             let moved = i == 0 || reads.last.map { $0.after != before.words } ?? true
             let changed = abs(shape.width - turned.width) > FeelCover.tolerance || abs(shape.height - turned.height) > FeelCover.tolerance
             reads.append(FeelTurnRead(turn: pose.name, before: before.words, after: after.words, line: line ?? max(1, measured),
-                                      scrolledFirst: i > 0, scrollMoved: moved, shapeChanged: changed))
+                                      scrolledFirst: i > 0, scrollMoved: moved, shapeChanged: changed,
+                                      beforeBelowBars: before.belowBars, afterBelowBars: after.belowBars))
         }
         #if os(iOS)
         if turns.contains(where: { $0.orientation != nil }) { FeelPose.portrait.apply(self) }
@@ -220,15 +230,25 @@ extension OuroFeel {
         return result
     }
 
-    /// The labels of every text any of which shows in the window, or inside `within`, in reading order, from the same
-    /// top edge in every orientation (``FeelTurnPlace/reading(_:in:)``). Bars' words are left out.
-    func visibleLines(within: String?) -> [String] {
-        guard let root = try? app.snapshot() else { return [] }
-        var clear = Self.mainWindow(root)
+    /// The labels of every text any of which shows in the window, or inside `within`, in reading order, read from the
+    /// top and from below the status and navigation bars (``FeelTurnPlace/readings(_:in:below:)``). Bars' words are
+    /// left out.
+    func visibleLines(within: String?) -> (fromTop: [String], belowBars: [String]) {
+        guard let root = try? app.snapshot() else { return ([], []) }
+        let window = Self.mainWindow(root)
+        var clear = window
         var lines: [(frame: CGRect, text: String)] = []
+        var barsBottom = window.minY
+        #if os(iOS)
+        if let bar = statusBar(window: window) { barsBottom = bar.maxY }
+        #endif
         func walk(_ node: any XCUIElementSnapshot, inside: Bool) {
             let type = node.elementType, identifier = node.identifier, label = node.label, frame = node.frame
-            if Self.bars.contains(type) { return }
+            if Self.bars.contains(type) {
+                // A navigation bar along the window's top pushes the safe area's top down.
+                if type == .navigationBar, frame.minY < window.minY + window.height * 0.25 { barsBottom = max(barsBottom, frame.maxY) }
+                return
+            }
             var inside = inside
             if !inside, let within, identifier == within || label == within {
                 inside = true
@@ -238,7 +258,7 @@ extension OuroFeel {
             for child in node.children { walk(child, inside: inside) }
         }
         walk(root, inside: within == nil)
-        return clear.isNull ? [] : FeelTurnPlace.reading(lines, in: clear)
+        return clear.isNull ? ([], []) : FeelTurnPlace.readings(lines, in: clear, below: barsBottom)
     }
 
     /// Drags the content up by half the window, slowly and with a hold, so it moves on without a fling.

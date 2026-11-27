@@ -201,9 +201,16 @@ public struct FeelTurnRead: Codable, Equatable, Sendable {
     /// Whether the window changed shape through the turn. A turn that kept it (a portrait-only app, a platform with
     /// nothing to turn) tried nothing.
     public var shapeChanged: Bool
+    /// The words before the turn read from below the status and navigation bars, not from the window's top: an app
+    /// that keeps its place at the safe area's top (UIKit's adjusted content inset, a TextKit reader) keeps it there.
+    /// Nil when only one reading was taken (the app's own `read:`).
+    public var beforeBelowBars: [String]?
+    /// The same, after the turn.
+    public var afterBelowBars: [String]?
 
     public init(turn: String, before: [String], after: [String], line: Int, scrolledFirst: Bool = false,
-                scrollMoved: Bool = true, shapeChanged: Bool = true) {
+                scrollMoved: Bool = true, shapeChanged: Bool = true, beforeBelowBars: [String]? = nil,
+                afterBelowBars: [String]? = nil) {
         self.turn = turn
         self.before = before
         self.after = after
@@ -211,6 +218,8 @@ public struct FeelTurnRead: Codable, Equatable, Sendable {
         self.scrolledFirst = scrolledFirst
         self.scrollMoved = scrollMoved
         self.shapeChanged = shapeChanged
+        self.beforeBelowBars = beforeBelowBars
+        self.afterBelowBars = afterBelowBars
     }
 }
 
@@ -244,6 +253,17 @@ public enum FeelTurnPlace {
         }
         .sorted { ($0.frame.minY, $0.frame.minX) < ($1.frame.minY, $1.frame.minX) }
         .map(\.text)
+    }
+
+    /// The reading from the viewport's top, and the reading from below `bars` (the bottom of the status and navigation
+    /// bars, in the viewport's coordinates; at or above its top when there are none), each as ``reading(_:in:)``. An app
+    /// keeps its place at one of the two, and which one is the app's.
+    public static func readings(_ texts: [(frame: CGRect, text: String)], in viewport: CGRect, below bars: CGFloat)
+        -> (fromTop: [String], belowBars: [String]) {
+        let top = reading(texts, in: viewport)
+        guard bars > viewport.minY, bars < viewport.maxY else { return (top, top) }
+        let clear = CGRect(x: viewport.minX, y: bars, width: viewport.width, height: viewport.maxY - bars)
+        return (top, reading(texts, in: clear))
     }
 
     /// How many words the reading moved through the turn: positive when it starts that many words further on, negative
@@ -282,7 +302,12 @@ public enum FeelTurnPlace {
                     + "\(read.turn)\(scrolled.isEmpty ? "" : " after a scroll"), so the place was not judged"))
                 continue
             }
-            guard let d = offset(before: read.before, after: read.after) else {
+            var pairs = [(read.before, read.after)]
+            if let b = read.beforeBelowBars, let a = read.afterBelowBars {
+                pairs += [(b, a), (read.before, a), (b, read.after)]
+            }
+            let offsets = pairs.compactMap { offset(before: $0.0, after: $0.1) }
+            guard let d = offsets.min(by: { abs($0) < abs($1) }) else {
                 findings.append(FeelFinding(what: "turning to \(read.turn)\(scrolled) lost the place: the first words after it "
                     + "are nowhere in the \(read.before.count) words on screen before it, nor are those in the \(read.after.count) after"))
                 continue

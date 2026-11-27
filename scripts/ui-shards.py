@@ -101,8 +101,6 @@ SUITES = {
                           # Gatefold's jank-hunt checks, measured on run 46063430325.
                           "FeelCatchesTests/testATurnLaysOutLikeAFreshLaunch": 101.2,
                           "FeelCatchesTests/testYourPlaceSurvivesATurn": 75.5,
-                          "FeelCatchesTests/testAJumpLandsOnItsOwn": 37.3,
-                          "FeelCatchesTests/testANoticeGetsOutOfTheWay": 23.0,
                           "FeelCatchesTests/testContentClearsTheFold": 17.5,
                           "FeelCatchesTests/testEveryTargetIsBigEnoughToHit": 14.7},
                 "pages": {}},
@@ -112,7 +110,10 @@ SUITES = {
                           "FeelCatchesTests/testJumpAfterLanding": 18.0,
                           "FeelCatchesTests/testDoubleDraw": 16.2,
                           "FeelCatchesTests/testSettleTime": 16.1,
-                          "FeelCatchesTests/testSnapWithNoTransition": 15.7},
+                          "FeelCatchesTests/testSnapWithNoTransition": 15.7,
+                          # Gatefold's jank-hunt checks, measured on run 46063430325.
+                          "FeelCatchesTests/testAJumpLandsOnItsOwn": 37.3,
+                          "FeelCatchesTests/testANoticeGetsOutOfTheWay": 23.0},
                 "pages": {}},
         },
     },

@@ -56,8 +56,7 @@ extension OuroFeel {
 
     /// What you asked for lands in clear view (the content is the canvas): after `jump`, `target` (the identifier or
     /// label of the search hit, the linked passage, the chosen heading) lies wholly inside the window, and inside the
-    /// viewport named `over` when given, under none of `chrome` (pills, bars, banners) and, with no `over`, not under the
-    /// status bar.
+    /// viewport named `over` when given, under none of `chrome` (pills, bars, banners) and not under the status bar.
     ///
     /// It waits up to `within` seconds for the target, then for its frame to hold still for half a second, and reads
     /// the target and the chrome together. Chrome that is not on screen once the jump lands covers nothing, and is noted.
@@ -75,7 +74,7 @@ extension OuroFeel {
         let read = reading(find: [target] + chrome + (viewport.map { [$0] } ?? []))
         var covering = chrome.compactMap { read.found[$0] }
         #if os(iOS)
-        if viewport == nil, let bar = statusBar(window: read.window) {
+        if let bar = statusBar(window: read.window) {
             covering.append(FeelElement(key: "status bar", type: "status bar", frame: bar))
         }
         #endif
@@ -121,8 +120,9 @@ extension OuroFeel {
     ///
     /// The system's own controls that Apple sizes below it are left out, with everything inside them: switches,
     /// sliders, steppers, text fields, search fields and text views (a field's clear button), segments of a segmented
-    /// control, pickers, the keyboard's keys and a sheet's grabber. So is anything whose identifier or label is in
-    /// `ignoring` (an inline link in running text, which HIG lets be the text's own size).
+    /// control, pickers, the keyboard's keys, a sheet's grabber and a Mac window's close, minimize, zoom and full-screen
+    /// buttons. So is anything whose identifier or label is in `ignoring` (an inline link in running text, which HIG
+    /// lets be the text's own size).
     public func targetsBigEnough(minimum: CGFloat = FeelTargets.minimum, ignoring: [String] = [],
                                  poses: [FeelPose] = [.current]) -> FeelResult {
         var results: [FeelResult] = []
@@ -140,6 +140,8 @@ extension OuroFeel {
     }
 
     static let targetTypes: Set<XCUIElement.ElementType> = [.button, .link, .tab, .menuButton, .popUpButton]
+    /// A Mac window's own buttons, by the identifiers XCUITest gives them: the system's to size.
+    static let windowButtons: Set<String> = ["_XCUI:CloseWindow", "_XCUI:MinimizeWindow", "_XCUI:ZoomWindow", "_XCUI:FullScreenWindow"]
     /// Controls whose parts are the system's to size.
     static let systemSized: Set<XCUIElement.ElementType> = [.segmentedControl, .picker, .datePicker, .keyboard, .switch, .slider, .stepper,
                                                            .textField, .secureTextField, .searchField, .textView]
@@ -152,7 +154,7 @@ extension OuroFeel {
         func walk(_ node: any XCUIElementSnapshot) {
             let type = node.elementType, identifier = node.identifier, label = node.label, enabled = node.isEnabled, frame = node.frame
             if Self.systemSized.contains(type) { return }
-            if ignoring.contains(identifier) || ignoring.contains(label) { return }
+            if ignoring.contains(identifier) || ignoring.contains(label) || Self.windowButtons.contains(identifier) { return }
             if Self.targetTypes.contains(type), enabled, label != "Sheet Grabber", frame.width > 0, frame.height > 0,
                !Self.isSystemKeyboardKey(node, keyboardTop: keyboardTop) {
                 found.append(FeelElement(key: Self.key(node), type: Self.name(type), frame: frame))

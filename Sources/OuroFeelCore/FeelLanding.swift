@@ -186,8 +186,8 @@ public enum FeelNotice {
 /// a control that answers taps beyond its frame (UIKit's `point(inside:with:)`) is bigger than it reads, so a finding
 /// is marked inference. SwiftUI's `contentShape` and padding inside a button's label do grow the frame.
 public enum FeelTargets {
-    /// The platform's default control size, in points, from the HIG's table.
-    #if os(macOS)
+    /// The platform's default control size, in points, from the HIG's table. A Mac Catalyst app is a Mac app.
+    #if os(macOS) || targetEnvironment(macCatalyst)
     public static let minimum: CGFloat = 28
     #elseif os(visionOS)
     public static let minimum: CGFloat = 60

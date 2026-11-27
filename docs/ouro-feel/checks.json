@@ -211,7 +211,7 @@
         },
         {
           "calls" : [
-            "feel.beforeAfterOrVeil(_:veils:settle:statusBand:ignoring:)",
+            "feel.beforeAfterOrVeil(_:veils:settle:)",
             "film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)"
           ],
           "good" : "Through a turn or a jump the screen rests only on the old view, the new one or a veil (a blank, or the old view dimmed): never a stretched, squeezed, shrunken or blended picture, a band, or another page.",

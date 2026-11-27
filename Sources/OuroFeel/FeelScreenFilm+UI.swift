@@ -78,6 +78,7 @@ extension OuroFeel {
         func film(stalledAt: Double? = nil) -> FeelScreenFilm {
             var film = FeelScreenFilm(frames: frames.map { Self.blanking(clocks, in: $0, screen: screen) }, stalledAt: stalledAt, timedBy: timedBy)
             film.cover = cover.map { Self.blanking(clocks, in: $0, screen: screen) }
+            film.blanked = [CGRect(x: 0, y: 0, width: screen.width, height: statusBand)] + ignoring.map(onScreen) + (clocks.isNull ? [] : [clocks])
             return film
         }
         guard shoot(at: 0, clockFrame: clockFrame) else { return film(stalledAt: 0) }
@@ -92,14 +93,15 @@ extension OuroFeel {
 
     /// The screen shows only the before, the after or a veil (motion and chrome never surprise): judges `film` (shot
     /// with `cover: true`) by ``FeelScreenFilm/beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)``, with a later
-    /// picture shot `settle` seconds after it, blanked as the film was (`statusBand`, `ignoring`), to show the film's end
-    /// was the after and not a wrong picture still up. For a film on the app's clock, put the clock's frame in
-    /// `ignoring`, or its new count would read as a change.
-    public func beforeAfterOrVeil(_ film: FeelScreenFilm, veils: [FeelScreenFrame] = [], settle: TimeInterval = 1.5,
-                                  statusBand: CGFloat = 60, ignoring: [CGRect] = []) -> FeelResult {
+    /// picture shot `settle` seconds after it, at the film's width and blanked where the film was
+    /// (``FeelScreenFilm/blanked``: its status band, its `ignoring` and its clock's places), to show the film's end was
+    /// the after and not a wrong picture still up.
+    public func beforeAfterOrVeil(_ film: FeelScreenFilm, veils: [FeelScreenFrame] = [], settle: TimeInterval = 1.5) -> FeelResult {
         pause(settle)
         let width = film.frames.last?.width ?? film.cover?.width ?? 160
-        let later = screenPicture(width: width, statusBand: statusBand, ignoring: ignoring)
+        let shot = XCUIScreen.main.screenshot().image
+        let blank = film.blanked ?? [CGRect(x: 0, y: 0, width: shot.size.width, height: 60)]
+        let later = Self.thumbnail(shot, width: width, blank: blank, t: 0)
         var result = film.beforeAfterOrVeil(veils: veils, later: later)
         if result.environment == nil { result.environment = environment }
         return result
@@ -132,6 +134,7 @@ extension OuroFeel {
                            during action: (() -> Void)? = nil) -> FeelScreenFilm {
         let coverPicture = cover ? screenPicture(width: width, statusBand: statusBand, ignoring: ignoring) : nil
         var frames: [FeelScreenFrame] = []
+        var blanked: [CGRect] = []
         let onScreen = screenMapping()
         action?()
         let start = Date()
@@ -140,6 +143,7 @@ extension OuroFeel {
             let shot = XCUIScreen.main.screenshot().image
             let t = Date().timeIntervalSince(start)
             let blank = [CGRect(x: 0, y: 0, width: shot.size.width, height: statusBand)] + ignoring.map(onScreen)
+            blanked = blank
             guard let frame = Self.thumbnail(shot, width: width, blank: blank, t: t) else { break }
             frames.append(frame)
             if t >= atLeast, frames.count >= settle {
@@ -151,6 +155,7 @@ extension OuroFeel {
         var film = FeelScreenFilm(frames: frames, timedBy: "XCUITest's reads, one screenshot a read (\(frames.count) reads over \(seconds) s; a flash shorter than one read is not seen)")
         film.byReads = true
         film.cover = coverPicture
+        film.blanked = blanked
         return film
     }
 

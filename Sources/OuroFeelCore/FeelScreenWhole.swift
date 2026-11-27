@@ -15,8 +15,8 @@ extension FeelScreenFilm {
     ///
     /// The before is the film's ``cover``, shot just before the action (`screenFilm(cover: true, …)`); the after is the
     /// rest the film ends on, which must reach its last sample and match `later`, a picture shot a second or two after
-    /// the film (``OuroFeel/beforeAfterOrVeil(_:veils:settle:statusBand:ignoring:)`` shoots it), so a wrong picture that
-    /// outlasts the film is not taken for the after. A veil is a picture at least `uniform` of one shade (a blank), a
+    /// the film (OuroFeel's `feel.beforeAfterOrVeil(film)` shoots it), so a wrong picture that outlasts the film is not
+    /// taken for the after. A veil is a picture at least `uniform` of one shade (a blank), a
     /// dimmed or washed copy of the before (``isDimmed(_:of:merge:)``: the old page greyed while the next one loads), or
     /// one under `merge` from a picture in `veils` (the app's own loading state, such as a skeleton). Rests are
     /// ``states(stable:merge:run:)``: frames on their way between two rests (a turn's animation, a cross-fade) are not
@@ -89,8 +89,10 @@ extension FeelScreenFilm {
     }
 
     /// Whether `picture` is `before` dimmed or washed evenly (a dark scrim, a light veil over the old page): each pixel is
-    /// the before's scaled by the same factor, under 0.9, plus the same shade, to within `merge` on average. A different
-    /// page, or the before itself, is not. Pixels black in both (the film's blanked bands) are left out.
+    /// the before's scaled by the same factor, under 0.9, plus the same shade. Undoing that dim must give back the before
+    /// to within `merge` on average, measured on the before's own scale, since dimming shrinks every difference with it
+    /// (another page of the same layout, dimmed, would otherwise pass). A different page, or the before itself, is not.
+    /// Pixels black in both (the film's blanked bands) are left out.
     public static func isDimmed(_ picture: FeelScreenFrame, of before: FeelScreenFrame, merge: Double = 1.5) -> Bool {
         guard picture.width == before.width, picture.height == before.height, picture.gray.count == before.gray.count else { return false }
         var xs: [Double] = [], ys: [Double] = []
@@ -107,8 +109,8 @@ extension FeelScreenFilm {
         guard sxx / n > 25 else { return false }
         let a = sxy / sxx, b = my - a * mx
         guard a > 0.05, a < 0.9 else { return false }
-        let residual = zip(xs, ys).reduce(0.0) { $0 + abs($1.1 - (a * $1.0 + b)) } / n
-        return residual < merge
+        let undone = zip(xs, ys).reduce(0.0) { $0 + abs(($1.1 - b) / a - $1.0) } / n
+        return undone < merge
     }
 
     /// Whether a picture is a veil: at least `uniform` of its pixels within 6 of its middle shade. Pure black pixels are

@@ -43,7 +43,9 @@ call unverified as a real tap-size problem. No Feel check caught any of them.
    pace, and that includes #653's, which lasted about 0.2 s each: this check does not catch #653 yet. The film's end is
    taken for the after only when a picture shot a second or two later matches it, so a wrong picture that outlasts the
    film is not passed as the after. A veil is a blank, the old view dimmed or washed evenly (#651's greyed page while a
-   jump loads), or a picture the app passes in `veils:` (a skeleton, a material).
+   jump loads), or a picture the app passes in `veils:` (a skeleton, a material). A dimmed picture counts as the old
+   view only once the dim is undone and it matches the old view, so a dimmed different page is not a veil. The later
+   picture is blanked where the film was, so a clock in the status band is not read as a change.
 4. **Motion's promise now says what it always meant.** Nothing moves unbidden: the screen only ever shows where it was
    or where it is going. Its name and id stay, so nothing that reads the catalog breaks.
 5. **The fold is the app's to declare.** No CI simulator folds, so the fold check reads an element the app puts over
@@ -54,9 +56,11 @@ call unverified as a real tap-size problem. No Feel check caught any of them.
    platform's, not 44 everywhere.
 7. **A turn has to happen to be judged.** A turn that leaves the window's shape as it was (a portrait-only app, or a
    platform where `FeelPose.turns` is the current pose) could not be checked, and nor could a turn after a scroll that
-   moved nothing. The turn-place check reads from the window's or the scroll view's top edge, counting text partly
-   shown, so a page under the status bar (SwiftUI's default, which shows the bar in portrait only) reads the same in
-   each orientation.
+   moved nothing. The turn-place check reads twice, counting text partly shown: from the window's or the scroll view's
+   top edge, for a page that keeps its place there (SwiftUI's default runs under the status bar, which shows in
+   portrait only), and from below the status and navigation bars, for one that keeps it at the safe area's top
+   (UIKit). A turn passes if any pairing of the readings is within a line. A place lost inside one long paragraph is
+   not seen by either reading, so such a page passes `read:`.
 8. **Nothing is counted.** The guide, the README, `AGENTS.md` and the principles record no longer say how many
    principles or checks there are; the catalog is the list.
 

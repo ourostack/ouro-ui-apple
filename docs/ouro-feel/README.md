@@ -304,10 +304,11 @@ page waits for that tap in its bug build (`testAJumpLandsOnItsOwn`).
 Proves: in each pose, every enabled button, link, tab and menu on screen is at least the platform's default control
 size by its accessibility frame, from the table under "Offer sufficiently sized controls" in [Apple's Human Interface
 Guidelines, Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility#Mobility): 44 by
-44 points on iOS, iPadOS and watchOS, 28 on macOS, 60 on visionOS (`FeelTargets.minimum`; pass `minimum:` for another
-line). The system's own controls that Apple sizes below it are left out, with everything inside them: switches,
+44 points on iOS, iPadOS and watchOS, 28 on macOS (Mac Catalyst too), 60 on visionOS (`FeelTargets.minimum`; pass
+`minimum:` for another line). The system's own controls that Apple sizes below it are left out, with everything inside them: switches,
 sliders, steppers, text fields, search fields and text views (so a field's clear button), a segmented control's
-segments, pickers, the keyboard's keys and a sheet's grabber. Name anything else to leave out in `ignoring:` (an
+segments, pickers, the keyboard's keys, a sheet's grabber and a Mac window's close, minimise, zoom and full-screen
+buttons. Name anything else to leave out in `ignoring:` (an
 inline link in running text). A finding is marked inference: a UIKit control that
 answers taps beyond its frame (`point(inside:with:)`) is bigger than it reads. In SwiftUI, give a small glyph its
 44-point frame inside the button's label (`.frame(width: 44, height: 44).contentShape(Rectangle())`), so the frame
@@ -390,12 +391,15 @@ Proves: through each turn (landscape, portrait, landscape, portrait by default, 
 screen after it are within a line of the first words before it. Before every turn but the first it runs `between`,
 which by default drags the content up half the window, slowly, so the place moves on as a reader's does. The words are
 those `read` returns (the app's own report of its visible text, such as `reader.visibleText`), or by default every
-text any of which shows in the window, or inside `within`, in reading order (`FeelTurnPlace.reading(_:in:)`), leaving
-out bars' words. So the reading starts at the same top edge in each orientation, whether or not the status bar is over
-it (a SwiftUI scroll view runs under it by default, and shows it in portrait only), and a paragraph that began above the
-screen is still the first thing read. The two readings are
-lined up by their first four words: a turn's reflow moves the start by a few words and passes; more than a line
+text any of which shows in the window, or inside `within`, in reading order, leaving out bars' words. It reads twice
+(`FeelTurnPlace.readings(_:in:below:)`): from the top edge, for an app that keeps its place at its scroll view's top
+(a SwiftUI scroll view runs under the status bar by default, and shows the bar in portrait only), and from below the
+status and navigation bars, for one that keeps its place at the safe area's top (UIKit's adjusted content inset). A
+paragraph that began above the edge is still the first thing read. Before and after are lined up by their first four
+words, in every pairing of the two readings, and the turn is judged by the closest: a turn's reflow moves the start by a few words and passes; more than a line
 (`line` words, by default the first text's words, at most 15) fails, and so does a start found in neither reading.
+Since each reading starts at a text's first word, a place lost inside one long paragraph (a chapter laid out as a single
+text) is not seen: give such a page `read:`, from the app's own record of its first visible words.
 A turn that left the window's shape as it was (a portrait-only app, or a platform with nothing to turn,
 where `FeelPose.turns` is the current pose) could not be checked, and so could not a turn after a scroll that moved
 nothing on screen. Only a fingerprint of each word goes in the report. It sits under this principle because place's
@@ -556,7 +560,7 @@ the page (`testChromeFloatsOverContent`), and `float-under`, whose bug build flo
 
 Proves: after a jump, its target (by identifier or label: the search hit, the linked passage, the chosen chapter's
 heading) lies wholly inside the window, and inside the viewport named `over:` when given, under none of the chrome you
-name and, with no `over:`, not under the status bar. It runs `jump`, waits up to `within` seconds (5 by default) for the target, then for its frame to hold still for
+name and never under the status bar. It runs `jump`, waits up to `within` seconds (5 by default) for the target, then for its frame to hold still for
 half a second, and reads the target and the chrome together. Chrome that is not on screen once the jump lands covers
 nothing, and the report notes it. A target that never shows could not be checked. Give the hit its own element (a
 search highlight with an identifier) so its frame is the hit's, not its paragraph's.
@@ -667,7 +671,7 @@ was or where it is going. No ghost, no jump, no snap, no flicker, no stall.
 | settle time | The screen comes to rest promptly after you act. | `film.settles(_:within:)` |
 | flicker | Each thing changes once on its way to where it ends; nothing flips back and forth before it settles. With no input, nothing changes at all. | `film.flickers(of:within:changes:)`; for the whole screen, `feel.screenFilm(...).flickers(within:states:)`; with no input, `feel.stillWhileIdle(for:watch:poses:)` |
 | hitches (a measure) | Motion runs at the display's pace with no visible stall. | `FeelHitches.analyze(timestamps:refresh:)`, `film.hitches()`, `feel.measureHitches(in:)` |
-| the screen shows only the before, the after or a veil | Through a turn or a jump the screen rests only on the old view, the new one or a veil (a blank, or the old view dimmed): never a stretched, squeezed, shrunken or blended picture, a band, or another page. | `feel.beforeAfterOrVeil(_:veils:settle:statusBand:ignoring:)`, `film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)` |
+| the screen shows only the before, the after or a veil | Through a turn or a jump the screen rests only on the old view, the new one or a veil (a blank, or the old view dimmed): never a stretched, squeezed, shrunken or blended picture, a band, or another page. | `feel.beforeAfterOrVeil(_:veils:settle:)`, `film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)` |
 
 ### Motion: double-draw, jump after landing, chrome, snap, settle
 
@@ -915,8 +919,9 @@ between two rests, a turn's animation or a cross-fade, are not judged; a wrong s
 samples is not seen, which on a film by reads means one shorter than two screenshots. Pictures are compared only with
 pictures of their own size, since a turn changes the screen's shape, and the contact sheet of a failing film gives each
 sample a cell as big as the largest. It cannot be checked without a cover, when the film stalled or skipped, when the
-screen was still changing at its end, or when the later picture differs from its end. For a film on the app's clock,
-put the clock's frame in `ignoring:`.
+screen was still changing at its end, or when the later picture differs from its end. The later picture is blanked
+where the film's samples were (`FeelScreenFilm.blanked`: its status band, its `ignoring:` and the clock's places on a
+film by the app's clock), so a ticking clock is not read as a change.
 
 ```swift
 let film = feel.screenFilm(cover: true, atLeast: 4) { XCUIDevice.shared.orientation = .landscapeLeft }

@@ -35,6 +35,10 @@ public struct FeelScreenFilm: Codable, Equatable, Sendable {
     /// The cover, shot with the film's own size and blanking just before its action, by the `screenFilm(cover:…)`
     /// overloads of `OuroFeel`; nil otherwise. ``revealHolds(until:stable:merge:run:)`` judges the film against it.
     public var cover: FeelScreenFrame?
+    /// The rects each sample was blanked at, in the screenshot's points (the status band, `ignoring`, the clock's places),
+    /// so a later picture can be blanked the same, as OuroFeel's `feel.beforeAfterOrVeil(film)` shoots one. Nil for a
+    /// film made elsewhere.
+    public var blanked: [CGRect]?
 
     public init(frames: [FeelScreenFrame], stalledAt: Double? = nil, timedBy: String? = nil) {
         self.frames = frames

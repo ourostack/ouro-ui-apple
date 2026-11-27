@@ -221,7 +221,7 @@ public struct FeelCheck: Hashable, Codable, Sendable {
     public static let beforeAfterOrVeil = FeelCheck(
         name: "the screen shows only the before, the after or a veil",
         good: "Through a turn or a jump the screen rests only on the old view, the new one or a veil (a blank, or the old view dimmed): never a stretched, squeezed, shrunken or blended picture, a band, or another page.",
-        principle: .motion, calls: ["feel.beforeAfterOrVeil(_:veils:settle:statusBand:ignoring:)", "film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)"])
+        principle: .motion, calls: ["feel.beforeAfterOrVeil(_:veils:settle:)", "film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)"])
 
     /// Every check: the genres first, then each added since, in the order they came.
     public static let all: [FeelCheck] = FeelGenre.allCases.map(FeelCheck.init) + [

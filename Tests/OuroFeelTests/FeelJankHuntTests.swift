@@ -178,6 +178,38 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
         #expect(result.summary.contains("moved nothing"), "\(result.text)")
     }
 
+    @Test func aPageKeptAtTheSafeAreaTopPasses() {
+        // UIKit's adjustedContentInset or a TextKit reader keeps the place below the bars. Read from the window's top,
+        // portrait counts three lines under the status and navigation bars that landscape has no room for; read from
+        // below the bars, both start at the same words.
+        let result = FeelTurnPlace.judge([FeelTurnRead(turn: "landscape", before: at(100), after: at(116), line: 8,
+                                                       beforeBelowBars: at(124), afterBelowBars: at(124))])
+        #expect(result.passed, "\(result.text)")
+        #expect(result.measures["most words moved"] == 0)
+    }
+
+    @Test func aPageKeptAtTheBoundsTopPasses() {
+        // SwiftUI's scrollPosition(anchor: .top) keeps the place at the scroll view's top, under the bars.
+        let result = FeelTurnPlace.judge([FeelTurnRead(turn: "landscape", before: at(100), after: at(100), line: 8,
+                                                       beforeBelowBars: at(124), afterBelowBars: at(108))])
+        #expect(result.passed, "\(result.text)")
+        // A lost place is lost from either top edge.
+        let lost = FeelTurnPlace.judge([FeelTurnRead(turn: "landscape", before: at(200), after: at(100), line: 8, scrolledFirst: true,
+                                                     beforeBelowBars: at(224), afterBelowBars: at(108))])
+        #expect(!lost.passed)
+        #expect(lost.detections.count == 1)
+    }
+
+    @Test func theReadingIsTakenFromTheTopAndFromBelowTheBars() {
+        let window = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let texts: [(frame: CGRect, text: String)] = (0..<10).map { (CGRect(x: 24, y: CGFloat($0) * 40, width: 300, height: 32), "line \($0)") }
+        let both = FeelTurnPlace.readings(texts, in: window, below: 103)
+        #expect(both.fromTop.first == "line 0")
+        // The bars end at 103 pt; line 2 (80 to 112 pt) shows 9 pt below them, so that reading starts there.
+        #expect(both.belowBars.first == "line 2")
+        #expect(FeelTurnPlace.readings(texts, in: window, below: 0).belowBars == both.fromTop)
+    }
+
     @Test func theReadingStartsAtTheViewportsTopAndCountsTextPartlyShown() {
         // The same top edge in every orientation: a line partly under the status bar, or a paragraph that started
         // above the screen, is where the reading starts; one wholly above or below the viewport is not read.
@@ -317,7 +349,7 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
 
     @Test func theMinimumIsThePlatformsDefaultControlSize() {
         // Apple's HIG, Accessibility, "Offer sufficiently sized controls": the default control size per platform.
-        #if os(macOS)
+        #if os(macOS) || targetEnvironment(macCatalyst)
         #expect(FeelTargets.minimum == 28)
         #elseif os(visionOS)
         #expect(FeelTargets.minimum == 60)
@@ -409,6 +441,15 @@ private func button(_ key: String, _ frame: CGRect) -> FeelElement { FeelElement
         f.byReads = true
         f.cover = before
         #expect(f.beforeAfterOrVeil(later: later(f)).passed, "\(f.beforeAfterOrVeil(later: later(f)).text)")
+    }
+
+    @Test func aDimmedDifferentPageIsNoVeil() {
+        // Two pages with the same layout differ only in their text's texture at a film's width; dimming the other one
+        // shrinks that difference, which must be measured on the before's scale, not the dimmed one.
+        let before = FeelScreenFrame(t: 0, width: 4, height: 4, gray: [20, 60, 100, 140, 180, 220, 200, 200, 200, 200, 40, 200, 200, 200, 200, 200])
+        let other = before.gray.enumerated().map { i, v in i >= 6 && i != 10 ? (i % 2 == 0 ? v + 4 : v - 4) : v }
+        let dimmed = FeelScreenFrame(t: 0, width: 4, height: 4, gray: other.map { UInt8(Double($0) * 0.4) })
+        #expect(!FeelScreenFilm.isDimmed(dimmed, of: before))
     }
 
     @Test func aWrongPictureThatOutlastsTheFilmCannotBeChecked() {

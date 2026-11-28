@@ -79,6 +79,8 @@ jobs:
           fi
       - name: The gallery's and Ouro Feel's shard plans match their UI tests
         run: python3 -I scripts/ui-shards.py check
+      - name: A report-only job never exits nonzero
+        run: python3 -I scripts/test-report-only-jobs.py
 
   provenance:
     name: Core provenance
@@ -377,12 +379,25 @@ jobs:
         run: python3 -I scripts/ci-simulator.py wait ouro-hx-motion 240
       - name: Every transition is smooth (hitch probe, Release build)
         run: |
-          set -o pipefail
+          set +e
           xcodebuild test-without-building -project Examples/OuroHXGallery/OuroHXGallery.xcodeproj -scheme OuroHXGallery -configuration Release \
             -destination "id=$UDID" -derivedDataPath .build/gallery-release -resultBundlePath .build/gallery-motion.xcresult \
             -only-testing:OuroHXGalleryUITests/MotionTests \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error|failed|passed|skipped|Executed|TEST" | tail -60 \
-            || { echo "::warning title=Motion over the limit on the hosted VM::See the MotionTests results above and gallery-motion.xcresult (#25)."; exit 1; }
+            CODE_SIGNING_ALLOWED=NO > .build/gallery-motion.log 2>&1
+          status=$?
+          lines=$(grep -E "error|failed|passed|skipped|Executed|TEST" .build/gallery-motion.log | tail -60)
+          echo "$lines"
+          {
+            echo "### Hitch probe (report only)"
+            echo
+            if [ "$status" -eq 0 ]; then echo "MotionTests passed."; else echo "MotionTests failed (exit $status); the 5 ms/s limit is unchanged and gates on a Mac's simulator and on device."; fi
+            echo
+            echo '```'
+            echo "$lines"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ]; then echo "::warning title=Motion over the limit on the hosted VM::See the step summary and gallery-motion.xcresult (#25)."; fi
+          exit 0
       - if: always()
         name: Pack the result bundle
         run: test -d .build/gallery-motion.xcresult && tar -czf .build/gallery-motion.tgz -C .build gallery-motion.xcresult || true

@@ -751,6 +751,131 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    // MARK: Gatefold's jank hunt, 2026-11-27 (ourostack/gatefold#646 to #654)
+
+    /// Content clears the fold, on a fold the page declares (no simulator folds): the bug's one column runs across it;
+    /// the fixed page has a page on each side.
+    func testContentClearsTheFold() {
+        both("fold") { app, feel in
+            _ = app.descendants(matching: .any)["ouro.fold"].waitForExistence(timeout: 10)
+            let result = feel.clearsTheFold(spread: true, posture: "a simulated fold, held like a book")
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("runs across the fold") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// A turn lays out like a fresh launch: the bug's portrait panel lingers in landscape, and is missing when it turns
+    /// back; the fixed page's panel follows the window.
+    func testATurnLaysOutLikeAFreshLaunch() {
+        both("relayout") { app, feel in
+            _ = app.descendants(matching: .any)["relayout.page"].waitForExistence(timeout: 10)
+            let result = feel.laysOutFresh()
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("\"relayout.panel\" is still on screen") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Your place survives a turn, with a scroll between turns: the bug goes back to the first turn's place; the fixed
+    /// page keeps the line at the top.
+    func testYourPlaceSurvivesATurn() {
+        both("turn-place") { app, feel in
+            _ = app.scrollViews["turn.page"].waitForExistence(timeout: 10)
+            let result = feel.placeSurvivesTurns(within: "turn.page")
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("the place") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// A jump lands on its own, on time: the bug's Contents jump waits for the next tap on the page; the fixed one lands.
+    func testAJumpLandsOnItsOwn() {
+        both("jump") { app, feel in
+            let contents = app.buttons["jump.contents"]
+            _ = contents.waitForExistence(timeout: 10)
+            let result = feel.landsOnItsOwn(contents, on: "Page 30")
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("landed only after a tap") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// What you asked for lands in clear view: the bug's search hit lands under the "Back to where you were" pill; the
+    /// fixed one near the top.
+    func testWhatYouAskedForLandsInClearView() {
+        both("hit") { app, feel in
+            let search = app.buttons["hit.result"]
+            _ = search.waitForExistence(timeout: 10)
+            let result = feel.landsInClearView("hit.target", chrome: ["hit.back"], over: "hit.page") { search.tap() }
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("landed under") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// A notice gets out of the way: the bug's notice stays over the first line; the fixed page makes room for it.
+    func testANoticeGetsOutOfTheWay() {
+        both("notice") { app, feel in
+            _ = app.descendants(matching: .any)["notice.banner"].waitForExistence(timeout: 10)
+            let result = feel.noticeGivesWay("notice.banner", within: "notice.page", after: 3)
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("still covers") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// Every target is big enough to hit: the bug's close button is its 14 pt glyph; the fixed one is 44 pt.
+    func testEveryTargetIsBigEnoughToHit() {
+        both("targets") { app, feel in
+            _ = app.buttons["targets.close"].waitForExistence(timeout: 10)
+            let result = feel.targetsBigEnough()
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("\"targets.close\" is 14×14 pt") }, result.text)
+            }
+            return (result, nil)
+        }
+    }
+
+    /// The screen shows only the before, the after or a veil, at a jump judged from screenshots: the bug shows another
+    /// page on the way; the fixed jump shows a plain veil, then the target.
+    func testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilAtAJump() {
+        both(screens: "landing") { app, feel in
+            let jump = app.buttons["landing.jump"]
+            _ = jump.waitForExistence(timeout: 10)
+            // At least 4 s: the page lands 1.5 s after Jump, and a loaded runner can take the tap late.
+            let film = feel.screenFilm(cover: true, atLeast: 4) { jump.tap() }
+            let result = feel.beforeAfterOrVeil(film)
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("neither the before, the after nor a veil") }, result.text)
+            }
+            return (result, film)
+        }
+    }
+
+    /// The same through a turn, whose pictures change shape: the bug's page is drawn squeezed for 3 s after it; the
+    /// fixed page re-lays out with the turn.
+    func testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilThroughATurn() {
+        both(screens: "turn-film") { app, feel in
+            _ = app.wait(for: .runningForeground, timeout: 10)
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+            let film = feel.screenFilm(cover: true, atLeast: 5) { XCUIDevice.shared.orientation = .landscapeLeft }
+            // Judged before turning back: its later picture must be of the landscape after.
+            let result = feel.beforeAfterOrVeil(film)
+            XCUIDevice.shared.orientation = .portrait
+            if isBugBuild(app) {
+                XCTAssertTrue(result.detections.contains { $0.what.contains("neither the before, the after nor a veil") }, result.text)
+            }
+            return (result, film)
+        }
+    }
+
     /// Not a pass or fail: one `XCTHitchMetric` reading of the fixed motion page, so the result bundle shows what the
     /// simulator reports (a proxy; gate hitches on a device).
     func testHitchMetricReading() throws {

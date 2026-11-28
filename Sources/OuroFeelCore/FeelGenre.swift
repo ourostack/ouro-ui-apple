@@ -101,12 +101,18 @@ public struct FeelPrinciple: Hashable, Codable, Sendable {
     public static let canvas = FeelPrinciple(
         id: "canvas", name: "the content is the canvas",
         promise: "What you read fills its space and stays there: inside the window, still on every axis it doesn't scroll, and never covered or crowded out by chrome.")
+    /// Posture changes re-lay out in place. From the Gatefold jank hunt, 2026-11-27 (ourostack/gatefold#646, #647,
+    /// #649): a Duo held like a book laid out as tabletop, and a layout outlived the posture that made it. A turn that
+    /// loses the place breaks place's promise, which already names turns.
+    public static let posture = FeelPrinciple(
+        id: "posture", name: "posture changes re-lay out in place",
+        promise: "When the device turns, folds or unfolds, the screen lays out as if it had launched that way: nothing lingers from the old shape, and nothing runs across the fold.")
     public static let motion = FeelPrinciple(
         id: "motion", name: "motion and chrome never surprise",
-        promise: "Things move once, on purpose, at the display's pace: no ghost, no jump, no snap, no flicker, no stall.")
+        promise: "Nothing moves unbidden: things move once, on purpose, at the display's pace, and the screen only ever shows where it was or where it is going. No ghost, no jump, no snap, no flicker, no stall.")
 
     /// Every principle, in the order the guide gives them.
-    public static let all: [FeelPrinciple] = [intent, place, canvas, motion]
+    public static let all: [FeelPrinciple] = [intent, place, canvas, posture, motion]
 
     /// This principle's checks, in ``FeelCheck/all`` order.
     public var checks: [FeelCheck] { FeelCheck.all.filter { $0.principle == self } }
@@ -161,6 +167,66 @@ public struct FeelCheck: Hashable, Codable, Sendable {
         good: "A tap that starts slow work (a download, a load, a sign-in) finishes what you asked for when the work is done; you never tap it twice.",
         principle: .intent, calls: ["feel.finishesIntent(_:opens:within:quiet:)", "feel.finishesIntent(_:named:within:quiet:done:)"])
 
+    /// Content clears the fold. From Gatefold, 2026-11-27 (ourostack/gatefold#646): a Duo half-open like a book laid
+    /// the page out as one column straight across the fold.
+    public static let clearsTheFold = FeelCheck(
+        name: "content clears the fold",
+        good: "In every fold posture nothing you read runs across the fold, and a device held open like a book shows a page on each side of it.",
+        principle: .posture, calls: ["feel.clearsTheFold(_:content:within:spread:posture:)", "feel.clearsTheFold(at:content:within:spread:posture:)"])
+
+    /// A turn lays out like a fresh launch. From Gatefold, 2026-11-27 (ourostack/gatefold#647): opening a Duo flat
+    /// after book posture kept the tabletop layout for 10 s and more.
+    public static let laysOutFresh = FeelCheck(
+        name: "a turn lays out like a fresh launch",
+        good: "A few seconds after the device turns, folds or unfolds, the screen is laid out as a fresh launch in that posture lays it out: nothing lingers, nothing is missing.",
+        principle: .posture, calls: ["feel.laysOutFresh(after:within:keys:ignoring:reopen:)", "feel.laysOutFresh(named:within:keys:ignoring:reopen:change:)"])
+
+    /// Your place survives a turn. From Gatefold, 2026-11-27 (ourostack/gatefold#650): in scroll mode, a turn after a
+    /// scroll went back to the previous turn's place.
+    public static let placeSurvivesTurns = FeelCheck(
+        name: "your place survives a turn",
+        good: "After a turn, the first words on screen are within a line of the first words before it, however you scrolled since the last turn.",
+        principle: .place, calls: ["feel.placeSurvivesTurns(_:within:line:between:read:)"])
+
+    /// What you asked for lands in clear view. From Gatefold, 2026-11-27 (ourostack/gatefold#652): a search hit landed
+    /// under the "Back to where you were" pill.
+    public static let landsInClearView = FeelCheck(
+        name: "what you asked for lands in clear view",
+        good: "A jump's target (a search hit, a linked passage, a chosen chapter) lands wholly inside the window and under no chrome.",
+        principle: .canvas, calls: ["feel.landsInClearView(_:chrome:over:within:jump:)"])
+
+    /// A notice gets out of the way. From Gatefold, 2026-11-27 (ourostack/gatefold#654): the re-sign-in notice
+    /// covered the first line of every page, through page turns.
+    public static let noticeGivesWay = FeelCheck(
+        name: "a notice gets out of the way",
+        good: "A banner or notice never stays over what you read: the content makes room for it, or it goes once you act or wait.",
+        principle: .canvas, calls: ["feel.noticeGivesWay(_:content:within:after:then:)"])
+
+    /// A jump lands on its own, on time. From Gatefold, 2026-11-27 (ourostack/gatefold#651): Contents, search and
+    /// scrubber jumps held the old page for 4 to 8 s, and on the iPhone and the Duo's cover landed only at the next tap.
+    public static let landsOnItsOwn = FeelCheck(
+        name: "a jump lands on its own, on time",
+        good: "A jump (a contents entry, a search hit, a scrubber drop) lands on its target within its budget, with no further tap.",
+        principle: .intent, calls: ["feel.landsOnItsOwn(_:on:budget:within:nudge:)", "feel.landsOnItsOwn(named:budget:within:nudge:jump:landed:)"])
+
+    /// Every target is big enough to hit. From the Gatefold jank hunt's notes, 2026-11-27: a dump of the Duo's reader
+    /// showed its close button 14 by 14 points, not confirmed as a real tap-size problem.
+    public static let targetsBigEnough = FeelCheck(
+        name: "every target is big enough to hit",
+        good: "Every button, link and tab is at least the platform's default control size (44 by 44 points on iOS), so a tap lands where you aim.",
+        principle: .intent, calls: ["feel.targetsBigEnough(minimum:ignoring:poses:)"])
+
+    /// The screen shows only the before, the after or a veil. From Gatefold, 2026-11-27 (ourostack/gatefold#648,
+    /// #649): turns went through stretched, tiny and doubled frames.
+    public static let beforeAfterOrVeil = FeelCheck(
+        name: "the screen shows only the before, the after or a veil",
+        good: "Through a turn or a jump the screen rests only on the old view, the new one or a veil (a blank, or the old view dimmed): never a stretched, squeezed, shrunken or blended picture, a band, or another page.",
+        principle: .motion, calls: ["feel.beforeAfterOrVeil(_:veils:settle:)", "film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)"])
+
     /// Every check: the genres first, then each added since, in the order they came.
-    public static let all: [FeelCheck] = FeelGenre.allCases.map(FeelCheck.init) + [viewportHolds, chromeFloats, finishesIntent]
+    public static let all: [FeelCheck] = FeelGenre.allCases.map(FeelCheck.init) + [
+        viewportHolds, chromeFloats, finishesIntent,
+        clearsTheFold, laysOutFresh, placeSurvivesTurns, landsInClearView, noticeGivesWay, landsOnItsOwn, targetsBigEnough,
+        beforeAfterOrVeil,
+    ]
 }

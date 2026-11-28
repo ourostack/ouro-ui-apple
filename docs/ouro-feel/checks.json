@@ -31,6 +31,21 @@
           ],
           "good" : "A tap that starts slow work (a download, a load, a sign-in) finishes what you asked for when the work is done; you never tap it twice.",
           "name" : "one action finishes the intent"
+        },
+        {
+          "calls" : [
+            "feel.landsOnItsOwn(_:on:budget:within:nudge:)",
+            "feel.landsOnItsOwn(named:budget:within:nudge:jump:landed:)"
+          ],
+          "good" : "A jump (a contents entry, a search hit, a scrubber drop) lands on its target within its budget, with no further tap.",
+          "name" : "a jump lands on its own, on time"
+        },
+        {
+          "calls" : [
+            "feel.targetsBigEnough(minimum:ignoring:poses:)"
+          ],
+          "good" : "Every button, link and tab is at least the platform's default control size (44 by 44 points on iOS), so a tap lands where you aim.",
+          "name" : "every target is big enough to hit"
         }
       ],
       "id" : "intent",
@@ -59,6 +74,13 @@
           ],
           "good" : "After you move, your place stays where you put it: no late restore, re-sent jump or sync landing moves it again.",
           "name" : "navigation that fights you"
+        },
+        {
+          "calls" : [
+            "feel.placeSurvivesTurns(_:within:line:between:read:)"
+          ],
+          "good" : "After a turn, the first words on screen are within a line of the first words before it, however you scrolled since the last turn.",
+          "name" : "your place survives a turn"
         }
       ],
       "id" : "place",
@@ -88,11 +110,48 @@
           ],
           "good" : "Glass and overlays float over the content: it runs underneath them, never shrinks or is cropped to make room, and its end can always be brought clear of them.",
           "name" : "chrome floats over content"
+        },
+        {
+          "calls" : [
+            "feel.landsInClearView(_:chrome:over:within:jump:)"
+          ],
+          "good" : "A jump's target (a search hit, a linked passage, a chosen chapter) lands wholly inside the window and under no chrome.",
+          "name" : "what you asked for lands in clear view"
+        },
+        {
+          "calls" : [
+            "feel.noticeGivesWay(_:content:within:after:then:)"
+          ],
+          "good" : "A banner or notice never stays over what you read: the content makes room for it, or it goes once you act or wait.",
+          "name" : "a notice gets out of the way"
         }
       ],
       "id" : "canvas",
       "name" : "the content is the canvas",
       "promise" : "What you read fills its space and stays there: inside the window, still on every axis it doesn't scroll, and never covered or crowded out by chrome."
+    },
+    {
+      "checks" : [
+        {
+          "calls" : [
+            "feel.clearsTheFold(_:content:within:spread:posture:)",
+            "feel.clearsTheFold(at:content:within:spread:posture:)"
+          ],
+          "good" : "In every fold posture nothing you read runs across the fold, and a device held open like a book shows a page on each side of it.",
+          "name" : "content clears the fold"
+        },
+        {
+          "calls" : [
+            "feel.laysOutFresh(after:within:keys:ignoring:reopen:)",
+            "feel.laysOutFresh(named:within:keys:ignoring:reopen:change:)"
+          ],
+          "good" : "A few seconds after the device turns, folds or unfolds, the screen is laid out as a fresh launch in that posture lays it out: nothing lingers, nothing is missing.",
+          "name" : "a turn lays out like a fresh launch"
+        }
+      ],
+      "id" : "posture",
+      "name" : "posture changes re-lay out in place",
+      "promise" : "When the device turns, folds or unfolds, the screen lays out as if it had launched that way: nothing lingers from the old shape, and nothing runs across the fold."
     },
     {
       "checks" : [
@@ -149,11 +208,19 @@
           ],
           "good" : "Motion runs at the display's pace with no visible stall.",
           "name" : "hitches"
+        },
+        {
+          "calls" : [
+            "feel.beforeAfterOrVeil(_:veils:settle:)",
+            "film.beforeAfterOrVeil(veils:later:uniform:stable:merge:run:)"
+          ],
+          "good" : "Through a turn or a jump the screen rests only on the old view, the new one or a veil (a blank, or the old view dimmed): never a stretched, squeezed, shrunken or blended picture, a band, or another page.",
+          "name" : "the screen shows only the before, the after or a veil"
         }
       ],
       "id" : "motion",
       "name" : "motion and chrome never surprise",
-      "promise" : "Things move once, on purpose, at the display's pace: no ghost, no jump, no snap, no flicker, no stall."
+      "promise" : "Nothing moves unbidden: things move once, on purpose, at the display's pace, and the screen only ever shows where it was or where it is going. No ghost, no jump, no snap, no flicker, no stall."
     }
   ]
 }

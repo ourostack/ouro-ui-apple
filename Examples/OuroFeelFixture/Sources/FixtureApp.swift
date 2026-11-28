@@ -36,6 +36,15 @@ struct FixtureApp: App {
             case "float": FloatPage(under: false)
             case "float-under": FloatPage(under: true)
             case "intent": IntentPage()
+            case "fold": FoldPage()
+            case "relayout": RelayoutPage()
+            case "turn-place": TurnPlacePage()
+            case "jump": JumpPage()
+            case "hit": HitPage()
+            case "notice": NoticePage()
+            case "targets": TargetsPage()
+            case "landing": LandingPage()
+            case "turn-film": TurnFilmPage()
             default: NavPage()
             }
         }
@@ -1206,6 +1215,294 @@ struct IntentPage: View {
             progress = nil
             downloaded = true
             if !bug { open = true }
+        }
+    }
+}
+
+// MARK: Gatefold's jank hunt, 2026-11-27 (ourostack/gatefold#646 to #654)
+
+/// Words for a page, different on every line, so a line's words say where it is.
+private func prose(_ n: Int, words: Int = 8) -> String {
+    let pool = ["truth", "universally", "acknowledged", "single", "man", "possession", "good", "fortune", "want", "wife",
+                "however", "little", "known", "feelings", "views", "neighbourhood", "minds", "surrounding", "families"]
+    return ([("l\(n)")] + (1..<words).map { pool[(n * 7 + $0 * 3) % pool.count] }).joined(separator: " ")
+}
+
+/// Content clears the fold. A simulated fold runs top to bottom down the middle of the window, declared as the element
+/// `ouro.fold`, as an app puts one over OuroHX's `OuroFoldRegion.frame`. Fixed: a page on each side of it. The bug, as
+/// Gatefold#646: one column of text straight across it.
+struct FoldPage: View {
+    static let fold: CGFloat = 16
+
+    var body: some View {
+        ZStack {
+            if bug {
+                column(0..<12)
+            } else {
+                HStack(spacing: Self.fold + 24) {
+                    column(0..<12)
+                    column(12..<24)
+                }
+            }
+            Rectangle().fill(.gray.opacity(0.35)).frame(width: Self.fold).frame(maxHeight: .infinity)
+                .accessibilityElement().accessibilityLabel("Fold").accessibilityIdentifier("ouro.fold")
+                .allowsHitTesting(false)
+        }
+        .padding(.horizontal, 12)
+        .ignoresSafeArea(edges: .horizontal)
+    }
+
+    private func column(_ lines: Range<Int>) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Array(lines), id: \.self) { n in
+                Text(prose(n, words: 14)).font(.footnote).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 24)
+    }
+}
+
+/// A turn lays out like a fresh launch. A page with a controls panel that belongs to portrait. Fixed: the panel follows
+/// the window's shape. The bug, as Gatefold#647: the panel is decided once, at launch, so after a turn the old shape's
+/// panel lingers (or the new one's is missing) until the app is launched again.
+struct RelayoutPage: View {
+    @State private var launchedPortrait: Bool?
+
+    var body: some View {
+        GeometryReader { geo in
+            let portrait = geo.size.height > geo.size.width
+            let panel = bug ? (launchedPortrait ?? portrait) : portrait
+            VStack(spacing: 0) {
+                Text(prose(1, words: 30)).padding(24).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .accessibilityElement(children: .combine).accessibilityIdentifier("relayout.page")
+                if panel {
+                    Text("Controls").frame(maxWidth: .infinity).frame(height: 160)
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .accessibilityElement(children: .combine).accessibilityIdentifier("relayout.panel")
+                }
+            }
+            .onAppear { if launchedPortrait == nil { launchedPortrait = portrait } }
+        }
+    }
+}
+
+/// Your place survives a turn. A scrolling page of lines, one text each. Fixed: a turn keeps the line at the top. The
+/// bug, as Gatefold#650: the place is saved at the first turn only, so a turn after a scroll goes back to it. The page
+/// runs under the status bar, as a SwiftUI scroll view does by default.
+struct TurnPlacePage: View {
+    @State private var top: Int?
+    @State private var anchor: Int?
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(0..<240, id: \.self) { n in
+                        Text(prose(n)).lineLimit(1).frame(height: 32, alignment: .leading).id(n)
+                    }
+                }
+                .scrollTargetLayout()
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollPosition(id: $top, anchor: .top)
+            .accessibilityIdentifier("turn.page")
+            .onChange(of: geo.size) {
+                guard bug else { return }
+                if let anchor { top = anchor } else { anchor = top ?? 0 }
+            }
+        }
+    }
+}
+
+/// A jump lands on its own, on time. A page and a Contents button. Fixed: Contents lands on page 30 at once. The bug,
+/// as Gatefold#651 on the Duo's cover: the jump waits, with the old page greyed, until the next tap on the page.
+struct JumpPage: View {
+    @State private var page = 1
+    @State private var pending: Int?
+
+    var body: some View {
+        ZStack {
+            Color.white.opacity(0.001).contentShape(Rectangle())
+                .onTapGesture { if let pending { page = pending; self.pending = nil } }
+            Text("Page \(page)").font(.largeTitle).opacity(pending == nil ? 1 : 0.4)
+                .accessibilityIdentifier("jump.page").allowsHitTesting(false)
+            VStack {
+                Spacer()
+                Button {
+                    if bug { pending = 30 } else { page = 30 }
+                } label: {
+                    Text("Contents: page 30").padding(.horizontal, 20).padding(.vertical, 12)
+                }
+                .background(.thinMaterial, in: Capsule(style: .continuous))
+                .accessibilityIdentifier("jump.contents")
+                .padding(.bottom, 40)
+            }
+        }
+    }
+}
+
+/// What you asked for lands in clear view. A search result that jumps to a hit in a long page, with a "Back to where
+/// you were" pill floating near the bottom. Fixed: the hit lands near the top. The bug, as Gatefold#652: it lands
+/// under the pill.
+struct HitPage: View {
+    @State private var landed = false
+
+    var body: some View {
+        GeometryReader { geo in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(0..<200, id: \.self) { n in
+                            Text(n == 120 ? "the false account of his conduct" : prose(n)).lineLimit(1)
+                                .frame(height: 30, alignment: .leading)
+                                .accessibilityIdentifier(n == 120 ? "hit.target" : "").id(n)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("hit.page")
+                .overlay {
+                    if landed {
+                        Text("Back to where you were").padding(.horizontal, 20).padding(.vertical, 12)
+                            .background(.thinMaterial, in: Capsule(style: .continuous))
+                            .accessibilityElement(children: .combine).accessibilityIdentifier("hit.back")
+                            .position(x: geo.size.width / 2, y: geo.size.height * 0.85)
+                    } else {
+                        Button {
+                            landed = true
+                            proxy.scrollTo(120, anchor: bug ? UnitPoint(x: 0.5, y: 0.85) : UnitPoint(x: 0.5, y: 0.2))
+                        } label: {
+                            Text("Search result: \"conduct\"").padding(.horizontal, 20).padding(.vertical, 12)
+                        }
+                        .background(.thinMaterial, in: Capsule(style: .continuous))
+                        .accessibilityIdentifier("hit.result")
+                        .position(x: geo.size.width / 2, y: geo.size.height * 0.5)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// A notice gets out of the way. A page with a sign-in notice along its top. Fixed: the page makes room for it. The
+/// bug, as Gatefold#654: it floats over the first line and stays there.
+struct NoticePage: View {
+    var body: some View {
+        if bug {
+            lines.overlay(alignment: .top) { notice }
+        } else {
+            lines.safeAreaInset(edge: .top) { notice }
+        }
+    }
+
+    private var lines: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(0..<30, id: \.self) { Text(prose($0)) }
+            }
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityIdentifier("notice.page")
+    }
+
+    private var notice: some View {
+        Text("Your place is waiting to reach your e-reader").font(.footnote).padding(12).frame(maxWidth: .infinity)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 12)
+            .accessibilityElement(children: .combine).accessibilityIdentifier("notice.banner")
+    }
+}
+
+/// Every target is big enough to hit. A reader's top bar with a close button. Fixed: the button's frame is 44 pt. The
+/// bug, as the Duo's `reader.close` in the jank hunt: the button is its 14 pt glyph.
+struct TargetsPage: View {
+    var body: some View {
+        VStack(spacing: 24) {
+            HStack {
+                Button {} label: {
+                    Image(systemName: "xmark").resizable().frame(width: 14, height: 14)
+                        .frame(width: bug ? 14 : 44, height: bug ? 14 : 44).contentShape(Rectangle())
+                }
+                .accessibilityLabel("Close").accessibilityIdentifier("targets.close")
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            Button {} label: { Text("Read").frame(maxWidth: .infinity).frame(height: 50) }
+                .background(.thinMaterial, in: Capsule(style: .continuous))
+                .accessibilityIdentifier("targets.read")
+                .padding(.horizontal, 24)
+            Spacer()
+        }
+    }
+}
+
+/// The screen shows only the before, the after or a veil, at a jump. Big pages that look nothing alike. Fixed: Jump
+/// puts up a plain veil, then page 30. The bug: another page shows on the way to it, for 1.5 s (Gatefold#653 showed one
+/// for about 0.2 s, too short for a screenshot film to catch).
+struct LandingPage: View {
+    @State private var shown = 1
+    @State private var veil = false
+    @State private var jumped = false
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 24) {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(shown == 1 ? Color.teal : (shown == 30 ? Color.purple : Color.orange))
+                    .overlay(Text("Page \(shown)").font(.system(size: 60, weight: .bold)).foregroundStyle(.white))
+                    .frame(height: 420)
+                    .padding(.horizontal, 24)
+                    .accessibilityHidden(true)
+                Button("Jump") {
+                    guard !jumped else { return }
+                    jumped = true
+                    Task { @MainActor in
+                        if bug {
+                            shown = 17
+                            try? await Task.sleep(for: .seconds(1.5))
+                        } else {
+                            veil = true
+                            try? await Task.sleep(for: .seconds(1.5))
+                            veil = false
+                        }
+                        shown = 30
+                    }
+                }
+                .accessibilityIdentifier("landing.jump")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if veil { Color(white: 0.5).ignoresSafeArea().accessibilityHidden(true) }
+        }
+    }
+}
+
+/// The screen shows only the before, the after or a veil, through a turn. Fixed: the page re-lays out with the turn.
+/// The bug, as Gatefold#649 on the iPad: for 3 s after the turn, the page is drawn squeezed to half its width before
+/// the new layout lands (long enough to outlast XCUITest's wait for the turn to be confirmed).
+struct TurnFilmPage: View {
+    @State private var squeezed = false
+
+    var body: some View {
+        GeometryReader { geo in
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.teal)
+                .overlay(Text(geo.size.width > geo.size.height ? "Landscape" : "Portrait").font(.system(size: 48, weight: .bold))
+                    .foregroundStyle(.white))
+                .padding(24)
+                .scaleEffect(x: squeezed ? 0.5 : 1, y: 1)
+                .accessibilityHidden(true)
+                .onChange(of: geo.size) {
+                    guard bug else { return }
+                    squeezed = true
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(3))
+                        squeezed = false
+                    }
+                }
         }
     }
 }

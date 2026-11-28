@@ -1,5 +1,5 @@
 import Foundation
-import OuroDeviceHub
+@testable import OuroDeviceHub
 import OuroHX
 import OuroHXTesting
 import SwiftUI
@@ -33,6 +33,45 @@ private func scratch() throws -> URL {
         #expect(OuroDeviceHub.Failure.notFound("x").exitCode == 2)
         #expect(OuroDeviceHub.Failure.notTrusted.exitCode == 3)
         #expect(OuroDeviceHub.Failure.pressFailed("x", code: -25200).exitCode == 4)
+    }
+}
+
+@Suite struct DuoShotRetryTests {
+    // screencapture on a CI runner exits 1 now and then, at a different shot each time (#295).
+    @Test func aCaptureThatFailsOnceIsTriedAgain() {
+        var calls = 0, pauses = 0
+        let outcome = OuroDuoDriver.retrying(pause: { _ in pauses += 1 }) { calls += 1; return calls < 2 ? 1 : 0 }
+        #expect(outcome.status == 0)
+        #expect(outcome.tries == 2)
+        #expect(pauses == 1)
+    }
+
+    @Test func aCaptureThatKeepsFailingGivesUpAfterItsTries() {
+        var calls = 0
+        let outcome = OuroDuoDriver.retrying(tries: 3, pause: { _ in }) { calls += 1; return 1 }
+        #expect(outcome.status == 1)
+        #expect(outcome.tries == 3)
+        #expect(calls == 3)
+    }
+
+    @Test func aCommandThatCannotStartIsNotTriedAgain() {
+        var calls = 0
+        let outcome = OuroDuoDriver.retrying(pause: { _ in }) { calls += 1; return -1 }
+        #expect(outcome.status == -1)
+        #expect(calls == 1)
+    }
+
+    @Test func itWaitsItsIntervalBetweenTries() {
+        var waited: [Double] = []
+        _ = OuroDuoDriver.retrying(tries: 3, every: 2, pause: { waited.append($0) }) { 1 }
+        #expect(waited == [2, 2])
+    }
+
+    @Test func aCaptureThatWorksAtOnceIsTriedOnce() {
+        var pauses = 0
+        let outcome = OuroDuoDriver.retrying(pause: { _ in pauses += 1 }) { 0 }
+        #expect(outcome.tries == 1)
+        #expect(pauses == 0)
     }
 }
 

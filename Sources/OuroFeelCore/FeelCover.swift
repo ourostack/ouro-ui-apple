@@ -59,7 +59,8 @@ public enum FeelCover {
                                  findings: results.flatMap(\.findings), environment: results.first?.environment)
     }
 
-    static func visible(_ frame: CGRect, in window: CGRect) -> Bool {
+    /// Whether `frame` shows in `window` by more than ``tolerance`` each way: what the checks score as on screen.
+    public static func visible(_ frame: CGRect, in window: CGRect) -> Bool {
         let shown = frame.intersection(window)
         return !shown.isNull && shown.width > tolerance && shown.height > tolerance
     }

@@ -131,7 +131,8 @@ Guide: [docs/ouro-feel/README.md](docs/ouro-feel/README.md). Decisions:
   it did not start is labelled "not labelled, treat as warm". Never add `-retry-tests-on-failure`.
 - **Quote reports as written:** simulator or device, cold or warm, which clock, and inference marked. Never claim a
   hitch figure from the simulator as a device result. A "could not check" failure (findings marked `(not checked)`) is
-  not jank found: fix the test or rerun it.
+  not jank found: fix the test or rerun it. Nor is a "never became ready" failure (findings marked `(never ready)`): the
+  content never came on screen, so look at the app's launch or the runner's load.
 - **A rule change is a core change with a unit test** (`Tests/OuroFeelTests`), and the fixture
   (`Examples/OuroFeelFixture`, bug behind `-bug 1`) must still fail on each bug and pass without it. A change to a
   check's name, line or calls rewrites `docs/ouro-feel/checks.json` (`OURO_FEEL_WRITE_CATALOG=1 swift test --filter

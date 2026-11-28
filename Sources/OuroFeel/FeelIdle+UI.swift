@@ -14,10 +14,24 @@ extension OuroFeel {
     public func stillWhileIdle(for seconds: TimeInterval = 3, every: TimeInterval = 0.1, watch: [String] = [],
                                poses: [FeelPose] = [.current]) -> FeelResult {
         var results: [FeelResult] = []
+        let deadline = readyDeadline()
         for pose in poses {
             pose.apply(self)
+            // Wait on the check's own look: something it watches on screen, and the app's signal if given. The look
+            // that finds it ready is the watch's first, so a screen already there costs no extra look.
+            var first: (sample: FeelIdleSample, at: Double)?
+            if let never = awaitReady(check: FeelGenre.flicker.rawValue, what: nil, pose: pose.name, until: deadline, look: {
+                let at = Date().timeIntervalSinceReferenceDate
+                let sample = idleSample(at: 0, watch: Set(watch))
+                first = (sample, at)
+                return FeelReadyLook(content: sample.elements.count, signal: readySignal)
+            }) {
+                results.append(never)
+                continue
+            }
             let samples = FeelIdle.watch(for: seconds, every: every, now: { Date().timeIntervalSinceReferenceDate },
-                                         look: { self.idleSample(at: $0, watch: Set(watch)) }, pause: { self.pause($0) })
+                                         first: first, look: { self.idleSample(at: $0, watch: Set(watch)) },
+                                         pause: { self.pause($0) })
             results.append(FeelIdle.check(samples, pose: pose.name))
         }
         #if os(iOS)

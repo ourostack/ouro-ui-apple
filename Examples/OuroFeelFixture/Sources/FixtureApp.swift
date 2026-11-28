@@ -45,6 +45,7 @@ struct FixtureApp: App {
             case "targets": TargetsPage()
             case "landing": LandingPage()
             case "turn-film": TurnFilmPage()
+            case "late": LatePage()
             default: NavPage()
             }
         }
@@ -1503,6 +1504,41 @@ struct TurnFilmPage: View {
                         squeezed = false
                     }
                 }
+        }
+    }
+}
+
+/// Content readiness (gatefold run 46076998864, where covered content was reported as finding no content in a book's
+/// page on a loaded runner). Fixed: the page's words and its ready signal arrive `-lateBy` seconds after the page appears (8 by default), as
+/// a slow first page does. The bug: they never arrive.
+struct LatePage: View {
+    @State private var shown = false
+    private var lateBy: Double {
+        let v = UserDefaults.standard.double(forKey: "lateBy")
+        return v > 0 ? v : 8
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Chapter One").font(.caption.bold()).accessibilityIdentifier("late.head")
+            VStack(alignment: .leading, spacing: 6) {
+                if shown {
+                    ForEach(1...8, id: \.self) { Text("Line \($0) of the page").accessibilityIdentifier("late.line.\($0)") }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("late.page")
+            // The app's own ready signal, as Gatefold's reader.pageReady: a near-invisible Text outside the page.
+            Text(shown ? "Page ready" : "Page loading").font(.caption2).opacity(0.01)
+                .accessibilityIdentifier("late.ready")
+                .accessibilityValue(shown ? "1" : "0")
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+        .task {
+            try? await Task.sleep(for: .seconds(lateBy))
+            if !bug { shown = true }
         }
     }
 }

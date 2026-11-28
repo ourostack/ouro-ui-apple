@@ -26,8 +26,18 @@ extension OuroFeel {
     /// Run it on a screen at rest, with no sheet up: a sheet's drag moves it on purpose.
     public func viewportHolds(scrolling: [String: FeelAxes] = [:], poses: [FeelPose] = FeelPose.roundTrip) -> FeelResult {
         var results: [FeelResult] = []
+        let deadline = readyDeadline()
         for pose in poses {
             pose.apply(self)
+            // Wait on the check's own read of the viewports and what is drawn in them, never on a drag.
+            if let never = awaitReady(check: FeelCheck.viewportHolds.name, what: nil, pose: pose.name, until: deadline, look: {
+                let screen = viewports(scrolling: scrolling)
+                return FeelReadyLook(content: screen.nodes.reduce(0) { $0 + $1.read.content.count }, signal: readySignal,
+                                     why: screen.nodes.isEmpty ? "the accessibility snapshot failed" : nil)
+            }) {
+                results.append(never)
+                continue
+            }
             results.append(viewportHoldsNow(scrolling: scrolling, pose: pose.name))
         }
         #if os(iOS)
@@ -266,8 +276,19 @@ extension OuroFeel {
     public func chromeFloats(_ chrome: [String], over viewport: String? = nil, content: [String] = [],
                              toEnd: ((OuroFeel) -> Void)? = nil, poses: [FeelPose] = [.current]) -> FeelResult {
         var results: [FeelResult] = []
+        let deadline = readyDeadline()
         for pose in poses {
             pose.apply(self)
+            // Wait on the check's own read: the content inside its viewport, in the window, that is not chrome.
+            if let never = awaitReady(check: FeelCheck.chromeFloats.name, what: viewport, pose: pose.name, until: deadline, look: {
+                let read = floatRead(chrome, over: viewport, content: content)
+                let shown = read.content.filter { FeelCover.visible($0.frame, in: read.window) }.count
+                return FeelReadyLook(content: shown, signal: readySignal,
+                                     why: read.viewport == nil ? "the content's viewport was not on screen" : nil)
+            }) {
+                results.append(never)
+                continue
+            }
             results.append(chromeFloatsNow(chrome, over: viewport, content: content, toEnd: toEnd, pose: pose.name))
         }
         #if os(iOS)

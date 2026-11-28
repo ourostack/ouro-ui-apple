@@ -36,8 +36,22 @@ public enum FeelIdle {
     /// `pause` waits.
     public static func watch(for seconds: Double, every: Double, now: () -> Double,
                              look: (Double) -> FeelIdleSample, pause: (Double) -> Void) -> [FeelIdleSample] {
+        watch(for: seconds, every: every, now: now, first: nil, look: look, pause: pause)
+    }
+
+    /// The same watch, starting from a look already taken: `first` is that look and the clock time it was taken, as
+    /// the wait for content takes it, so a watch whose content was already there costs no extra look.
+    public static func watch(for seconds: Double, every: Double, now: () -> Double,
+                             first: (sample: FeelIdleSample, at: Double)?,
+                             look: (Double) -> FeelIdleSample, pause: (Double) -> Void) -> [FeelIdleSample] {
         var samples: [FeelIdleSample] = []
-        let start = now()
+        let start = first?.at ?? now()
+        if var sample = first?.sample {
+            sample.at = 0
+            samples.append(sample)
+            let rest = every - (now() - start)
+            if rest > 0 { pause(rest) }
+        }
         while now() - start < seconds || (samples.count < leastLooks && now() - start < seconds * lookCapFactor) {
             let began = now()
             samples.append(look(began - start))

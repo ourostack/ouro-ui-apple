@@ -66,7 +66,8 @@ extension OuroFeel {
     /// moves the place while you are idle) and fails if any read after one shows another place, even if it came back.
     public func placeHeld(across steps: [FeelPlaceStep] = FeelPlaceStep.stray, reads: Int = 4, between: (() -> Void)? = nil,
                           read: () -> String) -> FeelResult {
-        placeTrail(steps.map(FeelPlaceMove.stray), reads: reads, between: between, read: read).strayInput()
+        if let never = awaitReading(check: FeelGenre.strayInput.rawValue, read: read) { return never }
+        return placeTrail(steps.map(FeelPlaceMove.stray), reads: reads, between: between, read: read).strayInput()
     }
 
     /// Navigation that fights you: runs each of your moves and reads the place `reads` times after it. The place must
@@ -75,7 +76,8 @@ extension OuroFeel {
     /// enough reads to outlast the app's restore or sync.
     public func placeFights(_ moves: [FeelPlaceMove], reads: Int = 6, hold: Int = 3, between: (() -> Void)? = nil,
                             read: () -> String) -> FeelResult {
-        placeTrail(moves, reads: reads, between: between, read: read).fights(hold: hold)
+        if let never = awaitReading(check: FeelGenre.navigationFight.rawValue, read: read) { return never }
+        return placeTrail(moves, reads: reads, between: between, read: read).fights(hold: hold)
     }
 
     /// ``placeFights(_:reads:hold:between:read:)`` for moves with no chosen landing.

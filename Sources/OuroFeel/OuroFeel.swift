@@ -21,9 +21,24 @@ public struct OuroFeel {
     public let app: XCUIApplication
     /// How long a step waits for the screen to change or come back.
     public var timeout: TimeInterval = 5
+    /// The app's own signal that what you read is ready (a page laid out, a feed loaded), such as
+    /// `{ ($0.descendants(matching: .any)["reader.pageReady"].firstMatch.value as? String) == "1" }`. The checks that
+    /// measure content wait for it, and for the content they measure, before they judge. `nil` waits for content only.
+    public var ready: (@MainActor (XCUIApplication) -> Bool)?
+    /// How long those checks wait for content before failing as "never became ready". Generous by default
+    /// (``FeelReady/timeout``), since a loaded runner can be very slow.
+    public var readyTimeout: TimeInterval = FeelReady.timeout
 
     public init(_ app: XCUIApplication) {
         self.app = app
+    }
+
+    /// A driver whose content checks wait for `ready`, the app's own readiness signal, as well as for content on screen.
+    public init(_ app: XCUIApplication, ready: @escaping @MainActor (XCUIApplication) -> Bool,
+                readyTimeout: TimeInterval = FeelReady.timeout) {
+        self.app = app
+        self.ready = ready
+        self.readyTimeout = readyTimeout
     }
 
     public static let clock = "the test runner's wall clock, sampling accessibility snapshots"
@@ -630,6 +645,7 @@ public struct OuroFeel {
     /// fingerprints. The text never leaves the test; only its SHA-256 prefix goes in the report.
     public func place(across steps: [FeelPlaceStep] = FeelPlaceStep.standard, read: (() -> String)? = nil) -> FeelResult {
         let read = read ?? { app.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: "\n") }
+        if let never = awaitReading(check: FeelGenre.placeStability.rawValue, read: read) { return never }
         let start = FeelPlace.fingerprint(steady(read))
         var after: [String: String] = [:]
         for step in steps {

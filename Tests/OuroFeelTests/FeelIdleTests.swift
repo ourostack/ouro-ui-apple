@@ -108,3 +108,86 @@ private final class FakeClock {
         #expect(clock.t < 3.2)
     }
 }
+
+/// Gatefold #639's run 46078753578 (duo-feel-closed, testClosedScroll): still while idle failed on a control with no
+/// name that appeared once in 9.4 s, with no pixel change in the run's screen recording. Idle judges only what the app
+/// draws in its window, and names a nameless control by its kind.
+@Suite struct IdleShownTests {
+    private let window = CGRect(x: 0, y: 0, width: 466, height: 678)
+
+    @Test func aControlPastTheWindowsEdgeThatComesAndGoesIsNotAChange() {
+        // A web view's content past the window's edge, or a pager's next page: in the app, but not drawn.
+        let past = CGRect(x: 0, y: 900, width: 200, height: 20)
+        let samples = (0..<10).map { i in
+            FeelIdleSample(at: Double(i), elements: i < 5 ? ["reader.page": window] : ["reader.page": window, "a link with no name": past],
+                           statusBar: false).shown(in: window)
+        }
+        let result = FeelIdle.check(samples, pose: "closed, scroll")
+        #expect(result.passed, "\(result.text)")
+    }
+
+    @Test func aControlInTheWindowThatComesAndGoesStillFails() {
+        let inside = CGRect(x: 20, y: 300, width: 200, height: 20)
+        let samples = (0..<10).map { i in
+            FeelIdleSample(at: Double(i), elements: i < 5 ? ["reader.page": window] : ["reader.page": window, "a link with no name": inside],
+                           statusBar: false).shown(in: window)
+        }
+        let result = FeelIdle.check(samples, pose: "closed, scroll")
+        #expect(!result.passed)
+        #expect(result.detections.first?.what.contains("\"a link with no name\" appeared or went 1 times") == true, "\(result.text)")
+    }
+
+    @Test func aWatchedElementThatSlidesOutOfTheWindowIsAChange() {
+        let samples = (0..<6).map { i in
+            FeelIdleSample(at: Double(i), elements: ["reader.head": i < 3 ? CGRect(x: 0, y: 10, width: 466, height: 20)
+                                                                          : CGRect(x: 0, y: -40, width: 466, height: 20)],
+                           statusBar: false).shown(in: window)
+        }
+        #expect(!FeelIdle.check(samples, pose: "closed").passed)
+    }
+
+    @Test func noWindowKeepsEverything() {
+        let sample = FeelIdleSample(at: 0, elements: ["x": CGRect(x: 0, y: 900, width: 10, height: 10)], statusBar: nil)
+        #expect(sample.shown(in: .zero).elements.count == 1)
+    }
+
+    @Test func aNamelessControlIsNamedByItsKind() {
+        #expect(FeelIdle.unnamed("link") == "a link with no name")
+        #expect(FeelIdle.unnamed("button") == "a button with no name")
+    }
+}
+
+@Suite struct IdleSampleTests {
+    private let window = CGRect(x: 0, y: 0, width: 466, height: 678)
+    private let onScreen = CGRect(x: 20, y: 300, width: 44, height: 44)
+    private let pastEdge = CGRect(x: 20, y: 3000, width: 44, height: 44)
+
+    @Test func aNamelessControlArrivingPastTheEdgeAheadOfOneOnScreenRenamesNothing() {
+        // In tree order the newcomer comes first; were it named before it was dropped, the one on screen would become
+        // "#2", and the report would say one went and another came.
+        let button = FeelIdle.unnamed("button")
+        let samples = (0..<8).map { i in
+            let found = (i < 4 ? [] : [FeelElement(key: button, type: "button", frame: pastEdge)])
+                + [FeelElement(key: button, type: "button", frame: onScreen)]
+            return FeelIdle.sample(at: Double(i), found: found, window: window, statusBar: false)
+        }
+        #expect(samples.allSatisfy { $0.elements == [button: onScreen] })
+        #expect(FeelIdle.check(samples, pose: "closed").passed)
+    }
+
+    @Test func twoControlsWithOneNameOnScreenAreToldApartByOrder() {
+        let sample = FeelIdle.sample(at: 0, found: [FeelElement(key: "Close", type: "button", frame: onScreen),
+                                                    FeelElement(key: "Close", type: "button", frame: onScreen.offsetBy(dx: 100, dy: 0))],
+                                     window: window, statusBar: nil)
+        #expect(sample.elements.keys.sorted() == ["Close", "Close #2"])
+    }
+
+    @Test func aControlThatAppearsIsReportedWithWhereItWas() {
+        let samples = (0..<6).map { i in
+            FeelIdle.sample(at: Double(i), found: i < 3 ? [] : [FeelElement(key: "a link with no name", type: "link", frame: onScreen)],
+                            window: window, statusBar: false)
+        }
+        let result = FeelIdle.check(samples, pose: "closed")
+        #expect(result.detections.first?.what.hasSuffix("at x 20, y 300, 44×44 pt") == true, "\(result.text)")
+    }
+}

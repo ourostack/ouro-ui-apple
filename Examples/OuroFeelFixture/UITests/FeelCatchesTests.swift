@@ -695,6 +695,21 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// Still while idle judges only what the app draws (gatefold #639's run 46078753578): a control with no name that
+    /// comes into the app far past the window's edge mid-watch is not a change.
+    func testStillWhileIdleJudgesOnlyWhatIsDrawn() {
+        let (app, feel) = launch("idle", bug: false, ["-offstage", "1"])
+        XCTAssertTrue(app.staticTexts["idle.page"].waitForExistence(timeout: 10))
+        let before = app.buttons.count
+        let result = feel.record(feel.stillWhileIdle(for: 20), name: "idle-offstage")
+        let after = app.buttons.count
+        print("[ouro-feel] idle-offstage: \(result.passed ? "PASS" : "FAIL"): \(result.summary) (buttons \(before) then \(after))")
+        XCTAssertEqual(before, 1, "the near miss came before the watch began")
+        XCTAssertEqual(after, 2, "the control past the edge never came into the app, so this proves nothing")
+        XCTAssertTrue(result.passed, result.text)
+        app.terminate()
+    }
+
     /// One tick of the fixture's clock, then a wait for the app to show it, so each read is one tick later however slow
     /// the runner.
     private func tick(_ app: XCUIApplication) -> () -> Void {

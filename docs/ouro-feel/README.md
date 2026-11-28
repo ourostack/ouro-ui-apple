@@ -843,7 +843,11 @@ Proves (part of the flicker genre): with no input for a few seconds (`for:`, 3 b
 nothing named in `watch:` (chrome that is no control, such as a running head) appears, goes or moves by more than half
 a point, and the status bar neither shows nor hides. It looks at the screen as often as accessibility snapshots allow,
 so a loop of a few changes a second fails within the first few looks. Call it once the screen has landed. A status bar
-the system does not report is noted, and the controls are still watched.
+the system does not report is noted, and the controls are still watched. It judges only what the app draws in its
+window: an element past the window's edge (a web view's content further down, a pager's next page) may come and go,
+and what is inside a status bar (the system's, or one in the app's own tree) is skipped, since the bar is judged only
+by whether it shows. A control with no identifier and no label is named by its kind, such as "a link with no name",
+and a control that appears or goes is reported with where it was.
 
 ```swift
 feel.expect(feel.stillWhileIdle(for: 3, watch: ["reader.runningHead"]))

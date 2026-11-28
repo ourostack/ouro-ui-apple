@@ -48,28 +48,28 @@ extension OuroFeel {
     }
 
     func idleSample(at: Double, watch: Set<String>) -> FeelIdleSample {
-        var elements: [String: CGRect] = [:]
+        var found: [FeelElement] = []
+        var window = CGRect.zero
         if let root = try? app.snapshot() {
+            window = Self.mainWindow(root)
             func walk(_ node: any XCUIElementSnapshot) {
                 // Read once, up front: `&&` and `||` take their right side as a closure, and a closure that captures
                 // the snapshot fails a Release build ("sending 'node' risks causing data races").
                 let type = node.elementType, identifier = node.identifier, label = node.label, enabled = node.isEnabled
+                // A status bar, the system's or one in the app's own tree, is read on its own below (whether it
+                // shows); what is in it is not the app's to keep still.
+                if type == .statusBar { return }
                 let named = watch.contains(identifier) || watch.contains(label)
                 if named || (Self.controlTypes.contains(type) && enabled) {
                     var key = named && !watch.contains(identifier) ? label : Self.key(node)
-                    // Two controls with one name (two "Close" buttons) are told apart by order.
-                    if elements[key] != nil {
-                        var n = 2
-                        while elements["\(key) #\(n)"] != nil { n += 1 }
-                        key = "\(key) #\(n)"
-                    }
-                    if node.frame.width > 0 && node.frame.height > 0 { elements[key] = node.frame }
+                    if key.isEmpty { key = FeelIdle.unnamed(Self.name(type)) }
+                    found.append(FeelElement(key: key, type: Self.name(type), frame: node.frame))
                 }
                 for child in node.children { walk(child) }
             }
             walk(root)
         }
-        return FeelIdleSample(at: at, elements: elements, statusBar: statusBarShows())
+        return FeelIdle.sample(at: at, found: found, window: window, statusBar: statusBarShows())
     }
 
     /// Whether the status bar shows now; nil where there is none to read.

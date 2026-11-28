@@ -845,8 +845,9 @@ a point, and the status bar neither shows nor hides. It looks at the screen as o
 so a loop of a few changes a second fails within the first few looks. Call it once the screen has landed. A status bar
 the system does not report is noted, and the controls are still watched. It judges only what the app draws in its
 window: an element past the window's edge (a web view's content further down, a pager's next page) may come and go,
-and what is inside the status bar is the system's, judged only by whether the bar shows. A control with no identifier
-and no label is named by its kind, such as "a link with no name".
+and what is inside a status bar (the system's, or one in the app's own tree) is skipped, since the bar is judged only
+by whether it shows. A control with no identifier and no label is named by its kind, such as "a link with no name",
+and a control that appears or goes is reported with where it was.
 
 ```swift
 feel.expect(feel.stillWhileIdle(for: 3, watch: ["reader.runningHead"]))

@@ -35,6 +35,30 @@ public enum FeelIdle {
     /// The name a control with no identifier and no label gets in a report: its kind, so it can be told apart.
     public static func unnamed(_ kind: String) -> String { "a \(kind) with no name" }
 
+    /// One look, from what the walk found in tree order (each element's key and frame): only what shows in `window`,
+    /// and each name once, two with one name (two "Close" buttons) told apart by order, "#2" on. What is past the edge
+    /// is dropped before it is named, so a control arriving out of sight never renames one on screen.
+    public static func sample(at: Double, found: [FeelElement], window: CGRect, statusBar: Bool?) -> FeelIdleSample {
+        var elements: [String: CGRect] = [:]
+        let windowKnown = window.width > 0 && window.height > 0
+        for element in found where element.frame.width > 0 && element.frame.height > 0 {
+            if windowKnown && !FeelCover.visible(element.frame, in: window) { continue }
+            var key = element.key
+            if elements[key] != nil {
+                var n = 2
+                while elements["\(key) #\(n)"] != nil { n += 1 }
+                key = "\(key) #\(n)"
+            }
+            elements[key] = element.frame
+        }
+        return FeelIdleSample(at: at, elements: elements, statusBar: statusBar)
+    }
+
+    static func place(_ frame: CGRect) -> String {
+        func n(_ v: CGFloat) -> String { FeelResult.number(Double(v.rounded())) }
+        return "at x \(n(frame.minX)), y \(n(frame.minY)), \(n(frame.width))×\(n(frame.height)) pt"
+    }
+
     /// The looks `check` needs to judge a screen.
     public static let leastLooks = 3
     /// How long a watch may run, as a multiple of its window, while it still lacks `leastLooks` looks.
@@ -75,7 +99,7 @@ public enum FeelIdle {
 
     public static func check(_ samples: [FeelIdleSample], pose: String) -> FeelResult {
         var findings: [FeelFinding] = []
-        var appeared: [String: Int] = [:], moved: [String: Int] = [:]
+        var appeared: [String: Int] = [:], moved: [String: Int] = [:], last: [String: CGRect] = [:]
         var statusFlips = 0
         for (before, after) in zip(samples, samples.dropFirst()) {
             for key in Set(before.elements.keys).union(after.elements.keys) {
@@ -85,7 +109,8 @@ public enum FeelIdle {
                         || abs(a.width - b.width) > tolerance || abs(a.height - b.height) > tolerance {
                         moved[key, default: 0] += 1
                     }
-                case (nil, _?), (_?, nil): appeared[key, default: 0] += 1
+                case (nil, let b?): appeared[key, default: 0] += 1; last[key] = b
+                case (let a?, nil): appeared[key, default: 0] += 1; last[key] = a
                 default: break
                 }
             }
@@ -94,7 +119,8 @@ public enum FeelIdle {
         let span = (samples.last?.at ?? 0) - (samples.first?.at ?? 0)
         let over = "over \(FeelResult.number((span * 10).rounded() / 10)) s with no input in \(pose)"
         for key in appeared.keys.sorted() {
-            findings.append(FeelFinding(what: "\"\(key)\" appeared or went \(appeared[key]!) times \(over)"))
+            let at = last[key].map { ", " + place($0) } ?? ""
+            findings.append(FeelFinding(what: "\"\(key)\" appeared or went \(appeared[key]!) times \(over)\(at)"))
         }
         for key in moved.keys.sorted() {
             findings.append(FeelFinding(what: "\"\(key)\" moved \(moved[key]!) times \(over)"))

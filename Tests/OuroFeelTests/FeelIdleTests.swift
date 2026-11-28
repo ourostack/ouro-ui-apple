@@ -156,3 +156,38 @@ private final class FakeClock {
         #expect(FeelIdle.unnamed("button") == "a button with no name")
     }
 }
+
+@Suite struct IdleSampleTests {
+    private let window = CGRect(x: 0, y: 0, width: 466, height: 678)
+    private let onScreen = CGRect(x: 20, y: 300, width: 44, height: 44)
+    private let pastEdge = CGRect(x: 20, y: 3000, width: 44, height: 44)
+
+    @Test func aNamelessControlArrivingPastTheEdgeAheadOfOneOnScreenRenamesNothing() {
+        // In tree order the newcomer comes first; were it named before it was dropped, the one on screen would become
+        // "#2", and the report would say one went and another came.
+        let button = FeelIdle.unnamed("button")
+        let samples = (0..<8).map { i in
+            let found = (i < 4 ? [] : [FeelElement(key: button, type: "button", frame: pastEdge)])
+                + [FeelElement(key: button, type: "button", frame: onScreen)]
+            return FeelIdle.sample(at: Double(i), found: found, window: window, statusBar: false)
+        }
+        #expect(samples.allSatisfy { $0.elements == [button: onScreen] })
+        #expect(FeelIdle.check(samples, pose: "closed").passed)
+    }
+
+    @Test func twoControlsWithOneNameOnScreenAreToldApartByOrder() {
+        let sample = FeelIdle.sample(at: 0, found: [FeelElement(key: "Close", type: "button", frame: onScreen),
+                                                    FeelElement(key: "Close", type: "button", frame: onScreen.offsetBy(dx: 100, dy: 0))],
+                                     window: window, statusBar: nil)
+        #expect(sample.elements.keys.sorted() == ["Close", "Close #2"])
+    }
+
+    @Test func aControlThatAppearsIsReportedWithWhereItWas() {
+        let samples = (0..<6).map { i in
+            FeelIdle.sample(at: Double(i), found: i < 3 ? [] : [FeelElement(key: "a link with no name", type: "link", frame: onScreen)],
+                            window: window, statusBar: false)
+        }
+        let result = FeelIdle.check(samples, pose: "closed")
+        #expect(result.detections.first?.what.hasSuffix("at x 20, y 300, 44×44 pt") == true, "\(result.text)")
+    }
+}

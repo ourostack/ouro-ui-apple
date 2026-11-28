@@ -701,7 +701,7 @@ final class FeelCatchesTests: XCTestCase {
         let (app, feel) = launch("idle", bug: false, ["-offstage", "1"])
         XCTAssertTrue(app.staticTexts["idle.page"].waitForExistence(timeout: 10))
         let before = app.buttons.count
-        let result = feel.record(feel.stillWhileIdle(for: 12), name: "idle-offstage")
+        let result = feel.record(feel.stillWhileIdle(for: 20), name: "idle-offstage")
         let after = app.buttons.count
         print("[ouro-feel] idle-offstage: \(result.passed ? "PASS" : "FAIL"): \(result.summary) (buttons \(before) then \(after))")
         XCTAssertEqual(before, 1, "the near miss came before the watch began")

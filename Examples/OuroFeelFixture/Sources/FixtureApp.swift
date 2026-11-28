@@ -1067,7 +1067,7 @@ struct CoverPage: View {
 /// Still while idle. A Close button and the status bar. Fixed: nothing changes with no input. The bug, as Gatefold's
 /// reader on the open iPhone Duo (2026-11-15): with no touch, the status bar and Close take turns three times a
 /// second, and Close jumps from one side to the other. With `-offstage 1`, a near miss (gatefold #639's run
-/// 46078753578): 6 s after the page appears, a control with no name comes into the app far past the window's bottom
+/// 46078753578): 10 s after the page appears, a control with no name comes into the app far past the window's bottom
 /// edge, where nothing draws it.
 struct IdlePage: View {
     @State private var flip = false
@@ -1090,7 +1090,7 @@ struct IdlePage: View {
         }
         .task {
             guard UserDefaults.standard.bool(forKey: "offstage") else { return }
-            try? await Task.sleep(for: .seconds(6))
+            try? await Task.sleep(for: .seconds(10))
             offstage = true
         }
         .statusBarHidden(flip)

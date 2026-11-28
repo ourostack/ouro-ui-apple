@@ -13,8 +13,9 @@ extension OuroFeel {
     /// probe or a toast elsewhere is not counted). Content with no identifier is named in the report by a fingerprint
     /// of its words, never the words (a book's text stays out of reports). Content outside the window is left to
     /// ``insideWindow(poses:also:)``. A chrome element that is not on screen could not be checked, so name only chrome
-    /// that shows in every pose you pass; a named content or `within` element that is not on screen could not be
-    /// checked either. Chrome inside named content (a page holding its running head) is still chrome.
+    /// that shows in every pose you pass. Before each pose it waits, up to ``readyTimeout`` for the whole call, for
+    /// content in the window (and for ``ready`` when set); content that never comes fails as "never became ready", and
+    /// is never scored. Chrome inside named content (a page holding its running head) is still chrome.
     ///
     /// The default content suits a reader: every text counts, so on a list whose rows scroll under a translucent bar
     /// you name as chrome, a row passing under it would count as covered. There, name the content or use `within`.
@@ -24,9 +25,18 @@ extension OuroFeel {
     public func uncovered(by chrome: [String], content: [String] = [], within: String? = nil,
                           poses: [FeelPose] = [.current]) -> FeelResult {
         var results: [FeelResult] = []
+        let deadline = readyDeadline()
         for pose in poses {
             pose.apply(self)
-            results.append(uncoveredNow(by: chrome, content: content, within: within, pose: pose.name))
+            // Measure until the measure itself found content on screen: the wait reads exactly what is scored.
+            var measured: FeelResult?
+            let never = awaitReady(check: FeelGenre.insideWindow.rawValue, what: within ?? content.first, pose: pose.name,
+                                   until: deadline) {
+                let read = uncoveredMeasure(by: chrome, content: content, within: within, pose: pose.name)
+                measured = read.result
+                return FeelReadyLook(content: read.content, signal: readySignal, why: read.why)
+            }
+            results.append(never ?? measured!)
         }
         #if os(iOS)
         if poses.contains(where: { $0.orientation != nil }) { FeelPose.portrait.apply(self) }
@@ -35,8 +45,14 @@ extension OuroFeel {
     }
 
     func uncoveredNow(by chrome: [String], content: [String], within: String?, pose: String) -> FeelResult {
+        uncoveredMeasure(by: chrome, content: content, within: within, pose: pose).result
+    }
+
+    /// The covered-content measure, and how much of the content it scores (visible in the window, not chrome) it found.
+    func uncoveredMeasure(by chrome: [String], content: [String], within: String?, pose: String)
+        -> (result: FeelResult, content: Int, why: String?) {
         guard let root = try? app.snapshot() else {
-            return FeelCover.check(content: [], chrome: [], window: .zero, pose: pose)
+            return (FeelCover.check(content: [], chrome: [], window: .zero, pose: pose), 0, "the accessibility snapshot failed")
         }
         let window = Self.mainWindow(root)
         let chromeKeys = Set(chrome), contentKeys = Set(content)
@@ -81,7 +97,10 @@ extension OuroFeel {
                                        measures: result.measures,
                                        findings: result.findings + missing.map { .couldNotCheck("\"\($0)\" was not on screen in \(pose)") })
         }
-        return result
+        let shown = items.filter { FeelCover.visible($0.frame, in: window) }.count
+        let why: String? = shown > 0 ? nil
+            : within.map { foundWithin ? "\"\($0)\" was on screen but held no text or image in the window" : "\"\($0)\" was not on screen" }
+        return (result, shown, why)
     }
 
     #if os(iOS)

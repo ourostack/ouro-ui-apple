@@ -583,6 +583,38 @@ final class FeelCatchesTests: XCTestCase {
         }
     }
 
+    /// Content readiness (gatefold run 46076998864): a check waits for what it measures instead of scoring an empty
+    /// page. The fixed page's words and ready signal arrive 15 s after launch, and the covered-content check waits for
+    /// them and passes. The bug page's never arrive, and the check fails as "never became ready", with no bug found.
+    /// Each build runs with the app's ready signal and without it, when the check waits on its own content alone.
+    func testACheckWaitsForContentAndSaysWhenItNeverComes() {
+        for signal in [true, false] {
+            for bug in [true, false] {
+                let name = "late-\(bug ? "bug" : "fixed")-\(signal ? "signal" : "content")"
+                var (app, feel) = launch("late", bug: bug, ["-lateBy", "15"])
+                if signal { feel.ready = { ($0.descendants(matching: .any)["late.ready"].firstMatch.value as? String) == "1" } }
+                feel.readyTimeout = bug ? 20 : 60
+                XCTAssertTrue(app.staticTexts["late.head"].waitForExistence(timeout: 10))
+                XCTAssertFalse(app.staticTexts["late.line.1"].exists, "\(name): the words were there before the check began")
+                let began = Date()
+                let result = feel.record(feel.uncovered(by: ["late.head"], within: "late.page"), name: name)
+                let took = Date().timeIntervalSince(began)
+                print("[ouro-feel] \(name): \(result.passed ? "PASS" : "FAIL") after \(String(format: "%.1f", took)) s: \(result.summary)")
+                if bug {
+                    XCTAssertFalse(result.passed, "\(name)\n\(result.text)")
+                    XCTAssertTrue(result.summary.hasPrefix("never became ready: no content came on screen"), "\(name)\n\(result.text)")
+                    XCTAssertTrue(result.findings.contains(where: \.neverReady), "\(name)\n\(result.text)")
+                    XCTAssertTrue(result.detections.isEmpty, "\(name): an empty page is never scored\n\(result.text)")
+                    XCTAssertGreaterThanOrEqual(result.measures["waited"] ?? 0, 20, "\(name)\n\(result.text)")
+                } else {
+                    XCTAssertTrue(result.passed, "\(name)\n\(result.text)")
+                    XCTAssertTrue(app.staticTexts["late.line.1"].exists, "\(name): the check passed before the words came")
+                }
+                app.terminate()
+            }
+        }
+    }
+
     /// Inside the window, for what you read too: the bug build's text column slides past the window's side while
     /// every control stays inside.
     func testInsideTheWindowAlsoChecksTheTextColumn() {

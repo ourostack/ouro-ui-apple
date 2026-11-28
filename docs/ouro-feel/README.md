@@ -462,8 +462,9 @@ less do not count. Content may scroll under the status bar; only chrome must kee
 window is left to `insideWindow`, since a paginated book keeps its next column past the side on purpose. The status
 bar is read from the system only when it lies along the top of the app's window; when it is hidden (a reader with its
 controls away) or reported in another orientation's coordinates, the report notes that chrome under it was not
-checked, and the rest is still judged. A chrome element, a named piece of content or the `within` element that is
-not on screen could not be checked, so name only what shows in the poses you pass. `within:` limits the content to
+checked, and the rest is still judged. A chrome element not on screen could not be checked, so name only what shows
+in the poses you pass. A named piece of content or the `within` element is waited for, and fails as "never became
+ready" when it never shows (see [Waiting for content](#waiting-for-content-and-never-became-ready)). `within:` limits the content to
 what is inside one element (a reader's page), so a test probe or a toast elsewhere is not counted. Content with no
 identifier is named in the report by a fingerprint of its words, never the words.
 
@@ -981,6 +982,42 @@ nothing even when sent slower): the check fails, its
 summary starts "could not check:", and it is never counted as a bug (`result.detections` holds only the bugs). Fix the
 test or rerun; do not report it as jank found. The one exception to look at first is a gesture back that moved nothing:
 the gesture may be off on that screen (see the way back). Say the same when you quote it.
+
+### Waiting for content, and "never became ready"
+
+A check that measures what you read waits for it first, so it never scores an empty page. Each waits on its own read of
+the screen, the same read it then scores, before each pose, and all the poses of one call share one timeout:
+
+- Covered content (`uncovered(by:within:)`) waits for a text or image with words inside the window, inside `within:`
+  when given, or for the content elements you named.
+- Viewport holds still waits for content inside a scrolling viewport; chrome floats over content waits for the
+  content's viewport to be on screen, with content in the window.
+- Still while idle waits for something to sample.
+- The place checks (`place(across:)`, `placeHeld`, `placeFights`) wait for `read` to return something.
+
+The checks not listed here, such as inside the window and the screen film, don't wait yet. Give the app's own signal too, and
+every check above waits for it as well:
+
+```swift
+var feel = OuroFeel(app)
+feel.ready = { ($0.descendants(matching: .any)["reader.pageReady"].firstMatch.value as? String) == "1" }
+feel.readyTimeout = 120   // the default: generous, since a loaded runner can be very slow
+```
+
+Query the signal with `descendants(matching: .any)`: a SwiftUI `Text` used as a signal is not an `otherElements` match.
+It polls the screen on a signal, never a fixed sleep, so content already there costs one look. Content that never
+comes within `readyTimeout` fails the check with a summary that starts "never became ready:". It says whether no content
+came (and why, when the walk can tell: the snapshot failed, or the element named in `within:` was not on screen or held
+nothing in the window) or the app never signalled, and how long it waited. The finding is marked `(never ready)`: it is
+not a bug found (`result.detections` leaves it out), and it is not a "could not check" either, because the screen itself
+never got there. Look at the app's launch or the runner's load before the check. A call that times one look, such as
+`stillWhileIdle(for: 0.001, every: 0)`, includes that wait and one read of the signal once `ready` is set.
+
+Gatefold's reader met this in [gatefold run 46076998864](https://github.com/ourostack/gatefold/actions/runs/46076998864)
+(attempt 1, job duo-feel-closed). `testClosedPaged` started at 23:24:14 and its first Feel line came at 23:25:34, after
+the reader's own ready probe had passed. One look took 0.8 s, and at 23:25:46 covered content found no text in
+`reader.page` and failed without measuring. That the page's words were not yet in the snapshot is inference; the log
+shows only the empty read. Only iOS is proved on the fixture; macOS is unverified.
 
 ## Proof
 

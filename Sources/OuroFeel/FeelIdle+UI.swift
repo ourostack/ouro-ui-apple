@@ -14,8 +14,16 @@ extension OuroFeel {
     public func stillWhileIdle(for seconds: TimeInterval = 3, every: TimeInterval = 0.1, watch: [String] = [],
                                poses: [FeelPose] = [.current]) -> FeelResult {
         var results: [FeelResult] = []
+        let deadline = readyDeadline()
         for pose in poses {
             pose.apply(self)
+            // Wait on the check's own look: something it watches on screen, and the app's signal if given.
+            if let never = awaitReady(check: FeelGenre.flicker.rawValue, what: nil, pose: pose.name, until: deadline, look: {
+                FeelReadyLook(content: idleSample(at: 0, watch: Set(watch)).elements.count, signal: readySignal)
+            }) {
+                results.append(never)
+                continue
+            }
             let samples = FeelIdle.watch(for: seconds, every: every, now: { Date().timeIntervalSinceReferenceDate },
                                          look: { self.idleSample(at: $0, watch: Set(watch)) }, pause: { self.pause($0) })
             results.append(FeelIdle.check(samples, pose: pose.name))

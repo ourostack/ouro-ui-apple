@@ -91,7 +91,9 @@ SUITES = {
                           # Gatefold's jank-hunt checks, measured on run 46063430325.
                           "FeelCatchesTests/testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilAtAJump": 25.4,
                           "FeelCatchesTests/testTheScreenShowsOnlyTheBeforeTheAfterOrAVeilThroughATurn": 24.1,
-                          "FeelCatchesTests/testWhatYouAskedForLandsInClearView": 20.2},
+                          "FeelCatchesTests/testWhatYouAskedForLandsInClearView": 20.2,
+                          # Not measured yet: four launches, two 15 s waits for the late page and two 20 s timeouts.
+                          "FeelCatchesTests/testACheckWaitsForContentAndSaysWhenItNeverComes": 110.0},
                 "pages": {}},
             2: {"tests": {"FeelCatchesTests/testTheWayBackFixedBuild": 215.0,
                           "FeelCatchesTests/testAPushUnderATabBar": 139.4,

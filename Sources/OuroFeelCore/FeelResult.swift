@@ -4,18 +4,26 @@ public import Foundation
 /// may be dropping taps"), so a report never states an inference as a measurement. `unchecked` marks something the
 /// check could not judge (the element was never on screen, the samples were too far apart): the check fails, but the
 /// report says "could not check" and never counts it as a bug found. `note` marks context that neither passes nor
-/// fails the check (the app stayed portrait as the device turned).
+/// fails the check (the app stayed portrait as the device turned). `neverReady` marks content that never came on
+/// screen while the check waited for it (``FeelReady``): the check fails, and the report says the page never became
+/// ready, never that it found a bug in an empty page.
 public struct FeelFinding: Codable, Equatable, Sendable {
     public var what: String
     public var inferred: Bool
     public var unchecked: Bool
     public var note: Bool
+    public var neverReady: Bool
 
     public init(what: String, inferred: Bool = false, unchecked: Bool = false, note: Bool = false) {
+        self.init(what: what, inferred: inferred, unchecked: unchecked, note: note, neverReady: false)
+    }
+
+    public init(what: String, inferred: Bool = false, unchecked: Bool = false, note: Bool = false, neverReady: Bool) {
         self.what = what
         self.inferred = inferred
         self.unchecked = unchecked
         self.note = note
+        self.neverReady = neverReady
     }
 
     /// Something the check could not judge.
@@ -24,12 +32,16 @@ public struct FeelFinding: Codable, Equatable, Sendable {
     /// Context that does not decide the check.
     public static func note(_ what: String, inferred: Bool = false) -> FeelFinding { FeelFinding(what: what, inferred: inferred, note: true) }
 
+    /// Content the check waited for that never came on screen.
+    public static func neverBecameReady(_ what: String) -> FeelFinding { FeelFinding(what: what, neverReady: true) }
+
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         what = try c.decode(String.self, forKey: .what)
         inferred = try c.decodeIfPresent(Bool.self, forKey: .inferred) ?? false
         unchecked = try c.decodeIfPresent(Bool.self, forKey: .unchecked) ?? false
         note = try c.decodeIfPresent(Bool.self, forKey: .note) ?? false
+        neverReady = try c.decodeIfPresent(Bool.self, forKey: .neverReady) ?? false
     }
 }
 
@@ -123,29 +135,34 @@ public struct FeelResult: Codable, Equatable, Sendable {
     }
 
     /// A result whose summary follows its findings: `passing` when there are none, `failing(n)` for n bugs found,
-    /// and "could not check: …" when every finding is something the check could not judge. Notes never decide it.
+    /// "never became ready: …" when no bug was found but content never came on screen (``FeelReady``), and "could not
+    /// check: …" when every finding is something the check could not judge. Notes never decide it.
     public static func judged(check: String, passing: String, failing: (Int) -> String, measures: [String: Double] = [:],
                               findings: [FeelFinding], environment: FeelEnvironment? = nil) -> FeelResult {
-        let found = findings.filter { !$0.unchecked && !$0.note }.count
+        let found = findings.filter { !$0.unchecked && !$0.note && !$0.neverReady }.count
         let unchecked = findings.filter(\.unchecked)
+        let neverReady = findings.filter(\.neverReady)
         let summary: String
-        if found == 0 && unchecked.isEmpty {
+        if found == 0 && unchecked.isEmpty && neverReady.isEmpty {
             summary = passing
+        } else if found == 0, let first = neverReady.first {
+            summary = "never became ready: " + first.what + (neverReady.count > 1 ? " (and \(neverReady.count - 1) more)" : "")
         } else if found > 0 {
             summary = failing(found) + (unchecked.isEmpty ? "" : "; \(unchecked.count) more could not be checked")
+                + (neverReady.isEmpty ? "" : "; \(neverReady.count) never became ready")
         } else {
             summary = "could not check: " + unchecked[0].what + (unchecked.count > 1 ? " (and \(unchecked.count - 1) more)" : "")
         }
-        return FeelResult(check: check, passed: found == 0 && unchecked.isEmpty, summary: summary, measures: measures,
+        return FeelResult(check: check, passed: found == 0 && unchecked.isEmpty && neverReady.isEmpty, summary: summary, measures: measures,
                           findings: findings, environment: environment)
     }
 
     /// The findings that are bugs found, not things the check could not judge, nor notes.
-    public var detections: [FeelFinding] { findings.filter { !$0.unchecked && !$0.note } }
+    public var detections: [FeelFinding] { findings.filter { !$0.unchecked && !$0.note && !$0.neverReady } }
 
     public var text: String {
         var lines = ["\(passed ? "PASS" : "FAIL") \(check): \(summary)"]
-        lines += findings.map { "  - \($0.what)\($0.inferred ? " (inference)" : "")\($0.unchecked ? " (not checked)" : "")\($0.note ? " (note)" : "")" }
+        lines += findings.map { "  - \($0.what)\($0.inferred ? " (inference)" : "")\($0.unchecked ? " (not checked)" : "")\($0.note ? " (note)" : "")\($0.neverReady ? " (never ready)" : "")" }
         if !measures.isEmpty {
             lines.append("  measured: " + measures.keys.sorted().map { "\($0)=\(Self.number(measures[$0]!))" }.joined(separator: ", "))
         }

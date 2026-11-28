@@ -14,6 +14,15 @@ public struct FeelIdleSample: Codable, Equatable, Sendable {
     }
 }
 
+extension FeelIdleSample {
+    /// Only what the app draws in its window: an element that does not show in `window` (a web view's content past
+    /// the edge, a pager's next page) is dropped, so it can come and go unseen. With no window (`.zero`), all stay.
+    public func shown(in window: CGRect) -> FeelIdleSample {
+        guard window.width > 0, window.height > 0 else { return self }
+        return FeelIdleSample(at: at, elements: elements.filter { FeelCover.visible($0.value, in: window) }, statusBar: statusBar)
+    }
+}
+
 /// Still while idle, part of the flicker genre: with no input, nothing on screen changes. No control or piece of
 /// chrome appears, goes or moves, and the status bar neither shows nor hides. From Gatefold's reader on the open
 /// iPhone Duo (Ari, 2026-11-15), whose close button and status bar took turns several times a second with no touch, as
@@ -22,6 +31,9 @@ public struct FeelIdleSample: Codable, Equatable, Sendable {
 public enum FeelIdle {
     /// Movement of half a point or less is rounding, not a move.
     public static let tolerance: CGFloat = 0.5
+
+    /// The name a control with no identifier and no label gets in a report: its kind, so it can be told apart.
+    public static func unnamed(_ kind: String) -> String { "a \(kind) with no name" }
 
     /// The looks `check` needs to judge a screen.
     public static let leastLooks = 3

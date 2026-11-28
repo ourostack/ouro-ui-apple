@@ -108,3 +108,51 @@ private final class FakeClock {
         #expect(clock.t < 3.2)
     }
 }
+
+/// Gatefold #639's run 46078753578 (duo-feel-closed, testClosedScroll): still while idle failed on a control with no
+/// name that appeared once in 9.4 s, with no pixel change in the run's screen recording. Idle judges only what the app
+/// draws in its window, and names a nameless control by its kind.
+@Suite struct IdleShownTests {
+    private let window = CGRect(x: 0, y: 0, width: 466, height: 678)
+
+    @Test func aControlPastTheWindowsEdgeThatComesAndGoesIsNotAChange() {
+        // A web view's content past the window's edge, or a pager's next page: in the app, but not drawn.
+        let past = CGRect(x: 0, y: 900, width: 200, height: 20)
+        let samples = (0..<10).map { i in
+            FeelIdleSample(at: Double(i), elements: i < 5 ? ["reader.page": window] : ["reader.page": window, "a link with no name": past],
+                           statusBar: false).shown(in: window)
+        }
+        let result = FeelIdle.check(samples, pose: "closed, scroll")
+        #expect(result.passed, "\(result.text)")
+    }
+
+    @Test func aControlInTheWindowThatComesAndGoesStillFails() {
+        let inside = CGRect(x: 20, y: 300, width: 200, height: 20)
+        let samples = (0..<10).map { i in
+            FeelIdleSample(at: Double(i), elements: i < 5 ? ["reader.page": window] : ["reader.page": window, "a link with no name": inside],
+                           statusBar: false).shown(in: window)
+        }
+        let result = FeelIdle.check(samples, pose: "closed, scroll")
+        #expect(!result.passed)
+        #expect(result.detections.first?.what.contains("\"a link with no name\" appeared or went 1 times") == true, "\(result.text)")
+    }
+
+    @Test func aWatchedElementThatSlidesOutOfTheWindowIsAChange() {
+        let samples = (0..<6).map { i in
+            FeelIdleSample(at: Double(i), elements: ["reader.head": i < 3 ? CGRect(x: 0, y: 10, width: 466, height: 20)
+                                                                          : CGRect(x: 0, y: -40, width: 466, height: 20)],
+                           statusBar: false).shown(in: window)
+        }
+        #expect(!FeelIdle.check(samples, pose: "closed").passed)
+    }
+
+    @Test func noWindowKeepsEverything() {
+        let sample = FeelIdleSample(at: 0, elements: ["x": CGRect(x: 0, y: 900, width: 10, height: 10)], statusBar: nil)
+        #expect(sample.shown(in: .zero).elements.count == 1)
+    }
+
+    @Test func aNamelessControlIsNamedByItsKind() {
+        #expect(FeelIdle.unnamed("link") == "a link with no name")
+        #expect(FeelIdle.unnamed("button") == "a button with no name")
+    }
+}

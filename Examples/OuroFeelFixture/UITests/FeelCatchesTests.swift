@@ -584,7 +584,7 @@ final class FeelCatchesTests: XCTestCase {
     }
 
     /// Content readiness (gatefold run 46076998864): a check waits for what it measures instead of scoring an empty
-    /// page. The fixed page's words and ready signal arrive 15 s after launch, and the covered-content check waits for
+    /// page. The fixed page's words and ready signal arrive 15 s after the page appears, and the covered-content check waits for
     /// them and passes. The bug page's never arrive, and the check fails as "never became ready", with no bug found.
     /// Each build runs with the app's ready signal and without it, when the check waits on its own content alone.
     func testACheckWaitsForContentAndSaysWhenItNeverComes() {

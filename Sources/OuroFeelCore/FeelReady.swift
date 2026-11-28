@@ -35,8 +35,8 @@ public struct FeelReadiness: Equatable, Sendable {
 
 /// Content readiness: a check that measures what you read waits for it first, so it never scores an empty page.
 ///
-/// In gatefold run 46076998864 (duo-feel-closed, on a loaded runner), covered content found no text in the reader's
-/// page and failed without measuring anything, though the reader's own ready probe had passed before the checks ran.
+/// In gatefold run 46076998864 (duo-feel-closed, on a loaded runner), covered content failed after the reader's own
+/// ready probe had passed. Its log withholds the check's text; it was reported as finding no content on screen.
 /// The wait is on a signal, never a sleep: the content the check itself measures, and the app's own signal when it
 /// gives one. A page that never becomes ready within the timeout fails as "never became ready", which is neither a bug
 /// found nor a "could not check".

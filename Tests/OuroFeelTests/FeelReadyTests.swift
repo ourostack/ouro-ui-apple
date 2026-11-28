@@ -10,8 +10,8 @@ private final class FakeClock {
     init(lookTakes: Double = 0) { self.lookTakes = lookTakes }
 }
 
-/// Gatefold run 46076998864 (duo-feel-closed, a loaded runner): covered content found no text in the reader's page and
-/// failed without measuring. A check waits for the content it measures first, and says the page never became ready
+/// Gatefold run 46076998864 (duo-feel-closed, a loaded runner): covered content was reported as finding no content in
+/// the reader's page, and failed without measuring. A check waits for the content it measures first, and says the page never became ready
 /// rather than scoring an empty one.
 @Suite struct ReadyTests {
     @Test func aPageWhoseWordsArriveLateIsWaitedFor() {
@@ -117,5 +117,47 @@ private final class FakeClock {
         let window = CGRect(x: 0, y: 0, width: 400, height: 800)
         #expect(FeelCover.visible(CGRect(x: 20, y: 100, width: 300, height: 20), in: window))
         #expect(!FeelCover.visible(CGRect(x: 420, y: 100, width: 300, height: 20), in: window))
+    }
+}
+
+@Suite struct ReadyCostTests {
+    @Test func aPoseWithNoTimeLeftStillGetsOneLook() {
+        // The poses of one call share one deadline; a later pose that finds it passed looks once and does not pause.
+        let clock = FakeClock()
+        var pauses = 0
+        let late = FeelReady.wait(timeout: 0, every: 0.25, now: { clock.now }, look: { FeelReadyLook(content: 0) },
+                                  pause: { pauses += 1; clock.now += $0 })
+        #expect(!late.ready)
+        #expect(late.looks == 1)
+        #expect(pauses == 0)
+        let ready = FeelReady.wait(timeout: 0, every: 0.25, now: { clock.now }, look: { FeelReadyLook(content: 2) },
+                                   pause: { clock.now += $0 })
+        #expect(ready.ready)
+    }
+
+    @Test func theLookThatFoundTheScreenReadyIsTheIdleWatchsFirst() {
+        // Gatefold times one look with stillWhileIdle(for: 0.001, every: 0): the ready look must not add another.
+        let clock = FakeClock(lookTakes: 8)
+        var looks = 0
+        let first = FeelIdleSample(at: 5, elements: ["head": CGRect(x: 0, y: 0, width: 10, height: 10)], statusBar: true)
+        clock.now = 8 // the ready look began at 0 and took 8 s
+        let samples = FeelIdle.watch(for: 0.001, every: 0, now: { clock.now }, first: (first, 0),
+                                     look: { at in looks += 1; clock.now += clock.lookTakes
+                                         return FeelIdleSample(at: at, elements: [:], statusBar: true) },
+                                     pause: { clock.now += $0 })
+        #expect(looks == 0)
+        #expect(samples.count == 1)
+        #expect(samples[0].at == 0)
+        #expect(samples[0].elements == first.elements)
+    }
+
+    @Test func aWatchFromAFirstLookStillTakesItsLeastLooks() {
+        let clock = FakeClock()
+        let first = FeelIdleSample(at: 0, elements: [:], statusBar: nil)
+        let samples = FeelIdle.watch(for: 1, every: 0.25, now: { clock.now }, first: (first, 0),
+                                     look: { at in FeelIdleSample(at: at, elements: [:], statusBar: nil) },
+                                     pause: { clock.now += $0 })
+        #expect(samples.count >= FeelIdle.leastLooks)
+        #expect(samples.first?.at == 0)
     }
 }

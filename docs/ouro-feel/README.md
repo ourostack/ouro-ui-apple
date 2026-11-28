@@ -990,9 +990,10 @@ the screen, the same read it then scores, before each pose, and all the poses of
 
 - Covered content (`uncovered(by:within:)`) waits for a text or image with words inside the window, inside `within:`
   when given, or for the content elements you named.
-- Viewport holds still waits for content inside a scrolling viewport; chrome floats over content waits for the
-  content's viewport to be on screen, with content in the window.
-- Still while idle waits for something to sample.
+- Viewport holds still waits for anything its walk reads on screen: texts, images or enabled controls. Chrome floats
+  over content waits for the content's viewport to be on screen, with content in the window.
+- Still while idle waits for something to sample, and the look that finds it is the watch's first.
+
 - The place checks (`place(across:)`, `placeHeld`, `placeFights`) wait for `read` to return something.
 
 The checks not listed here, such as inside the window and the screen film, don't wait yet. Give the app's own signal too, and
@@ -1011,13 +1012,16 @@ came (and why, when the walk can tell: the snapshot failed, or the element named
 nothing in the window) or the app never signalled, and how long it waited. The finding is marked `(never ready)`: it is
 not a bug found (`result.detections` leaves it out), and it is not a "could not check" either, because the screen itself
 never got there. Look at the app's launch or the runner's load before the check. A call that times one look, such as
-`stillWhileIdle(for: 0.001, every: 0)`, includes that wait and one read of the signal once `ready` is set.
+`stillWhileIdle(for: 0.001, every: 0)`, still takes one look when the screen is there; once `ready` is set, that time
+also includes one read of the signal.
 
 Gatefold's reader met this in [gatefold run 46076998864](https://github.com/ourostack/gatefold/actions/runs/46076998864)
 (attempt 1, job duo-feel-closed). `testClosedPaged` started at 23:24:14 and its first Feel line came at 23:25:34, after
-the reader's own ready probe had passed. One look took 0.8 s, and at 23:25:46 covered content found no text in
-`reader.page` and failed without measuring. That the page's words were not yet in the snapshot is inference; the log
-shows only the empty read. Only iOS is proved on the fixture; macOS is unverified.
+the reader's own ready probe had passed (`settled()` fails the test otherwise). One look took 0.8 s, and at 23:25:46
+covered content failed. The log withholds the check's own text, so that it found no text in `reader.page` is
+unverified here (it was reported to us as "no content was on screen"), and that the page's words were not yet in the
+snapshot is inference.
+Only iOS is proved on the fixture; macOS is unverified.
 
 ## Proof
 

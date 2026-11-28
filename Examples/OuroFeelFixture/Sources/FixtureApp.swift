@@ -1508,9 +1508,9 @@ struct TurnFilmPage: View {
     }
 }
 
-/// Content readiness (gatefold run 46076998864, where covered content found no text in a book's page on a loaded
-/// runner). Fixed: the page's words and its ready signal arrive `-lateBy` seconds after launch (8 by default), as a slow
-/// first page does. The bug: they never arrive.
+/// Content readiness (gatefold run 46076998864, where covered content was reported as finding no content in a book's
+/// page on a loaded runner). Fixed: the page's words and its ready signal arrive `-lateBy` seconds after the page appears (8 by default), as
+/// a slow first page does. The bug: they never arrive.
 struct LatePage: View {
     @State private var shown = false
     private var lateBy: Double {

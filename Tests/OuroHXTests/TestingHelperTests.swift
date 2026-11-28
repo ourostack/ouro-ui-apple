@@ -1,5 +1,5 @@
 import Foundation
-import OuroDeviceHub
+@testable import OuroDeviceHub
 import OuroHX
 import OuroHXTesting
 import SwiftUI
@@ -52,6 +52,19 @@ private func scratch() throws -> URL {
         #expect(outcome.status == 1)
         #expect(outcome.tries == 3)
         #expect(calls == 3)
+    }
+
+    @Test func aCommandThatCannotStartIsNotTriedAgain() {
+        var calls = 0
+        let outcome = OuroDuoDriver.retrying(pause: { _ in }) { calls += 1; return -1 }
+        #expect(outcome.status == -1)
+        #expect(calls == 1)
+    }
+
+    @Test func itWaitsItsIntervalBetweenTries() {
+        var waited: [Double] = []
+        _ = OuroDuoDriver.retrying(tries: 3, every: 2, pause: { waited.append($0) }) { 1 }
+        #expect(waited == [2, 2])
     }
 
     @Test func aCaptureThatWorksAtOnceIsTriedOnce() {

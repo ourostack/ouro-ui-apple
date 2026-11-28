@@ -87,15 +87,16 @@ public enum OuroDuoDriver {
         return handled
     }
 
-    /// Runs `attempt` until it exits 0, at most `tries` times, with `pause` (a second by default) between tries.
-    /// screencapture on a CI runner exits 1 now and then, at a different shot each time (#295).
-    public static func retrying(tries: Int = 3, pause: (Double) -> Void = { Thread.sleep(forTimeInterval: $0) },
-                                _ attempt: () -> Int32) -> (status: Int32, tries: Int) {
+    /// Runs `attempt` until it exits 0, at most `tries` times, waiting `every` seconds (with `pause`) between tries.
+    /// A negative status (the command could not start) is not tried again. screencapture on a CI runner exits 1 now
+    /// and then, at a different shot each time (#295).
+    static func retrying(tries: Int = 3, every: Double = 1, pause: (Double) -> Void = { Thread.sleep(forTimeInterval: $0) },
+                         _ attempt: () -> Int32) -> (status: Int32, tries: Int) {
         var status: Int32 = 0
         for n in 1...max(1, tries) {
             status = attempt()
-            if status == 0 || n == max(1, tries) { return (status, n) }
-            pause(1)
+            if status <= 0 || n == max(1, tries) { return (status, n) }
+            pause(every)
         }
         return (status, max(1, tries))
     }
@@ -107,17 +108,24 @@ public enum OuroDuoDriver {
         let shots = directory.appendingPathComponent("shots")
         try? FileManager.default.createDirectory(at: shots, withIntermediateDirectories: true)
         var launchError: Error?
+        var said = ""
         let outcome = retrying {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             p.arguments = ["-x", shots.appendingPathComponent("\(safe).png").path]
+            // What screencapture says on failure (a lost screen-recording grant, a display it could not read) tells
+            // the kinds of failure apart.
+            let errors = Pipe()
+            p.standardError = errors
             do { try p.run() } catch { launchError = error; return -1 }
             p.waitUntilExit()
+            let text = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            said = text.split(whereSeparator: \.isNewline).last.map(String.init) ?? ""
             return p.terminationStatus
         }
         if outcome.status == 0 { return "ok" }
-        if outcome.status == -1, let launchError { return "failed: \(launchError.localizedDescription)" }
-        return "failed: screencapture exited \(outcome.status), \(outcome.tries) tries"
+        if let launchError { return "failed: \(launchError.localizedDescription)" }
+        return "failed: screencapture exited \(outcome.status), \(outcome.tries) tries" + (said.isEmpty ? "" : ": \(said)")
         #else
         return "unsupported: shots need the Mac"
         #endif

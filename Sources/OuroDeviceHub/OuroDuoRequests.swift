@@ -87,18 +87,37 @@ public enum OuroDuoDriver {
         return handled
     }
 
+    /// Runs `attempt` until it exits 0, at most `tries` times, with `pause` (a second by default) between tries.
+    /// screencapture on a CI runner exits 1 now and then, at a different shot each time (#295).
+    public static func retrying(tries: Int = 3, pause: (Double) -> Void = { Thread.sleep(forTimeInterval: $0) },
+                                _ attempt: () -> Int32) -> (status: Int32, tries: Int) {
+        var status: Int32 = 0
+        for n in 1...max(1, tries) {
+            status = attempt()
+            if status == 0 || n == max(1, tries) { return (status, n) }
+            pause(1)
+        }
+        return (status, max(1, tries))
+    }
+
     /// Saves the Mac's screenshot (every Duo display) as `shots/<name>.png` beside the requests.
     static func shot(_ name: String, in directory: URL) -> String {
         #if os(macOS)
         let safe = name.replacingOccurrences(of: "/", with: "-")
         let shots = directory.appendingPathComponent("shots")
         try? FileManager.default.createDirectory(at: shots, withIntermediateDirectories: true)
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        p.arguments = ["-x", shots.appendingPathComponent("\(safe).png").path]
-        do { try p.run() } catch { return "failed: \(error.localizedDescription)" }
-        p.waitUntilExit()
-        return p.terminationStatus == 0 ? "ok" : "failed: screencapture exited \(p.terminationStatus)"
+        var launchError: Error?
+        let outcome = retrying {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            p.arguments = ["-x", shots.appendingPathComponent("\(safe).png").path]
+            do { try p.run() } catch { launchError = error; return -1 }
+            p.waitUntilExit()
+            return p.terminationStatus
+        }
+        if outcome.status == 0 { return "ok" }
+        if outcome.status == -1, let launchError { return "failed: \(launchError.localizedDescription)" }
+        return "failed: screencapture exited \(outcome.status), \(outcome.tries) tries"
         #else
         return "unsupported: shots need the Mac"
         #endif

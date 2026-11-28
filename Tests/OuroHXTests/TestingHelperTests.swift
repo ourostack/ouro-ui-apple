@@ -36,6 +36,32 @@ private func scratch() throws -> URL {
     }
 }
 
+@Suite struct DuoShotRetryTests {
+    // screencapture on a CI runner exits 1 now and then, at a different shot each time (#295).
+    @Test func aCaptureThatFailsOnceIsTriedAgain() {
+        var calls = 0, pauses = 0
+        let outcome = OuroDuoDriver.retrying(pause: { _ in pauses += 1 }) { calls += 1; return calls < 2 ? 1 : 0 }
+        #expect(outcome.status == 0)
+        #expect(outcome.tries == 2)
+        #expect(pauses == 1)
+    }
+
+    @Test func aCaptureThatKeepsFailingGivesUpAfterItsTries() {
+        var calls = 0
+        let outcome = OuroDuoDriver.retrying(tries: 3, pause: { _ in }) { calls += 1; return 1 }
+        #expect(outcome.status == 1)
+        #expect(outcome.tries == 3)
+        #expect(calls == 3)
+    }
+
+    @Test func aCaptureThatWorksAtOnceIsTriedOnce() {
+        var pauses = 0
+        let outcome = OuroDuoDriver.retrying(pause: { _ in pauses += 1 }) { 0 }
+        #expect(outcome.tries == 1)
+        #expect(pauses == 0)
+    }
+}
+
 @Suite struct DuoRequestTests {
     @Test func requestsAreNumberedFilesAnsweredByDoneFiles() throws {
         let dir = try scratch()
